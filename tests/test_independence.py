@@ -81,6 +81,16 @@ def _ratified_target() -> dict[str, object]:
             "evidence_sha256": _hash("population-evidence"),
             "reviewer_session_id": "independent-reviewer-1",
         },
+        "forbidden_critical_failures": [
+            "accepted_invented_identifier",
+            "benchmark_leakage",
+            "identity_mismatch",
+            "prohibited_data_exposure",
+            "semantic_wrong_compile_clean_accepted",
+            "unauthorized_metis_write",
+            "unrelated_destructive_change",
+        ],
+        "require_zero_unlisted_critical_failures": True,
     }
 
 
@@ -171,6 +181,35 @@ def test_benchmark_root_in_w3_is_rejected() -> None:
     ]
     with pytest.raises(IndependenceError, match="benchmark roots"):
         audit_independence(rows)
+
+
+def test_shared_benchmark_root_unions_frozen_rows_and_counts_one_group() -> None:
+    benchmark_root = _hash("frozen-benchmark-asset")
+    rows = [
+        _task(
+            f"frozen-{index}",
+            roots=[_hash(f"unique-content-{index}")],
+            benchmark_roots=[benchmark_root],
+        )
+        for index in range(39)
+    ]
+    audit = audit_independence(rows)
+    assert audit["counts"]["in"] == 39
+    assert audit["counts"]["frozen_distinct_leakage_groups"] == 1
+    assert len(audit["components"]) == 1
+    assert benchmark_root in audit["components"][0]["roots"]
+
+
+def test_benchmark_root_changes_canonical_component_identity() -> None:
+    root = _hash("content")
+    without_benchmark = audit_independence([_task("task", roots=[root])])
+    with_benchmark = audit_independence(
+        [_task("task", roots=[root], benchmark_roots=[_hash("benchmark")])]
+    )
+    assert (
+        without_benchmark["components"][0]["leakage_group"]
+        != with_benchmark["components"][0]["leakage_group"]
+    )
 
 
 @pytest.mark.parametrize("bad", [["sha256:not-a-hash"], ["not-a-hash"]])
@@ -305,3 +344,14 @@ def test_audit_matches_independence_schema() -> None:
     schema_path = Path(__file__).parents[1] / "schemas" / "benchmark-independence.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator(schema).validate(audit)
+
+
+def test_frozen_evidence_roster_is_sorted_and_digest_bound() -> None:
+    rows = [_task("b", roots=[_hash("b")]), _task("a", roots=[_hash("a")])]
+    for row in rows:
+        _score(row)
+    audit = audit_independence(rows)
+    assert [row["task_id"] for row in audit["frozen_evidence"]] == ["a", "b"]
+    assert audit["frozen_evidence_sha256"] == (
+        "sha256:" + canonical_json_hash(audit["frozen_evidence"])
+    )

@@ -33,6 +33,29 @@ TARGET_WILSON_LOWER_MIN = 0.99
 TARGET_MINIMUM_GROUPS = 563
 TARGET_TOTAL = 600
 _SHA256_PREFIX = "sha256:"
+_REGISTERED_FORBIDDEN_CRITICAL_FAILURES = {
+    "accepted_invented_identifier",
+    "benchmark_leakage",
+    "identity_mismatch",
+    "prohibited_data_exposure",
+    "semantic_wrong_compile_clean_accepted",
+    "unauthorized_metis_write",
+    "unrelated_destructive_change",
+}
+_FROZEN_EVIDENCE_FIELDS = (
+    "task_id",
+    "family",
+    "success",
+    "critical_failures",
+    "end_to_end_success",
+    "all_applicable_oracles_pass",
+    "semantic_or_human_oracle_pass",
+    "patch_safety_pass",
+    "tool_failure",
+    "repair_cycles",
+    "oracle_result_sha256",
+    "semantic_result_sha256",
+)
 _HASH_FIELDS = {
     "normalized_ast_hash",
     "normalized_ir_hash",
@@ -276,7 +299,10 @@ def _components(tasks: Sequence[_Task]) -> list[dict[str, Any]]:
     keyed: dict[tuple[str, str], str] = {}
 
     for task in tasks:
-        for root in task.roots:
+        # Benchmark roots are semantic ancestry too.  In particular, a frozen
+        # row derived from the same benchmark asset must share its component
+        # even when its task-local content root is unique.
+        for root in (*task.roots, *task.benchmark_roots):
             key = ("ancestry", root)
             if key in keyed:
                 uf.union(task.task_id, keyed[key])
@@ -321,7 +347,7 @@ def _components(tasks: Sequence[_Task]) -> list[dict[str, Any]]:
             {
                 root
                 for task in members
-                for root in (*task.roots, *task.parents)
+                for root in (*task.roots, *task.benchmark_roots, *task.parents)
                 if root.startswith(_SHA256_PREFIX)
             }
         )
@@ -337,8 +363,13 @@ def _components(tasks: Sequence[_Task]) -> list[dict[str, Any]]:
                 "leakage_group": group_id,
                 "task_ids": task_ids,
                 "roots": roots,
+                "edges": edges,
                 "splits": sorted({task.split for task in members}),
                 "families": sorted({task.family for task in members}),
+                "task_families": {
+                    task_id: family
+                    for task_id, family in sorted((task.task_id, task.family) for task in members)
+                },
             }
         )
     return sorted(components, key=lambda component: component["leakage_group"])
@@ -415,6 +446,57 @@ def _semantic_evidence(records: Sequence[Mapping[str, Any]]) -> tuple[bool, int]
     return complete, contradictions
 
 
+def _frozen_evidence(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Return the canonical, immutable per-task frozen evidence roster.
+
+    An unscored audit remains valid as product evidence, but it cannot expose a
+    promotion roster.  In that case the roster is deliberately empty and its
+    digest still commits to that fact.  A complete roster is sorted by task ID
+    so input row order cannot change its identity.
+    """
+
+    required_record_fields = ("task_id", "family", "success", "critical_failures")
+    if any(
+        any(field not in record for field in required_record_fields)
+        or record.get("oracle_evidence") is None
+        for record in records
+    ):
+        return []
+
+    evidence_rows: list[dict[str, Any]] = []
+    for record in records:
+        evidence = record["oracle_evidence"]
+        if not isinstance(evidence, Mapping):
+            raise IndependenceError("oracle_evidence must be an object")
+        task_id = _nonempty_text(record["task_id"], "task_id")
+        family = _nonempty_text(record["family"], "family")
+        success = record["success"]
+        critical_failures = record["critical_failures"]
+        if family not in FAMILIES:
+            raise IndependenceError(f"unknown family: {family}")
+        if type(success) is not bool:
+            raise IndependenceError("frozen success evidence must use strict booleans")
+        if not isinstance(critical_failures, list):
+            raise IndependenceError("critical_failures must be a list of non-empty strings")
+        evidence_rows.append(
+            {
+                "task_id": task_id,
+                "family": family,
+                "success": success,
+                "critical_failures": list(critical_failures),
+                "end_to_end_success": evidence["end_to_end_success"],
+                "all_applicable_oracles_pass": evidence["all_applicable_oracles_pass"],
+                "semantic_or_human_oracle_pass": evidence["semantic_or_human_oracle_pass"],
+                "patch_safety_pass": evidence["patch_safety_pass"],
+                "tool_failure": evidence["tool_failure"],
+                "repair_cycles": evidence["repair_cycles"],
+                "oracle_result_sha256": evidence["oracle_result_sha256"],
+                "semantic_result_sha256": evidence["semantic_result_sha256"],
+            }
+        )
+    return sorted(evidence_rows, key=lambda row: row["task_id"])
+
+
 def _bind_target_contract(contract: Mapping[str, Any] | None) -> tuple[bool, str | None]:
     if contract is None:
         return False, None
@@ -422,6 +504,8 @@ def _bind_target_contract(contract: Mapping[str, Any] | None) -> tuple[bool, str
         normalized = normalize_json(contract)
     except NonJsonValueError as error:
         raise IndependenceError("target contract is not canonical JSON") from error
+    if not isinstance(normalized, Mapping):
+        raise IndependenceError("target contract must be an object")
     exact = {
         "target_id": TARGET_ID,
         "status": "ratified",
@@ -444,6 +528,19 @@ def _bind_target_contract(contract: Mapping[str, Any] | None) -> tuple[bool, str
         raise IndependenceError("target contract lacks a verified population attestation")
     _sha256(population.get("evidence_sha256"), "population_attestation.evidence_sha256")
     _nonempty_text(population.get("reviewer_session_id"), "population reviewer session")
+    forbidden = normalized.get("forbidden_critical_failures")
+    if (
+        not isinstance(forbidden, list)
+        or len(forbidden) != len(_REGISTERED_FORBIDDEN_CRITICAL_FAILURES)
+        or any(type(item) is not str or not item.strip() for item in forbidden)
+        or len(set(forbidden)) != len(forbidden)
+        or set(forbidden) != _REGISTERED_FORBIDDEN_CRITICAL_FAILURES
+    ):
+        raise IndependenceError(
+            "target contract forbidden critical-failure roster is not registered"
+        )
+    if normalized.get("require_zero_unlisted_critical_failures") is not True:
+        raise IndependenceError("target contract must require zero unlisted critical failures")
     return True, _SHA256_PREFIX + canonical_json_hash(normalized)
 
 
@@ -464,30 +561,17 @@ def audit_independence(
     tasks = _task_records(rows)
     components = _components(tasks)
     by_id = {task.task_id: task for task in tasks}
+    benchmark_violations = sorted(
+        task.task_id for task in tasks if task.split != "frozen" and task.benchmark_roots
+    )
+    if benchmark_violations:
+        raise IndependenceError("benchmark roots in W3: " + ",".join(benchmark_violations))
+
     cross_split = [
         component["leakage_group"] for component in components if len(component["splits"]) > 1
     ]
     if cross_split:
         raise IndependenceError("transitive split crossing: " + ",".join(sorted(cross_split)))
-
-    frozen_roots = {
-        root
-        for task in tasks
-        if task.split == "frozen"
-        for root in (*task.roots, *task.benchmark_roots)
-    }
-    benchmark_violations = sorted(
-        task.task_id
-        for task in tasks
-        if task.split != "frozen"
-        and (
-            task.benchmark_roots
-            or set(task.roots) & frozen_roots
-            or set(task.parents) & frozen_roots
-        )
-    )
-    if benchmark_violations:
-        raise IndependenceError("benchmark roots in W3: " + ",".join(benchmark_violations))
 
     frozen_rows = [row for row in rows if row.get("split") == "frozen"]
     score = _score(frozen_rows)
@@ -502,6 +586,8 @@ def audit_independence(
     family_counts_match = frozen_family_counts == TARGET_FAMILY_COUNTS
     critical_complete, critical_count = _critical_evidence(frozen_rows)
     semantic_complete, semantic_contradictions = _semantic_evidence(frozen_rows)
+    frozen_evidence = _frozen_evidence(frozen_rows)
+    frozen_evidence_sha256 = _SHA256_PREFIX + canonical_json_hash(frozen_evidence)
     score_pass = False
     wilson_lower = None
     if score is not None:
@@ -573,6 +659,8 @@ def audit_independence(
         "counts_by_family": counts_by_family,
         "cross_split_violations": [],
         "benchmark_root_violations": [],
+        "frozen_evidence": frozen_evidence,
+        "frozen_evidence_sha256": frozen_evidence_sha256,
         "observed": {
             "successes": score[0] if score else None,
             "total": score[1] if score else None,

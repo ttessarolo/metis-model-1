@@ -128,11 +128,64 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 - FACT — This green repository gate publishes reproducible project code and
   qualification evidence only. W5 remains blocked and no semantic-accuracy or
   99% result exists yet.
+- DONE — K7 second-frontier review returned through the ratified Kimi wrapper
+  as `kimi-code/k3`, activity `metis-model1-w1-w3-closure`, label
+  `sourceability-adversarial`. Its three-unit roster attacks honest 563-group
+  sourceability, the real 30-task W1/A-B path and the W3-to-W5 execution seam;
+  `in=3 out=3 distinct=3 gaps=0`. Report SHA-256 is
+  `8e7ab7d633d387ddbea195a6fb6c5bb68b059d1228e848feae472ee7fe3ec0f8`;
+  provider session is `session_cff527a9-28c7-4839-bbdc-058aa3efb9b1`.
+- FACT — K7 independently re-derived `199` tracked Metis files, `197` in the
+  tenant, two non-tenant sources, one distinct author and at most two defensible
+  ancestry roots. Current material cannot construct 563 groups: the defensible
+  deficit is at least `561`, not a quantity cosmetic generation can close.
+- FACT — K7 closed its enumerations with `tasks 30/30`, oracle classes `13/13`,
+  families `6/6`, build steps `10/10` and missing W3 units `13/13`. Of the 13
+  oracle classes, four are implemented, three are evidence-only and six lack
+  executors; at least eight allocated sources need a non-endpoint oracle mode.
+- OPEN — K7's first-pass project status invariant is intentionally unavailable
+  because L8/L9 hardening began after its preflight. K7 caught the concurrent
+  red focused test and correctly refused to bless a moving tree. L0 must first
+  publish the accepted hardening SHA, then resume the same Kimi session against
+  that clean commit. The read-only Metis invariant remained exact.
+- FIX — L8 closes the false-promotion paths by unioning shared benchmark roots,
+  requiring non-empty content roots, serializing and hashing frozen per-task
+  evidence, recomputing family counts, critical failures, Wilson bounds and
+  verdicts, and binding every TaskResult to its family, success, leakage group
+  and Oracle predicates/hashes. The registered target-contract anchor remains
+  fail-closed while unset; a self-declared contract cannot promote.
+- FIX — L9 executes each Oracle from an isolated archive of the pinned Metis
+  revision with copied and rehashed Node, runner and node_modules. The child
+  environment is replaced with a sterile allowlist, and mandatory macOS
+  `sandbox-exec` applies a registered global `deny file-write*` policy plus a
+  denied-write canary. Existing untracked or ignored Metis bytes are therefore
+  outside both the execution snapshot and the write boundary.
+- DONE — L10's final frontier replay accepts L8/L9 with `P0=0`, `P1=0` and one
+  non-blocking test-coverage advisory. It reproduced the prior aggregate,
+  family, rootless, runtime-identity, hostile-environment and no-write attacks;
+  the focused integrated suites are `in=81 out=81 distinct=81 gaps=0`. The
+  accepted runner SHA-256 is
+  `8278504a71c2d609aa441a0e81537c92de28d329453a6a99bba2b43afc0aefe0`.
+- DONE — L0 reran the complete integrated repository gate after the accepted
+  fixes: foundation `in=21 out=21 distinct=21 gaps=0`, Python tests
+  `in=193 out=193 distinct=193 gaps=0`, with Ruff and format checks green.
+  `validate-pilot` remained intentionally fail-closed on the five W5 evidence
+  blockers rather than converting technical qualification into an accuracy
+  claim.
+- FACT — The current executable W5 assessment is contract-valid but blocked on
+  five exact items: leakage groups `1/563`, unsealed task-specific oracles,
+  synthetic-only W3, O-003 and missing A/B baseline. Real semantic accuracy is
+  therefore unmeasured.
+- FACT — The local MLX path is technically qualified on Apple M3 Max / 128 GB:
+  the pinned Qwen3.8-27B 4-bit checkpoint and full-state adapter replay are
+  present outside Git, `486 GiB` is currently free, and ignored artifacts use
+  `32 GiB`. The only materialized examples are `17` qualification fixtures;
+  they are synthetic runtime probes, not an accepted semantic training corpus.
 
 ## Open
 
-- OPEN — Close the independent adversarial audits for the oracle runner and
-  content-derived independence graph; integrate only after P0/P1 are zero.
+- OPEN — Publish the accepted L8/L9 integration SHA and complete K7's resumed
+  clean-commit invariant recheck.
 - OPEN — Benchmark v1, real W3 dataset, A/B baseline, O-003 and W5.
 - OPEN — Final semantic accuracy and promotion verdict.
 

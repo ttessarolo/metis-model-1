@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -9,10 +10,12 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+import metis_model1.oracles as oracle_module
 from metis_model1.oracles import (
     ARTIFACT_ROOT,
     OracleError,
     run_oracle,
+    verify_oracle_envelope,
 )
 
 METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
@@ -181,3 +184,79 @@ def test_multi_file_workspace_resolves_candidate_dependency(artifact_tmp: Path) 
     )
     assert envelope["result"]["status"] == "ok"
     assert envelope["result"]["diagnostics"]["link"] == []
+
+
+def test_isolated_node_modules_mutation_between_validation_and_execution_is_rejected(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = oracle_module._build_isolated_snapshot
+
+    def attacked(*args: object, **kwargs: object) -> object:
+        holder, snapshot, modules, snapshot_runner, snapshot_node = original(*args, **kwargs)
+        target = modules / "langium/package.json"
+        target.write_text("{}\n", encoding="utf-8")
+        return holder, snapshot, modules, snapshot_runner, snapshot_node
+
+    monkeypatch.setattr(oracle_module, "_build_isolated_snapshot", attacked)
+    with pytest.raises(OracleError, match="changed before execution"):
+        execute(artifact_tmp)
+
+
+def test_forged_runtime_path_is_rejected_even_with_rehashed_envelope(artifact_tmp: Path) -> None:
+    envelope = execute(artifact_tmp)
+    envelope["result"]["runtime"]["tsx_path"] = "snapshot://forged/tsx"
+    envelope["evidence"]["runtime_identity"]["tsx_path"] = "snapshot://forged/tsx"
+    envelope["evidence"]["runtime_sha256"] = oracle_module._sha(
+        envelope["evidence"]["runtime_identity"]
+    )
+    envelope["evidence"].pop("envelope_sha256")
+    envelope["evidence"]["envelope_sha256"] = oracle_module._sha(envelope)
+    with pytest.raises(OracleError, match="runtime identity"):
+        verify_oracle_envelope(envelope)
+
+
+def test_runner_mutation_after_snapshot_build_is_rejected(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = oracle_module._build_isolated_snapshot
+
+    def attacked(*args: object, **kwargs: object) -> object:
+        holder, snapshot, modules, snapshot_runner, snapshot_node = original(*args, **kwargs)
+        snapshot_runner.write_text("process.stdout.write('{}')\n", encoding="utf-8")
+        return holder, snapshot, modules, snapshot_runner, snapshot_node
+
+    monkeypatch.setattr(oracle_module, "_build_isolated_snapshot", attacked)
+    with pytest.raises(OracleError, match="isolated runner changed before execution"):
+        execute(artifact_tmp)
+
+
+def test_sandbox_policy_denies_write_canary() -> None:
+    oracle_module._assert_sandbox_policy()
+
+
+def test_hostile_node_options_are_not_inherited(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NODE_OPTIONS", "--require=/definitely/missing/preload.js")
+    envelope = execute(artifact_tmp)
+    assert envelope["result"]["status"] == "ok"
+    assert envelope["evidence"]["runtime_identity"]["node_binary_sha256"] == (
+        "sha256:" + oracle_module.PINNED_NODE_BINARY_SHA256
+    )
+
+
+def test_metis_checkout_status_is_unchanged_after_isolated_execution(artifact_tmp: Path) -> None:
+    before = subprocess.run(
+        ["git", "-C", str(METIS_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    execute(artifact_tmp)
+    after = subprocess.run(
+        ["git", "-C", str(METIS_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert after == before
