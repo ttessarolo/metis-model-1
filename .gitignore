@@ -1,0 +1,12 @@
+.DS_Store
+.venv/
+__pycache__/
+
+# Local training payloads and large artifacts must stay outside Git.
+/artifacts/
+/checkpoints/
+/datasets/materialized/
+/models/
+/runs/raw/
+*.gguf
+*.safetensors
