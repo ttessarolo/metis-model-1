@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/oracle-result.schema.json",
+  "title": "Metis Model 1 external oracle evidence envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "result", "evidence"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "result": { "$ref": "#/$defs/result" },
+    "evidence": { "$ref": "#/$defs/evidence" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "diagnostic": { "type": "object", "additionalProperties": false, "required": ["filename", "message", "severity", "code", "range"], "properties": { "filename": { "type": "string", "pattern": "^[^/].*\\.metis$" }, "message": { "type": "string" }, "severity": { "type": ["integer", "null"] }, "code": { "type": ["string", "integer", "null"] }, "range": {} } },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "endpoint", "diagnostics", "ast", "ir", "toolchain", "runtime", "failure"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "status": { "enum": ["ok", "invalid"] },
+        "endpoint": { "type": "object", "additionalProperties": false, "required": ["name", "count"], "properties": { "name": { "type": ["string", "null"] }, "count": { "type": "integer", "minimum": 0 } } },
+        "diagnostics": { "type": "object", "additionalProperties": false, "required": ["parser", "link", "validation", "all"], "properties": { "parser": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }, "link": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }, "validation": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }, "all": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } } } },
+        "ast": { "type": "object", "additionalProperties": false, "required": ["inventory", "signature"], "properties": { "inventory": { "type": ["object", "array"] }, "signature": { "$ref": "#/$defs/hash" } } },
+        "ir": { "type": "object", "additionalProperties": false, "required": ["value", "signature"], "properties": { "value": { "type": ["object", "array", "null"] }, "signature": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" } } },
+        "toolchain": { "type": "object", "additionalProperties": false, "required": ["revision", "tree", "language_version"], "properties": { "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "language_version": { "const": "0.43" } } },
+        "runtime": { "type": "object", "additionalProperties": false, "required": ["node", "node_path", "runner_path"], "properties": { "node": { "const": "v22.22.3" }, "node_path": { "type": "string", "minLength": 1 }, "runner_path": { "type": "string", "minLength": 1 } } },
+        "failure": { "type": ["object", "null"], "additionalProperties": false, "required": ["kind", "message"], "properties": { "kind": { "type": "string" }, "message": { "type": "string" } } }
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["input_sha256", "diagnostics_sha256", "ast_sha256", "ir_sha256", "toolchain_revision", "toolchain_tree", "runtime_sha256", "runtime_identity", "runner_sha256", "tooling_package_sha256", "tooling_lock_sha256", "node_modules_sha256", "metis_status_sha256", "metis_status", "envelope_sha256"],
+      "properties": {
+        "input_sha256": { "$ref": "#/$defs/hash" }, "diagnostics_sha256": { "$ref": "#/$defs/hash" }, "ast_sha256": { "$ref": "#/$defs/hash" }, "ir_sha256": { "type": ["string", "null"], "pattern": "^(sha256:[0-9a-f]{64})?$" }, "toolchain_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "toolchain_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "runtime_sha256": { "$ref": "#/$defs/hash" }, "runtime_identity": { "type": "object", "additionalProperties": false, "required": ["node", "node_path", "tsx_path", "runner_path"], "properties": { "node": { "const": "v22.22.3" }, "node_path": { "type": "string", "minLength": 1 }, "tsx_path": { "type": "string", "minLength": 1 }, "runner_path": { "type": "string", "minLength": 1 } } }, "runner_sha256": { "$ref": "#/$defs/hash" }, "tooling_package_sha256": { "$ref": "#/$defs/hash" }, "tooling_lock_sha256": { "$ref": "#/$defs/hash" }, "node_modules_sha256": { "$ref": "#/$defs/hash" }, "metis_status_sha256": { "$ref": "#/$defs/hash" }, "metis_status": { "type": "string" }, "envelope_sha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

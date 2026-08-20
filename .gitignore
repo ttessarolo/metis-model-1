@@ -1,6 +1,14 @@
 .DS_Store
 .venv/
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+.env
+.env.*
 
 # Local training payloads and large artifacts must stay outside Git.
 /artifacts/
@@ -8,5 +16,7 @@ __pycache__/
 /datasets/materialized/
 /models/
 /runs/raw/
+/qualification/.venv/
+/qualification/reports/raw/
 *.gguf
 *.safetensors

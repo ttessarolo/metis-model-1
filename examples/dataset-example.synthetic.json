@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "example_id": "sha256:3bddf8baa77cef94e00ee12fbeb58d08adfedc388c7f37b81dba66504b046442",
+  "task_family": "F-1",
+  "input": {
+    "request": "Write a minimal synthetic property named weather"
+  },
+  "output": {
+    "assistant_content": "property weather { value: \"sunny\" }",
+    "source": "property weather { value: \"sunny\" }"
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "Metis Model 1 synthetic contract fixture."
+    },
+    {
+      "role": "user",
+      "content": "Write a minimal synthetic property named weather."
+    },
+    {
+      "role": "assistant",
+      "content": "property weather { value: \"sunny\" }"
+    }
+  ],
+  "metis": {
+    "source_revision": "0000000000000000000000000000000000000000",
+    "language_version": "0.43",
+    "paths": ["synthetic/weather.metis"]
+  },
+  "provenance": {
+    "parents": ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "generator": "synthetic-fixture",
+    "generator_version": "1",
+    "leakage_group": "synthetic/weather"
+  },
+  "sensitivity": "public",
+  "split": "train",
+  "positive": true,
+  "status": "accepted",
+  "oracles": [
+    {
+      "name": "parse",
+      "applicable": true,
+      "result": "pass",
+      "evidence_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "name": "link",
+      "applicable": true,
+      "result": "pass",
+      "evidence_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "name": "validate",
+      "applicable": true,
+      "result": "pass",
+      "evidence_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    {
+      "name": "compile",
+      "applicable": true,
+      "result": "pass",
+      "evidence_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    {
+      "name": "semantic",
+      "applicable": true,
+      "result": "pass",
+      "evidence_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ]
+}

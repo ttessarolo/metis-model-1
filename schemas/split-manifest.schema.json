@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/split-manifest.schema.json",
+  "title": "Metis Model 1 leakage-aware split manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "split_manifest_id", "assignment", "splits"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "split_manifest_id": { "$ref": "#/$defs/sha256" },
+    "assignment": { "const": "leakage_group" },
+    "splits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["train", "dev", "internal_test", "frozen"],
+      "properties": {
+        "train": { "$ref": "#/$defs/split" },
+        "dev": { "$ref": "#/$defs/split" },
+        "internal_test": { "$ref": "#/$defs/split" },
+        "frozen": { "$ref": "#/$defs/split" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "split": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["example_ids", "leakage_groups"],
+      "properties": {
+        "example_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sha256" },
+          "uniqueItems": true
+        },
+        "leakage_groups": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

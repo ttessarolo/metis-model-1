@@ -38,7 +38,8 @@ un micro-dataset non sensibile e non decide la semantica del benchmark.
 ### W1 — Benchmark
 
 - benchmark specification;
-- 250-400 task proposti;
+- 600 task preregistrati e almeno 563 gruppi genealogici distinti per il claim
+  di popolazione al 99%;
 - oracle registry;
 - held-out family map;
 - sealed checksum e access policy;
@@ -62,17 +63,21 @@ un micro-dataset non sensibile e non decide la semantica del benchmark.
 - JSONL serializer aderente alla versione MLX-VLM pin;
 - data/split manifest e data card v0.
 
-### W4 — Qualification
+### W4 — Bounded technical qualification (completed)
 
 - environment lock;
 - 600+ iteration report;
 - memory curve;
-- adapter save/reload/resume evidence;
-- smoke eval 30-50 task;
-- verdict `QUALIFIED|BLOCKED`.
+- adapter save/reload and full-state resume evidence;
+- technical verdict `TECHNICALLY_QUALIFIED|BLOCKED`.
+
+The 30-50-task Metis smoke evaluation is not part of O-004 runtime
+ratification. Together with a sealed W1 slice, it is a pre-W5 entry gate and
+remains open.
 
 ### W5 — Pilot
 
+- pre-entry: sealed W1 slice and 30-50-task Metis smoke evaluation;
 - sweep config e seed;
 - dev scorecard;
 - curve qualità/costo;
@@ -137,38 +142,35 @@ Gate superati ma artefatti non riproducibili?
   -> resta candidate; nessuna promotion
 ```
 
-## 6. Decisioni aperte
+## 6. Decisioni e stato
 
-Da ratificare prima della wave indicata:
+Stato corrente e deadline delle decisioni non ancora ratificate:
 
-| ID | Decisione | Deadline |
+| ID | Decisione | Stato / deadline |
 |---|---|---|
-| O-001 | linguaggio/versione Metis canonica per v1 | prima di W1 |
-| O-002 | famiglie held-out e criticità per famiglia | prima di sigillare W1 |
+| O-001 | linguaggio/versione Metis canonica per v1 | RATIFICATA: `0.43` |
+| O-002 | famiglie held-out e criticità per famiglia | RATIFICATA; slice ancora da sigillare |
 | O-003 | soglie numeriche finali e tolleranze statistiche | prima di W5 |
-| O-004 | versione `mlx`/`mlx-vlm` pin | durante W4, prima del run lungo |
-| O-005 | rank/alpha/LR/seed grid | prima di W5 |
-| O-006 | formato artifact store locale | prima dei checkpoint W5 |
+| O-004 | versione `mlx`/`mlx-vlm` pin | RATIFICATA: `0.32.1` / `0.6.15` |
+| O-005 | rank/alpha/LR/seed grid | RATIFICATA: 4 config, 700 step max |
+| O-006 | formato artifact store locale | RATIFICATA: local-only, atomico, cap 40 GiB |
 | O-007 | adapter unico multi-task o adapter separati | dopo il pilot W5 |
 | O-008 | interfaccia CLI/editor/agent | prima di W8 |
 | O-009 | policy di distribuzione oltre local-only | dopo W7, con review dedicata |
 | O-010 | soglia di drift che richiede un nuovo adapter | prima di W9 |
 
-## 7. Primo backlog eseguibile
+## 7. Backlog eseguibile corrente
 
-Ordine raccomandato dopo la ratifica di questo piano:
+Con W0 e il percorso tecnico W4 completati:
 
-1. creare schema di `source-manifest` e `benchmark-task`;
-2. estrarre census strutturale dal commit Metis pin;
-3. disegnare 30 task benchmark rappresentativi e verificarne gli oracle;
-4. definire leakage group e poi espandere il benchmark;
-5. creare ambiente MLX isolato e qualification fixture non sensibile;
-6. eseguire W4 senza attendere il dataset completo;
-7. implementare generatori author/edit/repair con oracle;
-8. produrre pilot dataset e contamination report;
-9. ratificare metriche/soglie alla luce della coverage, non dei risultati del
-   candidate;
-10. avviare W5.
+1. chiudere dependency graph, diritti e oracle delle 30 allocazioni W1;
+2. sigillare la slice soltanto dopo l'esecuzione degli oracle task-specifici;
+3. implementare i generatori W3 author/edit/repair con provenance immutabile;
+4. produrre pilot dataset e contamination report senza payload proprietari in
+   questo repository;
+5. ratificare O-003 dai denominatori frozen e dalla varianza delle baseline;
+   O-005/O-006 sono già ratificate e non bypassano i gate dati;
+6. autorizzare ed eseguire W5 soltanto dopo questi gate.
 
 ## 8. Aggiornamento continuo
 

@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/accuracy-target.schema.json",
+  "title": "Metis Model 1 accuracy target",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target_id",
+    "status",
+    "registered_before_candidate_results",
+    "decision_ref",
+    "variant",
+    "primary_metric",
+    "population",
+    "population_scope",
+    "total",
+    "family_counts",
+    "point_min",
+    "confidence",
+    "wilson_lower_min",
+    "maximum_failures",
+    "minimum_distinct_leakage_groups",
+    "family_confidence_policy",
+    "repair_budget",
+    "denominator_policy",
+    "success_requires",
+    "forbidden_critical_failures",
+    "require_zero_unlisted_critical_failures",
+    "claim_policy",
+    "non_claims",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "target_id": {
+      "const": "accuracy-99/end-to-end-v1"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "ratified"
+      ]
+    },
+    "registered_before_candidate_results": {
+      "const": true
+    },
+    "decision_ref": {
+      "const": "O-003"
+    },
+    "variant": {
+      "const": "D"
+    },
+    "primary_metric": {
+      "const": "end_to_end_semantic_success_within_repair_budget"
+    },
+    "population": {
+      "const": "frozen_benchmark_v1"
+    },
+    "population_scope": {
+      "const": "metis_0.43_declared_tasks_no_cross_tenant_extrapolation_without_held_out_tenant_evidence"
+    },
+    "total": {
+      "const": 600
+    },
+    "family_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-6"
+      ],
+      "properties": {
+        "F-1": {
+          "const": 100
+        },
+        "F-2": {
+          "const": 110
+        },
+        "F-3": {
+          "const": 110
+        },
+        "F-4": {
+          "const": 110
+        },
+        "F-5": {
+          "const": 90
+        },
+        "F-6": {
+          "const": 80
+        }
+      }
+    },
+    "point_min": {
+      "const": 0.99
+    },
+    "confidence": {
+      "const": 0.95
+    },
+    "wilson_lower_min": {
+      "const": 0.99
+    },
+    "maximum_failures": {
+      "const": 1
+    },
+    "minimum_distinct_leakage_groups": {
+      "const": 563
+    },
+    "family_confidence_policy": {
+      "const": "report_wilson95_no_per_family_99_claim_at_current_denominators"
+    },
+    "repair_budget": {
+      "const": 2
+    },
+    "denominator_policy": {
+      "const": "all_frozen_tasks_no_survivor_or_conditional_denominator"
+    },
+    "success_requires": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "forbidden_critical_failures": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]+$"
+      }
+    },
+    "require_zero_unlisted_critical_failures": {
+      "const": true
+    },
+    "claim_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_target",
+        "population_claim",
+        "correlated_groups",
+        "benchmark_defects"
+      ],
+      "properties": {
+        "observed_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "population_claim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlated_groups": {
+          "type": "string",
+          "minLength": 1
+        },
+        "benchmark_defects": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "non_claims": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

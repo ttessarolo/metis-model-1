@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "manifest_id": "foundation-2026-08-20",
+  "state": "ratified",
+  "grounded_at": "2026-08-20T14:20:51Z",
+  "source": {
+    "repository": "ttessarolo/metis",
+    "revision": "a2dde2b191f6b78c2003d74875560da782470968",
+    "language_version": "0.43",
+    "language_version_status": "ratified",
+    "package_version_observed": "0.23.87",
+    "sensitivity": "internal",
+    "license_status": "internal_unreviewed",
+    "evidence": [
+      "docs/07-evidence-and-sources.md",
+      "tooling/src/language/version.ts@a2dde2b191f6b78c2003d74875560da782470968",
+      "tooling/package.json@a2dde2b191f6b78c2003d74875560da782470968"
+    ]
+  },
+  "models": [
+    {
+      "role": "base_model",
+      "id": "Qwen/Qwen3.8-27B",
+      "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+      "revision_status": "verified",
+      "license_status": "verified",
+      "evidence": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "role": "mlx_checkpoint",
+      "id": "mlx-community/Qwen3.8-27B-4bit",
+      "revision": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff",
+      "revision_status": "verified",
+      "license_status": "review_required",
+      "evidence": "https://huggingface.co/mlx-community/Qwen3.8-27B-4bit"
+    }
+  ],
+  "runtime": {
+    "trainer_id": "mlx-vlm",
+    "candidate_version_observed": "0.6.15",
+    "conversion_version_observed": "0.6.8",
+    "pinned_version": "0.6.15",
+    "status": "qualified",
+    "decision_id": "O-004"
+  },
+  "governance": {
+    "default_distribution": "local-only",
+    "default_sensitivity": "internal",
+    "weights_in_git": false,
+    "datasets_in_git": false,
+    "credentials_allowed": false
+  },
+  "open_decision_refs": []
+}

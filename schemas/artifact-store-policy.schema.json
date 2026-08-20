@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/artifact-store-policy.schema.json",
+  "title": "Metis Model 1 local artifact-store policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "status",
+    "decision_ref",
+    "scope",
+    "artifact_root",
+    "tracked_payloads_allowed",
+    "measurement",
+    "budget",
+    "layout",
+    "identity_fields",
+    "publication",
+    "retention"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "policy_id": { "const": "local-artifact-store/v1" },
+    "status": { "const": "ratified" },
+    "decision_ref": { "const": "O-006" },
+    "scope": { "const": "local_only_no_distribution" },
+    "artifact_root": { "const": "artifacts/w5" },
+    "tracked_payloads_allowed": { "const": false },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_at",
+        "filesystem_available_bytes",
+        "existing_artifact_bytes",
+        "shared_base_checkpoint_bytes",
+        "observed_full_state_checkpoint_bytes",
+        "commands"
+      ],
+      "properties": {
+        "observed_at": { "type": "string", "format": "date-time" },
+        "filesystem_available_bytes": { "type": "integer", "minimum": 1 },
+        "existing_artifact_bytes": { "type": "integer", "minimum": 0 },
+        "shared_base_checkpoint_bytes": { "type": "integer", "minimum": 1 },
+        "observed_full_state_checkpoint_bytes": { "type": "integer", "minimum": 1 },
+        "commands": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "per_run_cap_bytes",
+        "minimum_free_before_run_bytes",
+        "minimum_free_after_reserved_run_bytes",
+        "shared_base_excluded_from_per_run_cap",
+        "refuse_if_estimated_run_exceeds_cap",
+        "max_published_checkpoints_per_configuration"
+      ],
+      "properties": {
+        "per_run_cap_bytes": { "const": 42949672960 },
+        "minimum_free_before_run_bytes": { "const": 107374182400 },
+        "minimum_free_after_reserved_run_bytes": { "const": 64424509440 },
+        "shared_base_excluded_from_per_run_cap": { "const": true },
+        "refuse_if_estimated_run_exceeds_cap": { "const": true },
+        "max_published_checkpoints_per_configuration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_path_template", "required_directories"],
+      "properties": {
+        "run_path_template": { "const": "artifacts/w5/<run-id>" },
+        "required_directories": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["input_refs", "configs", "checkpoints", "telemetry", "reports"]
+          }
+        }
+      }
+    },
+    "identity_fields": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "source_revision",
+          "compiler_identity",
+          "runtime_hash",
+          "base_model_hash",
+          "dataset_hash",
+          "split_manifest_hash",
+          "config_hash",
+          "prompt_roster_hash",
+          "oracle_contract_hash",
+          "adapter_hash"
+        ]
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "temporary_sibling",
+        "payload_sha256_manifest",
+        "fsync_payloads",
+        "fsync_parent_directory",
+        "atomic_rename",
+        "verify_before_resume_or_evaluation",
+        "symlinks_allowed"
+      ],
+      "properties": {
+        "temporary_sibling": { "const": true },
+        "payload_sha256_manifest": { "const": true },
+        "fsync_payloads": { "const": true },
+        "fsync_parent_directory": { "const": true },
+        "atomic_rename": { "const": true },
+        "verify_before_resume_or_evaluation": { "const": true },
+        "symlinks_allowed": { "const": false }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "published_artifact_automatic_deletion",
+        "cleanup_authority",
+        "retain_until",
+        "required_retained"
+      ],
+      "properties": {
+        "published_artifact_automatic_deletion": { "const": false },
+        "cleanup_authority": { "const": "explicit_operator_action_after_frontier_verdict" },
+        "retain_until": { "const": "frontier_verdict_and_report_hashes_recorded" },
+        "required_retained": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "run_manifest",
+              "input_identity_refs",
+              "configuration",
+              "telemetry",
+              "evaluation_report",
+              "final_adapter",
+              "final_checkpoint_manifest"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

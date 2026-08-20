@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/benchmark-independence.schema.json",
+  "title": "Metis Model 1 benchmark independence audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "counts", "components", "counts_by_split", "counts_by_family", "cross_split_violations", "benchmark_root_violations", "observed", "verdict"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["in", "out", "distinct", "gaps", "distinct_leakage_groups", "frozen_distinct_leakage_groups"],
+      "properties": {
+        "in": { "type": "integer", "minimum": 0 },
+        "out": { "type": "integer", "minimum": 0 },
+        "distinct": { "type": "integer", "minimum": 0 },
+        "gaps": { "const": 0 },
+        "distinct_leakage_groups": { "type": "integer", "minimum": 0 },
+        "frozen_distinct_leakage_groups": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "components": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["leakage_group", "task_ids", "roots", "splits", "families"],
+        "properties": {
+          "leakage_group": { "$ref": "#/$defs/sha256" },
+          "task_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "roots": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+          "splits": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["train", "dev", "internal_test", "frozen"] } },
+          "families": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"] } }
+        }
+      }
+    },
+    "counts_by_split": { "$ref": "#/$defs/split_counts" },
+    "counts_by_family": { "$ref": "#/$defs/family_group_counts" },
+    "cross_split_violations": { "type": "array", "maxItems": 0, "items": { "type": "string" } },
+    "benchmark_root_violations": { "type": "array", "maxItems": 0, "items": { "type": "string" } },
+    "observed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["successes", "total", "wilson_lower", "point_min", "confidence", "wilson_lower_min", "minimum_distinct_leakage_groups", "required_frozen_tasks", "required_family_counts", "frozen_family_counts", "family_counts_match", "critical_evidence_complete", "critical_failure_count", "semantic_evidence_complete", "semantic_evidence_contradictions", "target_contract_bound", "target_contract_sha256"],
+      "properties": {
+        "successes": { "type": ["integer", "null"], "minimum": 0, "maximum": 600 },
+        "total": { "type": ["integer", "null"], "minimum": 1, "maximum": 600 },
+        "wilson_lower": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "point_min": { "const": 0.99 },
+        "confidence": { "const": 0.95 },
+        "wilson_lower_min": { "const": 0.99 },
+        "minimum_distinct_leakage_groups": { "const": 563 },
+        "required_frozen_tasks": { "const": 600 },
+        "required_family_counts": { "$ref": "#/$defs/family_counts" },
+        "frozen_family_counts": { "$ref": "#/$defs/family_counts" },
+        "family_counts_match": { "type": "boolean" },
+        "critical_evidence_complete": { "type": "boolean" },
+        "critical_failure_count": { "type": "integer", "minimum": 0 },
+        "semantic_evidence_complete": { "type": "boolean" },
+        "semantic_evidence_contradictions": { "type": "integer", "minimum": 0 },
+        "target_contract_bound": { "type": "boolean" },
+        "target_contract_sha256": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "verdict": { "enum": ["PRODUCT_EVIDENCE", "OBSERVED_99_ONLY", "TARGET_99_CONFIRMED"] }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "group_count": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tasks", "distinct_groups"],
+      "properties": { "tasks": { "type": "integer", "minimum": 0 }, "distinct_groups": { "type": "integer", "minimum": 0 } }
+    },
+    "split_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["train", "dev", "internal_test", "frozen"],
+      "properties": {
+        "train": { "$ref": "#/$defs/group_count" },
+        "dev": { "$ref": "#/$defs/group_count" },
+        "internal_test": { "$ref": "#/$defs/group_count" },
+        "frozen": { "$ref": "#/$defs/group_count" }
+      }
+    },
+    "family_group_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"],
+      "properties": {
+        "F-1": { "$ref": "#/$defs/group_count" },
+        "F-2": { "$ref": "#/$defs/group_count" },
+        "F-3": { "$ref": "#/$defs/group_count" },
+        "F-4": { "$ref": "#/$defs/group_count" },
+        "F-5": { "$ref": "#/$defs/group_count" },
+        "F-6": { "$ref": "#/$defs/group_count" }
+      }
+    },
+    "family_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"],
+      "properties": {
+        "F-1": { "type": "integer", "minimum": 0 },
+        "F-2": { "type": "integer", "minimum": 0 },
+        "F-3": { "type": "integer", "minimum": 0 },
+        "F-4": { "type": "integer", "minimum": 0 },
+        "F-5": { "type": "integer", "minimum": 0 },
+        "F-6": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

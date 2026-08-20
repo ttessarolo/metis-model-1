@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "policy_id": "local-artifact-store/v1",
+  "status": "ratified",
+  "decision_ref": "O-006",
+  "scope": "local_only_no_distribution",
+  "artifact_root": "artifacts/w5",
+  "tracked_payloads_allowed": false,
+  "measurement": {
+    "observed_at": "2026-08-20T17:07:20Z",
+    "filesystem_available_bytes": 555920019456,
+    "existing_artifact_bytes": 30121988096,
+    "shared_base_checkpoint_bytes": 16081608704,
+    "observed_full_state_checkpoint_bytes": 935497728,
+    "commands": [
+      "df -k /Users/tommasotessarolo/Developer/metis-model-1",
+      "du -sk artifacts artifacts/w4/2026-08-20-qualification/checkpoint artifacts/w4/2026-08-20-qualification/full-state-reference-final/step-00000004",
+      "stat -f %z artifacts/w4/2026-08-20-qualification/full-state-reference-final/step-00000004/{state.safetensors,adapters.safetensors,state.json,adapter_config.json,manifest.json}"
+    ]
+  },
+  "budget": {
+    "per_run_cap_bytes": 42949672960,
+    "minimum_free_before_run_bytes": 107374182400,
+    "minimum_free_after_reserved_run_bytes": 64424509440,
+    "shared_base_excluded_from_per_run_cap": true,
+    "refuse_if_estimated_run_exceeds_cap": true,
+    "max_published_checkpoints_per_configuration": 4
+  },
+  "layout": {
+    "run_path_template": "artifacts/w5/<run-id>",
+    "required_directories": [
+      "input_refs",
+      "configs",
+      "checkpoints",
+      "telemetry",
+      "reports"
+    ]
+  },
+  "identity_fields": [
+    "source_revision",
+    "compiler_identity",
+    "runtime_hash",
+    "base_model_hash",
+    "dataset_hash",
+    "split_manifest_hash",
+    "config_hash",
+    "prompt_roster_hash",
+    "oracle_contract_hash",
+    "adapter_hash"
+  ],
+  "publication": {
+    "temporary_sibling": true,
+    "payload_sha256_manifest": true,
+    "fsync_payloads": true,
+    "fsync_parent_directory": true,
+    "atomic_rename": true,
+    "verify_before_resume_or_evaluation": true,
+    "symlinks_allowed": false
+  },
+  "retention": {
+    "published_artifact_automatic_deletion": false,
+    "cleanup_authority": "explicit_operator_action_after_frontier_verdict",
+    "retain_until": "frontier_verdict_and_report_hashes_recorded",
+    "required_retained": [
+      "run_manifest",
+      "input_identity_refs",
+      "configuration",
+      "telemetry",
+      "evaluation_report",
+      "final_adapter",
+      "final_checkpoint_manifest"
+    ]
+  }
+}

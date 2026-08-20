@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "teams": {
+    "kimi": {
+      "bin": "kimi",
+      "promptFlag": "-p",
+      "args": [
+        "--output-format",
+        "stream-json"
+      ],
+      "modelFlag": "-m",
+      "resumeFlag": "-S",
+      "writeFlag": null,
+      "sessionIdKey": "session_id",
+      "model": "kimi-code/k3",
+      "verified": true,
+      "notes": [
+        "Kimi Code CLI 0.36.1 reports kimi-code/k3 as the configured default model.",
+        "The human explicitly selected Kimi K3 for this wave on 2026-08-20.",
+        "Thinking effort is controlled by the user's Kimi configuration; the CLI exposes no effort flag.",
+        "bin/verify-team.sh passed write, streaming and session-id probes on 2026-08-20."
+      ]
+    }
+  }
+}

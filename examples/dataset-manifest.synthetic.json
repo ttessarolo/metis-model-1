@@ -1,0 +1,23 @@
+{
+  "counts_by_family": {
+    "F-1": 1,
+    "F-2": 0,
+    "F-3": 0,
+    "F-4": 0,
+    "F-5": 0,
+    "F-6": 0
+  },
+  "counts_by_split": {
+    "dev": 0,
+    "frozen": 0,
+    "internal_test": 0,
+    "train": 1
+  },
+  "example_count": 1,
+  "example_ids": [
+    "sha256:3bddf8baa77cef94e00ee12fbeb58d08adfedc388c7f37b81dba66504b046442"
+  ],
+  "jsonl_sha256": "sha256:6080c52cc78ae816ecedbcfa179b5202959dc6304c88e5d7b31b117dea4991c1",
+  "schema_version": 1,
+  "split_manifest_id": "sha256:be22630bb2973544429445eaf32d02ca285e802dede35c5adbcef4f54738e5ac"
+}

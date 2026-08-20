@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "foundation/contract-shape-example",
+  "status": "draft",
+  "family": "F-1",
+  "mode": "author",
+  "difficulty": "basic",
+  "objective": "Exercise the benchmark-task contract without becoming benchmark evidence.",
+  "inputs": {
+    "request": "Create a non-sensitive minimal Metis source for a contract-shape fixture.",
+    "source": null,
+    "diagnostics": [],
+    "context_refs": []
+  },
+  "expected": {
+    "output_kind": "source",
+    "artifact": null,
+    "behavior": "A future reviewed fixture must parse and preserve the declared intent."
+  },
+  "metis": {
+    "source_revision": "a2dde2b191f6b78c2003d74875560da782470968",
+    "language_version": "0.43",
+    "language_version_status": "observed_not_ratified"
+  },
+  "provenance": {
+    "parents": ["manual:foundation-contract-example"],
+    "generator": "manual-contract-fixture",
+    "generator_version": "1",
+    "leakage_group": "fixture/foundation-only",
+    "sensitivity": "public"
+  },
+  "oracles": [
+    {
+      "stage": "parse",
+      "expectation": "pending",
+      "evidence_ref": null
+    },
+    {
+      "stage": "semantic",
+      "expectation": "pending",
+      "evidence_ref": null
+    }
+  ],
+  "evaluation": {
+    "metrics": ["parser_pass", "semantic_correctness"],
+    "repair_budget": 0
+  },
+  "notes": "Contract example only. It must never be copied into a sealed benchmark or training set."
+}

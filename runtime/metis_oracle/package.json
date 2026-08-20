@@ -1,0 +1,6 @@
+{
+  "name": "metis-model1-metis-oracle",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.22.3" }
+}

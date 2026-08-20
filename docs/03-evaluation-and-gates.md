@@ -42,6 +42,14 @@ set. Deve includere:
 Ogni risultato pubblica numeratore, denominatore e intervallo di confidenza; una
 percentuale aggregata senza breakdown non è evidence sufficiente.
 
+Il comando integrato `validate-pilot` rigenera inoltre la closure tracciata dagli
+oggetti Git della revisione Metis fissata e richiede uguaglianza esatta. La sola
+coerenza interna del manifest o un asset self-hash ricalcolato non sostituiscono
+questo anchor; se il checkout sorgente manca, il gate diventa invalido.
+`assess-w5` è un comando di readiness separato e attualmente termina non-zero
+per i blocker popolazione indipendente, oracle non sigillati, W3 reale, O-003 e
+baseline A/B.
+
 ## 4. Metriche
 
 ### Validità first-shot
@@ -134,9 +142,10 @@ punteggio sintattico molto alto.
 - report separato per difficoltà e lunghezza;
 - nessuna scelta del checkpoint sulla base del frozen benchmark.
 
-Con 250-400 task il breakdown fine può avere intervalli larghi: il report deve
-mostrarli e non simulare precisione. I task ad alto impatto possono avere gate
-categorici indipendenti dalla significatività aggregata.
+Anche con 600 task, i denominatori per famiglia di 80-110 producono intervalli
+troppo larghi per un claim 99% per-famiglia: il report deve mostrarli e non
+simulare precisione. Il claim preregistrato è globale; i task ad alto impatto
+mantengono gate categorici indipendenti dalla significatività aggregata.
 
 ## 7. Error taxonomy
 

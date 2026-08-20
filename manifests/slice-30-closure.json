@@ -1,0 +1,1352 @@
+{
+  "schema_version": 1,
+  "manifest_id": "benchmark/families-v1/slice-30-closure",
+  "status": "computed_not_sealed",
+  "source_revision": "a2dde2b191f6b78c2003d74875560da782470968",
+  "language_version": "0.43",
+  "tenant_prefix": "examples/play-prod-v2",
+  "closure_policy": "whole_program_build_input",
+  "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+  "distinct_leakage_groups": 1,
+  "independence_status": "correlated_single_whole_tenant_group",
+  "counts": {
+    "tasks_in": 30,
+    "tasks_out": 30,
+    "task_ids_distinct": 30,
+    "sources_in": 201,
+    "sources_out": 201,
+    "source_paths_distinct": 201,
+    "source_blob_oids_distinct": 201,
+    "gaps": 0
+  },
+  "shared_closures": [
+    {
+      "closure_id": "whole-tenant",
+      "status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "reason": "Metis build loads and compiles the complete tenant whole-program",
+      "inputs": [
+        {
+          "path": "examples/play-prod-v2/_tenant.metis",
+          "blob_oid": "d38b2f1e53de5231f1d0dfdfccb075b893d5ecc2"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/link.metis",
+          "blob_oid": "918c7ef3f3215fa834a6b25fe9e65f790a76969d"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/smart_index.metis",
+          "blob_oid": "053125493a64d16ae175616860b0777a10e29fc5"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/trending.metis",
+          "blob_oid": "e4b2f7d940cc19b4f7e6656d3ef91d81f26d2286"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/user_clusters.metis",
+          "blob_oid": "084833c59deb28bea70e679a4e1b65ad2078b3a9"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/user_session.metis",
+          "blob_oid": "e34e73f7fcaecbe2919ffc5dd06956690c8f7c41"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/users.metis",
+          "blob_oid": "72a645f3dbc5eba67e0794923edea71e10d1badb"
+        },
+        {
+          "path": "examples/play-prod-v2/catalogs/video.metis",
+          "blob_oid": "6c1c200c8297ff4a695854e238554c0882d1c4f7"
+        },
+        {
+          "path": "examples/play-prod-v2/legacy-wire.json",
+          "blob_oid": "422e6209514e43bbe786320b80bb0985afa9efad"
+        },
+        {
+          "path": "examples/play-prod-v2/lib/lists.metis",
+          "blob_oid": "1156ae317e53003214bf69cb41f8d28bb4ce61b3"
+        },
+        {
+          "path": "examples/play-prod-v2/lib/presets.metis",
+          "blob_oid": "348df13b9511473e1a2d755eca222c09cf13eba6"
+        },
+        {
+          "path": "examples/play-prod-v2/lib/presets.migrated.metis",
+          "blob_oid": "cbae5ea0b0908f1d5f2c8bd3b7e3750834825719"
+        },
+        {
+          "path": "examples/play-prod-v2/materialized-fallbacks.source.json",
+          "blob_oid": "9afb2576a0f15df139b69612a73cc2764a3a104e"
+        },
+        {
+          "path": "examples/play-prod-v2/metis.toml",
+          "blob_oid": "47642ed641dcf60f6b64fda604c721f349a582bf"
+        },
+        {
+          "path": "examples/play-prod-v2/names.map.json",
+          "blob_oid": "985caca26b87e99cf5c08b1050d884761f3bc77d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/dem/_property.metis",
+          "blob_oid": "0c1173e58bfaceae6620d8a3b8fdaab299bfbec4"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/dem/dem_test.metis",
+          "blob_oid": "1b27f647d272affaaa94a16bddf2e09019c7a5b4"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/general/_property.migrated.metis",
+          "blob_oid": "c2d42d1e2927f308e56a82a089ffedeba80e32cf"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/general/prod_codice_f_presente.metis",
+          "blob_oid": "68fa18739b9cb6896307c73837fa65bb670c191d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/general/stagioni_da_taggare.metis",
+          "blob_oid": "79376b188f9bcd6ec3e1b1f2231e6e118279bb68"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/general/test_endpoint.metis",
+          "blob_oid": "4460273f49513d1cab0c32992cebcb9d64d85eb7"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/_property.metis",
+          "blob_oid": "f04b8fc2cdeb13e75341b559d41cbd6aad92a338"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/a_btest_cinema_free.metis",
+          "blob_oid": "3c0e2958f17d2a32430e77eba120b01db762c9b6"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/article_season_params.metis",
+          "blob_oid": "c197b139be9b7023137a3b5234acbdc905547d9e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/because_you_fiction_serie_tv.metis",
+          "blob_oid": "5c468082aef07e0140ef6527642d71fbf3b2fef2"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_all_movie_serie.metis",
+          "blob_oid": "03ffde13e04ec01f2ef9e380d472f4a8dc11d861"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_all_movies.metis",
+          "blob_oid": "c2d988ea1fdfd04077220c4caac05a8e58901228"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_all_series.metis",
+          "blob_oid": "578f26eb0dd9762eb7b1044a6b2b16b534a3683c"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_film_in_scadenza.metis",
+          "blob_oid": "8b295d3e1bddff6c1ee529ddb10bddcb070776e3"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_film_params_genre.metis",
+          "blob_oid": "a30264527163f9d0139eb9a98cf5f0b5f73868ff"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_film_serie_most_recent.metis",
+          "blob_oid": "fb4fba22733e20318f4c117a500477d1eba721a5"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_film_serie_params_genre.metis",
+          "blob_oid": "261d65fc011bfecfeea4a4b90ef530735ef0cf8f"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_film_serie_top_viewed.metis",
+          "blob_oid": "57926885f2e4a3733cf5fac6f5292a615e6415db"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_movie_most_recent_params_channel.metis",
+          "blob_oid": "bbf1b511caab8a9defc7a46277f9a3715aebe12a"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_movie_top_viewed24_hparams_channel.metis",
+          "blob_oid": "c011f689319e289cfcd18b7010d05dc1395afe33"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_serie_most_recent_params_channel.metis",
+          "blob_oid": "a1cede9c3f0c7d8fe66ff90cd228e100e7e12dc0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_serie_params_genre.metis",
+          "blob_oid": "e3d513094897c7ea758c24ec90bfc879504f65e8"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_serie_top_viewed24_hparams_channel.metis",
+          "blob_oid": "6e6612b6514aee440445612322957e90c752b5b1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/chnls_stagioni_fep_most_recent_params_channel.metis",
+          "blob_oid": "9caa54a539c5a263a7f9c3d32747697dfeaf18c7"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/clip24_hparams_season.metis",
+          "blob_oid": "9fae98c359b5cd4bb5ef3b930b520431a22851de"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/collaborative_simili.metis",
+          "blob_oid": "47b811311a5062f6fcfcd1ac21d0cc0ca2fc0db7"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/collection_order_by_editor.metis",
+          "blob_oid": "51d0927d96deff76a4fcefcc054a1a2f2ab8bbd9"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/collection_params.metis",
+          "blob_oid": "e3e6ea6d8be71344d6af7a7b62d6acfcd2949869"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/continua_a_guardare.metis",
+          "blob_oid": "a5a970aa7b34d4d6c4b09dd549b086ad9edeab21"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/documentari_params_genre.metis",
+          "blob_oid": "bb11e20a7c0439c337d4addfcba902e221dcb7ca"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/documentari_piu_visti24_h.metis",
+          "blob_oid": "12d4e7f9f9ee80ae356c61873408660a918086c0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_documentari.metis",
+          "blob_oid": "c7f11732c66d84273184664bc2b333198f54f8a0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_extra_anticipazioni.metis",
+          "blob_oid": "4f50e1da1f8b9e383052528a497649cae4863e31"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_film_del_momento.metis",
+          "blob_oid": "f9370fa106b6b718e7d3e0b682e4d7ae2ed6f51d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_highlights_calcio.metis",
+          "blob_oid": "67a0609649a8ea4e8f23449013c22b29bc1c3b28"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_highlights_calcio_r4.metis",
+          "blob_oid": "6088240b9fb95d3565aac797fbaa391040137e4f"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_inf_film24_h.metis",
+          "blob_oid": "74ece61de9603c766cbe0cb9344bed67a73b9014"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_play_cult.metis",
+          "blob_oid": "690ef9eb2bc2ff88cb7aa6ed64fa2b8d683e3d0d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_programmi_del_momento.metis",
+          "blob_oid": "f12090dc7f51cc8ecb56fe2dc77ca0e8c34f800b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_programmi_tv.metis",
+          "blob_oid": "616c6f4c5a9510a6f8413a79c04991d89cd9065d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_soap_opera.metis",
+          "blob_oid": "31565720015302d29186e1a2dc381158a1cc4df1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_test_episodi.metis",
+          "blob_oid": "accf8de2f819899ec66fb2b6d8064f29e7eda580"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_test_film.metis",
+          "blob_oid": "71b1d4d70d06429ad54e6ad34ae676bcd7c7475c"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_test_serie.metis",
+          "blob_oid": "313ab928f9f104f39257b220cb603765d7ee850a"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/enabler_test_stagioni.metis",
+          "blob_oid": "f2495536fe30d8e44ef7d90a0c11f75ff0bff74c"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fallback_multiple_doc.metis",
+          "blob_oid": "31871212cd6ea2893ec579d222c4999b06dd75a1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fallback_personalizzati.metis",
+          "blob_oid": "9f7f30c08fc873bd969d8a66da570ae04f52c0a8"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fallback_varianti.metis",
+          "blob_oid": "fbfa98ce41798697857bb426e63c3d79d2a7e105"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fallback_vuota_2.metis",
+          "blob_oid": "bc8535bde78b88a066f47e148aa0dd0617319037"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fep_piu_recenti_season_params.metis",
+          "blob_oid": "e44aee189eecb9e56989083e6c27a347ea6a08b7"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fiction_del_momento.metis",
+          "blob_oid": "073c403ab6ffbab6d5cf3a857f3b6f269b82a2c4"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fiction_originals.metis",
+          "blob_oid": "80f795d38cfdb9b0e51bceaefbbd7799e140d1c7"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fiction_serie_tv_del_momento.metis",
+          "blob_oid": "ddaf4fa0804ba005d167e0b542b87222cdf0c1f6"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fiction_serie_tv_generi_params.metis",
+          "blob_oid": "8eebf92ee59b3c926696b5df209668084c4776ff"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_clustering.metis",
+          "blob_oid": "788e0c8cdcd56a165156d28fdd5b9bdd92aa45c5"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_del_momento_2.metis",
+          "blob_oid": "26e1d368100a3e4f1c407e5e521493a02863a77b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_documentari.metis",
+          "blob_oid": "cc6b2bcb405fed0aa806e839b241d8489921513d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_genere_params.metis",
+          "blob_oid": "3932d2aed949d2fdeaa87e0bfff575a50d2fa275"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_piu_visti24_h.metis",
+          "blob_oid": "ceb8bce7ca23be5e3058243b85d51a44056894b8"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/film_play_ultimi_arrivi.metis",
+          "blob_oid": "1eaf56fe7dcb66491f4a9c1a2d810986f01df7bf"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/fnjwq5_lha2.metis",
+          "blob_oid": "1e037748b7dbdcaea579d2e6db15bf56464187ae"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/focus_multiple_block_documentari.metis",
+          "blob_oid": "c1d343705bd40b22784112be28101b4bc02eaa45"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/gf_vip_top_viewed24_h.metis",
+          "blob_oid": "90dbbd2f8c8a6bbef7fa3e83e2110c515b02b38b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/group_film_per_canale.metis",
+          "blob_oid": "8fe8162ec194090efe559bfa6b11a78e88894205"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/highlights_calcio.metis",
+          "blob_oid": "e9267378e23917c8a43751b64b13ae19d82826de"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/home_pay_film_params_genre.metis",
+          "blob_oid": "12f76a7a51d4bc3142cc515e5c5331eef0692d64"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_abtest_film.metis",
+          "blob_oid": "6d748733ec0dae8e3cba98d34adf2c5617bd40d3"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_because_you.metis",
+          "blob_oid": "fc86dd146f35df919534217af95f97a1179a1c8a"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_because_you_collaborative.metis",
+          "blob_oid": "97ae439553a52387b95ba023d489de1ea2ca6070"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film4_khdr.metis",
+          "blob_oid": "8ceada1bbcbedcb4d456649d42eef10e83d87e78"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film4_ksdr.metis",
+          "blob_oid": "2710a5023d87478d662f763630b032fa403af552"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_animazione.metis",
+          "blob_oid": "a93716c0669377739c07782143d42d4d53cfe7cb"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_blockbuster.metis",
+          "blob_oid": "0814c49cd0fc2e6b0a16c2e2ad1a7e5d1e33a195"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_in_scadenza.metis",
+          "blob_oid": "9f6379b671ea191b08a7005c003949bdcaad5b07"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_most_recent.metis",
+          "blob_oid": "a7e010122e257798d51c9f62634384e775f97271"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_params_genre.metis",
+          "blob_oid": "176a1f04f472e4b05f3ea3b433265504850ece82"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_piu_visti24_h.metis",
+          "blob_oid": "080e553c7c32323f7a3c16c7d4ff442f0f77543e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_film_piu_visti7_gg.metis",
+          "blob_oid": "df14b49d003ea1709bee7e7ff9a17b9bc54fd3f9"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_item_link_piu_visti.metis",
+          "blob_oid": "36568676008f5f40d87a1f3ecdd0fb2f3d81646e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_kids_family.metis",
+          "blob_oid": "794bc23c4d673f50e5e24932753b24c81de405ce"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_multiple_block_film.metis",
+          "blob_oid": "0452546ed442673c395d42c52cb7233a63c5582a"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_multiple_block_film_serie.metis",
+          "blob_oid": "7796a76a89e2e982b0898584a4f77c9e26d03253"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_multiple_block_serie_tv_fiction.metis",
+          "blob_oid": "a9597efa30af7f8e827dec0bb115308d10ce4550"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_serie_documentari.metis",
+          "blob_oid": "a17f7d5431875f37bfc0e7ef5ecce0f880b4d42e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_serie_most_recent.metis",
+          "blob_oid": "93cc9560d24203599dd3ab3cdc46d48e4c55dc32"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_serie_params_genre.metis",
+          "blob_oid": "b366cad1b0874537741126bc721d36674fbf428d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_serie_piu_viste24_h.metis",
+          "blob_oid": "d93a63301adfeec19921d4c728a70e4d82875a87"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_smart_block_film.metis",
+          "blob_oid": "c50634c6be10597d6fff82599240dea3f3b91894"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/inf_stagioni_serie_tv_prima_tv.metis",
+          "blob_oid": "cc12371bd985dbc5dbdb625ecc35b42f2c325038"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/infinity_lab.metis",
+          "blob_oid": "ab3a76ec77ba613ba21637e870d0872d31b56bba"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/kids_boing.metis",
+          "blob_oid": "3a2dcf063ba286309921ec2b61b064279dea9608"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/kids_cartoonito.metis",
+          "blob_oid": "6a686d21e94e561da62ab8008714eb660372f7c9"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/kids_mediaset.metis",
+          "blob_oid": "7fe394b37ccf5c1785c82054ecc004e76215d333"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/kids_serie_animate_multiple_block.metis",
+          "blob_oid": "002a2a286ced075cd2ee5a84b5d488a9d61f2770"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/main_2.metis",
+          "blob_oid": "30f6359acdb65b0982c4f947fb0c73dc08a21666"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_collection.metis",
+          "blob_oid": "c3cb52ccd2f8a08483747f8a428e5d0d8f4dc584"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_documentari.metis",
+          "blob_oid": "199e0975e586ea84033986450fda133498a7579f"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_fiction_library.metis",
+          "blob_oid": "350b3e5a27002947216053c06738e15e998f4892"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_fiction_serie_tv.metis",
+          "blob_oid": "ea039ea714dbe3e8aa3ed59be1333968cd2c8114"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_multiple_block_fiction_serie.metis",
+          "blob_oid": "d572abe98130e34e28c6347109db87c77490e228"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_multiple_block_film.metis",
+          "blob_oid": "abf274b4044acaebd648fef4452850c23d929455"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_multiple_block_programmi_tv.metis",
+          "blob_oid": "53e97c3b3ab2fab7102543a2777c9595ecab69bc"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/med_ita_stagioni_daytime.metis",
+          "blob_oid": "3dbd81661e6f41c0422461536661d980613c47a3"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/mixed_component_test.metis",
+          "blob_oid": "d243a351db49d5c604e2b26a42ebeb8741e72ff1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block4_k.metis",
+          "blob_oid": "77f7a4410f5c18c622a8a82585104fc2e96d7b46"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_compleanno.metis",
+          "blob_oid": "fa153ffd39509c7c8372f6e359024bfa34eac999"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_dem_film_free.metis",
+          "blob_oid": "e4a417de5001c39ab11cd4f568832b58fd051a5f"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_dem_monobrand.metis",
+          "blob_oid": "cc5ccde2f95661839e86c15917d1f95b81a0b853"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_dem_scelti_per_te.metis",
+          "blob_oid": "6aecdd3886a44a153045d2076789bcf5fd321a19"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_dem_titoli_momento.metis",
+          "blob_oid": "25196f213f7d620e30795ee4ba86fe0d148ba743"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_documentari_2.metis",
+          "blob_oid": "ce97d9a2f3d336dfc7598f3c230564125bb56df0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_esg.metis",
+          "blob_oid": "10f54dd9f89e9994c77803df2ee4dcf5823dce64"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_fiction_serie_tv.metis",
+          "blob_oid": "fe0a29fb47e0d003bcdfc5604040ed969822d7e0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_film.metis",
+          "blob_oid": "79dbab5f39ea093db2f2f22329ac45d9da620651"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_programmi_tv.metis",
+          "blob_oid": "f64a622980b7d0030dd7c36d31153cb9d863f1ed"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/multiple_block_scelti_per_te_fiction.metis",
+          "blob_oid": "fdf60c6e1fb65ec17fdd7fd9954a59219b15620a"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/new_similar_intrattenimento.metis",
+          "blob_oid": "8a0199daa6bb33208526b30ee1ac9efd70b56103"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/overlay_serie_movie.metis",
+          "blob_oid": "54fc10a0c3d3c1c225329d12f8fc9d3a89c199ce"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/person_to_content_film.metis",
+          "blob_oid": "70b511884a2905a6e9407d0df5cbb34f39176dee"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/person_to_content_homepage.metis",
+          "blob_oid": "8f282d4fa4dcd92deece50a09b5ac15f0539ce08"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/piu_visti24_h.metis",
+          "blob_oid": "3eb75b342677fe46b254b679b7d1f243e2a5a200"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/play_mediaset_italia_ynrde_bz_j7_o.metis",
+          "blob_oid": "344fc8315567c51a9efa97bcfdc5deac64d1c768"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/programmi_tv_clip24_h.metis",
+          "blob_oid": "38422b2bc221eed3e9c07b036733022a9ff84978"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/programmi_tv_params_genre.metis",
+          "blob_oid": "016ef762726aea87eb206d41318d7c551ac94e49"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/serie_animate.metis",
+          "blob_oid": "8c935abcbd60c009c2529472813dbb88153da93b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/serie_piu_viste24_h.metis",
+          "blob_oid": "b460b63a085f9bc84d54c9aa5aa946b487f20f72"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/serie_tv_del_momento_2.metis",
+          "blob_oid": "d20f4ec0c034b0699808804d5f965e1ca603a0bb"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/serie_tv_del_momento_4.metis",
+          "blob_oid": "d16d886ee61d734b18903e8af93ad4ae82c705d3"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_cartoni.metis",
+          "blob_oid": "2890a0e5ab5dfe44c7b1912151deec66d9ad47da"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_cinema.metis",
+          "blob_oid": "6fefe9b115a0f70295b345aa623099318c37d34b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_documentari.metis",
+          "blob_oid": "7c7f688a6135930dd59eff0f0c41023a45601f69"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_informazione.metis",
+          "blob_oid": "05a1b1622acbb8483b43d7b909042f73a9710139"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_intrat_abtest.metis",
+          "blob_oid": "39b9504363f61782d0c1e540977bf89959c1dec1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_intrattenimento.metis",
+          "blob_oid": "313af94e43998ce9241cfec3049d3a30abbfedc1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_no_category.metis",
+          "blob_oid": "f86a8247cb75cc8ddd10d5cbd6451a2619460042"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_serie_b.metis",
+          "blob_oid": "ebddc07d7a636e0e5f302b30d1076ee3a18e28a5"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_serie_tv_fiction.metis",
+          "blob_oid": "562199b2fb655af20034f8834ae8155bf8d0be4e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_sport.metis",
+          "blob_oid": "db1bf3279f8b8bfa1c3f744a0c3a973cdee99da0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_suggestions.metis",
+          "blob_oid": "0de8701e9a96f4b837940e083da67d02efc52f38"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/similar_tg.metis",
+          "blob_oid": "13cd5a8a4dd43847353ef7e2db60737286330706"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_daytime.metis",
+          "blob_oid": "db9da49a93d6cd1717ed4321e194eaddb258d8d0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_fiction_soap.metis",
+          "blob_oid": "d223446971afe59919b6698be9ceb1d1f979ed28"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_kids.metis",
+          "blob_oid": "fb97ddf4459df04ffe0fc4847a096c0508c9d0f1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_prima_serata_2.metis",
+          "blob_oid": "d627a1295188bb608eaace94592b307b07af6e7b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_sport.metis",
+          "blob_oid": "0cc5e368c5cb060ce19efb9fa288df882602c26b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_sport_3.metis",
+          "blob_oid": "f364ec43f12a9e7990d706658f9633ab554409c0"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/stagioni_tipologia_params.metis",
+          "blob_oid": "590e34184d6e2a548edd6853e22bf75c81dd0f5d"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/storie_commoventi.metis",
+          "blob_oid": "5d0e033f35a85cd736ed1998937249354ec7e966"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/subscription_channel_film.metis",
+          "blob_oid": "27baa97037b71f763157bb72b162e396017b276e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tv_movie_fiction.metis",
+          "blob_oid": "eeded059e6bbd7e9db94a0ebfcd1a0ee0bc35cbd"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_film_blockbuster.metis",
+          "blob_oid": "cbc10c9ac01efb93236afff3145d654d534185eb"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_film_in_scadenza.metis",
+          "blob_oid": "691d8e4b0f0c484c42cae2ee1f601767c2d8a1af"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_film_params_genre.metis",
+          "blob_oid": "18cd97e447a6f49f497c5a9d50b2aab749a8b6be"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_most_recent_film.metis",
+          "blob_oid": "2ad1472bb3a02dab844371ff3e26c5ebda2dfaad"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_multiple_block.metis",
+          "blob_oid": "2bbac93d8b100230f43f7a6c3310f62de5117e01"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/tvod_piu_noleggiati.metis",
+          "blob_oid": "c227d655c2601d21838b36350cdbb814e2c21996"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/view_all_1h.metis",
+          "blob_oid": "7d007dc5ba5a3221a2c74cf7a5bf3f1a8e0bcaee"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/view_all_cluster.metis",
+          "blob_oid": "8d84aa3c4b36860b60602ecb26a4fc7f728b2c52"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/view_all_person.metis",
+          "blob_oid": "e4906d25434021bac0cfb73a3b0a28d2d0bd586b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/play/x_style_subbrand_params.metis",
+          "blob_oid": "44fd0a17ddd9f7f28bd85a19c54050c8b2d24bdb"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/_property.metis",
+          "blob_oid": "6af9cd7c1275f11bd1451f89074b75c82d6e6b14"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/detail.metis",
+          "blob_oid": "7719f75e8d02670436e5ac58c0d244e75f796851"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/fallback_varianti_filtered_search.metis",
+          "blob_oid": "7b53abecc3c01ac47ed6b0cf89d71763d23ffef2"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/filtered_search.metis",
+          "blob_oid": "92ab1a44a568fb9a8713ef4598ecf5b269a4e6e6"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/main.metis",
+          "blob_oid": "23b58e42fd06167a1cdea7a22a89ce91f70571a6"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/search_fallback_vuota_2.metis",
+          "blob_oid": "e8adfd92cff24142625db3e28a43f5935789c880"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/view_all_filtered_search.metis",
+          "blob_oid": "6879d01f229327b2192a999997f95faacbc88681"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/search/view_all_filtered_search_params.metis",
+          "blob_oid": "abeaa62a8ba7c88fb688993fa7d1e8747b19242e"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/sky/_property.migrated.metis",
+          "blob_oid": "a73d4370d4e988bbe4f030dceeadf8f8bb3a9530"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/sky/sky_featured.metis",
+          "blob_oid": "6bb22cb05488720bfe3dccc5768cb342e0c71577"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/sky/sky_most_recent.metis",
+          "blob_oid": "19f83a62a14caf44c1ad76889df00e0d87af0cc8"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/snap/_property.migrated.metis",
+          "blob_oid": "3a17e818c81e19b58d2eb89a4ca20ca305b01c1b"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/snap/person_to_content_homepage_3.metis",
+          "blob_oid": "b56d4a09ede0f6a07c9355f2e10cbe81731693a1"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/snap/snapshot_fallback_vuota.metis",
+          "blob_oid": "b84c8a9eef3515cbb8d7f8f57501ff88629451bc"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/snap/snapshot_similar_intrattenimento.metis",
+          "blob_oid": "fea4ceb161f9122d990ffebb0c0b453e27a0ceeb"
+        },
+        {
+          "path": "examples/play-prod-v2/properties/snap/stagioni_prima_serata.metis",
+          "blob_oid": "07ca0d02b056e8070a863841fa8696a5f5c28a8b"
+        },
+        {
+          "path": "examples/play-prod-v2/settings/opensearch.metis",
+          "blob_oid": "c756eb93779ccd0083966ca9793f5b159919685e"
+        },
+        {
+          "path": "examples/play-prod-v2/settings/response.metis",
+          "blob_oid": "424ecf41c372f91c7b33187784446b8b707c48e8"
+        },
+        {
+          "path": "examples/play-prod-v2/settings/runtime.metis",
+          "blob_oid": "c909d809eb8e592a958c5461df5d6534a7d6fed6"
+        },
+        {
+          "path": "examples/play-prod-v2/settings/time.metis",
+          "blob_oid": "33da1391288232a87be83cf2da3f674eff95b0ea"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/fake_user_id.metis",
+          "blob_oid": "956d5bde4fb6147ea5d62009199b19e75be12344"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/mplay_universal_enricher/_transformer.metis",
+          "blob_oid": "0c0398610b74e6b3a27a9b82f79e36cf2431392c"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/mpx_collection_ids.metis",
+          "blob_oid": "d87a1aab3ff5d30940adf8d7adbb87d0c93abdd5"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/play_cluster_input.metis",
+          "blob_oid": "bd0798c8a3fde46219dab448188b134a87882648"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/play_persona_input.metis",
+          "blob_oid": "908d3f46b78f26e1ca4faa07f9ff4aff3d16d1d6"
+        },
+        {
+          "path": "examples/play-prod-v2/transformers/play_search.metis",
+          "blob_oid": "c0e6c9590309c3368bb66e4c859de6d8cd2d68ac"
+        }
+      ],
+      "unresolved_runtime_dependencies": [
+        "external_catalog_datastore_values",
+        "external_services_and_transformer_sources",
+        "materialized_fallback_sidecar_semantics"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "slice-0001/f1-01",
+      "family": "F-1",
+      "mode": "author",
+      "source_path": "examples/play-prod-v2/properties/search/main.metis",
+      "source_blob_oid": "23b58e42fd06167a1cdea7a22a89ce91f70571a6",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=23b58e42fd06167a1cdea7a22a89ce91f70571a6|family=F-1",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f1-02",
+      "family": "F-1",
+      "mode": "author",
+      "source_path": "examples/play-prod-v2/properties/sky/sky_featured.metis",
+      "source_blob_oid": "6bb22cb05488720bfe3dccc5768cb342e0c71577",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=6bb22cb05488720bfe3dccc5768cb342e0c71577|family=F-1",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f1-03",
+      "family": "F-1",
+      "mode": "author",
+      "source_path": "examples/play-prod-v2/properties/dem/dem_test.metis",
+      "source_blob_oid": "1b27f647d272affaaa94a16bddf2e09019c7a5b4",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=1b27f647d272affaaa94a16bddf2e09019c7a5b4|family=F-1",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f1-04",
+      "family": "F-1",
+      "mode": "author",
+      "source_path": "examples/play-prod-v2/properties/snap/stagioni_prima_serata.metis",
+      "source_blob_oid": "07ca0d02b056e8070a863841fa8696a5f5c28a8b",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=07ca0d02b056e8070a863841fa8696a5f5c28a8b|family=F-1",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f1-05",
+      "family": "F-1",
+      "mode": "author",
+      "source_path": "examples/play-prod-v2/properties/play/main_2.metis",
+      "source_blob_oid": "30f6359acdb65b0982c4f947fb0c73dc08a21666",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=30f6359acdb65b0982c4f947fb0c73dc08a21666|family=F-1",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f2-01",
+      "family": "F-2",
+      "mode": "edit",
+      "source_path": "examples/play-prod-v2/properties/search/filtered_search.metis",
+      "source_blob_oid": "92ab1a44a568fb9a8713ef4598ecf5b269a4e6e6",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=92ab1a44a568fb9a8713ef4598ecf5b269a4e6e6|family=F-2",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "materialized_fallback_sidecar",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f2-02",
+      "family": "F-2",
+      "mode": "edit",
+      "source_path": "examples/play-prod-v2/properties/play/film_genere_params.metis",
+      "source_blob_oid": "3932d2aed949d2fdeaa87e0bfff575a50d2fa275",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=3932d2aed949d2fdeaa87e0bfff575a50d2fa275|family=F-2",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f2-03",
+      "family": "F-2",
+      "mode": "edit",
+      "source_path": "examples/play-prod-v2/properties/play/collection_order_by_editor.metis",
+      "source_blob_oid": "51d0927d96deff76a4fcefcc054a1a2f2ab8bbd9",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=51d0927d96deff76a4fcefcc054a1a2f2ab8bbd9|family=F-2",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f2-04",
+      "family": "F-2",
+      "mode": "edit",
+      "source_path": "examples/play-prod-v2/properties/play/stagioni_sport_3.metis",
+      "source_blob_oid": "f364ec43f12a9e7990d706658f9633ab554409c0",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=f364ec43f12a9e7990d706658f9633ab554409c0|family=F-2",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f2-05",
+      "family": "F-2",
+      "mode": "edit",
+      "source_path": "examples/play-prod-v2/properties/play/view_all_person.metis",
+      "source_blob_oid": "e4906d25434021bac0cfb73a3b0a28d2d0bd586b",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=e4906d25434021bac0cfb73a3b0a28d2d0bd586b|family=F-2",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f3-01",
+      "family": "F-3",
+      "mode": "repair",
+      "source_path": "examples/play-prod-v2/properties/play/multiple_block_film.metis",
+      "source_blob_oid": "79dbab5f39ea093db2f2f22329ac45d9da620651",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=79dbab5f39ea093db2f2f22329ac45d9da620651|family=F-3",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "materialized_fallback_sidecar",
+        "mutation_parent_unresolved",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f3-02",
+      "family": "F-3",
+      "mode": "repair",
+      "source_path": "examples/play-prod-v2/properties/play/fallback_multiple_doc.metis",
+      "source_blob_oid": "31871212cd6ea2893ec579d222c4999b06dd75a1",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=31871212cd6ea2893ec579d222c4999b06dd75a1|family=F-3",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "mutation_parent_unresolved",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f3-03",
+      "family": "F-3",
+      "mode": "repair",
+      "source_path": "examples/play-prod-v2/properties/search/detail.metis",
+      "source_blob_oid": "7719f75e8d02670436e5ac58c0d244e75f796851",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=7719f75e8d02670436e5ac58c0d244e75f796851|family=F-3",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "mutation_parent_unresolved",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f3-04",
+      "family": "F-3",
+      "mode": "repair",
+      "source_path": "examples/play-prod-v2/properties/play/enabler_highlights_calcio.metis",
+      "source_blob_oid": "67a0609649a8ea4e8f23449013c22b29bc1c3b28",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=67a0609649a8ea4e8f23449013c22b29bc1c3b28|family=F-3",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "mutation_parent_unresolved",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f3-05",
+      "family": "F-3",
+      "mode": "repair",
+      "source_path": "examples/play-prod-v2/_tenant.metis",
+      "source_blob_oid": "d38b2f1e53de5231f1d0dfdfccb075b893d5ecc2",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=d38b2f1e53de5231f1d0dfdfccb075b893d5ecc2|family=F-3",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "mutation_parent_unresolved",
+        "semantic_oracle_not_executed",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f4-01",
+      "family": "F-4",
+      "mode": "review",
+      "source_path": "examples/play-prod-v2/properties/play/similar_cinema.metis",
+      "source_blob_oid": "6fefe9b115a0f70295b345aa623099318c37d34b",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=6fefe9b115a0f70295b345aa623099318c37d34b|family=F-4",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "golden_ir_wire_ancestor_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f4-02",
+      "family": "F-4",
+      "mode": "review",
+      "source_path": "examples/play-prod-v2/properties/play/multiple_block_dem_film_free.metis",
+      "source_blob_oid": "e4a417de5001c39ab11cd4f568832b58fd051a5f",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=e4a417de5001c39ab11cd4f568832b58fd051a5f|family=F-4",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "golden_ir_wire_ancestor_unresolved",
+        "materialized_fallback_sidecar",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f4-03",
+      "family": "F-4",
+      "mode": "review",
+      "source_path": "examples/play-prod-v2/properties/play/inf_because_you.metis",
+      "source_blob_oid": "fc86dd146f35df919534217af95f97a1179a1c8a",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=fc86dd146f35df919534217af95f97a1179a1c8a|family=F-4",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "golden_ir_wire_ancestor_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f4-04",
+      "family": "F-4",
+      "mode": "review",
+      "source_path": "examples/play-prod-v2/properties/play/person_to_content_film.metis",
+      "source_blob_oid": "70b511884a2905a6e9407d0df5cbb34f39176dee",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=70b511884a2905a6e9407d0df5cbb34f39176dee|family=F-4",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "golden_ir_wire_ancestor_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f4-05",
+      "family": "F-4",
+      "mode": "review",
+      "source_path": "examples/play-prod-v2/properties/play/similar_serie_tv_fiction.metis",
+      "source_blob_oid": "562199b2fb655af20034f8834ae8155bf8d0be4e",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=562199b2fb655af20034f8834ae8155bf8d0be4e|family=F-4",
+      "unresolved_dependencies": [
+        "ambient_time_runtime",
+        "data_rights_not_reviewed",
+        "golden_ir_wire_ancestor_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f5-01",
+      "family": "F-5",
+      "mode": "migrate",
+      "source_path": "examples/play-prod-v2/lib/presets.migrated.metis",
+      "source_blob_oid": "cbae5ea0b0908f1d5f2c8bd3b7e3750834825719",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=cbae5ea0b0908f1d5f2c8bd3b7e3750834825719|family=F-5",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "migration_pair_and_language_epoch_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f5-02",
+      "family": "F-5",
+      "mode": "migrate",
+      "source_path": "examples/play-prod-v2/properties/dem/_property.metis",
+      "source_blob_oid": "0c1173e58bfaceae6620d8a3b8fdaab299bfbec4",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=0c1173e58bfaceae6620d8a3b8fdaab299bfbec4|family=F-5",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "migration_pair_and_language_epoch_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f5-03",
+      "family": "F-5",
+      "mode": "migrate",
+      "source_path": "examples/play-prod-v2/properties/general/_property.migrated.metis",
+      "source_blob_oid": "c2d42d1e2927f308e56a82a089ffedeba80e32cf",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=c2d42d1e2927f308e56a82a089ffedeba80e32cf|family=F-5",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "migration_pair_and_language_epoch_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f5-04",
+      "family": "F-5",
+      "mode": "migrate",
+      "source_path": "examples/play-prod-v2/properties/sky/_property.migrated.metis",
+      "source_blob_oid": "a73d4370d4e988bbe4f030dceeadf8f8bb3a9530",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=a73d4370d4e988bbe4f030dceeadf8f8bb3a9530|family=F-5",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "migration_pair_and_language_epoch_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f5-05",
+      "family": "F-5",
+      "mode": "migrate",
+      "source_path": "examples/play-prod-v2/properties/play/continua_a_guardare.metis",
+      "source_blob_oid": "a5a970aa7b34d4d6c4b09dd549b086ad9edeab21",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=a5a970aa7b34d4d6c4b09dd549b086ad9edeab21|family=F-5",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "migration_pair_and_language_epoch_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f6-01",
+      "family": "F-6",
+      "mode": "explain",
+      "source_path": "examples/play-prod-v2/catalogs/link.metis",
+      "source_blob_oid": "918c7ef3f3215fa834a6b25fe9e65f790a76969d",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=918c7ef3f3215fa834a6b25fe9e65f790a76969d|family=F-6",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "normalized_ast_ir_and_human_oracle_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f6-02",
+      "family": "F-6",
+      "mode": "explain",
+      "source_path": "examples/play-prod-v2/catalogs/users.metis",
+      "source_blob_oid": "72a645f3dbc5eba67e0794923edea71e10d1badb",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=72a645f3dbc5eba67e0794923edea71e10d1badb|family=F-6",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "normalized_ast_ir_and_human_oracle_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f6-03",
+      "family": "F-6",
+      "mode": "explain",
+      "source_path": "examples/play-prod-v2/transformers/play_search.metis",
+      "source_blob_oid": "c0e6c9590309c3368bb66e4c859de6d8cd2d68ac",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=c0e6c9590309c3368bb66e4c859de6d8cd2d68ac|family=F-6",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "external_service_or_transformer_runtime",
+        "normalized_ast_ir_and_human_oracle_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f6-04",
+      "family": "F-6",
+      "mode": "explain",
+      "source_path": "examples/play-prod-v2/settings/response.metis",
+      "source_blob_oid": "424ecf41c372f91c7b33187784446b8b707c48e8",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=424ecf41c372f91c7b33187784446b8b707c48e8|family=F-6",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "normalized_ast_ir_and_human_oracle_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    },
+    {
+      "task_id": "slice-0001/f6-05",
+      "family": "F-6",
+      "mode": "explain",
+      "source_path": "examples/play-prod-v2/lib/lists.metis",
+      "source_blob_oid": "1156ae317e53003214bf69cb41f8d28bb4ce61b3",
+      "closure_ref": "whole-tenant",
+      "closure_status": "computed_not_sealed",
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "task_asset_identity": "non-split|source_asset_id=1156ae317e53003214bf69cb41f8d28bb4ce61b3|family=F-6",
+      "unresolved_dependencies": [
+        "data_rights_not_reviewed",
+        "normalized_ast_ir_and_human_oracle_unresolved",
+        "task_specific_oracles_not_executed"
+      ]
+    }
+  ]
+}

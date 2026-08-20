@@ -53,7 +53,7 @@ adapter Metis.
 |---|---|---|---|
 | D-001 | Unica famiglia base: Qwen3.8 | Rende comparabili i risultati ed evita una gara fra modelli non richiesta | Ogni baseline e adapter usa Qwen3.8 |
 | D-002 | Target iniziale: Qwen3.8-27B | Compromesso fra capacità, coding e fattibilità su 128 GB unified memory | Nessun downgrade silenzioso a 9B/14B, nessun passaggio a Nemotron |
-| D-003 | Runtime locale candidato: MLX-VLM | Il checkpoint Qwen3.8 MLX osservato è un VLM e MLX-VLM è il percorso documentato pertinente; la compatibilità specifica resta soggetta a W4 | Non usare l'artefatto Ollama come sorgente di training |
+| D-003 | Runtime locale qualificato: MLX `0.32.1` + MLX-VLM `0.6.15` | Il checkpoint pin ha superato il percorso tecnico W4 delimitato | Non usare l'artefatto Ollama come sorgente di training e non estendere la qualifica oltre la config eseguita |
 | D-004 | QLoRA prima di LoRA/full tuning | Riduce memoria, rischio e costo di iterazione | Il full fine-tuning è fuori perimetro |
 | D-005 | Vision encoder congelato | Model 1 è text/code-first | `train_vision=false` salvo nuova decisione motivata |
 | D-006 | Adapter separato e versionato | Consente rollback, ablation e confronto con la base | Niente fusione prematura |
@@ -78,6 +78,10 @@ Le seguenti non sono decisioni, ma ipotesi sperimentali:
   generici minimi necessari all'uso come coding agent;
 - **H-005:** il corpus corrente, aumentato solo con trasformazioni validate e
   provenance-safe, contiene abbastanza varietà per Model 1.
+
+H-003 è confermata nel perimetro pubblico sintetico batch-1 / sequence-128
+registrato dal report W4; contesti, batch e stochastic settings diversi restano
+nuove ipotesi. H-001, H-002, H-004 e H-005 restano aperte.
 
 Se H-001 o H-002 falliscono, non si scala il training: si rivedono dataset,
 task formulation o confine del prodotto.

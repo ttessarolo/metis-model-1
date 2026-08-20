@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/dependency-closure.schema.json",
+  "title": "Metis Model 1 dependency closure",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "status", "source_revision", "language_version", "tenant_prefix", "closure_policy", "leakage_group_id", "distinct_leakage_groups", "independence_status", "counts", "shared_closures", "tasks"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "benchmark/families-v1/slice-30-closure"},
+    "status": {"const": "computed_not_sealed"},
+    "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "language_version": {"const": "0.43"},
+    "tenant_prefix": {"const": "examples/play-prod-v2"},
+    "closure_policy": {"const": "whole_program_build_input"},
+    "leakage_group_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "distinct_leakage_groups": {"const": 1},
+    "independence_status": {"const": "correlated_single_whole_tenant_group"},
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tasks_in", "tasks_out", "task_ids_distinct", "sources_in", "sources_out", "source_paths_distinct", "source_blob_oids_distinct", "gaps"],
+      "properties": {
+        "tasks_in": {"const": 30}, "tasks_out": {"const": 30}, "task_ids_distinct": {"const": 30},
+        "sources_in": {"const": 201}, "sources_out": {"const": 201}, "source_paths_distinct": {"const": 201},
+        "source_blob_oids_distinct": {"const": 201}, "gaps": {"const": 0}
+      }
+    },
+    "shared_closures": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {"$ref": "#/$defs/closure"}
+    },
+    "tasks": {
+      "type": "array", "minItems": 30, "maxItems": 30,
+      "items": {"$ref": "#/$defs/task"}
+    }
+  },
+  "$defs": {
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "closure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["closure_id", "status", "leakage_group_id", "reason", "inputs", "unresolved_runtime_dependencies"],
+      "properties": {
+        "closure_id": {"const": "whole-tenant"}, "status": {"const": "computed_not_sealed"},
+        "leakage_group_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "reason": {"type": "string", "minLength": 1},
+        "inputs": {"type": "array", "minItems": 201, "maxItems": 201, "items": {"$ref": "#/$defs/input"}},
+        "unresolved_runtime_dependencies": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "input": {
+      "type": "object", "additionalProperties": false, "required": ["path", "blob_oid"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "blob_oid": {"$ref": "#/$defs/oid"}}
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_id", "family", "mode", "source_path", "source_blob_oid", "closure_ref", "closure_status", "leakage_group_id", "task_asset_identity", "unresolved_dependencies"],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^slice-0001/f[1-6]-0[1-5]$"},
+        "family": {"enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"]},
+        "mode": {"enum": ["author", "edit", "repair", "review", "migrate", "explain"]},
+        "source_path": {"type": "string", "pattern": "^examples/play-prod-v2/.+\\.metis$"},
+        "source_blob_oid": {"$ref": "#/$defs/oid"},
+        "closure_ref": {"const": "whole-tenant"}, "closure_status": {"const": "computed_not_sealed"},
+        "leakage_group_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "task_asset_identity": {"type": "string", "pattern": "^non-split\\|source_asset_id=[0-9a-f]{40}\\|family=F-[1-6]$"},
+        "unresolved_dependencies": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "_note": {"type": "string", "description": "Any task-local identity is non-split and must not define a leakage group."}
+      }
+    }
+  }
+}

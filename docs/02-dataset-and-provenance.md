@@ -55,6 +55,11 @@ Il provenance graph collega:
 Due asset con lo stesso antenato semantico sono nello stesso leakage group anche
 se il testo è molto diverso.
 
+Quando `provenance.parents` nomina un altro example ID presente nel dataset,
+parent e child devono dichiarare sia lo stesso split sia lo stesso leakage
+group. Il controllo è indipendente dall'ordine delle righe: una derivazione non
+può creare un nuovo gruppo restando semplicemente nello split del parent.
+
 ## 4. Famiglie di task
 
 ### F-1 — Authoring
@@ -222,16 +227,18 @@ un punto di partenza, non un vincolo superiore alla copertura. Il frozen benchma
 Il numero di esempi non è una metrica di qualità. Per rendere però eseguibile il
 piano:
 
-- benchmark frozen iniziale: 250-400 task, con denominatori pubblicati per
-  famiglia e difficoltà;
+- benchmark frozen v1: esattamente 600 task preregistrati, con denominatori
+  pubblicati per famiglia e difficoltà e almeno 563 gruppi di leakage realmente
+  distinti per sostenere il claim Wilson al 99%;
 - pilot training: 3.000-8.000 esempi accettati dagli oracle;
 - candidate v1: 10.000-25.000 esempi soltanto se il pilot dimostra valore e la
   crescita aggiunge gruppi/trasformazioni, non duplicati cosmetici;
 - preference pairs: aggiunta successiva, se l'errore dominante è la scelta fra
   output validi ma non canonici.
 
-Questi range sono **PROPOSTI**. La coverage matrix e il numero di leakage group
-unici prevalgono sul conteggio grezzo.
+I volumi di training e candidate restano **PROPOSTI**. Il denominatore benchmark
+è invece preregistrato; coverage matrix e gruppi di leakage unici prevalgono
+sempre sul conteggio grezzo.
 
 ## 9. Quality gate del dataset
 

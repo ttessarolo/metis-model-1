@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/source-model-revisions.schema.json",
+  "title": "Metis Model 1 source and model revision manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "state",
+    "grounded_at",
+    "source",
+    "models",
+    "runtime",
+    "governance",
+    "open_decision_refs"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "manifest_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" },
+    "state": { "enum": ["draft", "ratified", "superseded"] },
+    "grounded_at": { "type": "string", "format": "date-time" },
+    "source": { "$ref": "#/$defs/source" },
+    "models": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/model" }
+    },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "governance": { "$ref": "#/$defs/governance" },
+    "open_decision_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^O-[0-9]{3}$" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "state": { "const": "ratified" } },
+        "required": ["state"]
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": { "language_version_status": { "const": "ratified" } }
+          },
+          "runtime": {
+            "properties": {
+              "pinned_version": { "type": "string" },
+              "status": { "enum": ["qualified", "blocked"] }
+            }
+          },
+          "open_decision_refs": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "gitRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "revision",
+        "language_version",
+        "language_version_status",
+        "package_version_observed",
+        "sensitivity",
+        "license_status",
+        "evidence"
+      ],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/$defs/gitRevision" },
+        "language_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "language_version_status": { "enum": ["observed_not_ratified", "ratified"] },
+        "package_version_observed": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "sensitivity": { "enum": ["public", "internal", "restricted"] },
+        "license_status": { "enum": ["verified", "review_required", "internal_unreviewed"] },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "id",
+        "revision",
+        "revision_status",
+        "license_status",
+        "evidence"
+      ],
+      "properties": {
+        "role": { "enum": ["base_model", "mlx_checkpoint"] },
+        "id": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+        "revision": { "$ref": "#/$defs/gitRevision" },
+        "revision_status": { "enum": ["verified", "proposed"] },
+        "license_status": { "enum": ["verified", "review_required"] },
+        "evidence": { "type": "string", "format": "uri" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trainer_id",
+        "candidate_version_observed",
+        "conversion_version_observed",
+        "pinned_version",
+        "status",
+        "decision_id"
+      ],
+      "properties": {
+        "trainer_id": { "const": "mlx-vlm" },
+        "candidate_version_observed": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "conversion_version_observed": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "pinned_version": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "status": { "enum": ["open", "qualified", "blocked"] },
+        "decision_id": { "type": "string", "pattern": "^O-[0-9]{3}$" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_distribution",
+        "default_sensitivity",
+        "weights_in_git",
+        "datasets_in_git",
+        "credentials_allowed"
+      ],
+      "properties": {
+        "default_distribution": { "const": "local-only" },
+        "default_sensitivity": { "const": "internal" },
+        "weights_in_git": { "const": false },
+        "datasets_in_git": { "const": false },
+        "credentials_allowed": { "const": false }
+      }
+    }
+  }
+}

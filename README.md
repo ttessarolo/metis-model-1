@@ -40,17 +40,17 @@ il gate `compile-clean` dai controlli di diff semantico e parità.
 Le decisioni iniziali del progetto sono:
 
 - base model unico: `Qwen/Qwen3.8-27B`;
-- checkpoint MLX candidato: `mlx-community/Qwen3.8-27B-4bit`;
-- training locale candidato con MLX-VLM;
+- checkpoint MLX pin: `mlx-community/Qwen3.8-27B-4bit@3e6447f0...`;
+- runtime locale tecnicamente qualificato con MLX `0.32.1` e MLX-VLM `0.6.15`;
 - QLoRA come prima strategia di adattamento;
 - vision encoder congelato: Model 1 è text/code-first;
 - adapter separato dal base model per ablation, rollback e versionamento;
 - nessun full fine-tuning e nessuna fusione prematura dei pesi.
 
-La compatibilità del checkpoint specifico con un training MLX-VLM lungo non viene
-data per scontata. Prima del pilot è obbligatoria una qualification di almeno 600
-iterazioni che verifichi backward, stabilità della memoria, salvataggio, reload e
-resume dell'adapter.
+La compatibilità non è stata data per scontata: il percorso sintetico delimitato
+ha superato 600 iterazioni, backward, stabilità della memoria, save/reload,
+adapter-off e resume full-state bit-exact. Questa qualifica tecnica non sostituisce
+il benchmark Metis né prova uplift semantico.
 
 ## Perimetro di Model 1
 
@@ -95,9 +95,30 @@ strumenti, con e senza adapter Metis.
 
 ## Stato del progetto
 
-Il repository contiene attualmente la baseline progettuale verificabile. Il
-training non è ancora stato eseguito e nessun adapter è dichiarato qualificato o
-promosso.
+Il repository contiene la baseline progettuale, la foundation W0 eseguibile, la
+prima allocazione W1, il core contrattuale W3 e il packet tecnico W4: manifest di
+revisioni, registro delle decisioni, contratti JSON Schema, gate offline, policy
+degli artefatti, harness e lavagne di orchestrazione. È stato eseguito soltanto
+training pubblico sintetico di qualifica; nessun adapter Metis è promosso e
+nessun uplift di prodotto è dichiarato.
+
+Il gate locale non scarica modelli e non tocca l'ambiente Conda globale:
+
+```bash
+make setup
+make check
+uv run metis-model1 validate-pilot
+uv run metis-model1 assess-w5  # attualmente exit 1: W5 bloccato
+```
+
+Questo comando serve alla foundation e non scarica né riesegue i payload W4. Il
+runtime ML separato è fissato in `qualification/`; O-004 è ratificato.
+
+Lo stato tecnico sintetico resta:
+
+```text
+INFERENCE AND BOUNDED TRAINING QUALIFIED / SEMANTIC UPLIFT UNTESTED
+```
 
 La roadmap procede attraverso:
 
@@ -123,6 +144,12 @@ sono:
 - [riproducibilità, sicurezza e governance](docs/05-reproducibility-and-governance.md);
 - [roadmap di delivery](docs/06-delivery-roadmap.md);
 - [evidenza locale e fonti primarie](docs/07-evidence-and-sources.md).
+- [orchestrazione e lavagne](docs/08-orchestration-and-blackboards.md);
+- [struttura repository e policy artefatti](docs/09-repository-and-artifact-policy.md);
+- [registro delle decisioni aperte](docs/10-open-decisions.md);
+- [stima di fattibilità e rischi](docs/11-feasibility-and-risks.md).
+- [piano esecutivo Accuracy-99](docs/12-accuracy-99-execution-plan.md).
+- [report tecnico W4](orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).
 
 I documenti distinguono esplicitamente fra stato **VERIFICATO**, **DECISO**,
 **PROPOSTO** e **DA VERIFICARE**.
@@ -142,10 +169,9 @@ fusione o distribuzione esterna richiede una decisione e una review separate.
 
 ## Prossimo milestone
 
-La prima milestone operativa è duplice e parallelizzabile:
-
-1. sigillare il benchmark Metis con task, oracle e leakage group;
-2. qualificare il checkpoint Qwen3.8-27B-4bit su MLX-VLM per almeno 600
-   iterazioni, senza usare dati sensibili.
-
-Solo il superamento di entrambi consente di avviare il pilot QLoRA di Model 1.
+Il checkpoint tecnico è qualificato, ma il corpus tracciato non può finanziare
+il claim: 199 file `.metis`, al massimo due radici genealogiche difendibili,
+contro 563 gruppi richiesti. La prossima milestone è quindi autorizzare e
+costruire fonti nuove o indipendenti, poi sigillare dependency graph, diritti e
+oracle della smoke slice, materializzare W3 reale, eseguire A/B e ratificare
+O-003. Solo allora si autorizza il pilot W5 misurato D contro B.

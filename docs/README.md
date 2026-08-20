@@ -1,6 +1,7 @@
 # Piano di Metis Model 1
 
-Stato del piano: **baseline iniziale — 20 agosto 2026**.
+Stato del piano: **foundation W0 + closure W1/W2 + core contrattuale W3 +
+qualifica tecnica W4; W5 bloccato dai gate dati — 20 agosto 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -30,6 +31,16 @@ sempre quattro livelli epistemici:
    dipendenze, exit criteria, deliverable e decisioni ancora aperte.
 8. [`07-evidence-and-sources.md`](07-evidence-and-sources.md) — snapshot locale,
    comandi di grounding, fonti primarie e limiti dell'evidenza corrente.
+9. [`08-orchestration-and-blackboards.md`](08-orchestration-and-blackboards.md)
+   — modello frontier/delega/controllo, lane, lavagne e seam gate.
+10. [`09-repository-and-artifact-policy.md`](09-repository-and-artifact-policy.md)
+    — struttura canonica, confine Git, identità e stati degli artefatti.
+11. [`10-open-decisions.md`](10-open-decisions.md) — vista umana del registro
+    machine-readable delle decisioni e dei blocchi per wave.
+12. [`11-feasibility-and-risks.md`](11-feasibility-and-risks.md) — verdetto
+    condizionato, stima, rischi e prossima evidence che cambia la stima.
+13. [`12-accuracy-99-execution-plan.md`](12-accuracy-99-execution-plan.md) —
+    metrica preregistrata, sequenza esecutiva e stato dei gate verso il 99%.
 
 ## Tesi operativa
 
@@ -49,15 +60,19 @@ l'autorità eseguibile. La formula di Model 1 è quindi:
 > **Qwen3.8-27B + adapter Metis versionato + contesto corrente + ciclo
 > compiler/diagnostic/fix**
 
-## Cosa non dichiara questa baseline
+## Cosa non dichiara lo stato corrente
 
 Questo repository, allo stato iniziale, non dichiara che:
 
-- il training sia già stato eseguito;
-- Qwen3.8-27B sia già qualificato per un training MLX-VLM lungo su questa macchina;
+- un training o adapter Metis di pilot sia già stato eseguito o promosso;
+- la qualifica sintetica batch-1 / sequence-128 e i probe delimitati a 1.024
+  token si estendano automaticamente a 2.048 token o ad altre configurazioni;
 - le soglie proposte siano state raggiunte;
 - un output compiler-clean sia semanticamente equivalente all'intento;
 - dataset o adapter possano essere distribuiti fuori dal perimetro autorizzato.
 
 Questi claim diventano veri solo attraverso gli evidence gate descritti nei
 documenti successivi.
+
+Il percorso tecnico W4 delimitato è invece verificato nel
+[`W4-QUALIFICATION.md`](../orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).

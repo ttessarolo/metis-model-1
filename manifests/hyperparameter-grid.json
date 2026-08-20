@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "grid_id": "w5-pilot-grid/v1",
+  "status": "ratified",
+  "decision_ref": "O-005",
+  "registered_before_w5_candidate_results": true,
+  "scope": "local_qwen3.8_27b_4bit_metis_0.43_pilot",
+  "fixed": {
+    "max_seq_length": 1024,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "lora_dropout": 0.0,
+    "train_on_completions": true,
+    "assistant_id": 77091,
+    "optimizer": "mlx.optimizers.Adam",
+    "max_peak_metal_gb": 110.0
+  },
+  "screening": {
+    "seed": 17,
+    "max_optimizer_steps_per_configuration": 100,
+    "checkpoint_every": 100,
+    "configurations": [
+      {
+        "id": "r8-a16-lr1e-5",
+        "lora_rank": 8,
+        "lora_alpha": 16,
+        "learning_rate": 0.00001
+      },
+      {
+        "id": "r8-a16-lr2e-5",
+        "lora_rank": 8,
+        "lora_alpha": 16,
+        "learning_rate": 0.00002
+      },
+      {
+        "id": "r16-a32-lr1e-5",
+        "lora_rank": 16,
+        "lora_alpha": 32,
+        "learning_rate": 0.00001
+      },
+      {
+        "id": "r16-a32-lr2e-5",
+        "lora_rank": 16,
+        "lora_alpha": 32,
+        "learning_rate": 0.00002
+      }
+    ]
+  },
+  "finalist_repeats": {
+    "count": 1,
+    "seeds": [17, 29, 43],
+    "max_optimizer_steps_per_seed": 100,
+    "checkpoint_every": 25
+  },
+  "budget": {
+    "max_screening_configurations": 4,
+    "max_screening_optimizer_steps": 400,
+    "max_finalist_seed_runs": 3,
+    "max_finalist_optimizer_steps": 300,
+    "max_total_optimizer_steps": 700,
+    "max_total_published_checkpoint_bytes_estimate": 28041423704,
+    "max_total_published_checkpoint_bytes": 34359738368,
+    "max_wall_clock_hours": 18
+  },
+  "technical_evidence": {
+    "sequence_fixture": {
+      "report_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-fixture-report.json",
+      "report_sha256": "sha256:cbb5f1a1179d1f83c2a5478636b4535adfe4cb9701d277c667bdff35fd5c458b",
+      "raw_token_count": 7414,
+      "batch_sequence_length": 1024,
+      "retained_completion_token_count": 1004
+    },
+    "probes": [
+      {
+        "id": "rank8-step1",
+        "rank": 8,
+        "alpha": 16,
+        "resume": false,
+        "global_step": 1,
+        "loss": 0.0608372837305069,
+        "peak_metal_gb": 94.43498243,
+        "finite": true,
+        "checkpoint_bytes": 935483301,
+        "telemetry_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-full-state-telemetry.jsonl",
+        "telemetry_sha256": "sha256:06da00625a0e71d94c5f8111f91a67a6dda7a152dd0f337ebbae9e3b40a62eaf",
+        "manifest_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-full-state/step-00000001/manifest.json",
+        "manifest_sha256": "sha256:8a1dd20492844aec4f10e8560156d37d4ac9b525e0fe2a0c600388b1e876d78d"
+      },
+      {
+        "id": "rank8-resume-step2",
+        "rank": 8,
+        "alpha": 16,
+        "resume": true,
+        "global_step": 2,
+        "loss": 0.05360972508788109,
+        "peak_metal_gb": 95.037375128,
+        "finite": true,
+        "checkpoint_bytes": 935483304,
+        "telemetry_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-full-state-resume-telemetry.jsonl",
+        "telemetry_sha256": "sha256:883e1ee948fd2c27d197591a1d13206fa430b145db87800bb46bd62862ee24b5",
+        "manifest_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-full-state/step-00000002/manifest.json",
+        "manifest_sha256": "sha256:fe097434f81f6f36e3ead765abca4906769fbf06acb5132c68934a7096479998"
+      },
+      {
+        "id": "rank16-step1",
+        "rank": 16,
+        "alpha": 32,
+        "resume": false,
+        "global_step": 1,
+        "loss": 0.0608372837305069,
+        "peak_metal_gb": 94.81756623,
+        "finite": true,
+        "checkpoint_bytes": 1869318364,
+        "telemetry_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-rank16-telemetry.jsonl",
+        "telemetry_sha256": "sha256:630c29d198cf767ab146454e2ff585f0187388cee4ab9ff31bc8517a1280718c",
+        "manifest_ref": "artifacts/w4/2026-08-20-qualification/sequence-1024-rank16-full-state/step-00000001/manifest.json",
+        "manifest_sha256": "sha256:f899d1806a614bb85468cc73eff8ab26b9a6e8b8d7e43886c8745bbe68e06d2b"
+      }
+    ]
+  },
+  "selection_policy": {
+    "screening": "dev_semantic_oracles_only",
+    "finalist": "paired_internal_test_B_vs_D_after_three_seed_dev_selection",
+    "frozen_benchmark_use": "never_for_hyperparameter_or_checkpoint_selection"
+  },
+  "stop_rules": [
+    "O003_or_any_W1_W3_gate_open",
+    "dataset_or_split_identity_mismatch",
+    "non_finite_loss_gradient_weight_or_optimizer_state",
+    "peak_metal_gb_above_110",
+    "oom_or_abnormal_memory_growth",
+    "checkpoint_or_resume_verification_failure",
+    "semantic_oracle_regression_or_critical_veto"
+  ],
+  "non_claims": [
+    "technical_probes_are_not_metis_accuracy_evidence",
+    "loss_decrease_is_not_semantic_uplift",
+    "the_grid_does_not_authorize_W5_while_O003_or_data_gates_are_open",
+    "no_2048_token_or_positive_dropout_path_is_qualified"
+  ]
+}

@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/benchmark-task.schema.json",
+  "title": "Metis Model 1 benchmark task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "status",
+    "family",
+    "mode",
+    "difficulty",
+    "objective",
+    "inputs",
+    "expected",
+    "metis",
+    "provenance",
+    "oracles",
+    "evaluation",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "task_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]+$" },
+    "status": { "enum": ["draft", "reviewed", "sealed", "retired"] },
+    "family": { "enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"] },
+    "mode": { "enum": ["author", "edit", "repair", "review", "migrate", "explain"] },
+    "difficulty": { "enum": ["basic", "intermediate", "adversarial"] },
+    "objective": { "type": "string", "minLength": 1 },
+    "inputs": { "$ref": "#/$defs/inputs" },
+    "expected": { "$ref": "#/$defs/expected" },
+    "metis": { "$ref": "#/$defs/metis" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "oracles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/oracle" }
+    },
+    "evaluation": { "$ref": "#/$defs/evaluation" },
+    "notes": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "sealed" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "metis": {
+            "properties": { "language_version_status": { "const": "ratified" } }
+          },
+          "oracles": {
+            "items": {
+              "properties": {
+                "expectation": { "enum": ["pass", "fail", "not_applicable"] },
+                "evidence_ref": { "type": "string", "minLength": 1 }
+              }
+            },
+            "contains": {
+              "properties": {
+                "stage": { "enum": ["semantic", "human"] },
+                "expectation": { "const": "pass" }
+              },
+              "required": ["stage"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "sealed" },
+          "expected": {
+            "properties": { "output_kind": { "enum": ["source", "patch"] } },
+            "required": ["output_kind"]
+          }
+        },
+        "required": ["status", "expected"]
+      },
+      "then": {
+        "properties": {
+          "oracles": {
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "stage": { "const": "parse" },
+                    "expectation": { "const": "pass" }
+                  },
+                  "required": ["stage", "expectation"]
+                }
+              },
+              {
+                "contains": {
+                  "properties": { "stage": { "const": "link" } },
+                  "required": ["stage"]
+                }
+              },
+              {
+                "contains": {
+                  "properties": { "stage": { "const": "validate" } },
+                  "required": ["stage"]
+                }
+              },
+              {
+                "contains": {
+                  "properties": { "stage": { "const": "compile" } },
+                  "required": ["stage"]
+                }
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "stage": { "enum": ["semantic", "human"] },
+                    "expectation": { "const": "pass" }
+                  },
+                  "required": ["stage", "expectation"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request", "source", "diagnostics", "context_refs"],
+      "properties": {
+        "request": { "type": "string", "minLength": 1 },
+        "source": { "type": ["string", "null"] },
+        "diagnostics": { "type": "array", "items": { "type": "object" } },
+        "context_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output_kind", "artifact", "behavior"],
+      "properties": {
+        "output_kind": { "enum": ["source", "patch", "finding", "refusal"] },
+        "artifact": { "type": ["string", "null"] },
+        "behavior": { "type": "string", "minLength": 1 }
+      }
+    },
+    "metis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_revision", "language_version", "language_version_status"],
+      "properties": {
+        "source_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "language_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "language_version_status": { "enum": ["observed_not_ratified", "ratified"] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parents",
+        "generator",
+        "generator_version",
+        "leakage_group",
+        "sensitivity"
+      ],
+      "properties": {
+        "parents": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "generator": { "type": "string", "minLength": 1 },
+        "generator_version": { "type": "string", "minLength": 1 },
+        "leakage_group": { "type": "string", "minLength": 1 },
+        "sensitivity": { "enum": ["public", "internal", "restricted"] }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "expectation", "evidence_ref"],
+      "properties": {
+        "stage": { "enum": ["parse", "link", "validate", "compile", "semantic", "human"] },
+        "expectation": { "enum": ["pass", "fail", "not_applicable", "pending"] },
+        "evidence_ref": { "type": ["string", "null"] }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metrics", "repair_budget"],
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "repair_budget": { "type": "integer", "minimum": 0, "maximum": 2 }
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "target_id": "accuracy-99/end-to-end-v1",
+  "status": "proposed",
+  "registered_before_candidate_results": true,
+  "decision_ref": "O-003",
+  "variant": "D",
+  "primary_metric": "end_to_end_semantic_success_within_repair_budget",
+  "population": "frozen_benchmark_v1",
+  "population_scope": "metis_0.43_declared_tasks_no_cross_tenant_extrapolation_without_held_out_tenant_evidence",
+  "total": 600,
+  "family_counts": {
+    "F-1": 100,
+    "F-2": 110,
+    "F-3": 110,
+    "F-4": 110,
+    "F-5": 90,
+    "F-6": 80
+  },
+  "point_min": 0.99,
+  "confidence": 0.95,
+  "wilson_lower_min": 0.99,
+  "maximum_failures": 1,
+  "minimum_distinct_leakage_groups": 563,
+  "family_confidence_policy": "report_wilson95_no_per_family_99_claim_at_current_denominators",
+  "repair_budget": 2,
+  "denominator_policy": "all_frozen_tasks_no_survivor_or_conditional_denominator",
+  "success_requires": [
+    "request_fulfilled_or_correctly_refused_when_impossible_or_underspecified",
+    "all_applicable_parse_link_validate_compile_oracles_pass",
+    "semantic_or_blind_human_oracle_passes",
+    "unrelated_regions_are_preserved_and_patch_minimality_passes_when_applicable",
+    "no_invented_identifier_is_accepted_as_valid",
+    "result_is_produced_within_two_repair_cycles",
+    "tool_or_budget_failure_counts_as_task_failure"
+  ],
+  "forbidden_critical_failures": [
+    "accepted_invented_identifier",
+    "benchmark_leakage",
+    "identity_mismatch",
+    "prohibited_data_exposure",
+    "semantic_wrong_compile_clean_accepted",
+    "unauthorized_metis_write",
+    "unrelated_destructive_change"
+  ],
+  "require_zero_unlisted_critical_failures": true,
+  "claim_policy": {
+    "observed_target": "The operational target requires the complete 600-task frozen denominator, at most one failure and every conjunctive task predicate; training or dev accuracy is never substituted.",
+    "population_claim": "A 99% population claim additionally requires the two-sided 95% Wilson lower bound to be at least 0.99, at least 563 distinct leakage groups and evidence that the frozen sample represents the explicitly bounded population.",
+    "correlated_groups": "If task outcomes remain correlated inside provenance groups, report a grouped or cluster-aware interval and withhold the population claim even when the task-level interval passes.",
+    "benchmark_defects": "A benchmark-oracle defect is adjudicated without candidate visibility, versioned and replaced before scoring; it is never silently removed from the denominator."
+  },
+  "non_claims": [
+    "training_loss_is_not_accuracy",
+    "compile_clean_is_not_semantic_correctness",
+    "the_30_task_smoke_slice_is_not_the_frozen_promotion_benchmark",
+    "a_dev_or_internal_test_score_is_not_a_frozen_benchmark_claim",
+    "an_adapter_effect_is_not_evidence_of_metis_uplift",
+    "global_99_does_not_establish_per_family_99_or_cross_tenant_99"
+  ],
+  "evidence_refs": [
+    "docs/03-evaluation-and-gates.md",
+    "docs/12-accuracy-99-execution-plan.md",
+    "orchestra/runs/2026-08-20-accuracy-99-pilot/BLACKBOARD.md"
+  ]
+}

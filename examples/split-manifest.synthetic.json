@@ -1,0 +1,27 @@
+{
+  "assignment": "leakage_group",
+  "schema_version": 1,
+  "split_manifest_id": "sha256:be22630bb2973544429445eaf32d02ca285e802dede35c5adbcef4f54738e5ac",
+  "splits": {
+    "dev": {
+      "example_ids": [],
+      "leakage_groups": []
+    },
+    "frozen": {
+      "example_ids": [],
+      "leakage_groups": []
+    },
+    "internal_test": {
+      "example_ids": [],
+      "leakage_groups": []
+    },
+    "train": {
+      "example_ids": [
+        "sha256:3bddf8baa77cef94e00ee12fbeb58d08adfedc388c7f37b81dba66504b046442"
+      ],
+      "leakage_groups": [
+        "synthetic/weather"
+      ]
+    }
+  }
+}

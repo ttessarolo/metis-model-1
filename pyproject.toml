@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis-model1-foundation"
+version = "0.1.0"
+description = "Fail-closed contracts and offline gates for Metis Model 1"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "jsonschema>=4.23,<5",
+]
+
+[project.scripts]
+metis-model1 = "metis_model1.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metis_model1"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

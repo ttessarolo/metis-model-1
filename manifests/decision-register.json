@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-20T17:24:44Z",
+  "canonical_decision_log": "docs/00-charter-and-decisions.md#3-decisioni-ratificate",
+  "open_decisions": [
+    {
+      "id": "O-001",
+      "title": "Canonical Metis language version for Model 1",
+      "status": "ratified",
+      "owner": "frontier+product",
+      "deadline_wave": "W1",
+      "blocks": [],
+      "evidence_required": ["Pinned Metis commit", "Observed language version", "Ratification"],
+      "resolution": "Ratified Metis language 0.43 from source commit a2dde2b191f6b78c2003d74875560da782470968; tooling package 0.23.87 is provenance, not the language version."
+    },
+    {
+      "id": "O-002",
+      "title": "Held-out families and family criticality",
+      "status": "ratified",
+      "owner": "frontier+domain",
+      "deadline_wave": "W1",
+      "blocks": [],
+      "evidence_required": ["Structural census", "Coverage matrix", "Leakage review"],
+      "resolution": "Ratified six held-out families F-1 through F-6, their criticality and fail-closed leakage grouping from the pinned 197-file census. The first 30 source allocations are distinct and schema-validated; they remain unsealed until dependency closure, data-rights and task-specific oracle evidence are complete."
+    },
+    {
+      "id": "O-003",
+      "title": "Final metric thresholds and statistical tolerances",
+      "status": "open",
+      "owner": "frontier+evaluation",
+      "deadline_wave": "W5",
+      "blocks": ["W5"],
+      "evidence_required": ["Frozen benchmark denominators", "Baseline variance"],
+      "resolution": null
+    },
+    {
+      "id": "O-004",
+      "title": "Pinned mlx and mlx-vlm versions",
+      "status": "ratified",
+      "owner": "frontier+training",
+      "deadline_wave": "W4",
+      "blocks": [],
+      "evidence_required": ["CLI help capture", "Load/forward/backward probe", "600-iteration qualification"],
+      "resolution": "Ratified CPython 3.12.10, MLX/MLX Metal 0.32.1 and MLX-VLM 0.6.15 with exact isolated dependency and model locks. The pinned Qwen3.8 27B 4-bit checkpoint passed strict load, deterministic generation, finite backward, 10/50/600 iterations, save/reload, observable adapter-on/off behavior and a bit-exact full-state 4-step versus 2-step-plus-resume comparison. Qualification is bounded to the public synthetic batch-1, sequence-128, rank-8, alpha-16, LR-1e-5, seed-17, dropout-0 path recorded in the W4 report; it does not authorize W5 or distribution."
+    },
+    {
+      "id": "O-005",
+      "title": "Rank, alpha, learning rate and seed grid",
+      "status": "ratified",
+      "owner": "frontier+training",
+      "deadline_wave": "W5",
+      "blocks": [],
+      "evidence_required": ["W4 memory curve", "Pilot sweep budget"],
+      "resolution": "Ratified before W5 candidate results: sequence 1024, batch/accumulation 1, dropout 0, completion-only Adam; four screening configurations from rank 8/16 with alpha fixed at 2x rank and LR 1e-5/2e-5, seed 17, at most 100 steps each. Select on dev semantic oracles only, then repeat one finalist with seeds 17/29/43 for at most 100 steps each; frozen data is never used for selection. Total cap is 700 optimizer steps, 18 hours and 32 GiB of published checkpoints. Public-synthetic probes passed at rank 8 step 1 and resume step 2 and rank 16 step 1 with finite loss and 94.43-95.04 GB peak Metal. Peak above 110 GB, OOM/NaN, identity/checkpoint failure or any semantic critical veto stops the run. O-003 and W1/W3 data gates still independently block W5."
+    },
+    {
+      "id": "O-006",
+      "title": "Local artifact-store format",
+      "status": "ratified",
+      "owner": "frontier+operations",
+      "deadline_wave": "W5",
+      "blocks": [],
+      "evidence_required": ["Storage budget", "Atomic checkpoint and retention design"],
+      "resolution": "Ratified local-only artifacts/w5/<run-id> layout with immutable source/compiler/runtime/model/dataset/split/config/prompt/oracle/adapter identities, SHA-256 payload manifests, fsync plus atomic rename, verification before resume/evaluation, no symlinks and no automatic deletion of published artifacts. Every run is capped at 40 GiB excluding the shared base, must start with at least 100 GiB free and preserve a 60 GiB reserve. The 2026-08-20 measurement observed 555920019456 bytes free, 30121988096 bytes of existing artifacts and a 935497728-byte full-state checkpoint. Cleanup requires explicit operator action after the frontier verdict is durably recorded."
+    },
+    {
+      "id": "O-007",
+      "title": "Single multi-task adapter or task-specific adapters",
+      "status": "open",
+      "owner": "frontier+product",
+      "deadline_wave": "W7",
+      "blocks": ["W7"],
+      "evidence_required": ["W5 task-family ablation"],
+      "resolution": null
+    },
+    {
+      "id": "O-008",
+      "title": "CLI, editor or agent integration surface",
+      "status": "open",
+      "owner": "frontier+product",
+      "deadline_wave": "W8",
+      "blocks": ["W8"],
+      "evidence_required": ["Candidate latency", "Operator workflow review"],
+      "resolution": null
+    },
+    {
+      "id": "O-009",
+      "title": "Distribution beyond local-only",
+      "status": "open",
+      "owner": "product+governance",
+      "deadline_wave": "W8",
+      "blocks": [],
+      "evidence_required": ["License review", "Data-rights review", "Explicit authorization"],
+      "resolution": null
+    },
+    {
+      "id": "O-010",
+      "title": "Drift threshold requiring a new adapter",
+      "status": "open",
+      "owner": "frontier+operations",
+      "deadline_wave": "W9",
+      "blocks": ["W9"],
+      "evidence_required": ["Metis change taxonomy", "Regression history"],
+      "resolution": null
+    }
+  ]
+}

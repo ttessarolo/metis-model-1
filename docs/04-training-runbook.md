@@ -2,9 +2,12 @@
 
 ## 1. Scopo del runbook
 
-Questo documento definisce l'ordine fail-closed degli esperimenti. Non certifica
-che Qwen3.8-27B sia già addestrabile senza problemi su MLX-VLM: quella è la prima
-cosa che il runbook deve dimostrare.
+Questo documento definisce l'ordine fail-closed degli esperimenti. Il percorso
+tecnico pubblico batch-1 / sequence-128 è stato eseguito e qualificato; il report
+è [`W4-QUALIFICATION.md`](../orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).
+Una successiva espansione tecnica ha provato sequence-1024 a rank 8, resume rank
+8 e rank 16; resta esclusa ogni configurazione, stochasticità o dataset Metis
+non eseguito.
 
 ## 2. Ambiente target osservato
 
@@ -31,7 +34,7 @@ Regole:
 - non leggere `.env`, keychain, token o credenziali;
 - download soltanto da repository pubblici identificati, con checksum/revision.
 
-Revisioni candidate osservate il 20 agosto 2026:
+Revisioni fissate o osservate il 20 agosto 2026:
 
 ```text
 upstream: Qwen/Qwen3.8-27B
@@ -42,10 +45,9 @@ revision: 3e6447f082e89cc7f0bc6e5441afd38dfce760ff
 conversion declared by model card: mlx-vlm 0.6.8
 ```
 
-**VERIFICATO — 20 agosto 2026:** la release pubblica più recente di MLX-VLM è
-`v0.6.15`, pubblicata il 18 agosto 2026. Questo non implica che sia
-automaticamente la versione migliore per il training: W4 deve confrontare
-compatibilità e fix rilevanti, poi fissare una revisione precisa.
+**VERIFICATO E DECISO — 20 agosto 2026:** MLX-VLM `v0.6.15`, insieme a MLX
+`0.32.1`, è il pin O-004 del percorso qualificato. La scelta deriva dalla prova
+eseguita, non dal solo fatto che la release sia recente.
 
 La versione di `mlx-vlm` usata per il training non è automaticamente quella di
 conversione. Va scelta durante la qualification, fissata nel lock e riportata
@@ -58,9 +60,9 @@ insieme all'eventuale patch applicata.
 Dimostrare che il checkpoint specifico, con versioni pin e configurazione
 text-only, esegue un ciclo QLoRA completo e stabile sulla macchina target.
 
-### Configurazione conservativa proposta
+### Configurazione bounded ratificata per il pilot
 
-La seguente è una pseudoconfigurazione di progetto, non ancora un file eseguibile:
+La griglia O-005 usa questa base comune:
 
 ```yaml
 model: mlx-community/Qwen3.8-27B-4bit
@@ -69,16 +71,19 @@ method: qlora
 train_vision: false
 train_on_completions: true
 batch_size: 1
-gradient_accumulation_steps: 4
+gradient_accumulation_steps: 1
 max_seq_length: 1024
-gradient_checkpointing: enabled_if_needed
-iterations: 600_minimum
+gradient_checkpointing: disabled
+iterations: 100_max_per_screen_or_finalist_seed
 adapter_fusion: false
 ```
 
-I nomi esatti delle opzioni devono essere validati contro la CLI della versione
-pin. `lora_rank`, `lora_alpha` e learning rate non sono ancora decisioni: il run
-di qualificazione usa un valore prudente registrato, poi il pilot esegue lo sweep.
+Il long-run qualificato resta batch 1, accumulation 1, sequence length 128,
+rank 8, alpha 16, learning rate `1e-5`, seed 17 e dropout 0. L'espansione
+sequence-1024 ha poi eseguito davvero rank 8 step 1 e resume step 2, oltre a rank
+16/alpha 32 step 1, con picco Metal 94,43-95,04 GB. O-005 fissa rank 8/16,
+alpha 2x, LR `1e-5`/`2e-5`, seed 17 per lo screening e 17/29/43 per il finalista.
+Sequence 2.048, accumulation diversa da 1 e dropout positivo restano esclusi.
 
 ### Sequenza di prova
 
@@ -93,7 +98,8 @@ di qualificazione usa un valore prudente registrato, poi il pilot esegue lo swee
 9. terminare il processo, ricaricare e generare;
 10. riprendere il training dal checkpoint;
 11. disattivare l'adapter e verificare la baseline attesa;
-12. eseguire 30-50 task Metis held-out di smoke evaluation;
+12. eseguire 30-50 task Metis held-out di smoke evaluation prima di autorizzare
+    il pilot semantico;
 13. produrre un report con memory curve, tempi, errori e artifact hash.
 
 ### Perché almeno 600 iterazioni
@@ -105,14 +111,16 @@ smoke test di poche iterazioni.
 
 ### Exit gate
 
-`QUALIFIED` solo se:
+`TECHNICALLY QUALIFIED` per O-004 solo se:
 
 - nessun NaN/Inf;
 - nessun OOM o crescita monotona anomala della memoria;
 - save, reload e resume funzionano;
 - l'adapter cambia il comportamento e può essere disattivato;
-- tutti gli hash e la config sono ricostruibili;
-- il micro-eval termina e non mostra corruzione evidente.
+- tutti gli hash e la config sono ricostruibili.
+
+L'autorizzazione W5 richiede inoltre una slice W1 sigillata e il micro-eval
+Metis; questi due gate non sono soddisfatti dalla fixture sintetica W4.
 
 Altrimenti stato `BLOCKED`, con causa riproducibile. Non si passa al pilot
 riducendo di nascosto sequenza, iterazioni o controlli.

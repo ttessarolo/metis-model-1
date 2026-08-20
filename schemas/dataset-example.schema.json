@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/dataset-example.schema.json",
+  "title": "Metis Model 1 dataset example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "example_id",
+    "task_family",
+    "input",
+    "output",
+    "messages",
+    "metis",
+    "provenance",
+    "sensitivity",
+    "split",
+    "positive",
+    "status",
+    "oracles"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "example_id": { "$ref": "#/$defs/sha256" },
+    "task_family": { "enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"] },
+    "input": { "type": ["object", "array", "string", "number", "boolean", "null"] },
+    "output": {
+      "type": "object",
+      "required": ["assistant_content"],
+      "properties": {
+        "assistant_content": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/message" }
+    },
+    "metis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_revision", "language_version"],
+      "properties": {
+        "source_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "language_version": { "type": "string", "minLength": 1 },
+        "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parents", "generator", "generator_version", "leakage_group"],
+      "properties": {
+        "parents": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sha256" } },
+        "generator": { "type": "string", "minLength": 1 },
+        "generator_version": { "type": "string", "minLength": 1 },
+        "leakage_group": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sensitivity": { "enum": ["public", "internal", "restricted"] },
+    "split": { "enum": ["train", "dev", "internal_test", "frozen"] },
+    "positive": { "type": "boolean" },
+    "status": { "enum": ["accepted", "rejected", "draft"] },
+    "oracles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/oracle" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "content"],
+      "properties": {
+        "role": { "enum": ["system", "user", "assistant"] },
+        "content": { "type": "string", "minLength": 1 }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "applicable", "result", "evidence_hash"],
+      "properties": {
+        "name": {
+          "enum": [
+            "parse",
+            "link",
+            "validate",
+            "compile",
+            "semantic",
+            "patch_minimality",
+            "diagnostic",
+            "ir",
+            "wire",
+            "golden",
+            "migration_pair",
+            "ast",
+            "human"
+          ]
+        },
+        "applicable": { "type": "boolean" },
+        "result": { "enum": ["pass", "fail", "pending", "not_applicable"] },
+        "evidence_hash": {
+          "anyOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

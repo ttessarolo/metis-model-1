@@ -142,13 +142,13 @@ La guida documenta LoRA/QLoRA e opzioni per sequence length, gradient
 checkpointing, completion-only training, accumulation, rank, alpha, adapter path
 e training della vision component. Elenca Qwen2/3/3.5 VL fra i modelli
 supportati. Qwen3.8 non è nominato esplicitamente, anche se la sua config usa
-`model_type=qwen3_5`: la compatibilità del checkpoint specifico resta
-**DA VERIFICARE** con W4.
+`model_type=qwen3_5`. La compatibilità del checkpoint specifico è stata
+**VERIFICATA** nel percorso W4 delimitato, non dedotta dalla lista di supporto.
 
 La release pubblica più recente osservata è `v0.6.15`, pubblicata il 18 agosto
 2026. Il checkpoint MLX dichiara invece di essere stato convertito con `0.6.8`:
-sono due fatti differenti e il training pin definitivo viene deciso soltanto
-dalla qualification.
+sono due fatti differenti. La qualification ha ratificato `0.6.15` come trainer
+pin, mantenendo `0.6.8` come sola provenienza della conversione.
 
 ## 7. Issue pubbliche rilevanti
 
@@ -164,7 +164,6 @@ dimostrati.
 
 ## 8. Claim non ancora verificati
 
-- stabilità di 600+ iterazioni QLoRA del checkpoint specifico;
 - memoria di picco e throughput reali con 1.024/2.048 token;
 - migliore rank/alpha/LR;
 - dimensione ottimale del dataset;
@@ -172,6 +171,10 @@ dimostrati.
 - soglie finali del benchmark;
 - distribuibilità dell'adapter derivato dal corpus proprietario;
 - compatibilità con futuri aggiornamenti Metis, Qwen o MLX.
+
+La stabilità a 600 iterazioni, i picchi della configurazione sequence-128 e il
+resume full-state wrapper sono verificati nel
+[`W4-QUALIFICATION.md`](../orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).
 
 Questi elementi devono restare esplicitamente aperti finché non esiste evidence
 prodotta dalle wave corrispondenti.

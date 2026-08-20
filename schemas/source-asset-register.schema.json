@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/source-asset-register.schema.json",
+  "title": "Metis Model 1 source asset local-use register",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "status",
+    "source_revision",
+    "language_version",
+    "closure_manifest_id",
+    "closure_policy",
+    "classification",
+    "classification_id",
+    "counts",
+    "assets",
+    "manifest_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "manifest_id": { "const": "benchmark/families-v1/slice-30-assets" },
+    "status": { "const": "classified_local_only" },
+    "source_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "language_version": { "const": "0.43" },
+    "closure_manifest_id": { "const": "benchmark/families-v1/slice-30-closure" },
+    "closure_policy": { "const": "whole_program_build_input" },
+    "classification": { "$ref": "#/$defs/classification" },
+    "classification_id": { "const": "internal_local_training_only_pending_O009" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assets_in",
+        "assets_out",
+        "asset_paths_distinct",
+        "asset_blob_oids_distinct",
+        "gaps"
+      ],
+      "properties": {
+        "assets_in": { "const": 201 },
+        "assets_out": { "const": 201 },
+        "asset_paths_distinct": { "const": 201 },
+        "asset_blob_oids_distinct": { "const": 201 },
+        "gaps": { "const": 0 }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 201,
+      "maxItems": 201,
+      "items": { "$ref": "#/$defs/asset" }
+    },
+    "manifest_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sensitivity",
+        "use_scope",
+        "external_distribution",
+        "authorization_basis",
+        "legal_review"
+      ],
+      "properties": {
+        "sensitivity": { "const": "internal" },
+        "use_scope": { "const": "local_training_and_evaluation_only" },
+        "external_distribution": { "const": "prohibited_pending_O009" },
+        "authorization_basis": {
+          "const": "user_explicit_local_training_mandate_2026-08-20"
+        },
+        "legal_review": { "const": "not_performed" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "blob_oid",
+        "sensitivity",
+        "use_scope",
+        "external_distribution",
+        "authorization_basis",
+        "legal_review"
+      ],
+      "properties": {
+        "path": { "type": "string", "pattern": "^examples/play-prod-v2/.+" },
+        "blob_oid": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "sensitivity": { "const": "internal" },
+        "use_scope": { "const": "local_training_and_evaluation_only" },
+        "external_distribution": { "const": "prohibited_pending_O009" },
+        "authorization_basis": {
+          "const": "user_explicit_local_training_mandate_2026-08-20"
+        },
+        "legal_review": { "const": "not_performed" }
+      }
+    }
+  }
+}

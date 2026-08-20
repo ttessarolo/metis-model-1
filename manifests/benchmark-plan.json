@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "plan_id": "benchmark/families-v1",
+  "status": "ratified",
+  "source_revision": "a2dde2b191f6b78c2003d74875560da782470968",
+  "language_version": "0.43",
+  "sensitivity": "internal",
+  "census": {
+    "tenant_files": 197,
+    "lines": 15243,
+    "endpoint_files": 170,
+    "property_files": 176,
+    "catalog_files": 7,
+    "transformer_files": 6,
+    "settings_files": 4,
+    "lib_files": 3,
+    "validator_errors": 0,
+    "validator_warnings": 123,
+    "validation_command": "node --import tsx test/corpus-validation.ts",
+    "evidence_refs": [
+      "metis@a2dde2b:tooling/test/corpus-validation.ts",
+      "metis@a2dde2b:tooling/src/language/metis.langium",
+      "metis@a2dde2b:tooling/src/compiler/tenant-build.ts"
+    ]
+  },
+  "families": [
+    {
+      "id": "F-1",
+      "name": "Authoring",
+      "mode": "author",
+      "criticality": "high",
+      "source_denominator": "170 endpoints plus 27 non-endpoint assets",
+      "held_out_rule": "Hold out complete intent, template and property families.",
+      "required_oracles": ["parse", "link", "validate", "compile", "semantic"],
+      "allocated_tasks": 5
+    },
+    {
+      "id": "F-2",
+      "name": "Minimal editing",
+      "mode": "edit",
+      "criticality": "critical",
+      "source_denominator": "170 endpoints",
+      "held_out_rule": "Keep the source template and its dependency closure outside training.",
+      "required_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"],
+      "allocated_tasks": 5
+    },
+    {
+      "id": "F-3",
+      "name": "Diagnostic repair",
+      "mode": "repair",
+      "criticality": "critical",
+      "source_denominator": "123 warning seeds plus oracle-generated mutations",
+      "held_out_rule": "Keep every mutation_parent and all its mutations in one split.",
+      "required_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"],
+      "allocated_tasks": 5
+    },
+    {
+      "id": "F-4",
+      "name": "Review and explanation",
+      "mode": "review",
+      "criticality": "critical",
+      "source_denominator": "170 endpoints restricted to tasks with semantic evidence",
+      "held_out_rule": "Do not share golden, IR or wire ancestors across splits.",
+      "required_oracles": ["compile", "ir", "wire", "golden", "semantic"],
+      "allocated_tasks": 5
+    },
+    {
+      "id": "F-5",
+      "name": "Migration and canonicalization",
+      "mode": "migrate",
+      "criticality": "high",
+      "source_denominator": "4 migrated files and 56 legacy-marker candidates",
+      "held_out_rule": "Keep a language epoch and every migration derivative in one split.",
+      "required_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"],
+      "allocated_tasks": 5
+    },
+    {
+      "id": "F-6",
+      "name": "Structural explanation",
+      "mode": "explain",
+      "criticality": "medium_high",
+      "source_denominator": "197 AST and IR candidates",
+      "held_out_rule": "Do not duplicate a normalized AST or IR signature across splits.",
+      "required_oracles": ["ast", "ir", "semantic", "human"],
+      "allocated_tasks": 5
+    }
+  ],
+  "leakage": {
+    "status": "ratified_fail_closed",
+    "group_if_shared": [
+      "source_asset_id",
+      "ast_ir_census_golden_wire_ancestor",
+      "normalized_ast_ir_template",
+      "property_or_endpoint_family",
+      "dependency_closure",
+      "distinctive_external_symbol_set",
+      "commit_or_language_epoch",
+      "mutation_parent",
+      "semantic_request_or_cosmetic_variant"
+    ],
+    "signature_fields": [
+      "normalized_ast_signature",
+      "normalized_ir_signature",
+      "dependency_closure",
+      "symbol_set",
+      "property_family",
+      "provenance_parent",
+      "language_epoch"
+    ],
+    "unresolved_closure_policy": "exclude_from_frozen_benchmark"
+  },
+  "slice_30": {
+    "status": "allocated_not_sealed",
+    "seal_blockers": [
+      "dependency_closure_not_computed",
+      "data_rights_not_reviewed",
+      "task_specific_oracles_not_executed"
+    ],
+    "tasks": [
+      { "task_id": "slice-0001/f1-01", "family": "F-1", "mode": "author", "source_path": "examples/play-prod-v2/properties/search/main.metis", "source_blob_oid": "23b58e42fd06167a1cdea7a22a89ce91f70571a6", "intended_oracles": ["parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f1-02", "family": "F-1", "mode": "author", "source_path": "examples/play-prod-v2/properties/sky/sky_featured.metis", "source_blob_oid": "6bb22cb05488720bfe3dccc5768cb342e0c71577", "intended_oracles": ["parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f1-03", "family": "F-1", "mode": "author", "source_path": "examples/play-prod-v2/properties/dem/dem_test.metis", "source_blob_oid": "1b27f647d272affaaa94a16bddf2e09019c7a5b4", "intended_oracles": ["parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f1-04", "family": "F-1", "mode": "author", "source_path": "examples/play-prod-v2/properties/snap/stagioni_prima_serata.metis", "source_blob_oid": "07ca0d02b056e8070a863841fa8696a5f5c28a8b", "intended_oracles": ["parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f1-05", "family": "F-1", "mode": "author", "source_path": "examples/play-prod-v2/properties/play/main_2.metis", "source_blob_oid": "30f6359acdb65b0982c4f947fb0c73dc08a21666", "intended_oracles": ["parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f2-01", "family": "F-2", "mode": "edit", "source_path": "examples/play-prod-v2/properties/search/filtered_search.metis", "source_blob_oid": "92ab1a44a568fb9a8713ef4598ecf5b269a4e6e6", "intended_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f2-02", "family": "F-2", "mode": "edit", "source_path": "examples/play-prod-v2/properties/play/film_genere_params.metis", "source_blob_oid": "3932d2aed949d2fdeaa87e0bfff575a50d2fa275", "intended_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f2-03", "family": "F-2", "mode": "edit", "source_path": "examples/play-prod-v2/properties/play/collection_order_by_editor.metis", "source_blob_oid": "51d0927d96deff76a4fcefcc054a1a2f2ab8bbd9", "intended_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f2-04", "family": "F-2", "mode": "edit", "source_path": "examples/play-prod-v2/properties/play/stagioni_sport_3.metis", "source_blob_oid": "f364ec43f12a9e7990d706658f9633ab554409c0", "intended_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f2-05", "family": "F-2", "mode": "edit", "source_path": "examples/play-prod-v2/properties/play/view_all_person.metis", "source_blob_oid": "e4906d25434021bac0cfb73a3b0a28d2d0bd586b", "intended_oracles": ["patch_minimality", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f3-01", "family": "F-3", "mode": "repair", "source_path": "examples/play-prod-v2/properties/play/multiple_block_film.metis", "source_blob_oid": "79dbab5f39ea093db2f2f22329ac45d9da620651", "intended_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f3-02", "family": "F-3", "mode": "repair", "source_path": "examples/play-prod-v2/properties/play/fallback_multiple_doc.metis", "source_blob_oid": "31871212cd6ea2893ec579d222c4999b06dd75a1", "intended_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f3-03", "family": "F-3", "mode": "repair", "source_path": "examples/play-prod-v2/properties/search/detail.metis", "source_blob_oid": "7719f75e8d02670436e5ac58c0d244e75f796851", "intended_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f3-04", "family": "F-3", "mode": "repair", "source_path": "examples/play-prod-v2/properties/play/enabler_highlights_calcio.metis", "source_blob_oid": "67a0609649a8ea4e8f23449013c22b29bc1c3b28", "intended_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f3-05", "family": "F-3", "mode": "repair", "source_path": "examples/play-prod-v2/_tenant.metis", "source_blob_oid": "d38b2f1e53de5231f1d0dfdfccb075b893d5ecc2", "intended_oracles": ["diagnostic", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f4-01", "family": "F-4", "mode": "review", "source_path": "examples/play-prod-v2/properties/play/similar_cinema.metis", "source_blob_oid": "6fefe9b115a0f70295b345aa623099318c37d34b", "intended_oracles": ["compile", "ir", "wire", "golden", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f4-02", "family": "F-4", "mode": "review", "source_path": "examples/play-prod-v2/properties/play/multiple_block_dem_film_free.metis", "source_blob_oid": "e4a417de5001c39ab11cd4f568832b58fd051a5f", "intended_oracles": ["compile", "ir", "wire", "golden", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f4-03", "family": "F-4", "mode": "review", "source_path": "examples/play-prod-v2/properties/play/inf_because_you.metis", "source_blob_oid": "fc86dd146f35df919534217af95f97a1179a1c8a", "intended_oracles": ["compile", "ir", "wire", "golden", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f4-04", "family": "F-4", "mode": "review", "source_path": "examples/play-prod-v2/properties/play/person_to_content_film.metis", "source_blob_oid": "70b511884a2905a6e9407d0df5cbb34f39176dee", "intended_oracles": ["compile", "ir", "wire", "golden", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f4-05", "family": "F-4", "mode": "review", "source_path": "examples/play-prod-v2/properties/play/similar_serie_tv_fiction.metis", "source_blob_oid": "562199b2fb655af20034f8834ae8155bf8d0be4e", "intended_oracles": ["compile", "ir", "wire", "golden", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f5-01", "family": "F-5", "mode": "migrate", "source_path": "examples/play-prod-v2/lib/presets.migrated.metis", "source_blob_oid": "cbae5ea0b0908f1d5f2c8bd3b7e3750834825719", "intended_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f5-02", "family": "F-5", "mode": "migrate", "source_path": "examples/play-prod-v2/properties/dem/_property.metis", "source_blob_oid": "0c1173e58bfaceae6620d8a3b8fdaab299bfbec4", "intended_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f5-03", "family": "F-5", "mode": "migrate", "source_path": "examples/play-prod-v2/properties/general/_property.migrated.metis", "source_blob_oid": "c2d42d1e2927f308e56a82a089ffedeba80e32cf", "intended_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f5-04", "family": "F-5", "mode": "migrate", "source_path": "examples/play-prod-v2/properties/sky/_property.migrated.metis", "source_blob_oid": "a73d4370d4e988bbe4f030dceeadf8f8bb3a9530", "intended_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f5-05", "family": "F-5", "mode": "migrate", "source_path": "examples/play-prod-v2/properties/play/continua_a_guardare.metis", "source_blob_oid": "a5a970aa7b34d4d6c4b09dd549b086ad9edeab21", "intended_oracles": ["migration_pair", "parse", "link", "validate", "compile", "semantic"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f6-01", "family": "F-6", "mode": "explain", "source_path": "examples/play-prod-v2/catalogs/link.metis", "source_blob_oid": "918c7ef3f3215fa834a6b25fe9e65f790a76969d", "intended_oracles": ["ast", "ir", "semantic", "human"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f6-02", "family": "F-6", "mode": "explain", "source_path": "examples/play-prod-v2/catalogs/users.metis", "source_blob_oid": "72a645f3dbc5eba67e0794923edea71e10d1badb", "intended_oracles": ["ast", "ir", "semantic", "human"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f6-03", "family": "F-6", "mode": "explain", "source_path": "examples/play-prod-v2/transformers/play_search.metis", "source_blob_oid": "c0e6c9590309c3368bb66e4c859de6d8cd2d68ac", "intended_oracles": ["ast", "ir", "semantic", "human"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f6-04", "family": "F-6", "mode": "explain", "source_path": "examples/play-prod-v2/settings/response.metis", "source_blob_oid": "424ecf41c372f91c7b33187784446b8b707c48e8", "intended_oracles": ["ast", "ir", "semantic", "human"], "leakage_group_status": "pending_dependency_closure" },
+      { "task_id": "slice-0001/f6-05", "family": "F-6", "mode": "explain", "source_path": "examples/play-prod-v2/lib/lists.metis", "source_blob_oid": "1156ae317e53003214bf69cb41f8d28bb4ce61b3", "intended_oracles": ["ast", "ir", "semantic", "human"], "leakage_group_status": "pending_dependency_closure" }
+    ]
+  }
+}

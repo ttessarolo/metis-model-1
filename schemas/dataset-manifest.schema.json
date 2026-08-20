@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/dataset-manifest.schema.json",
+  "title": "Metis Model 1 dataset manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "example_count",
+    "counts_by_split",
+    "counts_by_family",
+    "example_ids",
+    "jsonl_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "example_count": { "type": "integer", "minimum": 0 },
+    "counts_by_split": { "$ref": "#/$defs/split_counts" },
+    "counts_by_family": { "$ref": "#/$defs/family_counts" },
+    "example_ids": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sha256" },
+      "uniqueItems": true
+    },
+    "jsonl_sha256": { "$ref": "#/$defs/sha256" },
+    "split_manifest_id": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "split_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["train", "dev", "internal_test", "frozen"],
+      "properties": {
+        "train": { "type": "integer", "minimum": 0 },
+        "dev": { "type": "integer", "minimum": 0 },
+        "internal_test": { "type": "integer", "minimum": 0 },
+        "frozen": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "family_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"],
+      "properties": {
+        "F-1": { "type": "integer", "minimum": 0 },
+        "F-2": { "type": "integer", "minimum": 0 },
+        "F-3": { "type": "integer", "minimum": 0 },
+        "F-4": { "type": "integer", "minimum": 0 },
+        "F-5": { "type": "integer", "minimum": 0 },
+        "F-6": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
