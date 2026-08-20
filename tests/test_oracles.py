@@ -20,6 +20,7 @@ from metis_model1.oracles import (
 
 METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
 RUNNER = Path(__file__).parents[1] / "runtime/metis_oracle/runner.ts"
+PINNED_NODE = oracle_module._resolve_pinned_node()[0]
 VALID = 'metis 0.43\nendpoint play.test as "test" {\n  variant v { empty }\n}\n'
 
 
@@ -41,6 +42,13 @@ def execute(output_dir: Path, source: str = VALID, **kwargs: object) -> dict:
         output_path=output_dir / "oracle.json",
         **kwargs,
     )
+
+
+def write_unqualified_node(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\nprintf 'v0.0.0\\n'\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
 
 
 def test_valid_source_has_structural_evidence_and_schema(artifact_tmp: Path) -> None:
@@ -166,8 +174,72 @@ def test_forged_external_runner_is_rejected(artifact_tmp: Path) -> None:
 def test_unqualified_node_runtime_is_rejected(
     artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("PATH", "/opt/homebrew/bin:/usr/bin:/bin")
+    bad = artifact_tmp / "bad-node-bin"
+    write_unqualified_node(bad / "node")
+    monkeypatch.delenv(oracle_module.NODE_RUNTIME_ENV, raising=False)
+    monkeypatch.setenv("PATH", f"{bad}:/usr/bin:/bin")
     with pytest.raises(OracleError, match="node runtime mismatch"):
+        execute(artifact_tmp)
+
+
+def test_source_node_is_never_executed_during_candidate_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("source Node candidate was executed before snapshot isolation")
+
+    monkeypatch.setattr(oracle_module.subprocess, "run", forbidden)
+    resolved, digest = oracle_module._validate_node_binary(PINNED_NODE)
+    assert resolved == PINNED_NODE.resolve()
+    assert digest == oracle_module.PINNED_NODE_BINARY_SHA256
+
+
+def test_pinned_node_is_found_after_an_unqualified_path_entry(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bad = artifact_tmp / "bad-node-bin"
+    good = artifact_tmp / "good-node-bin"
+    good.mkdir()
+    write_unqualified_node(bad / "node")
+    (good / "node").symlink_to(PINNED_NODE)
+    monkeypatch.delenv(oracle_module.NODE_RUNTIME_ENV, raising=False)
+    monkeypatch.setenv("PATH", f"{bad}:{good}:/usr/bin:/bin")
+    envelope = execute(artifact_tmp / "result")
+    assert envelope["result"]["status"] == "ok"
+
+
+def test_unreadable_path_candidate_does_not_mask_pinned_node(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bad = artifact_tmp / "unreadable-node-bin"
+    good = artifact_tmp / "good-node-bin"
+    unreadable = write_unqualified_node(bad / "node")
+    unreadable.chmod(0o111)
+    good.mkdir()
+    (good / "node").symlink_to(PINNED_NODE)
+    monkeypatch.delenv(oracle_module.NODE_RUNTIME_ENV, raising=False)
+    monkeypatch.setenv("PATH", f"{bad}:{good}:/usr/bin:/bin")
+    envelope = execute(artifact_tmp / "result")
+    assert envelope["result"]["status"] == "ok"
+
+
+def test_explicit_pinned_node_overrides_hostile_path(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bad = artifact_tmp / "bad-node-bin"
+    write_unqualified_node(bad / "node")
+    monkeypatch.setenv(oracle_module.NODE_RUNTIME_ENV, str(PINNED_NODE))
+    monkeypatch.setenv("PATH", f"{bad}:/usr/bin:/bin")
+    envelope = execute(artifact_tmp)
+    assert envelope["result"]["status"] == "ok"
+
+
+def test_explicit_unqualified_node_is_rejected(
+    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wrong = write_unqualified_node(artifact_tmp / "unqualified-node")
+    monkeypatch.setenv(oracle_module.NODE_RUNTIME_ENV, str(wrong))
+    with pytest.raises(OracleError, match="binary hash"):
         execute(artifact_tmp)
 
 

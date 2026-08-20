@@ -111,6 +111,13 @@ uv run metis-model1 validate-pilot
 uv run metis-model1 assess-w5  # attualmente exit 1: W5 bloccato
 ```
 
+`make check` passa alla suite Oracle il runtime Node qualificato locale; versione
+e SHA-256 del binario vengono comunque verificati fail-closed dal bridge. Su un
+altro host già qualificato, indicare esplicitamente il binario equivalente con
+`make check PINNED_NODE=/percorso/assoluto/node`. Le invocazioni dirette del
+bridge possono usare `METIS_MODEL1_NODE`; senza override, il resolver considera
+tutti i `node` nel `PATH` e accetta soltanto quello che coincide con il pin.
+
 Questo comando serve alla foundation e non scarica né riesegue i payload W4. Il
 runtime ML separato è fissato in `qualification/`; O-004 è ratificato.
 

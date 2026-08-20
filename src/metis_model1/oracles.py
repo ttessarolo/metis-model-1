@@ -30,6 +30,7 @@ PINNED_NODE_MODULES_SHA256 = "1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c
 PINNED_RUNNER_SHA256 = "8278504a71c2d609aa441a0e81537c92de28d329453a6a99bba2b43afc0aefe0"
 PINNED_NODE_BINARY_SHA256 = "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
 NODE_RUNTIME_IDENTITY = "node://v22.22.3"
+NODE_RUNTIME_ENV = "METIS_MODEL1_NODE"
 SANDBOX_EXEC_PATH = Path("/usr/bin/sandbox-exec")
 SANDBOX_EXEC_IDENTITY = "sandbox-exec:///usr/bin/sandbox-exec"
 SANDBOX_POLICY = "(version 1) (allow default) (deny file-write*)"
@@ -133,22 +134,43 @@ def _validate_node_binary(node: str | os.PathLike[str] | None) -> tuple[Path, st
     digest = _file_sha256(resolved)
     if digest != PINNED_NODE_BINARY_SHA256:
         raise OracleError("node runtime mismatch: Node binary hash differs from its pin")
-    try:
-        completed = subprocess.run(
-            [str(resolved), "--version"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env=STERILE_ENV,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        raise OracleError(f"cannot inspect pinned Node runtime: {error}") from error
-    if completed.stdout.strip() != PINNED_NODE_VERSION:
-        raise OracleError(
-            f"node runtime mismatch: expected {PINNED_NODE_VERSION}, got {completed.stdout.strip()}"
-        )
+    # Never execute this mutable source path. It is copied into the isolated
+    # snapshot and re-hashed before sandboxed execution; the runner then reports
+    # ``process.version``, which the response validator binds to the version pin.
     return resolved, digest
+
+
+def _resolve_pinned_node() -> tuple[Path, str]:
+    """Resolve only the registered Node binary, independent of PATH order."""
+
+    configured = os.environ.get(NODE_RUNTIME_ENV)
+    if configured is not None:
+        if not configured or not Path(configured).is_absolute():
+            raise OracleError(f"{NODE_RUNTIME_ENV} must be an absolute executable path")
+        try:
+            return _validate_node_binary(configured)
+        except OSError as error:
+            raise OracleError(f"cannot read {NODE_RUNTIME_ENV} binary") from error
+
+    seen: set[Path] = set()
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if not directory:
+            continue
+        candidate = Path(directory) / "node"
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            continue
+        if resolved in seen or not resolved.is_file() or not os.access(resolved, os.X_OK):
+            continue
+        seen.add(resolved)
+        try:
+            return _validate_node_binary(resolved)
+        except (OSError, OracleError):
+            continue
+    raise OracleError(
+        f"node runtime mismatch: no {PINNED_NODE_VERSION} binary matching the registered hash"
+    )
 
 
 def _node_modules_sha256(root: Path) -> str:
@@ -611,7 +633,7 @@ def run_oracle(
     output = _validate_output_path(output_path, root)
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    node, node_binary_sha256 = _validate_node_binary(shutil.which("node"))
+    node, node_binary_sha256 = _resolve_pinned_node()
     runtime = _runtime_identity(
         PINNED_NODE_VERSION, node_binary_sha256, revision, tree, toolchain_runtime
     )

@@ -82,3 +82,9 @@ make check
 checks the repository-file boundary, lints and formats Python, and runs tests. It
 does not download a model, inspect secrets, contact ARES, compile Metis, or prove
 W4 trainability.
+
+The test recipe passes the qualified Node binary explicitly so Oracle evidence
+never depends on the operator's ambient `PATH` order. A different qualified host
+must pass `PINNED_NODE=/absolute/path/to/node`; direct bridge callers can set
+`METIS_MODEL1_NODE`. Without an override the resolver inspects every `node` in
+`PATH`, but it accepts only the registered version and binary digest.

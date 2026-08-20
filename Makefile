@@ -1,3 +1,5 @@
+PINNED_NODE ?= /Users/tommasotessarolo/.hermes/node/bin/node
+
 .PHONY: setup validate validate-pilot assess-w5 lint format-check test check
 
 setup:
@@ -19,6 +21,6 @@ format-check:
 	uv run ruff format --check .
 
 test:
-	uv run pytest
+	METIS_MODEL1_NODE="$(PINNED_NODE)" uv run pytest
 
 check: validate validate-pilot lint format-check test

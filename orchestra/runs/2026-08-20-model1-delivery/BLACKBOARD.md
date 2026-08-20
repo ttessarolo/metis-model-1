@@ -172,6 +172,29 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   `validate-pilot` remained intentionally fail-closed on the five W5 evidence
   blockers rather than converting technical qualification into an accuracy
   claim.
+- FACT — K7 resumed the same Kimi K3 provider session against clean commit
+  `9418ad1d94ad43f8580d84a3f88fd2da5f792b6c`. It independently confirmed both
+  repository invariants, 39 frozen tasks with one shared benchmark root forming
+  exactly one group, unset promotion authority failing closed, and isolated
+  Oracle execution. Coverage is `in=3 out=3 distinct=3 gaps=0`; report SHA-256
+  is `2fb3145d7275b12a07c8900a2265ad6cd798f9c904d1c63fdeeed5a2af35fa9a`.
+- FIX — K7 also found that the documented test command depended on ambient
+  `PATH`: Node 26 correctly failed the runtime pin, but made a green gate depend
+  on operator shell state. L0 added an explicit `METIS_MODEL1_NODE` selection,
+  an all-PATH resolver that accepts only the registered version and binary
+  digest, a qualified Makefile default with portable override, and mutation
+  coverage for wrong-first-PATH and forged explicit binaries. The mutable source
+  candidate is never executed: it is hash-only, then copied and rehashed before
+  the sandboxed runner reports the version bound by the response verifier.
+- DONE — The corrected documented `make check` was run with hostile ambient
+  `PATH=/opt/homebrew/bin:/usr/bin:/bin`: foundation
+  `in=21 out=21 distinct=21 gaps=0`, Python tests
+  `in=198 out=198 distinct=198 gaps=0`, Ruff and format green. No unqualified
+  Node fallback is accepted.
+- DONE — L10's final hostile resolver/TOCTOU replay returned `P0=0`, `P1=0`.
+  Relative and wrong overrides, no exact digest, wrong-first and unreadable
+  candidates, duplicates/symlinks and pre-sandbox execution were all exercised;
+  only a cross-host Makefile-default advisory remains documented.
 - FACT — The current executable W5 assessment is contract-valid but blocked on
   five exact items: leakage groups `1/563`, unsealed task-specific oracles,
   synthetic-only W3, O-003 and missing A/B baseline. Real semantic accuracy is
@@ -184,8 +207,8 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 
 ## Open
 
-- OPEN — Publish the accepted L8/L9 integration SHA and complete K7's resumed
-  clean-commit invariant recheck.
+- OPEN — Publish the deterministic Node-selection fix and complete K7's final
+  clean-commit recheck of that new SHA.
 - OPEN — Benchmark v1, real W3 dataset, A/B baseline, O-003 and W5.
 - OPEN — Final semantic accuracy and promotion verdict.
 
