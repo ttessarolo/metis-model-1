@@ -487,6 +487,46 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   remains honestly `BLOCKED` for W5 on `1/563` groups, unsealed task-specific
   oracles, no real W3 dataset, O-003 and absent A/B baseline. Post-gate Metis
   HEAD/tree/status remain byte-identical with tracked diff files `0`.
+- DONE — Kimi K3 independently audited pushed clean SHA
+  `96cedd2df4074c31ee9ae70a8475e9a60a537329`: bounded infrastructure verdict
+  `ACCEPT`, semantic-registry decision `RATIFIABLE`, `P0=0`, `P1=0`, `P2=5`.
+  Its report is external to this repository at
+  `runs/metis-model1-finished-delivery/artifacts/k3w3-w3-qualifier-report.md`,
+  SHA-256 `a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a`.
+  Coverage: units `in=3 out=3 distinct=3 gaps=0`; clean diff files `21/21`;
+  qualifier/contracts `70/70`; semantic rows `3/3`; real ordered executions
+  `5/5`; direct IR/diagnostic truth `11/11`.
+- FACT — Kimi recomputed candidate manifest
+  `sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5`
+  and semantic registry
+  `sha256:9b9aa14836eb6924e61df0ab1e0a7b7224f9958b78056ae66fd27f59868cc7c3`,
+  then ran the opt-in real bridge gate in an isolated `/tmp` clone. Two fresh
+  processes were byte-identical, with roles `author/before/after/mutated/fixed`,
+  statuses `ok/ok/ok/invalid/ok`, five distinct receipts/artifacts and `13/13`
+  mutation attacks closed. All five artifacts bind exact Metis revision/tree.
+  The three rows conservatively remain one shared session/generator leakage
+  group; this grants no population or accuracy credit.
+- FACT — L23 dependency availability is local and download-free. The CPython
+  `3.13.3` arm64 worker closure is `in=144 out=144 distinct=144 gaps=0`,
+  `1,799,002` bytes, no symlinks, sorted-roster digest
+  `db649bc14ee947ff43a2e5dbd540585123a259bb771a087692b72a4c0d463f42`;
+  isolated `-I -B -S` import passes. Native `rpds` SHA-256 is
+  `b2e1ac864b42ac726e2d95ffa3c5de5b74df21ff0415949b082e364414a36d86`.
+  Node `v22.22.3` and the runner are already present with the registered hashes.
+- STOP — Do not wire the accepted L22 fixture worker directly to `run_oracle`.
+  The current qualifier caps source-root bundle files at `128`, while the
+  external worker closure has `144`; its Seatbelt profile permits only the
+  pinned Python executable, while a real run needs the pinned Node/tooling
+  capsule; and `run_oracle` still snapshots from the live Git checkout. L23
+  therefore requires an external immutable Python bundle, an immutable Metis
+  runtime capsule, a low-level run-from-capsule boundary and an authority/report
+  v2 bound to the Kimi report hash. All five source authorities remain `None`.
+- OPEN — Implement L23 v2 payload-free first, audit and publish a new clean SHA,
+  then materialize the already-local dependency bundle and Metis capsule outside
+  Git. Only after a second Kimi recheck may two fresh qualified runs (`2/2`
+  processes, `10/10` physical invocations, five semantic roles per run) count as
+  production bridge evidence. This is still before W1 `15/15`, F-4/F-5/F-6,
+  benchmark freeze, training or any measured accuracy.
 
 ## Open
 
