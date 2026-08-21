@@ -29,12 +29,19 @@ CONTRACT_PAIRS = (
     ("schemas/hyperparameter-grid.schema.json", "manifests/hyperparameter-grid.json"),
 )
 
+STANDALONE_SCHEMAS = (
+    "schemas/w3-source-register.schema.json",
+    "schemas/w3-run.schema.json",
+)
+
 REQUIRED_FOUNDATION_PATHS = (
     "AGENTS.md",
     "BLACKBOARD.md",
     "Makefile",
     "pyproject.toml",
     "uv.lock",
+    "src/metis_model1/w3_builder.py",
+    "src/metis_model1/w3_oracles.py",
     "docs/08-orchestration-and-blackboards.md",
     "docs/09-repository-and-artifact-policy.md",
     "docs/10-open-decisions.md",
@@ -60,6 +67,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "qualification/resummarize_telemetry.py",
     "qualification/run_with_telemetry.py",
     "qualification/runtime-pin.json",
+    "qualification/test_full_state.py",
     "qualification/train_full_state.py",
     "qualification/uv.lock",
     "qualification/verify_adapter.py",
@@ -87,6 +95,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/decision-register.schema.json",
     "schemas/benchmark-plan.schema.json",
     "schemas/benchmark-task.schema.json",
+    "schemas/w3-source-register.schema.json",
+    "schemas/w3-run.schema.json",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -517,7 +527,7 @@ def validate_qualification_contract(root: Path) -> list[str]:
         errors.append("qualification runtime retains incomplete gates")
     if (
         runtime.get("full_state_resume_semantics")
-        != "local_wrapper_optimizer_rng_sampler_global_step_bit_exact_4_vs_2_plus_resume"
+        != "local_wrapper_optimizer_rng_sampler_global_step_bit_exact_stop_resume"
     ):
         errors.append("qualification full-state resume semantics are missing or overstated")
     report_path = runtime.get("qualification_report")
@@ -648,6 +658,15 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             report.errors.extend(f"{instance_path}: {error}" for error in instance_errors)
         else:
             report.passes.append(f"contract={instance_path}")
+
+    for schema_path in STANDALONE_SCHEMAS:
+        schema = load_json(root / schema_path)
+        try:
+            Draft202012Validator.check_schema(schema)
+        except SchemaError as error:
+            report.errors.append(f"invalid schema {schema_path}: {error.message}")
+        else:
+            report.passes.append(f"schema={schema_path}")
 
     decision_errors = validate_cross_contracts(root)
     if decision_errors:

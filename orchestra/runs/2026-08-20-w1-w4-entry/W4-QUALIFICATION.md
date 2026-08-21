@@ -80,7 +80,7 @@ provides the additional full-state contract used above. Frontier audit found no
 P0/P1 findings after the final rerun.
 
 - `qualification/train_full_state.py` SHA-256:
-  `af6053b88571dcd421943ef5dae1f7b8205b44e995d9c31a27f36e0bc525eae4`
+  `0fb908e6dc80f9f2d888d7692932f585d81b3ba8dad95f317a5fb099983e2e3a`
 - `qualification/compare_full_state.py` SHA-256:
   `a594c74079d323eea27564982e8eaf0de63506d3a0690556ac151c8d922ba434`
 
@@ -88,6 +88,37 @@ The wrapper verifies the tracked model/runtime policy pins, disallows remote
 code, rejects non-finite loss/gradient/model/optimizer state, hashes every
 checkpoint payload, restores MLX/NumPy/Python RNG plus optimizer and sampler,
 and enforces `global_step == epoch * batch_count + cursor`.
+
+### 21 August 2026 hardening requalification
+
+The current wrapper was requalified after closing the remaining identity and
+resume surfaces. It now:
+
+- passes `trust_remote_code=False` at the top-level processor load boundary;
+- binds the verified model revision, config and every model payload hash;
+- binds the exact Python/platform/package map, including NumPy, the `uv.lock`
+  hash and the wrapper's own hash;
+- derives the ordered LoRA target keys from the verified model topology and
+  requires exact equality before `apply_lora_layers`;
+- rejects non-finite sampler, gradient, updated-model and optimizer state;
+- rejects checkpoint symlinks or payload size/hash mismatches and fsyncs files
+  and directories before atomic promotion.
+
+The payload-free adversarial suite is `8/8`. An independent real-model probe
+derived `496/496` distinct target keys and rejected an arbitrary key, a
+non-empty proper subset and a superset. A fresh one-step process followed by a
+fresh-process resume to step two produced losses `0.0015919279539957643` and
+`0.0011641171295195818`; an uninterrupted two-step reference produced the same
+loss sequence. The final adapter config, adapter tensors and full state are
+byte-identical.
+
+The ignored comparison report is
+`artifacts/w4/2026-08-21-target-roster-bit-exact.json`, SHA-256
+`4d23e0f1f7f27945d0071113fbd0984e84c2cc4ca9f4a9cff70069826c01b27c`.
+It records semantic continuation-state SHA-256
+`4bee697cb4179f82d6623a8ceeca2c1a6366e0fd950f94726fc87f2dc2c40581`.
+This dated rerun is the current wrapper-control evidence; it does not change
+the bounded qualification or authorize W5.
 
 ## Qualification boundary
 

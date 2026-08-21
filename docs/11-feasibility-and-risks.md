@@ -1,6 +1,6 @@
 # Feasibility and risks
 
-Snapshot date: **20 August 2026**.
+Snapshot date: **21 August 2026**.
 
 ## 1. Verdict
 
@@ -39,8 +39,8 @@ it does not apply to a repo-only strategy.
 |---|---:|---|---|
 | W0 repository foundation | 95% | high | Contracts, source pins and offline gates are bounded and locally verifiable |
 | W1/W2 benchmark and census | 45% with new sources; infeasible repo-only | medium | Exact 201-input closure is known, but all 30 tasks share one ancestor; the complete tracked corpus has at most two defensible roots versus 563 required, plus task-specific oracles remain absent |
-| W3 deterministic dataset builder | 80% | medium-high | Deterministic contracts and mutations exist; real independently grouped, semantic-oracle-clean examples remain absent |
-| W4 recorded Qwen3.8 MLX-VLM path | 95% | high | Exact pins passed backward, 10/50/600 iterations, save/reload, adapter-off and bit-exact full-state resume at batch 1 / sequence 128 |
+| W3 deterministic dataset builder | 80% | medium-high | Two independent frontier replays accept the fail-closed F-1/F-2/F-3 contract at P0/P1/P2=0; all four production authorities, real isolated-runner receipts, independently grouped semantic examples and F-4/F-5/F-6 remain absent |
+| W4 recorded Qwen3.8 MLX-VLM path | 95% | high | Exact pins passed backward, 10/50/600 iterations, save/reload, adapter-off, topology-bound LoRA targeting and bit-exact full-state resume at batch 1 / sequence 128 |
 | W4 bounded sequence-1024 ranks 8/16 | 90% | high | Real public-synthetic backward/checkpoint probes and rank-8 resume passed at 94.43-95.04 GB peak Metal; 2,048, positive dropout and accumulation variants remain unqualified |
 | W5 meaningful D-B semantic uplift | 50% | low | This is the central scientific hypothesis, not an implementation certainty |
 | W7/W8 strict candidate and packaging | 55% | low-medium | Conditional on W4, leakage-clean data, reproducibility and no material regression |
@@ -80,6 +80,10 @@ new evidence changes later estimates.
 - A fail-closed local wrapper also produced byte-identical canonical model and
   optimizer state for uninterrupted 4 steps versus 2 steps plus fresh-process
   resume to step 4. Native MLX-VLM resume remains adapter-only.
+- The hardened current wrapper independently derives `496/496` ordered LoRA
+  target keys from the verified model topology. A fresh one-step run plus
+  fresh-process resume to step two is byte-identical to an uninterrupted
+  two-step reference; this requalification remains technical evidence only.
 - A public-synthetic sequence-1024 expansion rendered 7,414 raw tokens, retained
   1,004 completion tokens in the exact 1,024-token batch, and completed rank-8
   step 1/resume step 2 plus rank-16 step 1 with finite loss. Peak Metal was
@@ -91,6 +95,11 @@ new evidence changes later estimates.
   197 in the same whole-program tenant, one isolated v0.42 diagnostic demo and
   one generated settings template. These provide three syntactic roots and at
   most two defensible ancestry roots; they cannot fund the 563-group claim.
+- The W3 F-1/F-2/F-3 contract is executable and accepted after hostile adapter,
+  replay, genealogy, schema and malformed-input attacks. Its focused gate is
+  `112/112`; an independent malformed-input matrix rejected `141/141` cases
+  without raw exceptions. This is contract evidence only: its four production
+  authorities are unset, real W1 receipts are `0/15`, and F-4/F-5/F-6 are open.
 
 ## 4. Principal risks and stop rules
 
@@ -116,7 +125,9 @@ trainer defect:
   new-authoring mandate can supply 600 reviewed tasks and at least 563 genuinely
   independent groups; the current repository cannot, so this is the dominant
   uncertainty rather than file enumeration;
-- W3: roughly 1-3 weeks after the benchmark/census contracts stabilize;
+- W3 production adapter and F-1/F-2/F-3 smoke: roughly 1-3 weeks after the
+  semantic specifications and source authorities stabilize; F-4/F-5/F-6 and
+  independent population authoring are additional work;
 - W4 bounded path: completed; the measured 600-iteration wall time was about
   15.44 minutes, excluding model download, harness implementation and audit;
 - W5-W7: roughly 3-8 weeks if W3 and W4 are green;
@@ -134,10 +145,12 @@ or correctly terminate the 99% claim.
 1. Establish an authorized source-acquisition/new-authoring plan for at least
    563 independent groups; the current tracked corpus is arithmetically
    insufficient.
-2. Close dependency graphs, rights review and task-specific oracles for the
-   allocated 30-source W1 slice; only then seal it.
-3. Materialize W3 examples with immutable provenance and fail-closed oracle
-   results; do not copy proprietary payloads into this foundation repository.
+2. Register the production W3 adapter and independently reviewed semantic
+   specifications; close dependency graphs, rights review and real Oracle
+   receipts for the allocated W1 slice before sealing it.
+3. Extend the accepted F-1/F-2/F-3 contract to F-4/F-5/F-6, then materialize W3
+   examples with immutable provenance and fail-closed Oracle results; do not
+   copy proprietary payloads into this foundation repository.
 4. Ratify O-003 from frozen denominators and baseline variance. O-005/O-006 are
    already preregistered and remain subordinate to this gate.
 5. Execute paired B/D held-out evaluation and require a meaningful semantic

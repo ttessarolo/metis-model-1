@@ -33,3 +33,19 @@ optimizer state, RNG state or a global step. `train_full_state.py` is the local
 fail-closed wrapper that adds and verifies that state; its bit-exact result must
 not be misreported as a native MLX-VLM resume capability. Expanded context,
 batch, accumulation or stochastic settings require a new qualification.
+
+The current wrapper also binds its own SHA-256, the exact runtime package map
+including NumPy, the verified model payloads and the topology-derived ordered
+LoRA target roster. Resume rejects a subset, superset, reordering or arbitrary
+target key before adapter application.
+
+Run the payload-free hardening suite without loading the model:
+
+```sh
+qualification/.venv/bin/python -m unittest qualification.test_full_state
+```
+
+The current real-checkpoint requalification is recorded in
+`artifacts/w4/2026-08-21-target-roster-bit-exact.json`. That ignored report is
+technical continuation evidence only; it is not semantic training or an
+accuracy measurement.

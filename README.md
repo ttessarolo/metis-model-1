@@ -102,6 +102,12 @@ degli artefatti, harness e lavagne di orchestrazione. È stato eseguito soltanto
 training pubblico sintetico di qualifica; nessun adapter Metis è promosso e
 nessun uplift di prodotto è dichiarato.
 
+Il core W3 oggi copre esattamente F-1/F-2/F-3 ed è stato accettato da due replay
+frontier indipendenti dopo attacchi a identità, genealogia, schema e replay. Non
+è ancora un dataset produttivo: le quattro autorità di benchmark, source
+register, adapter Oracle e identità Oracle sono intenzionalmente non registrate,
+le receipt reali sono `0/15` e F-4/F-5/F-6 restano aperte.
+
 Il gate locale non scarica modelli e non tocca l'ambiente Conda globale:
 
 ```bash
@@ -179,6 +185,7 @@ fusione o distribuzione esterna richiede una decisione e una review separate.
 Il checkpoint tecnico è qualificato, ma il corpus tracciato non può finanziare
 il claim: 199 file `.metis`, al massimo due radici genealogiche difendibili,
 contro 563 gruppi richiesti. La prossima milestone è quindi autorizzare e
-costruire fonti nuove o indipendenti, poi sigillare dependency graph, diritti e
-oracle della smoke slice, materializzare W3 reale, eseguire A/B e ratificare
-O-003. Solo allora si autorizza il pilot W5 misurato D contro B.
+costruire fonti nuove o indipendenti, registrare l'adapter W3 produttivo e le
+specifiche semantiche, ottenere le receipt reali della smoke slice, completare
+F-4/F-5/F-6, materializzare W3 reale, eseguire A/B e ratificare O-003. Solo
+allora si autorizza il pilot W5 misurato D contro B.

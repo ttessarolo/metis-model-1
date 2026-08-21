@@ -165,12 +165,14 @@ def runtime_identity() -> dict[str, Any]:
     machine = platform.machine()
     platform_pin = f"{'macos' if system == 'Darwin' else system.lower()}-{machine}"
     lock_sha256 = _sha256_file(lock_path)
+    wrapper_sha256 = _sha256_file(Path(__file__))
     if (
         pin.get("schema_version") != 1
         or pin.get("python") != platform.python_version()
         or pin.get("platform") != platform_pin
         or pin.get("packages") != packages
         or pin.get("lock_sha256") != lock_sha256
+        or pin.get("qualification_wrapper_sha256") != wrapper_sha256
         or not isinstance(pin.get("upstream_revisions"), dict)
     ):
         raise FullStateError("live runtime does not match qualification/runtime-pin.json")
@@ -183,6 +185,7 @@ def runtime_identity() -> dict[str, Any]:
         "packages": packages,
         "upstream_revisions": pin["upstream_revisions"],
         "uv_lock_sha256": lock_sha256,
+        "qualification_wrapper_sha256": wrapper_sha256,
     }
 
 
@@ -843,6 +846,60 @@ def _load_local_json_dataset(path: Path, split: str) -> Any:
     return dataset
 
 
+def _validate_adapter_config(
+    adapter_config: Any,
+    training_config: dict[str, Any],
+    *,
+    expected_keys: list[str] | None = None,
+) -> None:
+    """Ensure the adapter architecture agrees with the resumable CLI contract."""
+
+    if not isinstance(adapter_config, dict):
+        raise FullStateError("adapter configuration must be a JSON object")
+    parameters = adapter_config.get("lora_parameters")
+    if (
+        set(adapter_config) != {"fine_tune_type", "num_layers", "lora_parameters"}
+        or adapter_config.get("fine_tune_type") != "lora"
+        or adapter_config.get("num_layers") != -1
+        or not isinstance(parameters, dict)
+        or set(parameters) != {"rank", "dropout", "scale", "keys"}
+    ):
+        raise FullStateError("checkpoint adapter configuration is not the supported LoRA form")
+    rank = parameters.get("rank")
+    dropout = parameters.get("dropout")
+    scale = parameters.get("scale")
+    keys = parameters.get("keys")
+    expected_rank = training_config.get("lora_rank")
+    expected_dropout = training_config.get("lora_dropout")
+    expected_alpha = training_config.get("lora_alpha")
+    if (
+        type(expected_rank) is not int
+        or expected_rank < 1
+        or not isinstance(expected_dropout, (int, float))
+        or not np.isfinite(expected_dropout)
+        or not isinstance(expected_alpha, (int, float))
+        or not np.isfinite(expected_alpha)
+        or expected_alpha <= 0
+    ):
+        raise FullStateError("training configuration has invalid LoRA parameters")
+    if (
+        type(rank) is not int
+        or rank != expected_rank
+        or not isinstance(dropout, (int, float))
+        or not np.isfinite(dropout)
+        or float(dropout) != float(expected_dropout)
+        or not isinstance(scale, (int, float))
+        or not np.isfinite(scale)
+        or float(scale) != float(expected_alpha) / float(expected_rank)
+        or not isinstance(keys, list)
+        or not keys
+        or not all(isinstance(key, str) and key for key in keys)
+        or len(keys) != len(set(keys))
+        or (expected_keys is not None and keys != expected_keys)
+    ):
+        raise FullStateError("checkpoint adapter configuration does not match training config")
+
+
 def _make_train_dataset(
     dataset: Any, model: Any, processor: Any, args: argparse.Namespace
 ) -> VisionDataset:
@@ -875,11 +932,31 @@ def _setup_model_and_processor(
     )
     if _model_config_dict(model).get("model_type") != expected_model_type:
         raise FullStateError("loaded model type differs from verified checkpoint identity")
+    language_model = getattr(model, "language_model", None)
+    if language_model is None:
+        raise FullStateError("model has no language_model for LoRA setup")
+    modules = find_all_linear_names(language_model)
+    if not modules:
+        raise FullStateError("no linear layers available for LoRA setup")
+    target_names = set(modules)
+    expected_keys = [
+        f"language_model.{name}"
+        for name, module in language_model.named_modules()
+        if isinstance(module, (nn.Linear, nn.QuantizedLinear))
+        and name.split(".")[-1] in target_names
+    ]
+    if not expected_keys:
+        raise FullStateError("verified model produced no canonical LoRA target keys")
     if checkpoint is not None:
         freeze_model(model)
         adapter_config = _load_json_object(
             checkpoint / ADAPTER_CONFIG_FILE,
             label="adapter configuration",
+        )
+        _validate_adapter_config(
+            adapter_config,
+            _training_config(args),
+            expected_keys=expected_keys,
         )
         model = apply_lora_layers(model, str(checkpoint))
         config = getattr(model, "config", None)
@@ -888,12 +965,6 @@ def _setup_model_and_processor(
         else:
             config.lora = adapter_config
     else:
-        language_model = getattr(model, "language_model", None)
-        if language_model is None:
-            raise FullStateError("model has no language_model for LoRA setup")
-        modules = find_all_linear_names(language_model)
-        if not modules:
-            raise FullStateError("no linear layers available for LoRA setup")
         model = get_peft_model(
             model,
             modules,
@@ -956,7 +1027,10 @@ def _validate_sampler_state(
         or not all(type(item) is int and 0 <= item <= 2**32 - 1 for item in state[:624])
         or type(state[624]) is not int
         or not 0 <= state[624] <= 624
-        or (gaussian is not None and not isinstance(gaussian, (int, float)))
+        or (
+            gaussian is not None
+            and (not isinstance(gaussian, (int, float)) or not np.isfinite(gaussian))
+        )
     ):
         raise FullStateError("checkpoint sampler has an invalid Python epoch-start RNG")
     return epoch, cursor, batch_count
@@ -965,6 +1039,7 @@ def _validate_sampler_state(
 def _validate_resume(
     *,
     metadata: dict[str, Any],
+    checkpoint: Path,
     model_identity: dict[str, Any],
     runtime: dict[str, Any],
     dataset_fingerprint: dict[str, Any],
@@ -984,6 +1059,11 @@ def _validate_resume(
     saved_config = metadata.get("training_config")
     if saved_config != training_config:
         raise FullStateError("checkpoint training configuration does not match current CLI")
+    adapter_config = _load_json_object(
+        checkpoint / ADAPTER_CONFIG_FILE,
+        label="adapter configuration",
+    )
+    _validate_adapter_config(adapter_config, training_config)
     global_step = metadata.get("global_step")
     if type(global_step) is not int or global_step < 0 or global_step > target_iters:
         raise FullStateError("checkpoint global_step is incompatible with --iters")
@@ -1069,6 +1149,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         metadata, arrays = _read_checkpoint(resume)
         _validate_resume(
             metadata=metadata,
+            checkpoint=resume,
             model_identity=model_identity,
             runtime=current_runtime,
             dataset_fingerprint=dataset_fp,
@@ -1185,7 +1266,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             _assert_tree_finite(
                 gradients,
                 "gradient state",
-                require_any_nonzero=True,
             )
             optimizer.update(model, gradients)
             mx.eval(model, optimizer.state)

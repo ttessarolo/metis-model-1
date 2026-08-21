@@ -101,6 +101,14 @@ review/migration/explanation. Every candidate example is rejected unless it has:
 Pilot volume is 3,000-8,000 accepted examples. Payloads remain under ignored
 local storage; Git contains only schema, code, manifest, report and checksums.
 
+Current implementation status is deliberately narrower than this six-family
+step. The fail-closed F-1/F-2/F-3 builder/Oracle contract is accepted by two
+independent frontier replays (`P0=0`, `P1=0`, `P2=0`; focused `112/112`), but
+benchmark, source-register, Oracle adapter and Oracle identity production
+authorities are still unset. Real receipts are `0/15` for the allocated
+F-1/F-2/F-3 smoke tasks, and F-4/F-5/F-6 are not implemented. Fixture receipts
+are policy bindings, not proof of a real isolated Metis execution.
+
 ### Step 4 — Establish A/B baseline
 
 Run the frozen 30-task smoke set with identical prompt, context, sampling,
@@ -175,9 +183,12 @@ paired B/D results; no loss curve is promoted into an accuracy forecast.
 ## 4. Immediate execution state
 
 The active board is
-[`orchestra/runs/2026-08-20-accuracy-99-pilot/BLACKBOARD.md`](../orchestra/runs/2026-08-20-accuracy-99-pilot/BLACKBOARD.md).
-It records Kimi K3, internal delegated lanes, exact stop rules and every gate
-that must close before W5 training can produce product evidence. The run also
-records the Git-anchor remediation and K3's resumed parent-lineage correction.
-The current wave is complete with W5 blocked; no semantic training result or
+[`orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md`](../orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md).
+It records the current frontier/Kimi delivery wave, the hardened promotion and
+Oracle trust boundaries, the W3 source contract and the current W4 wrapper
+identity. The earlier accuracy-pilot board is historical and remains closed.
+
+W5 is still blocked: the production W3 adapter/register and semantic-spec
+authority, real F-1/F-2/F-3 receipts, F-4/F-5/F-6, benchmark v1, 563 independent
+groups, A/B baseline and O-003 are not ratified. No semantic training result or
 99% accuracy claim has been produced.

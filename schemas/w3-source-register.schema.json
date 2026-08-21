@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-source-register.schema.json",
+  "title": "Registered W3 public-synthetic source register",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "register_id", "status", "claim", "benchmark_manifest_sha256", "sources", "counts", "manifest_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "register_id": {"const": "w3-public-synthetic-source-register-v1"},
+    "status": {"const": "proposed_for_independent_review"},
+    "claim": {"const": "no_accuracy_claim"},
+    "benchmark_manifest_sha256": {"$ref": "#/$defs/hash"},
+    "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+    "counts": {"$ref": "#/$defs/counts"},
+    "manifest_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "hashList": {"type": "array", "items": {"$ref": "#/$defs/hash"}, "uniqueItems": true},
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["in", "out", "distinct", "gaps"],
+      "properties": {
+        "in": {"type": "integer", "minimum": 1},
+        "out": {"type": "integer", "minimum": 1},
+        "distinct": {"type": "integer", "minimum": 1},
+        "gaps": {"const": 0}
+      }
+    },
+    "rootEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["content_sha256", "semantic_spec_sha256", "template_root", "generator_root", "session_root", "ancestor_roots"],
+      "properties": {
+        "content_sha256": {"$ref": "#/$defs/hash"},
+        "semantic_spec_sha256": {"$ref": "#/$defs/hash"},
+        "template_root": {"$ref": "#/$defs/hash"},
+        "generator_root": {"$ref": "#/$defs/hash"},
+        "session_root": {"$ref": "#/$defs/hash"},
+        "ancestor_roots": {"$ref": "#/$defs/hashList"}
+      }
+    },
+    "rights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["license_id", "policy", "scope", "attestation"],
+      "properties": {
+        "license_id": {"enum": ["Apache-2.0", "CC-BY-4.0", "CC0-1.0", "MIT"]},
+        "policy": {"const": "public_synthetic_permitted"},
+        "scope": {"const": "local_training_and_evaluation"},
+        "attestation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["content_sha256", "evidence", "evidence_sha256", "reviewer"],
+          "properties": {
+            "content_sha256": {"$ref": "#/$defs/hash"},
+            "evidence": {"type": "object", "minProperties": 1},
+            "evidence_sha256": {"$ref": "#/$defs/hash"},
+            "reviewer": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "commonCandidate": {
+      "type": "object",
+      "required": ["candidate_id", "family", "split", "semantic_spec", "root_evidence", "rights", "parents"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "family": {"enum": ["F-1", "F-2", "F-3"]},
+        "split": {"enum": ["train", "dev", "internal_test"]},
+        "semantic_spec": {"type": ["object", "array"]},
+        "root_evidence": {"$ref": "#/$defs/rootEvidence"},
+        "rights": {"$ref": "#/$defs/rights"},
+        "parents": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      }
+    },
+    "candidate": {
+      "oneOf": [
+        {
+          "allOf": [{"$ref": "#/$defs/commonCandidate"}],
+          "additionalProperties": false,
+          "required": ["candidate_id", "family", "split", "semantic_spec", "root_evidence", "rights", "parents", "request", "target_source"],
+          "properties": {
+            "candidate_id": true, "family": {"const": "F-1"}, "split": true, "semantic_spec": true, "root_evidence": true, "rights": true, "parents": true,
+            "request": {"type": "string", "minLength": 1}, "target_source": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "allOf": [{"$ref": "#/$defs/commonCandidate"}],
+          "additionalProperties": false,
+          "required": ["candidate_id", "family", "split", "semantic_spec", "root_evidence", "rights", "parents", "before_source", "after_source"],
+          "properties": {
+            "candidate_id": true, "family": {"const": "F-2"}, "split": true, "semantic_spec": true, "root_evidence": true, "rights": true, "parents": true,
+            "before_source": {"type": "string", "minLength": 1}, "after_source": {"type": "string", "minLength": 1},
+            "expected_delta": {"type": ["object", "array", "string"]}, "patch": {"type": ["object", "array", "string"]}
+          },
+          "oneOf": [{"required": ["expected_delta"]}, {"required": ["patch"]}]
+        },
+        {
+          "allOf": [{"$ref": "#/$defs/commonCandidate"}],
+          "additionalProperties": false,
+          "required": ["candidate_id", "family", "split", "semantic_spec", "root_evidence", "rights", "parents", "mutated_source", "expected_diagnostic", "fixed_source", "mutation_spec"],
+          "properties": {
+            "candidate_id": true, "family": {"const": "F-3"}, "split": true, "semantic_spec": true, "root_evidence": true, "rights": true, "parents": true,
+            "mutated_source": {"type": "string", "minLength": 1}, "expected_diagnostic": {"type": ["object", "array", "string"]},
+            "fixed_source": {"type": "string", "minLength": 1}, "mutation_spec": {"type": ["object", "array"]}
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_id", "family", "split", "candidate", "candidate_sha256", "content_sha256", "semantic_spec_sha256", "roots", "component_roots", "leakage_group", "parents", "rights", "rights_sha256", "source_record_sha256"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "family": {"enum": ["F-1", "F-2", "F-3"]},
+        "split": {"enum": ["train", "dev", "internal_test"]},
+        "candidate": {"$ref": "#/$defs/candidate"},
+        "candidate_sha256": {"$ref": "#/$defs/hash"},
+        "content_sha256": {"$ref": "#/$defs/hash"},
+        "semantic_spec_sha256": {"$ref": "#/$defs/hash"},
+        "roots": {"$ref": "#/$defs/hashList"},
+        "component_roots": {"$ref": "#/$defs/hashList"},
+        "leakage_group": {"$ref": "#/$defs/hash"},
+        "parents": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "rights": {"$ref": "#/$defs/rights"},
+        "rights_sha256": {"$ref": "#/$defs/hash"},
+        "source_record_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

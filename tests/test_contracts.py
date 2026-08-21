@@ -24,6 +24,8 @@ from metis_model1.contracts import (
 def test_repository_foundation_is_valid() -> None:
     report = validate_foundation(repository_root())
     assert report.errors == []
+    assert "schema=schemas/w3-source-register.schema.json" in report.passes
+    assert "schema=schemas/w3-run.schema.json" in report.passes
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
@@ -321,6 +323,20 @@ def test_qualification_contract_rejects_reopened_runtime(tmp_path) -> None:
 
     assert "qualification runtime is not marked qualified" in errors
     assert "qualification runtime retains incomplete gates" in errors
+
+
+def test_qualification_contract_rejects_resume_semantics_drift(tmp_path) -> None:
+    root = _copy_qualification_contract(tmp_path)
+    runtime_path = root / "qualification/runtime-pin.json"
+    runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+    runtime["full_state_resume_semantics"] = (
+        "local_wrapper_optimizer_rng_sampler_global_step_bit_exact_4_vs_2_plus_resume"
+    )
+    runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    errors = validate_qualification_contract(root)
+
+    assert "qualification full-state resume semantics are missing or overstated" in errors
 
 
 def test_qualification_contract_rejects_open_o004_reference(tmp_path) -> None:

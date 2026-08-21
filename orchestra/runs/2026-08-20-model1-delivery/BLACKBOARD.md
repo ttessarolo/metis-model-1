@@ -29,8 +29,8 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 - Writable ignored artifacts: this repository's `artifacts/` tree only.
 - Read-only evidence source: `/Users/tommasotessarolo/Developer/ares-matioska/metis`
   at `a2dde2b191f6b78c2003d74875560da782470968`.
-- The four pre-existing untracked Metis entries are user state and must remain
-  byte-for-byte untouched.
+- The `18` currently observed untracked Metis paths are user state and must
+  remain byte-for-byte untouched.
 - Read-only orchestra source: `/Users/tommasotessarolo/Developer/ai-multi-team-orchestra`
   at `fcf2a170c4b923da6e930e674cddaeaa49a35626`; its wrapper may write only
   ignored `runs/` evidence.
@@ -46,7 +46,7 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 - Runtime: CPython `3.12.10`, MLX `0.32.1`, MLX-VLM `0.6.15`, lock SHA-256
   `e5a39821599ac1f4eba46b3f5ae04040bd4973f3518351bd75f48677f6c9a340`.
 - Full-state wrapper SHA-256
-  `af6053b88571dcd421943ef5dae1f7b8205b44e995d9c31a27f36e0bc525eae4`.
+  `0fb908e6dc80f9f2d888d7692932f585d81b3ba8dad95f317a5fb099983e2e3a`.
 - Second frontier team: Kimi Code `0.36.1`, `kimi-code/k3`, maximum configured
   reasoning, invoked only through the ratified protocol wrapper.
 
@@ -212,10 +212,56 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   present outside Git, `486 GiB` is currently free, and ignored artifacts use
   `32 GiB`. The only materialized examples are `17` qualification fixtures;
   they are synthetic runtime probes, not an accepted semantic training corpus.
+- FIX — L0 hardened the current full-state wrapper against runtime/model drift,
+  non-finite sampler state and LoRA target substitution. The verified model
+  topology yields exactly `496/496` distinct ordered target keys; arbitrary,
+  non-empty proper-subset and extra-key mutations all fail before adapter
+  application. The payload-free adversarial suite is `8/8`.
+- DONE — L0 requalified the hardened wrapper on the pinned real checkpoint with
+  a fresh step one, fresh-process resume to step two and uninterrupted two-step
+  reference. Losses match exactly and adapter config, adapter tensors and full
+  state are byte-identical. The ignored report SHA-256 is
+  `4d23e0f1f7f27945d0071113fbd0984e84c2cc4ca9f4a9cff70069826c01b27c`;
+  semantic continuation-state SHA-256 is
+  `4bee697cb4179f82d6623a8ceeca2c1a6366e0fd950f94726fc87f2dc2c40581`.
+  This remains technical evidence, not semantic training or accuracy.
+- FIX — L13 implemented the registered W3 contract for F-1/F-2/F-3 only:
+  exact benchmark/source/adapter authorities, content-derived genealogy,
+  atomic output roots, split isolation, full canonical edit/repair messages,
+  rights envelopes, exact Oracle evidence and deterministic replay. Four
+  successive frontier mutations closed same-class adapter substitution,
+  runtime callable injection, forged receipts and malformed nested JSON.
+- DONE — L17/L18 independently accepted the final F-1/F-2/F-3 contract with
+  `P0=0`, `P1=0`, `P2=0`. Focused coverage is
+  `in=112 out=112 distinct=112 gaps=0`; L18 additionally rejected
+  `141/141` malformed top-level, benchmark and nested inputs with zero raw
+  exceptions or false accepts. L0 independently replayed the two prior
+  `TypeError` attacks and the same-filename callable forgery; all fail closed.
+- FACT — This acceptance is not a production dataset result. Benchmark,
+  source-register, Oracle adapter and Oracle identity authorities remain
+  `None`; the current W1 F-1/F-2/F-3 allocation has production receipts
+  `in=15 out=0 distinct=0 gaps=15`. Fixture runtime receipts bind policy only
+  and explicitly do not prove execution through the isolated Metis runner.
+  F-4/F-5/F-6 remain unimplemented.
+- DONE — L0's hostile-ambient integration gate completed foundation
+  `in=23 out=23 distinct=23 gaps=0`, Python tests
+  `in=270 out=270 distinct=270 gaps=0`, with Ruff and format checks green.
+  The payload-free W4 suite is separately `8/8`; no model payload was loaded by
+  either gate.
+- FACT — The read-only Metis invariant after these gates is HEAD
+  `a2dde2b191f6b78c2003d74875560da782470968`, tracked diff clean and `18`
+  untracked paths. SHA-256 of NUL-delimited porcelain-v1 expanded status is
+  `ea7eb74f131f8d8e1fd3f785da7941bce2c21dc239d06ccd17a389e7ed6beb54`.
 
 ## Open
 
-- OPEN — Benchmark v1, real W3 dataset, A/B baseline, O-003 and W5.
+- OPEN — Register a production W3 adapter plus independently reviewed typed
+  semantic specifications and obtain real isolated-runner receipts for the
+  `15/15` allocated F-1/F-2/F-3 smoke tasks.
+- OPEN — Implement and audit F-4/F-5/F-6 without weakening the accepted
+  F-1/F-2/F-3 trust boundary.
+- OPEN — Benchmark v1, at least 563 genuinely independent groups, real W3
+  dataset, A/B baseline, O-003 and W5.
 - OPEN — Final semantic accuracy and promotion verdict.
 
 ## Stop rules

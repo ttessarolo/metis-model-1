@@ -54,8 +54,8 @@
   ],
   "qualification_remaining": [],
   "resume_semantics": "adapter_weights_only_no_optimizer_rng_or_global_step",
-  "full_state_resume_semantics": "local_wrapper_optimizer_rng_sampler_global_step_bit_exact_4_vs_2_plus_resume",
+  "full_state_resume_semantics": "local_wrapper_optimizer_rng_sampler_global_step_bit_exact_stop_resume",
   "qualification_scope": "public_synthetic_text_only_batch1_seq128_rank8_alpha16_lr1e-5_seed17_dropout0",
   "qualification_report": "orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md",
-  "qualification_wrapper_sha256": "af6053b88571dcd421943ef5dae1f7b8205b44e995d9c31a27f36e0bc525eae4"
+  "qualification_wrapper_sha256": "0fb908e6dc80f9f2d888d7692932f585d81b3ba8dad95f317a5fb099983e2e3a"
 }
