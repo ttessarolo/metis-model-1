@@ -2187,6 +2187,12 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   removal, diff-check, runtime hashes and process census are exact. L62 is
   accepted and ready for a payload-free Git checkpoint; this acceptance opens
   no production authority, real runner, data, training or 99% claim.
+- DONE — Accepted L62 source-revision semantics, tests, schemas, audit evidence
+  and resumable board state are committed as `85069d4`
+  (`fix: bind W3 source bundle revision`) and pushed to
+  `origin/codex/model1-local-99-foundation`. No payload or authority instance is
+  committed. The next wave may now design/materialize external bundles, but
+  only after its own explicit brief and with the real runner still fail-closed.
 
 ## Open
 
