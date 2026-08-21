@@ -24,6 +24,8 @@ GATE_PATH = PROJECT_ROOT / "runtime/w3_bridge_gate.py"
 QUALIFIER_PATH = PROJECT_ROOT / "runtime/w3_qualifier.py"
 SCHEMA_PATH = PROJECT_ROOT / "schemas/w3-bridge-replay.schema.json"
 QUALIFICATION_SCHEMA_PATH = PROJECT_ROOT / "schemas/w3-qualification.schema.json"
+SOURCE_CHECKPOINT_REVISION = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
+FORMER_HANDOFF_REVISION = "4ec625fcec8a9c41423bc048688d17775e57353c"
 SPEC = importlib.util.spec_from_file_location("w3_bridge_gate_under_test", GATE_PATH)
 assert SPEC and SPEC.loader
 GATE = importlib.util.module_from_spec(SPEC)
@@ -1548,6 +1550,42 @@ def test_stale_consistently_rehashed_qualification_missing_cleanup_is_rejected()
         GATE._validate_qualification(stale, authority, authority["manifest_sha256"])
     with pytest.raises(QUALIFIER.QualificationBlocked):
         QUALIFIER._validate_report_v2(stale, stale["launcher"])
+
+
+def test_bridge_authority_rejects_former_handoff_revision_after_canonical_rehash(
+    tmp_path: Path,
+) -> None:
+    launcher = {key: f"fixture-{key}" for key in GATE.LAUNCHER_KEYS}
+    authority = _authority(launcher)
+    authority["project"]["revision"] = FORMER_HANDOFF_REVISION
+    authority = _finish_manifest(
+        {key: value for key, value in authority.items() if key != "manifest_sha256"}
+    )
+    path = tmp_path / "former-revision-authority.json"
+    path.write_bytes(GATE.canonical_json_bytes(authority))
+    with pytest.raises(GATE.BridgeGateBlocked, match="project revision"):
+        GATE._load_authority(path, authority["manifest_sha256"], launcher)
+
+
+def test_bridge_qualification_requires_source_checkpoint_revision() -> None:
+    authority = _authority({key: f"fixture-{key}" for key in GATE.LAUNCHER_KEYS})
+    report, _ = _qualification(authority)
+    report["project_revision"] = FORMER_HANDOFF_REVISION
+    report = _finish_manifest(
+        {key: value for key, value in report.items() if key != "manifest_sha256"}
+    )
+    with pytest.raises(GATE.BridgeGateBlocked):
+        GATE._validate_qualification(report, authority, authority["manifest_sha256"])
+
+
+def test_source_checkpoint_revision_is_exact_in_production_authority_schema() -> None:
+    schema = json.loads((PROJECT_ROOT / "schemas/w3-production-authority.schema.json").read_text())
+    assert schema["properties"]["project"]["properties"]["revision"]["const"] == (
+        SOURCE_CHECKPOINT_REVISION
+    )
+    assert schema["properties"]["project"]["properties"]["revision"]["const"] != (
+        FORMER_HANDOFF_REVISION
+    )
 
 
 @pytest.mark.parametrize("attack", ["split", "merged"])

@@ -35,7 +35,7 @@ NON_CLAIMS = [
     "no_semantic_accuracy_claim",
 ]
 KIMI_REPORT_SHA256 = "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
-PROJECT_REVISION = "4ec625fcec8a9c41423bc048688d17775e57353c"
+PROJECT_REVISION = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
 PINNED_METIS_REVISION = "a2dde2b191f6b78c2003d74875560da782470968"
 PINNED_METIS_TREE = "75473e26deff4084a0eb077a4c3e27d52dc07998"
 PINNED_NODE_VERSION = "v22.22.3"
@@ -64,7 +64,7 @@ PINNED_CAPSULE_EXECUTION_POLICY = {
 }
 # Frozen after the qualifier's final formatter pass.  The bridge never imports
 # the file being authenticated and cannot accept a caller-selected root.
-PINNED_QUALIFIER_SHA256 = "sha256:51e4b28a86e5bb947e26d2a4fe6dc6aecae1aafe8008795a3a2d0a211fcf11f3"
+PINNED_QUALIFIER_SHA256 = "sha256:7303d59b65af90e3fef2c9e01c53cd4916b724f5b6e155298651db06ab937421"
 QUALIFIER_BOOTSTRAP = """import hashlib
 import sys
 

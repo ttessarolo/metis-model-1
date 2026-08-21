@@ -41,7 +41,7 @@ V2_QUALIFICATION_ID = "w3-f1-f3-production-capsule-qualification-v2"
 V2_CLAIM = "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
 V2_AUTHORITY_ID = "w3-f1-f3-production-capsule-authority-v2"
 V2_KIMI_REPORT_SHA256 = "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
-V2_PROJECT_SHA = "4ec625fcec8a9c41423bc048688d17775e57353c"
+V2_PROJECT_SHA = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
 V2_CANDIDATE_MANIFEST_SHA256 = (
     "sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5"
 )

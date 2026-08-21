@@ -20,6 +20,8 @@ from jsonschema import Draft202012Validator
 PROJECT_ROOT = Path(__file__).parents[1]
 QUALIFIER_PATH = PROJECT_ROOT / "runtime/w3_qualifier.py"
 QUALIFICATION_SCHEMA = PROJECT_ROOT / "schemas/w3-qualification.schema.json"
+SOURCE_CHECKPOINT_REVISION = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
+FORMER_HANDOFF_REVISION = "4ec625fcec8a9c41423bc048688d17775e57353c"
 
 SPEC = importlib.util.spec_from_file_location("w3_qualifier_under_test", QUALIFIER_PATH)
 assert SPEC is not None and SPEC.loader is not None
@@ -1843,6 +1845,48 @@ def test_v2_authority_rejects_integer_ratification_independent_after_rehash(
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="Kimi ratification"):
         QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+
+
+def test_v2_authority_rejects_former_handoff_revision_after_canonical_rehash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(
+        QUALIFIER.V2_PYTHON,
+        "version",
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+    )
+    authority = _authority_v2(monkeypatch)
+    authority["project"]["revision"] = FORMER_HANDOFF_REVISION
+    body = {key: value for key, value in authority.items() if key != "manifest_sha256"}
+    authority["manifest_sha256"] = QUALIFIER.canonical_hash(body)
+    path = tmp_path / "former-revision-authority.json"
+    path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
+    with pytest.raises(QUALIFIER.QualificationBlocked, match="project revision"):
+        QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+
+
+def test_v2_report_requires_source_checkpoint_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(
+        QUALIFIER.V2_PYTHON,
+        "version",
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+    )
+    report = _v2_report()
+    report["project_revision"] = FORMER_HANDOFF_REVISION
+    body = {key: value for key, value in report.items() if key != "manifest_sha256"}
+    report["manifest_sha256"] = QUALIFIER.canonical_hash(body)
+    with pytest.raises(QUALIFIER.QualificationBlocked):
+        QUALIFIER._validate_report_v2(report, report["launcher"])
+
+
+def test_source_checkpoint_revision_is_exact_in_qualification_schema() -> None:
+    schema = json.loads(QUALIFICATION_SCHEMA.read_text())
+    assert schema["$defs"]["productionQualified"]["properties"]["project_revision"]["const"] == (
+        SOURCE_CHECKPOINT_REVISION
+    )
+    assert schema["$defs"]["productionQualified"]["properties"]["project_revision"]["const"] != (
+        FORMER_HANDOFF_REVISION
+    )
 
 
 @pytest.mark.parametrize(

@@ -36,6 +36,20 @@ def test_repository_foundation_is_valid() -> None:
     assert report.open_nonblocking == ["O-009"]
 
 
+def test_w3_source_checkpoint_revision_is_repeated_exactly_across_four_paths() -> None:
+    root = repository_root()
+    expected = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
+    former = "4ec625fcec8a9c41423bc048688d17775e57353c"
+    paths = (
+        root / "runtime/w3_bridge_gate.py",
+        root / "runtime/w3_qualifier.py",
+        root / "schemas/w3-production-authority.schema.json",
+        root / "schemas/w3-qualification.schema.json",
+    )
+    assert [path.read_text().count(expected) for path in paths] == [1, 1, 1, 1]
+    assert all(former not in path.read_text() for path in paths)
+
+
 def test_w3_report_schemas_require_deferred_cleanup_on_all_six_variants() -> None:
     root = repository_root()
     qualification = load_json(root / "schemas/w3-qualification.schema.json")

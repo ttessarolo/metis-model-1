@@ -45,7 +45,7 @@
         "worker"
       ],
       "properties": {
-        "revision": { "const": "4ec625fcec8a9c41423bc048688d17775e57353c" },
+        "revision": { "const": "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7" },
         "candidate_manifest": {
           "$ref": "#/$defs/frozenCandidate"
         },

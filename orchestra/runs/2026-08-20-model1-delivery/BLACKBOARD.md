@@ -2123,6 +2123,70 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   artifact payload. The branch is now a resumable GitHub checkpoint; production
   W3 authorities, real receipts, W1/W2 population, W5 training and the 99%
   result remain open.
+- FACT — L62 preflight compares two independent read-only reviews of the real
+  materialization boundary. Kimi accepts `4ec625f...` as a ratification
+  baseline because executing code is separately hash-bound; Qwen reports a
+  provenance ambiguity because the required production worker and frozen
+  Oracle bytes postdate that tree. Mechanical census accounts the old literal
+  at `9/9` locations: four executable/schema pins and five historical briefs;
+  qualifier-pin literals are `2/2`. No repository, Metis or artifact write was
+  made by either review.
+- RISK — L0 resolves the disagreement fail-closed: real materialization is
+  NO-GO while `project.revision` can be read as a tree that does not contain the
+  source worker actually executed. This does not invalidate the L60
+  infrastructure ACCEPT; it blocks only the next source-bundle authority.
+- OPEN — L62 is recorded in
+  `orchestra/briefs/2026-08-21-model1-l62-source-revision-repin.md`. It defines
+  `project.revision` as the source-bundle Git freeze and repins it acyclically
+  to full commit `5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7` while launcher and
+  qualifier identity remain independently hash-bound. Exact writable roster is
+  seven product/schema/test paths; real bundle/capsule materialization, runner,
+  authority registration, data and training remain STOP.
+- FACT — Read-only L62 source-closure census derives the minimum worker bundle
+  directly from Git object `5a5d817...`: `6/6` regular files, `141,507` bytes,
+  no missing/drifted path. L0 independently recomputes all six raw SHA-256 and
+  byte sizes exact. The roster is the worker, `metis_model1` package marker and
+  Oracle module, Oracle-result schema, frozen candidate manifest and frozen
+  semantic registry; every current byte equals the freeze blob. Proposed
+  canonical file-array roster SHA-256 is
+  `sha256:0d58e69823d5edd46624874a6488526362665a4f08e7354e9f6e6ede596d5b82`.
+- FIX — L62 tests-first delta is limited to the seven authorized
+  runtime/schema/test paths. Exact former-baseline attacks are RED `7/7`, then
+  the four revision pins move to full source checkpoint `5a5d817...`; qualifier
+  formatting yields SHA-256
+  `7303d59b65af90e3fef2c9e01c53cd4916b724f5b6e155298651db06ab937421`
+  and the bridge pin matches exactly. Worker, Oracle, contracts product,
+  manifests and all five source authorities are untouched.
+- DONE — L0 independently replays the frozen L62 bytes: safe-only collect/run
+  `517/517`, historical executable mutation matrix `71/71`, schemas `3/3`,
+  authorities `None` `5/5`, compile/Ruff/format/diff-check GREEN. Mandatory
+  hermetic `make check` against a temporary Metis clone at exact `a2dde...`
+  passes foundation `28/28`, pilot contracts, schemas and pytest
+  `777 passed, 1 skipped` in `317.12s`; the clone is removed, the live checkout
+  is untouched and final process census is empty. Writes freeze for independent
+  audit; real materialization remains STOP.
+- RISK — First L62 frontier audit returns REWORK `P0=0/P1=0/P2=1`: the two new
+  qualification-report tests changed `project_revision` without recomputing
+  `manifest_sha256`, so they could reject for a stale digest even if the
+  revision guard regressed. Product behavior is independently correct for
+  canonical re-hashed former-baseline reports `2/2`; the gap is test-only.
+- FIX — The two report tests now canonical-rehash after substituting `4ec...`.
+  Focused `2/2` and safe-only `517/517` are GREEN; runtime/schema bytes and the
+  qualifier/bridge hashes are unchanged. The frontier re-audit simulates a
+  removed revision guard and confirms both tests would then fail, closing the
+  false-green seam. Final verdict is ACCEPT `P0=0/P1=0/P2=0`.
+- FACT — Independent Kimi final review returns ACCEPT `P0=0/P1=0/P2=0` after
+  recomputing the qualifier hash/pin, four revision pins, ancestry, historical
+  references, unchanged semantic pins and exact writer/off-limits roster.
+  Qwen's first full-repository client attempt stalls without output and is
+  terminated by exact session only; a bounded safe-mode review of the supplied
+  final diff returns ACCEPT with no P0/P1 and only already-green style notes.
+- DONE — Final post-rework `make check` on a newly created temporary pinned
+  Metis clone is GREEN again: foundation `28/28`, pilot contracts/schemas,
+  Ruff/format and pytest `777 passed, 1 skipped` in `362.39s`. Temporary clone
+  removal, diff-check, runtime hashes and process census are exact. L62 is
+  accepted and ready for a payload-free Git checkpoint; this acceptance opens
+  no production authority, real runner, data, training or 99% claim.
 
 ## Open
 

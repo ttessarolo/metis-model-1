@@ -570,7 +570,7 @@
           "const": "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
         },
         "project_revision": {
-          "const": "4ec625fcec8a9c41423bc048688d17775e57353c"
+          "const": "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
         },
         "source_bundle_manifest_sha256": { "$ref": "#/$defs/hash" },
         "dependency_bundle_manifest_sha256": { "$ref": "#/$defs/hash" },
