@@ -26,6 +26,7 @@ from metis_model1.dataset import (
 from metis_model1.provenance import canonical_json_bytes, example_id
 from metis_model1.w3_oracles import (
     OracleEvaluation,
+    W3CandidateRejected,
     W3OracleError,
     adapter_identity_sha256,
     invoke_oracle,
@@ -587,7 +588,7 @@ def _execute_register(
         oracle_candidate = _oracle_candidate(source)
         try:
             evaluation = invoke_oracle(oracle_candidate)
-        except W3OracleError as error:
+        except W3CandidateRejected as error:
             rejected.append({"candidate_id": source["candidate_id"], "reason": str(error)})
             continue
         if {evaluation.ast_sha256, evaluation.ir_sha256} & benchmark_roots:
@@ -660,12 +661,20 @@ def _execute_register(
     rejected_ids = {record["candidate_id"] for record in rejected}
     if len(rejected_ids) != len(rejected) or accepted_ids & rejected_ids:
         raise W3BuildError("accepted/rejected candidate rosters are not unique and disjoint")
+    receipt_modes = {record["oracle_evidence"].get("receipt_mode") for record in records}
+    if len(receipt_modes) != 1 or receipt_modes - {
+        "fixture-policy",
+        "real-runner-envelopes",
+    }:
+        raise W3BuildError("accepted Oracle evidence must use one exact receipt mode")
+    receipt_mode = receipt_modes.pop()
     split_manifest_id = build_split_manifest(examples)["split_manifest_id"]
     body = {
         "schema_version": 1,
         "run_id": "w3-public-synthetic-run-v1",
         "claim": "no_accuracy_claim",
         "generator_version": GENERATOR_VERSION,
+        "receipt_mode": receipt_mode,
         "benchmark_manifest_sha256": register["benchmark_manifest_sha256"],
         "source_register_sha256": register["manifest_sha256"],
         "split_manifest_id": split_manifest_id,
@@ -700,7 +709,10 @@ def build_w3_dataset(
         adapter_identity_sha256()
     except W3OracleError as error:
         raise W3BuildError(str(error)) from error
-    examples, run, rejected = _execute_register(register, benchmark_manifest)
+    try:
+        examples, run, rejected = _execute_register(register, benchmark_manifest)
+    except W3OracleError as error:
+        raise W3BuildError(f"W3 Oracle trust/infrastructure failure: {error}") from error
     run_errors = validate_w3_run(
         run,
         source_register=register,

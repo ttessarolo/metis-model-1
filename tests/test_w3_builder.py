@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import marshal
 from copy import deepcopy
 from pathlib import Path
 
@@ -44,7 +43,7 @@ def _identity(adapter: object) -> dict:
             if method.__closure__ is None
             else [cell.cell_contents for cell in method.__closure__]
         )
-        code_sha = "sha256:" + hashlib.sha256(marshal.dumps(method.__code__)).hexdigest()
+        code_sha = oracle_module.stable_code_sha256(method.__code__)
         callable_sha = canonical_hash(
             {
                 "code_sha256": code_sha,
@@ -306,6 +305,7 @@ class RegisteredAdapter:
             "family": item["family"],
             "candidate_sha256": candidate_sha,
             "adapter_identity_sha256": identity_sha,
+            "receipt_mode": "fixture-policy",
             "runtime_receipt": _runtime_receipt(candidate_sha, identity_sha),
             "predicates": {name: True for name in names},
             "evidence": evidence,

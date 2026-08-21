@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import marshal
 from pathlib import Path
 
 import pytest
@@ -40,7 +39,7 @@ def _identity(adapter: object) -> dict:
             if method.__closure__ is None
             else [cell.cell_contents for cell in method.__closure__]
         )
-        code_sha = "sha256:" + hashlib.sha256(marshal.dumps(method.__code__)).hexdigest()
+        code_sha = oracle_module.stable_code_sha256(method.__code__)
         callable_sha = canonical_hash(
             {
                 "code_sha256": code_sha,
@@ -216,6 +215,7 @@ class RegisteredFakeAdapter:
             "family": candidate["family"],
             "candidate_sha256": candidate_sha,
             "adapter_identity_sha256": identity_sha,
+            "receipt_mode": "fixture-policy",
             "runtime_receipt": _runtime_receipt(candidate_sha, identity_sha),
             "predicates": {name: True for name in predicates},
             "evidence": evidence,
@@ -404,6 +404,22 @@ def test_runtime_code_object_swap_with_same_metadata_is_rejected(
     assert method.__code__.co_filename == original_code.co_filename
     with pytest.raises(W3OracleError, match="registered authority"):
         invoke_oracle(oracle_candidate())
+
+
+def test_callable_digest_is_stable_across_interpreter_warmup() -> None:
+    class AdaptiveMethod:
+        def evaluate(self, value: int) -> int:
+            total = 0
+            for index in range(value):
+                total += index * 2
+            return total
+
+    method = AdaptiveMethod.evaluate
+    before = oracle_module.stable_code_sha256(method.__code__)
+    instance = AdaptiveMethod()
+    for _ in range(10_000):
+        instance.evaluate(8)
+    assert oracle_module.stable_code_sha256(method.__code__) == before
 
 
 @pytest.mark.parametrize("field", ["defaults", "kwdefaults"])

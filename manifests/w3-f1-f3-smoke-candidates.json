@@ -1,0 +1,431 @@
+{
+  "candidates": [
+    {
+      "candidate_id": "bridge-f1-author-001",
+      "family": "F-1",
+      "parents": [],
+      "request": "Author one deterministic empty Metis endpoint named play.bridge_f1.",
+      "rights": {
+        "attestation": {
+          "content_sha256": "sha256:353e10e861f3c42a8f22c7b49e329ed322689da9c332848ad1686a412680f698",
+          "evidence": {
+            "candidate_id": "bridge-f1-author-001",
+            "license_basis": "author-created",
+            "origin": "original-public-synthetic"
+          },
+          "evidence_sha256": "sha256:446d620da33ddd9560d4644c549098daa14751281db5942b97a87fbe554bb90a",
+          "reviewer": "L0 pre-audit rights author"
+        },
+        "license_id": "CC0-1.0",
+        "policy": "public_synthetic_permitted",
+        "scope": "local_training_and_evaluation"
+      },
+      "root_evidence": {
+        "ancestor_roots": [],
+        "content_sha256": "sha256:353e10e861f3c42a8f22c7b49e329ed322689da9c332848ad1686a412680f698",
+        "generator_root": "sha256:02608052c67f302988798072bb2e3434db0f393308033e5371ba12bff3128e33",
+        "semantic_spec_sha256": "sha256:c637e3ec455654053f4811004e97518b200a4719a34a97bc373e8fe17de7731b",
+        "session_root": "sha256:2c2c23d30380767f52587fbd4f5f7dd433c10cb45c8efd5f66529a16443aecdd",
+        "template_root": "sha256:f7bf2c85ff36e3ac212864a93d41f03e4fe91bb495e0c1bee14e6adb214b51e5"
+      },
+      "semantic_spec": {
+        "contract": "F-1-author",
+        "endpoint": "play.bridge_f1",
+        "execution_mode": "endpoint",
+        "filename": "bridge/f1-author.metis",
+        "provenance": {
+          "author": "L0 frontier semantic author",
+          "method": "manual_contract_review",
+          "review_status": "candidate_for_independent_review"
+        },
+        "schema_version": 1,
+        "truth": {
+          "expected_endpoint": "play.bridge_f1",
+          "expected_ir": {
+            "blocks": [],
+            "inputDeps": [],
+            "irVersion": "0.6",
+            "name": "play.bridge_f1",
+            "node": "Endpoint",
+            "provenance": {
+              "file": "bridge/f1-author.metis",
+              "line": 1
+            },
+            "reference": "bridge-f1",
+            "variants": [
+              {
+                "empty": true,
+                "irVersion": "0.6",
+                "name": "authored",
+                "node": "Block",
+                "provenance": {
+                  "file": "bridge/f1-author.metis",
+                  "line": 2
+                },
+                "takes": []
+              }
+            ]
+          },
+          "request_exact": "Author one deterministic empty Metis endpoint named play.bridge_f1.",
+          "required_source_fragments": [
+            "endpoint play.bridge_f1",
+            "variant authored",
+            "empty"
+          ]
+        },
+        "workspace_sources": {}
+      },
+      "split": "train",
+      "target_source": "metis 0.43\nendpoint play.bridge_f1 as \"bridge-f1\" {\n  variant authored { empty }\n}\n"
+    },
+    {
+      "after_source": "metis 0.43\nendpoint play.bridge_f2 as \"bridge-f2\" {\n  variant edited {\n    take 2 from @video { include where @title is \"news\" }\n  }\n}\n",
+      "before_source": "metis 0.43\nendpoint play.bridge_f2 as \"bridge-f2\" {\n  variant edited {\n    take 1 from @video { include where @title is \"news\" }\n  }\n}\n",
+      "candidate_id": "bridge-f2-edit-001",
+      "expected_delta": {
+        "replace": {
+          "new_text": "take 2 from @video",
+          "old_text": "take 1 from @video"
+        }
+      },
+      "family": "F-2",
+      "parents": [],
+      "rights": {
+        "attestation": {
+          "content_sha256": "sha256:bdf91e93221429a1914b98e93a89e017b075b50ba0e947150907fcbdc7c60a3b",
+          "evidence": {
+            "candidate_id": "bridge-f2-edit-001",
+            "license_basis": "author-created",
+            "origin": "original-public-synthetic"
+          },
+          "evidence_sha256": "sha256:fdf0b0e68056913a0aa0d758455fb406a62af07d20a2dc4bc87ea85b3a56e6b3",
+          "reviewer": "L0 pre-audit rights author"
+        },
+        "license_id": "CC0-1.0",
+        "policy": "public_synthetic_permitted",
+        "scope": "local_training_and_evaluation"
+      },
+      "root_evidence": {
+        "ancestor_roots": [],
+        "content_sha256": "sha256:bdf91e93221429a1914b98e93a89e017b075b50ba0e947150907fcbdc7c60a3b",
+        "generator_root": "sha256:02608052c67f302988798072bb2e3434db0f393308033e5371ba12bff3128e33",
+        "semantic_spec_sha256": "sha256:4fb5e5e7a8cd2258c1908e9691c1f3d48c472f57c6aa05e856ffc9ea62db35ea",
+        "session_root": "sha256:2c2c23d30380767f52587fbd4f5f7dd433c10cb45c8efd5f66529a16443aecdd",
+        "template_root": "sha256:25a24e195720ceebff19417a7dcc0cd0236d17197e4614c2df08c470676415a3"
+      },
+      "semantic_spec": {
+        "contract": "F-2-minimal-edit",
+        "endpoint": "play.bridge_f2",
+        "execution_mode": "endpoint",
+        "filename": "bridge/f2-edit.metis",
+        "provenance": {
+          "author": "L0 frontier semantic author",
+          "method": "manual_contract_review",
+          "review_status": "candidate_for_independent_review"
+        },
+        "schema_version": 1,
+        "truth": {
+          "expected_after_ir": {
+            "blocks": [],
+            "inputDeps": [],
+            "irVersion": "0.6",
+            "name": "play.bridge_f2",
+            "node": "Endpoint",
+            "provenance": {
+              "file": "bridge/f2-edit.metis",
+              "line": 1
+            },
+            "reference": "bridge-f2",
+            "variants": [
+              {
+                "irVersion": "0.6",
+                "name": "edited",
+                "node": "Block",
+                "provenance": {
+                  "file": "bridge/f2-edit.metis",
+                  "line": 2
+                },
+                "takes": [
+                  {
+                    "activationContextDeps": [],
+                    "candidateRanking": {
+                      "kind": "semanticScore",
+                      "normalization": {
+                        "kind": "percentage",
+                        "maximum": 100
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "intent": "include",
+                        "origin": {
+                          "kind": "inline"
+                        },
+                        "predicate": {
+                          "field": "title",
+                          "graded": false,
+                          "op": "eq",
+                          "value": {
+                            "lit": "news"
+                          }
+                        }
+                      }
+                    ],
+                    "contextDeps": [],
+                    "count": {
+                      "skip": 0,
+                      "take": 2
+                    },
+                    "dependencies": [],
+                    "exclusions": [],
+                    "irVersion": "0.6",
+                    "node": "Fetch",
+                    "ordering": [],
+                    "preferences": [],
+                    "projection": {},
+                    "provenance": {
+                      "file": "bridge/f2-edit.metis",
+                      "line": 3
+                    },
+                    "source": {
+                      "kind": "catalog"
+                    },
+                    "stageId": "variant.1.edited.take.1"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected_before_ir": {
+            "blocks": [],
+            "inputDeps": [],
+            "irVersion": "0.6",
+            "name": "play.bridge_f2",
+            "node": "Endpoint",
+            "provenance": {
+              "file": "bridge/f2-edit.metis",
+              "line": 1
+            },
+            "reference": "bridge-f2",
+            "variants": [
+              {
+                "irVersion": "0.6",
+                "name": "edited",
+                "node": "Block",
+                "provenance": {
+                  "file": "bridge/f2-edit.metis",
+                  "line": 2
+                },
+                "takes": [
+                  {
+                    "activationContextDeps": [],
+                    "candidateRanking": {
+                      "kind": "semanticScore",
+                      "normalization": {
+                        "kind": "percentage",
+                        "maximum": 100
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "intent": "include",
+                        "origin": {
+                          "kind": "inline"
+                        },
+                        "predicate": {
+                          "field": "title",
+                          "graded": false,
+                          "op": "eq",
+                          "value": {
+                            "lit": "news"
+                          }
+                        }
+                      }
+                    ],
+                    "contextDeps": [],
+                    "count": {
+                      "skip": 0,
+                      "take": 1
+                    },
+                    "dependencies": [],
+                    "exclusions": [],
+                    "irVersion": "0.6",
+                    "node": "Fetch",
+                    "ordering": [],
+                    "preferences": [],
+                    "projection": {},
+                    "provenance": {
+                      "file": "bridge/f2-edit.metis",
+                      "line": 3
+                    },
+                    "source": {
+                      "kind": "catalog"
+                    },
+                    "stageId": "variant.1.edited.take.1"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected_changed_paths": [
+            "variants[0].takes[0].count.take"
+          ],
+          "expected_endpoint": "play.bridge_f2",
+          "new_text": "take 2 from @video",
+          "occurrences": 1,
+          "old_text": "take 1 from @video"
+        },
+        "workspace_sources": {
+          "catalogs/video.metis": "metis 0.43\ncatalog video { fields { title keyword } }\n"
+        }
+      },
+      "split": "train"
+    },
+    {
+      "candidate_id": "bridge-f3-repair-001",
+      "expected_diagnostic": {
+        "diagnostic_present": true,
+        "failure_kind": "parse"
+      },
+      "family": "F-3",
+      "fixed_source": "metis 0.43\nendpoint play.bridge_f3 as \"bridge-f3\" {\n  variant repaired { empty }\n}\n",
+      "mutated_source": "metis 0.43\nendpoint play.bridge_f3 as \"bridge-f3\" {\n  variant repaired { empty ",
+      "mutation_spec": {
+        "fragment": "}\n}\n",
+        "operation": "remove"
+      },
+      "parents": [],
+      "rights": {
+        "attestation": {
+          "content_sha256": "sha256:f270489cde15126ab87f04bfdcff24673a8697609ba4eda806197e0b4be36d0e",
+          "evidence": {
+            "candidate_id": "bridge-f3-repair-001",
+            "license_basis": "author-created",
+            "origin": "original-public-synthetic"
+          },
+          "evidence_sha256": "sha256:9f4c2965bae0a5c25aa7f21106df52bfc1d2ca1be9cba56118364e762cbafe0a",
+          "reviewer": "L0 pre-audit rights author"
+        },
+        "license_id": "CC0-1.0",
+        "policy": "public_synthetic_permitted",
+        "scope": "local_training_and_evaluation"
+      },
+      "root_evidence": {
+        "ancestor_roots": [],
+        "content_sha256": "sha256:f270489cde15126ab87f04bfdcff24673a8697609ba4eda806197e0b4be36d0e",
+        "generator_root": "sha256:02608052c67f302988798072bb2e3434db0f393308033e5371ba12bff3128e33",
+        "semantic_spec_sha256": "sha256:ee756797ff9600754ce4bac4d93ec33181eb4b73efd1d3d05758343ffd94d97c",
+        "session_root": "sha256:2c2c23d30380767f52587fbd4f5f7dd433c10cb45c8efd5f66529a16443aecdd",
+        "template_root": "sha256:0708383edbba45622906a71baa395ae4c8f0cec640d0c17f51144943fb85223e"
+      },
+      "semantic_spec": {
+        "contract": "F-3-diagnostic-repair",
+        "endpoint": "play.bridge_f3",
+        "execution_mode": "endpoint",
+        "filename": "bridge/f3-repair.metis",
+        "provenance": {
+          "author": "L0 frontier semantic author",
+          "method": "manual_contract_review",
+          "review_status": "candidate_for_independent_review"
+        },
+        "schema_version": 1,
+        "truth": {
+          "expected_diagnostic_present": true,
+          "expected_diagnostics": {
+            "all": [
+              {
+                "code": null,
+                "filename": "bridge/f3-repair.metis",
+                "message": "Expecting token of type '}' but found ``.",
+                "range": {
+                  "end": {
+                    "character": 26,
+                    "line": 2
+                  },
+                  "start": {
+                    "character": 26,
+                    "line": 2
+                  }
+                },
+                "severity": 1
+              }
+            ],
+            "link": [],
+            "parser": [
+              {
+                "code": null,
+                "filename": "bridge/f3-repair.metis",
+                "message": "Expecting token of type '}' but found ``.",
+                "range": null,
+                "severity": null
+              }
+            ],
+            "validation": [
+              {
+                "code": null,
+                "filename": "bridge/f3-repair.metis",
+                "message": "Expecting token of type '}' but found ``.",
+                "range": {
+                  "end": {
+                    "character": 26,
+                    "line": 2
+                  },
+                  "start": {
+                    "character": 26,
+                    "line": 2
+                  }
+                },
+                "severity": 1
+              }
+            ]
+          },
+          "expected_endpoint": "play.bridge_f3",
+          "expected_failure": {
+            "kind": "parse",
+            "message": "parser diagnostics present"
+          },
+          "expected_failure_kind": "parse",
+          "expected_fixed_ir": {
+            "blocks": [],
+            "inputDeps": [],
+            "irVersion": "0.6",
+            "name": "play.bridge_f3",
+            "node": "Endpoint",
+            "provenance": {
+              "file": "bridge/f3-repair.metis",
+              "line": 1
+            },
+            "reference": "bridge-f3",
+            "variants": [
+              {
+                "empty": true,
+                "irVersion": "0.6",
+                "name": "repaired",
+                "node": "Block",
+                "provenance": {
+                  "file": "bridge/f3-repair.metis",
+                  "line": 2
+                },
+                "takes": []
+              }
+            ]
+          },
+          "repair_fragment": "}\n}\n"
+        },
+        "workspace_sources": {}
+      },
+      "split": "train"
+    }
+  ],
+  "claim": "no_accuracy_claim",
+  "counts": {
+    "distinct": 3,
+    "gaps": 0,
+    "in": 3,
+    "out": 3
+  },
+  "manifest_id": "w3-f1-f3-smoke-candidates-v1",
+  "manifest_sha256": "sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5",
+  "schema_version": 1,
+  "status": "proposed_for_independent_review"
+}

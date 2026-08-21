@@ -24,6 +24,8 @@ from metis_model1.contracts import (
 def test_repository_foundation_is_valid() -> None:
     report = validate_foundation(repository_root())
     assert report.errors == []
+    assert "schema=schemas/w3-qualification.schema.json" in report.passes
+    assert "schema=schemas/w3-semantic-spec.schema.json" in report.passes
     assert "schema=schemas/w3-source-register.schema.json" in report.passes
     assert "schema=schemas/w3-run.schema.json" in report.passes
     assert "W1" not in report.open_by_wave

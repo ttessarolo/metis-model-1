@@ -11,6 +11,7 @@ type Request = {
     schema_version: number;
     source: string;
     filename: string;
+    execution_mode: 'endpoint' | 'source';
     endpoint: string | null;
     metis_root?: string;
     metis_revision?: string;
@@ -177,11 +178,13 @@ async function main(): Promise<void> {
     try { parsed = JSON.parse(raw); } catch { throw new Error('request is malformed JSON'); }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('request must be an object');
     const request = parsed as Request;
-    const allowed = new Set(['schema_version', 'source', 'filename', 'endpoint', 'metis_root', 'metis_revision', 'metis_tree', 'workspace_sources']);
+    const allowed = new Set(['schema_version', 'source', 'filename', 'execution_mode', 'endpoint', 'metis_root', 'metis_revision', 'metis_tree', 'workspace_sources']);
     if (Object.keys(request).some((key) => !allowed.has(key))) throw new Error('request contains unknown fields');
     if (request.schema_version !== SCHEMA_VERSION || typeof request.source !== 'string' || !request.source) throw new Error('request contract is invalid');
     if (!validFilename(request.filename)) throw new Error('filename is invalid');
+    if (request.execution_mode !== 'endpoint' && request.execution_mode !== 'source') throw new Error('execution_mode is invalid');
     if (request.endpoint !== null && request.endpoint !== undefined && (typeof request.endpoint !== 'string' || !request.endpoint)) throw new Error('endpoint is invalid');
+    if (request.execution_mode === 'source' && request.endpoint !== null) throw new Error('source execution_mode requires a null endpoint');
     const workspace = request.workspace_sources ?? [];
     if (!Array.isArray(workspace) || workspace.length > 512) throw new Error('workspace_sources is invalid');
     const workspaceNames = new Set<string>();
@@ -217,8 +220,8 @@ async function main(): Promise<void> {
     if (request.metis_tree !== undefined && request.metis_tree !== tree) throw new Error('request tree does not match snapshot');
     parseIdentity(metisRoot, revision, tree, packageSha, lockSha, modulesSha, runnerSha, nodeBinarySha, sandboxPolicyVersion, sandboxPolicySha);
     if (nodeBinarySha !== '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c'
-        || sandboxPolicyVersion !== '1'
-        || sandboxPolicySha !== 'ee5178deb85dee0799f1042397133c362211fa1d6e302ffcf9b82e68cb035540') throw new Error('isolated runtime policy does not match its validated pin');
+        || sandboxPolicyVersion !== '2'
+        || sandboxPolicySha !== 'deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa') throw new Error('isolated runtime policy does not match its validated pin');
     if (path.resolve(process.execPath) !== path.resolve(nodeActualPath)) throw new Error('node runtime path does not match the validated identity');
     if (path.resolve(process.argv[1] ?? '') !== path.resolve(runnerActualPath)) throw new Error('runner path does not match the validated identity');
     if (!path.resolve(tsxPath).startsWith(`${path.resolve(metisRoot)}${path.sep}`)) throw new Error('tsx path is outside the isolated snapshot');
@@ -263,12 +266,35 @@ async function main(): Promise<void> {
         node_modules_sha256: `sha256:${modulesSha}`,
         node_binary_sha256: `sha256:${nodeBinarySha}`,
         sandbox_exec_path: 'sandbox-exec:///usr/bin/sandbox-exec',
-        sandbox_policy_version: '1',
-        sandbox_policy_sha256: 'sha256:ee5178deb85dee0799f1042397133c362211fa1d6e302ffcf9b82e68cb035540',
+        sandbox_policy_version: '2',
+        sandbox_policy_sha256: 'sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa',
     };
     const toolchain = { revision, tree };
     if (parser.length > 0) {
         process.stdout.write(canonical(invalid(request, toolchain, diagnostics, inventory, { kind: 'parse', message: 'parser diagnostics present' }, runtime)));
+        return;
+    }
+    const validationErrors = validation.filter((item) => Number((item as { severity?: unknown }).severity) === 1);
+    if (request.execution_mode === 'source') {
+        const endpoint = { name: null, count: endpoints.length };
+        if (link.length > 0 || validationErrors.length > 0) {
+            process.stdout.write(canonical({ ...invalid(request, toolchain, diagnostics, inventory, {
+                kind: link.length > 0 ? 'link' : 'validation',
+                message: 'diagnostics prevent source validation',
+            }, runtime), endpoint }));
+            return;
+        }
+        process.stdout.write(canonical({
+            schema_version: SCHEMA_VERSION,
+            status: 'ok',
+            endpoint,
+            diagnostics,
+            ast: { inventory, signature: sha(inventory) },
+            ir: { value: null, signature: null },
+            toolchain: { revision, tree, language_version: LANGUAGE_VERSION },
+            runtime,
+            failure: null,
+        }));
         return;
     }
     const selected = request.endpoint
@@ -286,7 +312,7 @@ async function main(): Promise<void> {
     const endpointNode = selected[0];
     const endpointName = typeof endpointNode.name === 'string' ? endpointNode.name : null;
     const endpoint = { name: endpointName, count: selected.length };
-    if (link.length > 0 || validation.some((item) => Number((item as { severity?: unknown }).severity) === 1)) {
+    if (link.length > 0 || validationErrors.length > 0) {
         process.stdout.write(canonical({ ...invalid(request, toolchain, diagnostics, inventory, { kind: link.length > 0 ? 'link' : 'validation', message: 'diagnostics prevent compilation' }, runtime), endpoint }));
         return;
     }

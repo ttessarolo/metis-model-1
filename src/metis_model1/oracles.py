@@ -27,16 +27,35 @@ PINNED_NODE_VERSION = "v22.22.3"
 PINNED_TOOLING_PACKAGE_SHA256 = "f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80"
 PINNED_TOOLING_LOCK_SHA256 = "fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb"
 PINNED_NODE_MODULES_SHA256 = "1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
-PINNED_RUNNER_SHA256 = "8278504a71c2d609aa441a0e81537c92de28d329453a6a99bba2b43afc0aefe0"
+PINNED_RUNNER_SHA256 = "484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5"
 PINNED_NODE_BINARY_SHA256 = "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
 NODE_RUNTIME_IDENTITY = "node://v22.22.3"
 NODE_RUNTIME_ENV = "METIS_MODEL1_NODE"
 SANDBOX_EXEC_PATH = Path("/usr/bin/sandbox-exec")
 SANDBOX_EXEC_IDENTITY = "sandbox-exec:///usr/bin/sandbox-exec"
-SANDBOX_POLICY = "(version 1) (allow default) (deny file-write*)"
-SANDBOX_POLICY_SHA256 = "ee5178deb85dee0799f1042397133c362211fa1d6e302ffcf9b82e68cb035540"
-SANDBOX_POLICY_VERSION = "1"
+SANDBOX_POLICY = "(version 1) (allow default) (deny file-write*) (deny network*)"
+SANDBOX_POLICY_SHA256 = "deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"
+SANDBOX_POLICY_VERSION = "2"
 STERILE_ENV = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
+EXECUTION_MODES = frozenset({"endpoint", "source"})
+NETWORK_CANARY_PROGRAM = """\
+import errno
+import socket
+import sys
+
+operation = sys.argv[1]
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    if operation == "connect":
+        sock.connect(("127.0.0.1", 0))
+    elif operation == "bind":
+        sock.bind(("127.0.0.1", 0))
+    else:
+        sys.exit(5)
+except OSError as error:
+    sys.exit(0 if error.errno in {errno.EPERM, errno.EACCES} else 3)
+sys.exit(4)
+"""
 LANGUAGE_VERSION = "0.43"
 SCHEMA_VERSION = 1
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -79,7 +98,7 @@ def _file_sha256(path: Path) -> str:
 
 
 def _assert_sandbox_policy() -> None:
-    """Require the registered deny-write sandbox and prove it denies a canary."""
+    """Prove the registered sandbox denies writes and local network syscalls."""
 
     if (
         not SANDBOX_EXEC_PATH.is_file()
@@ -116,6 +135,29 @@ def _assert_sandbox_policy() -> None:
             raise OracleError(f"cannot execute sandbox write canary: {error}") from error
         if attempt.returncode == 0 or canary.exists():
             raise OracleError("registered sandbox-exec policy failed to deny file writes")
+        for operation in ("connect", "bind"):
+            try:
+                network_attempt = subprocess.run(
+                    [
+                        str(SANDBOX_EXEC_PATH),
+                        "-p",
+                        SANDBOX_POLICY,
+                        "/usr/bin/python3",
+                        "-c",
+                        NETWORK_CANARY_PROGRAM,
+                        operation,
+                    ],
+                    env=STERILE_ENV,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                raise OracleError(f"cannot execute sandbox {operation} canary: {error}") from error
+            if network_attempt.returncode != 0:
+                raise OracleError(
+                    f"registered sandbox-exec policy failed to deny network {operation}"
+                )
     finally:
         shutil.rmtree(canary_dir, ignore_errors=True)
 
@@ -444,7 +486,10 @@ def _check_response(
     tree: str,
     *,
     expected_runtime: dict[str, str] | None = None,
+    expected_mode: str = "endpoint",
 ) -> dict[str, Any]:
+    if expected_mode not in EXECUTION_MODES:
+        raise OracleError("oracle execution mode is invalid")
     if not isinstance(result, dict) or result.get("schema_version") != SCHEMA_VERSION:
         raise OracleError("runner returned an invalid schema version")
     if result.get("status") not in {"ok", "invalid"}:
@@ -493,14 +538,19 @@ def _check_response(
             for item in diagnostics.get("validation", [])
             if isinstance(item, dict) and item.get("severity") == 1
         ]
-        if (
+        common_inconsistency = (
             failure is not None
-            or ir_value is None
-            or endpoint.get("count") != 1
             or diagnostics.get("parser")
             or diagnostics.get("link")
             or validation_errors
-        ):
+        )
+        endpoint_inconsistency = expected_mode == "endpoint" and (
+            ir_value is None or endpoint.get("count") != 1
+        )
+        source_inconsistency = expected_mode == "source" and (
+            ir_value is not None or endpoint.get("name") is not None
+        )
+        if common_inconsistency or endpoint_inconsistency or source_inconsistency:
             raise OracleError("runner returned a logically inconsistent ok result")
     elif ir_value is not None or not isinstance(failure, dict):
         raise OracleError("runner returned a logically inconsistent invalid result")
@@ -532,6 +582,48 @@ def _workspace_payload(workspace_sources: Any, filename: str) -> list[dict[str, 
     return payload
 
 
+def build_oracle_request(
+    source: str,
+    *,
+    filename: str = "oracle.metis",
+    execution_mode: str = "endpoint",
+    endpoint: str | None = None,
+    workspace_sources: dict[str, str] | None = None,
+    revision: str = PINNED_METIS_REVISION,
+    tree: str = PINNED_METIS_TREE,
+) -> dict[str, Any]:
+    """Build the exact canonical request later bound into the evidence envelope."""
+
+    if not isinstance(source, str) or not source:
+        raise OracleError("source must be a non-empty string")
+    if (
+        not isinstance(filename, str)
+        or Path(filename).is_absolute()
+        or not filename.endswith(".metis")
+        or ".." in Path(filename).parts
+    ):
+        raise OracleError("filename must be a relative .metis name")
+    if execution_mode not in EXECUTION_MODES:
+        raise OracleError("execution_mode must be endpoint or source")
+    if endpoint is not None and (not isinstance(endpoint, str) or not endpoint):
+        raise OracleError("endpoint must be null or a non-empty string")
+    if execution_mode == "source" and endpoint is not None:
+        raise OracleError("source execution_mode requires a null endpoint")
+    if revision != PINNED_METIS_REVISION or tree != PINNED_METIS_TREE:
+        raise OracleError("oracle request toolchain identity differs from its pin")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "source": source,
+        "filename": filename,
+        "execution_mode": execution_mode,
+        "endpoint": endpoint,
+        "metis_root": f"snapshot://{revision}/{tree}",
+        "metis_revision": revision,
+        "metis_tree": tree,
+        "workspace_sources": _workspace_payload(workspace_sources, filename),
+    }
+
+
 def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict[str, Any]:
     """Verify a materialized oracle envelope without executing the compiler."""
 
@@ -553,11 +645,17 @@ def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict
     )
     if evidence["runtime_identity"] != expected_runtime:
         raise OracleError("oracle runtime identity does not match the immutable runtime policy")
+    expected_mode = "endpoint"
+    if request is not None:
+        if not isinstance(request, dict) or request.get("execution_mode") not in EXECUTION_MODES:
+            raise OracleError("supplied oracle request has an invalid execution mode")
+        expected_mode = request["execution_mode"]
     result = _check_response(
         envelope["result"],
         evidence["toolchain_revision"],
         evidence["toolchain_tree"],
         expected_runtime=expected_runtime,
+        expected_mode=expected_mode,
     )
     if evidence["diagnostics_sha256"] != _sha(result["diagnostics"]):
         raise OracleError("oracle diagnostics hash does not match")
@@ -597,6 +695,7 @@ def run_oracle(
     output_path: str | os.PathLike[str] | None = None,
     output_dir: str | os.PathLike[str] | None = None,
     filename: str = "oracle.metis",
+    execution_mode: str = "endpoint",
     endpoint: str | None = None,
     workspace_sources: dict[str, str] | None = None,
     timeout: float = 60.0,
@@ -604,17 +703,13 @@ def run_oracle(
 ) -> dict[str, Any]:
     """Execute the self-contained source without writing the Metis checkout."""
 
-    if not isinstance(source, str) or not source:
-        raise OracleError("source must be a non-empty string")
-    if (
-        not isinstance(filename, str)
-        or Path(filename).is_absolute()
-        or not filename.endswith(".metis")
-        or ".." in Path(filename).parts
-    ):
-        raise OracleError("filename must be a relative .metis name")
-    if endpoint is not None and (not isinstance(endpoint, str) or not endpoint):
-        raise OracleError("endpoint must be null or a non-empty string")
+    build_oracle_request(
+        source,
+        filename=filename,
+        execution_mode=execution_mode,
+        endpoint=endpoint,
+        workspace_sources=workspace_sources,
+    )
     if output_path is not None and output_dir is not None:
         raise OracleError("provide output_path or output_dir, not both")
     if output_path is None and output_dir is None:
@@ -637,18 +732,15 @@ def run_oracle(
     runtime = _runtime_identity(
         PINNED_NODE_VERSION, node_binary_sha256, revision, tree, toolchain_runtime
     )
-    request = {
-        "schema_version": SCHEMA_VERSION,
-        "source": source,
-        "filename": filename,
-        "endpoint": endpoint,
-        # The physical snapshot is intentionally omitted from the evidence so
-        # repeated runs remain byte deterministic.
-        "metis_root": f"snapshot://{revision}/{tree}",
-        "metis_revision": revision,
-        "metis_tree": tree,
-        "workspace_sources": _workspace_payload(workspace_sources, filename),
-    }
+    request = build_oracle_request(
+        source,
+        filename=filename,
+        execution_mode=execution_mode,
+        endpoint=endpoint,
+        workspace_sources=workspace_sources,
+        revision=revision,
+        tree=tree,
+    )
     request_bytes = _canonical(request)
     before_status = _git(root, "status", "--porcelain=v1", "--untracked-files=no")
     before_revision = _git(root, "rev-parse", "HEAD")
@@ -758,7 +850,13 @@ def run_oracle(
             raise OracleError("oracle runner emitted malformed JSON") from error
         if completed.stdout.strip() != _canonical(result).decode("utf-8"):
             raise OracleError("oracle runner output is not canonical JSON")
-        result = _check_response(result, revision, tree, expected_runtime=runtime)
+        result = _check_response(
+            result,
+            revision,
+            tree,
+            expected_runtime=runtime,
+            expected_mode=execution_mode,
+        )
         evidence = {
             "input_sha256": _sha(request),
             "diagnostics_sha256": _sha(result["diagnostics"]),

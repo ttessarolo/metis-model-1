@@ -106,6 +106,33 @@ def test_ambiguous_endpoint_is_rejected(artifact_tmp: Path) -> None:
     assert result["result"]["endpoint"]["count"] == 2
 
 
+def test_source_mode_validates_a_non_endpoint_document_without_compiling(
+    artifact_tmp: Path,
+) -> None:
+    source = "metis 0.43\ncatalog video { fields { title keyword } }\n"
+    envelope = execute(artifact_tmp, source, execution_mode="source")
+    result = envelope["result"]
+    assert result["status"] == "ok"
+    assert result["endpoint"] == {"count": 0, "name": None}
+    assert result["ast"]["signature"].startswith("sha256:")
+    assert result["ir"] == {"signature": None, "value": None}
+    request = oracle_module.build_oracle_request(source, execution_mode="source")
+    assert verify_oracle_envelope(envelope, request=request) == envelope
+    with pytest.raises(OracleError, match="inconsistent ok"):
+        verify_oracle_envelope(envelope)
+
+
+def test_source_mode_contract_rejects_endpoint_selection() -> None:
+    with pytest.raises(OracleError, match="requires a null endpoint"):
+        oracle_module.build_oracle_request(
+            VALID,
+            execution_mode="source",
+            endpoint="play.test",
+        )
+    with pytest.raises(OracleError, match="execution_mode"):
+        oracle_module.build_oracle_request(VALID, execution_mode="forged")
+
+
 def test_tampered_revision_override_is_forbidden(artifact_tmp: Path) -> None:
     with pytest.raises(OracleError, match="overriding"):
         execute(artifact_tmp, expected_revision="0" * 40)
@@ -304,6 +331,30 @@ def test_runner_mutation_after_snapshot_build_is_rejected(
 
 def test_sandbox_policy_denies_write_canary() -> None:
     oracle_module._assert_sandbox_policy()
+
+
+def test_sandbox_policy_denies_network_without_external_targets() -> None:
+    assert "(deny network*)" in oracle_module.SANDBOX_POLICY
+    assert '"127.0.0.1", 0' in oracle_module.NETWORK_CANARY_PROGRAM
+    assert "connect" in oracle_module.NETWORK_CANARY_PROGRAM
+    assert "bind" in oracle_module.NETWORK_CANARY_PROGRAM
+    assert "getaddrinfo" not in oracle_module.NETWORK_CANARY_PROGRAM
+    assert "http" not in oracle_module.NETWORK_CANARY_PROGRAM.lower()
+    oracle_module._assert_sandbox_policy()
+
+
+def test_broadened_sandbox_policy_fails_network_canary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broadened = "(version 1) (allow default) (deny file-write*)"
+    monkeypatch.setattr(oracle_module, "SANDBOX_POLICY", broadened)
+    monkeypatch.setattr(
+        oracle_module,
+        "SANDBOX_POLICY_SHA256",
+        oracle_module.hashlib.sha256(broadened.encode()).hexdigest(),
+    )
+    with pytest.raises(OracleError, match="failed to deny network"):
+        oracle_module._assert_sandbox_policy()
 
 
 def test_hostile_node_options_are_not_inherited(

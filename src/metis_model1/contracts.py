@@ -30,6 +30,8 @@ CONTRACT_PAIRS = (
 )
 
 STANDALONE_SCHEMAS = (
+    "schemas/w3-qualification.schema.json",
+    "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
     "schemas/w3-run.schema.json",
 )
@@ -42,6 +44,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "uv.lock",
     "src/metis_model1/w3_builder.py",
     "src/metis_model1/w3_oracles.py",
+    "src/metis_model1/w3_production_adapter.py",
+    "runtime/w3_qualifier.py",
     "docs/08-orchestration-and-blackboards.md",
     "docs/09-repository-and-artifact-policy.md",
     "docs/10-open-decisions.md",
@@ -56,6 +60,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/source-model-revisions.json",
     "manifests/decision-register.json",
     "manifests/benchmark-plan.json",
+    "manifests/w3-f1-f3-smoke-candidates.json",
+    "manifests/w3-f1-f3-smoke-semantic-specs.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -95,8 +101,12 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/decision-register.schema.json",
     "schemas/benchmark-plan.schema.json",
     "schemas/benchmark-task.schema.json",
+    "schemas/w3-qualification.schema.json",
+    "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
     "schemas/w3-run.schema.json",
+    "tests/test_w3_production_adapter.py",
+    "tests/test_w3_qualifier.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (

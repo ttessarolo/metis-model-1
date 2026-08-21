@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-semantic-spec.schema.json",
+  "title": "W3 independently reviewable semantic registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_id",
+    "review_status",
+    "specs",
+    "counts",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "registry_id": { "const": "w3-f1-f3-smoke-semantic-specs-v1" },
+    "review_status": { "const": "candidate_for_independent_review" },
+    "specs": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "$ref": "#/$defs/registeredSpec" }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["in", "out", "distinct", "gaps"],
+      "properties": {
+        "in": { "type": "integer", "minimum": 1 },
+        "out": { "type": "integer", "minimum": 1 },
+        "distinct": { "type": "integer", "minimum": 1 },
+        "gaps": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "manifest_sha256": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "candidateId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "workspaceSources": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[^/].*\\.metis$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "method", "review_status"],
+      "properties": {
+        "author": { "type": "string", "minLength": 1 },
+        "method": { "const": "manual_contract_review" },
+        "review_status": { "const": "candidate_for_independent_review" }
+      }
+    },
+    "f1Spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract",
+        "filename",
+        "execution_mode",
+        "endpoint",
+        "workspace_sources",
+        "truth",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "contract": { "const": "F-1-author" },
+        "filename": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.metis$"
+        },
+        "execution_mode": { "enum": ["endpoint", "source"] },
+        "endpoint": { "type": ["string", "null"], "minLength": 1 },
+        "workspace_sources": { "$ref": "#/$defs/workspaceSources" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "truth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_exact", "required_source_fragments", "expected_endpoint", "expected_ir"],
+          "properties": {
+            "request_exact": { "type": "string", "minLength": 1 },
+            "required_source_fragments": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "expected_endpoint": { "type": ["string", "null"] },
+            "expected_ir": { "type": "object" }
+          }
+        }
+      }
+    },
+    "f2Spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract",
+        "filename",
+        "execution_mode",
+        "endpoint",
+        "workspace_sources",
+        "truth",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "contract": { "const": "F-2-minimal-edit" },
+        "filename": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.metis$"
+        },
+        "execution_mode": { "enum": ["endpoint", "source"] },
+        "endpoint": { "type": ["string", "null"], "minLength": 1 },
+        "workspace_sources": { "$ref": "#/$defs/workspaceSources" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "truth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "old_text",
+            "new_text",
+            "occurrences",
+            "expected_endpoint",
+            "expected_before_ir",
+            "expected_after_ir",
+            "expected_changed_paths"
+          ],
+          "properties": {
+            "old_text": { "type": "string", "minLength": 1 },
+            "new_text": { "type": "string", "minLength": 1 },
+            "occurrences": { "const": 1 },
+            "expected_endpoint": { "type": ["string", "null"] },
+            "expected_before_ir": { "type": "object" },
+            "expected_after_ir": { "type": "object" },
+            "expected_changed_paths": {
+              "const": ["variants[0].takes[0].count.take"]
+            }
+          }
+        }
+      }
+    },
+    "f3Spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract",
+        "filename",
+        "execution_mode",
+        "endpoint",
+        "workspace_sources",
+        "truth",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "contract": { "const": "F-3-diagnostic-repair" },
+        "filename": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.metis$"
+        },
+        "execution_mode": { "enum": ["endpoint", "source"] },
+        "endpoint": { "type": ["string", "null"], "minLength": 1 },
+        "workspace_sources": { "$ref": "#/$defs/workspaceSources" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "truth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expected_failure_kind",
+            "expected_diagnostic_present",
+            "expected_endpoint",
+            "repair_fragment",
+            "expected_failure",
+            "expected_diagnostics",
+            "expected_fixed_ir"
+          ],
+          "properties": {
+            "expected_failure_kind": { "enum": ["parse", "link", "validation"] },
+            "expected_diagnostic_present": { "const": true },
+            "expected_endpoint": { "type": ["string", "null"] },
+            "repair_fragment": { "type": "string", "minLength": 1 },
+            "expected_failure": { "type": "object" },
+            "expected_diagnostics": { "type": "object" },
+            "expected_fixed_ir": { "type": "object" }
+          }
+        }
+      }
+    },
+    "registeredSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "family",
+        "content_sha256",
+        "semantic_spec_sha256",
+        "semantic_spec",
+        "spec_sha256"
+      ],
+      "properties": {
+        "candidate_id": { "$ref": "#/$defs/candidateId" },
+        "family": { "enum": ["F-1", "F-2", "F-3"] },
+        "content_sha256": { "$ref": "#/$defs/hash" },
+        "semantic_spec_sha256": { "$ref": "#/$defs/hash" },
+        "semantic_spec": {
+          "oneOf": [
+            { "$ref": "#/$defs/f1Spec" },
+            { "$ref": "#/$defs/f2Spec" },
+            { "$ref": "#/$defs/f3Spec" }
+          ]
+        },
+        "spec_sha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

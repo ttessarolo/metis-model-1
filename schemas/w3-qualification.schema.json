@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-qualification.schema.json",
+  "title": "Clean-process W3 bounded qualification report",
+  "oneOf": [
+    { "$ref": "#/$defs/qualified" },
+    { "$ref": "#/$defs/blocked" }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "launcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualifier_path",
+        "qualifier_sha256",
+        "python_executable",
+        "python_executable_sha256",
+        "python_version",
+        "required_flags",
+        "sandbox_exec_path",
+        "sandbox_exec_sha256",
+        "sandbox_policy_template_sha256"
+      ],
+      "properties": {
+        "qualifier_path": { "type": "string", "minLength": 1 },
+        "qualifier_sha256": { "$ref": "#/$defs/hash" },
+        "python_executable": { "type": "string", "minLength": 1 },
+        "python_executable_sha256": { "$ref": "#/$defs/hash" },
+        "python_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "required_flags": { "const": ["-I", "-S", "-B"] },
+        "sandbox_exec_path": { "const": "/usr/bin/sandbox-exec" },
+        "sandbox_exec_sha256": { "$ref": "#/$defs/hash" },
+        "sandbox_policy_template_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidates", "executions", "distinct", "gaps"],
+      "properties": {
+        "candidates": { "const": 3 },
+        "executions": { "const": 5 },
+        "distinct": { "const": 5 },
+        "gaps": { "const": 0 }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "before", "after", "mutated", "fixed"],
+      "properties": {
+        "author": { "const": 1 },
+        "before": { "const": 1 },
+        "after": { "const": 1 },
+        "mutated": { "const": 1 },
+        "fixed": { "const": 1 }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "family",
+        "role",
+        "request_sha256",
+        "envelope_sha256",
+        "result_sha256",
+        "artifact_path",
+        "artifact_sha256"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "family": { "enum": ["F-1", "F-2", "F-3"] },
+        "role": { "enum": ["author", "before", "after", "mutated", "fixed"] },
+        "request_sha256": { "$ref": "#/$defs/hash" },
+        "envelope_sha256": { "$ref": "#/$defs/hash" },
+        "result_sha256": { "$ref": "#/$defs/hash" },
+        "artifact_path": {
+          "type": "string",
+          "pattern": "^artifacts/(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.json$"
+        },
+        "artifact_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "qualified": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "qualification_id",
+        "status",
+        "claim",
+        "authority_manifest_sha256",
+        "bundle_sha256",
+        "semantic_registry_sha256",
+        "candidate_manifest_sha256",
+        "worker_input_sha256",
+        "worker_output_sha256",
+        "launcher",
+        "counts",
+        "roles",
+        "executions",
+        "stops",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "qualification_id": {
+          "const": "w3-f1-f3-clean-process-qualification-v1"
+        },
+        "status": { "const": "qualified" },
+        "claim": {
+          "const": "three_candidate_infrastructure_only_no_accuracy_claim"
+        },
+        "authority_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "bundle_sha256": { "$ref": "#/$defs/hash" },
+        "semantic_registry_sha256": { "$ref": "#/$defs/hash" },
+        "candidate_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "worker_input_sha256": { "$ref": "#/$defs/hash" },
+        "worker_output_sha256": { "$ref": "#/$defs/hash" },
+        "launcher": { "$ref": "#/$defs/launcher" },
+        "counts": { "$ref": "#/$defs/counts" },
+        "roles": { "$ref": "#/$defs/roles" },
+        "executions": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/execution" }
+        },
+        "stops": {
+          "const": [
+            "no_production_worker_or_runner_execution",
+            "stdlib_import_closure_not_materialized_or_content_addressed",
+            "no_w1_slice_or_dataset_promotion",
+            "no_f4_f5_f6_claim",
+            "no_semantic_accuracy_claim"
+          ]
+        },
+        "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "blocked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "qualification_id", "status", "claim", "reason"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "qualification_id": {
+          "const": "w3-f1-f3-clean-process-qualification-v1"
+        },
+        "status": { "const": "blocked" },
+        "claim": { "const": "no_qualification_claim" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

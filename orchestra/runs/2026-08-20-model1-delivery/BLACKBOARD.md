@@ -283,6 +283,210 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   `phases in=25 out=25 distinct=25 gaps=0`. Real receipts remain
   `in=15 out=0 distinct=0 gaps=15`; this arithmetic authorizes infrastructure
   work, not source sealing or semantic credit.
+- FIX — L21a closed the first production-bridge STOP without registering an
+  adapter. The external runner request now binds explicit execution mode
+  `endpoint|source`; source mode validates parser/link/semantic diagnostics and
+  emits AST evidence with deliberately null IR, while endpoint mode retains
+  exact-one compilation. Sandbox policy v2 denies both `file-write*` and
+  `network*`; loopback TCP `connect` and `bind` canaries accept only
+  `EPERM/EACCES`, use no DNS/listener/external target, and fail closed under a
+  broadened rehashed policy.
+- FACT — L21a repinned runner SHA-256
+  `484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5`
+  and sandbox-policy SHA-256
+  `deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa`.
+  The pre-regression real Oracle suite closed `in=23 out=23 distinct=23
+  gaps=0`; the newly added mode/network attack slice closed
+  `in=5 out=5 distinct=5 gaps=0`. No Metis write or production authority was
+  introduced. Resume command:
+  `METIS_MODEL1_NODE=/Users/tommasotessarolo/.hermes/node/bin/node uv run pytest -q tests/test_oracles.py`.
+- OPEN — L21b remains active: typed run-fatal trust/infrastructure failures,
+  transitive adapter identity, independently authorized semantic registry,
+  full runner-envelope receipts and the real `3/3` candidate, `5/5` execution
+  bridge gate.
+- RISK — L21b's first two independent frontier audits both returned `REWORK`
+  before authority registration. The strongest payload-free replay replaced
+  only the live `run_oracle` global after identity measurement and falsely
+  obtained candidates `3/3`, executions `5/5`, rejected `0` and replay errors
+  `0` against a nonexistent Metis root. Further P1 findings were incomplete
+  exact-request and artifact-byte bindings, schema-valid fixture/production
+  downgrade, stale declared content hashes, semantic truth closures `0/3` and
+  three self-declared leakage groups for one authoring wave. Authorities
+  remained `None`; no false production record was promoted.
+- FIX — L21b REWORK remediation now independently hashes the live transitive
+  Python globals resolved by the production adapter, rechecks that identity
+  before and after evaluation, recomputes family content from canonical
+  candidate fields, reconstructs the exact registered Oracle request, and
+  binds every receipt to the canonical bytes and SHA-256 of its materialized
+  artifact. Oracle evidence declares exact `fixture-policy` or
+  `real-runner-envelopes` mode and the run schema rejects mixed/downgraded
+  evidence. Verifier failures are trust-fatal; runner launch failures are
+  infrastructure-fatal.
+- FIX — The three typed truths now require exact IR for F-1, exact before/after
+  IR plus the sole changed path for F-2, and exact failure, diagnostic object
+  and repaired IR for F-3. Candidate manifest SHA-256 is
+  `4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5`;
+  semantic-registry SHA-256 is
+  `9b9aa14836eb6924e61df0ab1e0a7b7224f9958b78056ae66fd27f59868cc7c3`.
+  The common authoring session and generator are now shared roots: candidates
+  `3/3`, distinct candidate IDs `3`, honest leakage groups `1`, gaps `0`.
+- FACT — Post-remediation payload-free gate is
+  `in=108 out=108 distinct=108 gaps=0`; four Draft 2020-12 schemas are valid,
+  Ruff and `git diff --check` are green. Blocker regressions cover live
+  executor/verifier replacement `2/2`, stale content `1/1`, exact semantic
+  near-misses `3/3`, conservative genealogy `1/1`, and standalone receipt-mode
+  downgrade `1/1`. The production bridge and registry authorities remain
+  unset. Resume command:
+  `METIS_MODEL1_NODE=/Users/tommasotessarolo/.hermes/node/bin/node W3_PRODUCTION_CONTRACT=1 uv run pytest -q tests/test_w3_production_adapter.py -k real_bridge`.
+- OPEN — L21b remediation is frozen for independent frontier re-audit. Only an
+  accepted re-audit permits the two-fresh-process real bridge gate and the
+  repository-wide integration gate; neither smoke candidates nor their
+  self-authored registry receive production semantic credit before independent
+  authority ratification.
+- RISK — L21b re-audit 2 returned `REWORK`, `P0=0`, with the remaining semantic
+  P1 reproduced `1/1`: a function clone retaining code/module/qualname/defaults
+  but resolving a changed `__globals__` namespace kept the former runtime and
+  full identity hashes. Runtime review also found that one schema-valid run
+  could mix individually valid fixture and production records. Exact request,
+  artifact bytes, content, three semantic truths and one-group genealogy were
+  independently accepted in this replay.
+- FIX — L21b rework 2 now hashes a cycle-safe transitive function graph using
+  each function object's actual `__globals__`, following Model 1 dependencies
+  through adapter, Oracle bridge, verifier and provenance code. Adapter-side
+  and protocol-side measurements must agree, so replacing the measurement
+  guard and executor together fails closed. Regressions cover top-level
+  executor/verifier replacement `2/2`, same-code/different-globals clone `1/1`
+  and guard-plus-executor swap `1/1`.
+- FIX — W3 run manifests now declare one top-level receipt mode and require
+  every accepted record to match it; standalone schema tests accept isolated
+  fixture and real shapes but reject a mixed roster. Artifact verification now
+  rejects symlinks before resolution, and authority/identity drift is typed as
+  `W3OracleTrustError` while remaining run-fatal.
+- FACT — L21b rework-2 payload-free gate is
+  `in=110 out=110 distinct=110 gaps=0`; four schemas, Ruff, formatting and
+  `git diff --check` are green. Authorities remain `None`; real bridge evidence
+  is deliberately not rerun until frontier re-audit 3 accepts this frozen
+  snapshot.
+- STOP — L21b re-audit 3 returned `REWORK`, `P0=0`, `P1=1`: coordinated
+  replacement of executor and both same-interpreter measurement guards can
+  still preserve the former identity. Extending the identity graph closed the
+  exact same-code/different-`__globals__` replay, but cannot create a trusted
+  root inside an interpreter whose executor and verifier are both mutable.
+  Runtime review also notes that stdlib module/class attributes belong to the
+  same mutable address space. The real bridge gate is therefore STOPped before
+  ten executions; no authority or production record is created.
+- FACT — All other L21b findings are independently closed: exact request,
+  canonical artifact bytes and hash, pre-resolution symlink rejection,
+  homogeneous top-level receipt mode, typed trust/infrastructure failures,
+  content recomputation, exact semantic near-miss rejection `3/3`, conservative
+  one-group genealogy, and source authorities unset `5/5`.
+- FIX — L22 architecture is now the smallest honest continuation: a fresh
+  one-shot launcher/verifier, separate from the untrusted W3 worker, operating
+  on a content-addressed immutable bundle under an ignored artifact root. It
+  must receive an externally ratified authority manifest, run with isolated
+  flags and an allowlisted environment, recompute input/output/role/artifact/run
+  hashes itself, and reject self-authored `matched=true`. Same-process adapter
+  globals remain non-authoritative implementation detail; all five source
+  authorities remain permanently `None`.
+- FACT — L22 dependency census confirms that
+  `qualification/.venv/bin/python -I -B -S` resolves neither `metis_model1`
+  nor `jsonschema`, `attrs`, `referencing` or `rpds`. The clean qualifier can
+  therefore remain stdlib-only, but the real bridge must execute in a separate
+  worker with an explicit pinned dependency bundle; absence of that bundle is
+  a STOP, never an implicit ambient import.
+- OPEN — L22 external qualifier implementation is active on disjoint new
+  runtime/schema/test files. Until its independent audit and an independently
+  ratified semantic registry exist, permitted claims remain only candidate
+  roster `3/3`, one leakage group, internal schema/hash coherence and
+  payload-free regression evidence—not production Oracle green or accuracy.
+- FACT — L22 first implementation is payload-free `21/21`; L0 independently
+  reproduced the combined qualifier/contract slice `45/45`, schema `1/1`,
+  Ruff/format and `git diff --check` green. The report correctly restricts its
+  claim and lists four STOPs, including no production worker/runner and no
+  accuracy claim.
+- STOP — Independent runtime re-audit returned `REWORK`: the official CLI did
+  not require `-I -S -B`, and an authority-hashed worker wrote an absolute
+  sentinel outside its output root while the report still returned
+  `qualified`. A descendant also retained an artifact FD and corrupted the
+  published bytes after green. The worker therefore needs an outer deny-write
+  and deny-network sandbox, a dedicated killed/reaped process group, exact
+  launcher/Python/policy pins and immutable publication checks.
+- STOP — Independent semantic re-audit returned four false greens: a mismatched
+  request/truth endpoint, a forged F-3-invalid endpoint, JSON booleans accepted
+  as integer `1`, and a rehashed candidate id accepted by code but rejected by
+  the report schema. L22 rework is active; no authority, receipt, production
+  execution or promotion was created.
+- FACT — L23 dependency census establishes a feasible separate production
+  worker bundle on root CPython `3.13.3`: six runtime packages plus five
+  version-metadata directories, `144` files and `1,799,002` bytes. The closure
+  includes the arm64 CPython-313 `rpds` extension and passes an isolated
+  `-I -B -S` import/validation probe only when its bundle path is explicitly
+  prepended; it is not compatible with the Python 3.12 MLX environment.
+- RISK — L22's first remediation reached focused `33/33`, but L0 and the
+  independent reviewers withheld acceptance after five additional exact
+  replays: a forked process could detach and retain an artifact descriptor,
+  a rehashed semantic filename containing `..` qualified, `true` could stand
+  in for the F-2 integer occurrence count, `artifact/bundles` could redirect
+  through a pre-existing symlink, and the fixture worker could read outside
+  its registered roots. No qualification from those replays was promoted.
+- FIX — L22 remediation 2 now permits child execution only through the exact
+  pinned Python binary and denies child creation, so the detached-process
+  replay exits blocked before publication. The outer profile denies data reads
+  from source, artifact, user, volume, temporary and keychain roots while
+  allowing only the exact Python, current bundle and per-run process roots; a
+  source-file read canary is mandatory. Bundle and qualification namespaces
+  reject symlinks before and after creation.
+- FIX — Semantic input validation now mirrors the bounded F-1/F-2/F-3 schema:
+  safe relative `.metis` filenames, exact top-level and provenance fields,
+  strict JSON integers/booleans, exact family contracts and family-specific
+  truth fields. The schema uses the same segment-safe filename grammar.
+- FACT — L22 remediation-2 focused gate is `in=41 out=41 distinct=41 gaps=0`;
+  the combined qualifier/contracts gate is `65/65`. Ruff, formatting, two
+  Draft 2020-12 schemas and `git diff --check` are green. L0's stronger
+  delayed-descriptor process replay is blocked with exit `2`, empty stderr and
+  no qualification tree: `in=1 out=1 distinct=1 gaps=0`.
+- OPEN — L22 remediation 2 is frozen for fresh runtime and semantic review.
+  Its only permitted claim remains three-candidate infrastructure with explicit
+  STOPs for production worker/runner, materialized stdlib closure, W1/data,
+  F-4/F-5/F-6 and accuracy. All five production authorities remain unset.
+- FACT — L22 runtime review accepted remediation 2 with `P0=0`, `P1=0`,
+  `P2=0`, but the independent semantic review correctly returned `REWORK` on
+  three consistently rehashed false greens: boolean top-level manifest version,
+  F-3 failure-kind/diagnostic-presence drift and schema-invalid Oracle
+  diagnostic rows. Runtime acceptance was not promoted to an integrated green.
+- FIX — L22 remediation 3 validates exact candidate/registry identities and
+  integer schema versions; cross-binds F-3 failure kind, diagnostic channel,
+  nonempty evidence and filename; and manually enforces the bundled Oracle
+  diagnostic/failure types before accepting hashes. The Oracle schema now uses
+  the same safe relative `.metis` filename grammar.
+- FACT — L22 remediation-3 qualifier gate is
+  `in=46 out=46 distinct=46 gaps=0`; the exact new regressions cover manifest
+  booleans `2/2`, F-3 cross-binding `2/2` and malformed Oracle diagnostics
+  `1/1`. Ruff, formatting, three schemas and `git diff --check` are green.
+- OPEN — Fresh semantic replay of those exact three findings is pending; no
+  authority, runner receipt, production record or accuracy credit exists.
+- DONE — L22 bounded qualifier infrastructure is accepted after independent
+  runtime and semantic reviews, each `P0=0`, `P1=0`, `P2=0`. Semantic replay
+  blocked prior false greens `5/5` and IR-name substitutions `4/4`; a clean tmp
+  baseline produced canonical stdout `1/1`, schema-valid report `1/1`, canonical
+  schema-valid Oracle artifacts `5/5`, candidates `3`, executions `5`, roles
+  `5`, gaps `0`.
+- FACT — L0 integrated the final L22 snapshot with Oracle, W3 builder, W3
+  verifier, production-adapter, contracts, dataset and independence tests:
+  `in=225 out=225 distinct=225 gaps=0`, with `224` passed and one deliberate
+  opt-in production test skipped. The pinned Metis checkout remained exactly
+  HEAD `a2dde2b...`, tree `75473e26...`, expanded-status SHA-256
+  `ea7eb74f...beb54`, tracked diff files `0`.
+- STOP — L22 acceptance is infrastructure-only. It does not ratify the
+  semantic registry, materialize the production dependency bundle, execute the
+  real runner, promote W1/W3 data, implement F-4/F-5/F-6 or establish any
+  accuracy. Those remain the ordered L23+ continuation.
+- FACT — Repository-wide `make check` on the accepted L22 snapshot is green:
+  foundation `25/25`, pilot contracts valid, Ruff clean, `83` files formatted,
+  pytest `335` passed / `1` deliberate opt-in skip. The readiness validator
+  remains honestly `BLOCKED` for W5 on `1/563` groups, unsealed task-specific
+  oracles, no real W3 dataset, O-003 and absent A/B baseline. Post-gate Metis
+  HEAD/tree/status remain byte-identical with tracked diff files `0`.
 
 ## Open
 
