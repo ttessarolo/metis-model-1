@@ -252,12 +252,48 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   `a2dde2b191f6b78c2003d74875560da782470968`, tracked diff clean and `18`
   untracked paths. SHA-256 of NUL-delimited porcelain-v1 expanded status is
   `ea7eb74f131f8d8e1fd3f785da7941bce2c21dc239d06ccd17a389e7ed6beb54`.
+- DONE — K19 audited clean pushed SHA
+  `acb698d204147fb0fcd7bc773c5bfb18f03e6944` through the ratified Kimi K3
+  wrapper and returned `ACCEPT`, `P0=0`, `P1=0`, `P2=5`. Units close as
+  `in=3 out=3 distinct=3 gaps=0`; distinct executions are `390/390` green:
+  W3 `112/112`, W4 payload-free `8/8` and hostile integrated `270/270`.
+  Project porcelain remained empty. Metis HEAD remained pinned with the same
+  four collapsed untracked entries, equal to the `18` expanded paths recorded
+  above. No payload or Metis write occurred.
+- FACT — K19 provider session is
+  `session_0b443c60-3c8f-495b-909a-4acac8736729`. Master report SHA-256 is
+  `047618f753f89be3e382f0258dfaaf6bde74c5808e77ce827101165d023a925d`;
+  Kimi activity-board SHA-256 is
+  `af47770942984ef336b86b16a11079349969611cc3b227b7f824d3a2d527f4e2`.
+- RISK — K19's five accepted P2 advisories remain explicit: W3 identity does
+  not yet bind mutable module globals; transient mutate-and-restore state is
+  not observable; unset-authority validation raises rather than returning an
+  error list; `qualification/probe_model.py` retains diagnostic-only remote
+  code trust outside the qualified wrapper; missing-payload/torn-publish W4
+  branches are inspection-covered but lack adversarial tests.
+- STOP — L20's production-registration preflight found no current false green,
+  because all authorities remain unset, but a naive adapter is blocked. Before
+  registration the implementation must bind real isolated-runner envelopes,
+  independently authorized typed semantic truth, run-fatal trust failures,
+  transitive bridge/schema/profile identities, deny-network sandbox evidence
+  and a runner mode that does not require exactly one endpoint.
+- DONE — The next F-1/F-2/F-3 bridge roster is closed on paper:
+  `families in=3 out=3 distinct=3 gaps=0`,
+  `tasks in=15 out=15 distinct=15 gaps=0`, and
+  `phases in=25 out=25 distinct=25 gaps=0`. Real receipts remain
+  `in=15 out=0 distinct=0 gaps=15`; this arithmetic authorizes infrastructure
+  work, not source sealing or semantic credit.
 
 ## Open
 
 - OPEN — Register a production W3 adapter plus independently reviewed typed
   semantic specifications and obtain real isolated-runner receipts for the
   `15/15` allocated F-1/F-2/F-3 smoke tasks.
+- OPEN — First qualify the production bridge on three self-contained
+  public-synthetic candidates: `3/3` candidates and `5/5` ordered executions
+  (`target`, `before`, `after`, `mutated`, `fixed`), with byte-identical replay,
+  denied network/write canaries and exact pre/post Metis invariants. This gate
+  does not close the allocated `15/15`.
 - OPEN — Implement and audit F-4/F-5/F-6 without weakening the accepted
   F-1/F-2/F-3 trust boundary.
 - OPEN — Benchmark v1, at least 563 genuinely independent groups, real W3
@@ -270,6 +306,8 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   materialized payload entering Git or model-family change ends the lane.
 - STOP — A generated benchmark cannot certify its own targets without an
   independently validated semantic oracle.
+- STOP — A policy-only receipt, compiler-clean output or adapter-authored
+  `matched=true` can never serve as production execution or semantic evidence.
 - STOP — Cosmetic variation, common template ancestry or shared semantic
   specification cannot inflate leakage-group counts.
 - STOP — Training does not start before benchmark freeze, accepted W3 data,
