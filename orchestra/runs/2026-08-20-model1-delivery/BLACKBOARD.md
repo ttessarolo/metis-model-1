@@ -2115,6 +2115,14 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   product artifact and will be removed before commit. Commit/push may now
   proceed for the accepted infrastructure milestone; no model weights or data
   payload enter Git.
+- DONE — Accepted capsule/bridge infrastructure, retained-root evidence,
+  hermetic pinned-root test harness and Qwen team registration are committed as
+  `5a5d817` (`feat: harden W3 qualification bridge`) and pushed to
+  `origin/codex/model1-local-99-foundation`. The commit contains `22` explicit
+  source/schema/test/board/brief files, no weights, dataset, checkpoint or
+  artifact payload. The branch is now a resumable GitHub checkpoint; production
+  W3 authorities, real receipts, W1/W2 population, W5 training and the 99%
+  result remain open.
 
 ## Open
 
