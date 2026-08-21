@@ -195,6 +195,14 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   Relative and wrong overrides, no exact digest, wrong-first and unreadable
   candidates, duplicates/symlinks and pre-sandbox execution were all exercised;
   only a cross-host Makefile-default advisory remains documented.
+- DONE — K7's final clean-SHA replay on
+  `9ba7c75631b64bf6c8d67bcd614eec9f4d4ceebc` returned `ACCEPT`, `P0=0`,
+  `P1=0`, `P2=1` cross-host-default advisory. Kimi independently ran the
+  hostile-PATH documented gate (`198/198`), re-probed 39 shared-root tasks as
+  one group, confirmed unset promotion authority and source-Node-never-exec,
+  and preserved both repository invariants. Coverage is
+  `in=3 out=3 distinct=3 gaps=0`; report SHA-256 is
+  `85939a2fa4ad106fd10cbbf74597b143ab43e249c87756b254c926f713279196`.
 - FACT — The current executable W5 assessment is contract-valid but blocked on
   five exact items: leakage groups `1/563`, unsealed task-specific oracles,
   synthetic-only W3, O-003 and missing A/B baseline. Real semantic accuracy is
@@ -207,8 +215,6 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 
 ## Open
 
-- OPEN — Publish the deterministic Node-selection fix and complete K7's final
-  clean-commit recheck of that new SHA.
 - OPEN — Benchmark v1, real W3 dataset, A/B baseline, O-003 and W5.
 - OPEN — Final semantic accuracy and promotion verdict.
 
