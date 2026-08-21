@@ -30,6 +30,8 @@ CONTRACT_PAIRS = (
 )
 
 STANDALONE_SCHEMAS = (
+    "schemas/w3-bridge-replay.schema.json",
+    "schemas/w3-production-authority.schema.json",
     "schemas/w3-qualification.schema.json",
     "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
@@ -46,6 +48,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/w3_oracles.py",
     "src/metis_model1/w3_production_adapter.py",
     "runtime/w3_qualifier.py",
+    "runtime/w3_production_worker.py",
+    "runtime/w3_bridge_gate.py",
     "docs/08-orchestration-and-blackboards.md",
     "docs/09-repository-and-artifact-policy.md",
     "docs/10-open-decisions.md",
@@ -102,11 +106,15 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/benchmark-plan.schema.json",
     "schemas/benchmark-task.schema.json",
     "schemas/w3-qualification.schema.json",
+    "schemas/w3-production-authority.schema.json",
+    "schemas/w3-bridge-replay.schema.json",
     "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
     "schemas/w3-run.schema.json",
     "tests/test_w3_production_adapter.py",
     "tests/test_w3_qualifier.py",
+    "tests/test_w3_production_worker.py",
+    "tests/test_w3_bridge_gate.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -645,6 +653,366 @@ def _collect_nonblocking_open(register: dict[str, Any]) -> list[str]:
     )
 
 
+def validate_w3_retained_report_schema_contract(root: Path | None = None) -> list[str]:
+    """Bind the six W3 report variants to the deferred-cleanup wire contract."""
+
+    root = (root or repository_root()).resolve()
+    qualification = load_json(root / "schemas/w3-qualification.schema.json")
+    bridge = load_json(root / "schemas/w3-bridge-replay.schema.json")
+    errors: list[str] = []
+    expected_variant_keys = {
+        "qualified": {
+            "schema_version",
+            "qualification_id",
+            "status",
+            "claim",
+            "authority_manifest_sha256",
+            "bundle_sha256",
+            "semantic_registry_sha256",
+            "candidate_manifest_sha256",
+            "worker_input_sha256",
+            "worker_output_sha256",
+            "launcher",
+            "counts",
+            "roles",
+            "executions",
+            "stops",
+            "cleanup",
+            "manifest_sha256",
+        },
+        "blocked": {
+            "schema_version",
+            "qualification_id",
+            "status",
+            "claim",
+            "reason",
+            "cleanup",
+        },
+        "productionQualified": {
+            "schema_version",
+            "qualification_id",
+            "qualification_kind",
+            "status",
+            "claim",
+            "authority_manifest_sha256",
+            "ratification_evidence_sha256",
+            "project_revision",
+            "source_bundle_manifest_sha256",
+            "dependency_bundle_manifest_sha256",
+            "dependency_roster_sha256",
+            "capsule_manifest_sha256",
+            "candidate_manifest_sha256",
+            "semantic_registry_sha256",
+            "worker_input_sha256",
+            "worker_output_sha256",
+            "launcher",
+            "counts",
+            "roles",
+            "executions",
+            "non_claims",
+            "cleanup",
+            "manifest_sha256",
+        },
+        "productionBlocked": {
+            "schema_version",
+            "qualification_id",
+            "qualification_kind",
+            "status",
+            "claim",
+            "reason",
+            "cleanup",
+        },
+    }
+    qualifier_cleanup_refs = {
+        "qualified": "#/$defs/qualifiedV1Cleanup",
+        "blocked": "#/$defs/blockedV1Cleanup",
+        "productionQualified": "#/$defs/qualifiedV2Cleanup",
+        "productionBlocked": "#/$defs/blockedV2Cleanup",
+    }
+    for name, expected_keys in expected_variant_keys.items():
+        variant = qualification.get("$defs", {}).get(name, {})
+        if "cleanup" not in variant.get("required", ()):
+            errors.append(f"W3 qualification {name} does not require cleanup")
+        if variant.get("properties", {}).get("cleanup") != {"$ref": qualifier_cleanup_refs[name]}:
+            errors.append(f"W3 qualification {name} cleanup schema binding drifted")
+        if (
+            variant.get("additionalProperties") is not False
+            or set(variant.get("required", ())) != expected_keys
+            or set(variant.get("properties", {})) != expected_keys
+        ):
+            errors.append(f"W3 qualification {name} required-key contract drifted")
+    for document, label in ((qualification, "qualification"), (bridge, "bridge")):
+        cleanup = document.get("$defs", {}).get("cleanup", {})
+        properties = cleanup.get("properties", {})
+        if properties.get("status") != {"const": "cleanup_deferred"}:
+            errors.append(f"W3 {label} cleanup status drifted")
+        if properties.get("gc_policy") != {"const": "separately_ratified_quiescent_exclusive_v1"}:
+            errors.append(f"W3 {label} GC policy drifted")
+        if properties.get("delete_attempts") != {"const": 0}:
+            errors.append(f"W3 {label} delete-attempt contract drifted")
+    exact_cleanup_rosters = (
+        (
+            qualification,
+            "qualifiedV1Cleanup",
+            1,
+            ["#/$defs/workerProcessRoot"],
+            "qualification v1",
+        ),
+        (
+            qualification,
+            "qualifiedV2Cleanup",
+            2,
+            ["#/$defs/productionProcessRoot", "#/$defs/productionTrustedRoot"],
+            "qualification v2",
+        ),
+        (
+            qualification,
+            "blockedV1Cleanup",
+            0,
+            [
+                "#/$defs/workerProcessBlockedRoot",
+                "#/$defs/publicationPartialBlockedRoot",
+            ],
+            "blocked qualification v1",
+        ),
+        (
+            qualification,
+            "blockedV2Cleanup",
+            0,
+            [
+                "#/$defs/productionProcessBlockedRoot",
+                "#/$defs/productionTrustedBlockedRoot",
+                "#/$defs/publicationPartialBlockedRoot",
+            ],
+            "blocked qualification v2",
+        ),
+        (
+            bridge,
+            "qualifiedChildCleanup",
+            2,
+            ["#/$defs/productionProcessRoot", "#/$defs/productionTrustedRoot"],
+            "bridge child",
+        ),
+        (
+            bridge,
+            "qualifiedReplayCleanup",
+            1,
+            ["#/$defs/replayHolderRoot"],
+            "bridge holder",
+        ),
+        (
+            bridge,
+            "blockedChildCleanup",
+            0,
+            [
+                "#/$defs/productionProcessBlockedRoot",
+                "#/$defs/productionTrustedBlockedRoot",
+                "#/$defs/publicationPartialBlockedRoot",
+            ],
+            "blocked bridge child",
+        ),
+        (
+            bridge,
+            "blockedReplayCleanup",
+            0,
+            ["#/$defs/replayHolderBlockedRoot"],
+            "blocked bridge holder",
+        ),
+    )
+    for document, definition, minimum, expected_refs, label in exact_cleanup_rosters:
+        cleanup_definition = document.get("$defs", {}).get(definition, {})
+        properties = cleanup_definition.get("properties", {})
+        roster = properties.get("retained_roots", {})
+        observed_refs = [item.get("$ref") for item in roster.get("prefixItems", ())]
+        if (
+            cleanup_definition.get("additionalProperties") is not False
+            or set(cleanup_definition.get("required", ()))
+            != {"status", "gc_policy", "delete_attempts", "retained_roots"}
+            or properties.get("status") != {"const": "cleanup_deferred"}
+            or properties.get("gc_policy")
+            != {"const": "separately_ratified_quiescent_exclusive_v1"}
+            or properties.get("delete_attempts") != {"const": 0}
+            or roster.get("minItems") != minimum
+            or roster.get("maxItems") != len(expected_refs)
+            or roster.get("items") is not False
+            or observed_refs != expected_refs
+        ):
+            errors.append(f"W3 {label} retained-root roster binding drifted")
+    blocked_root_unions = (
+        (
+            qualification,
+            "workerProcessBlockedRoot",
+            ("workerProcessRoot", "workerProcessUnmeasurable"),
+            "qualification worker",
+        ),
+        (
+            qualification,
+            "productionProcessBlockedRoot",
+            ("productionProcessRoot", "productionProcessUnmeasurable"),
+            "qualification process",
+        ),
+        (
+            qualification,
+            "productionTrustedBlockedRoot",
+            ("productionTrustedRoot", "productionTrustedUnmeasurable"),
+            "qualification trusted",
+        ),
+        (
+            qualification,
+            "publicationPartialBlockedRoot",
+            ("publicationPartialRoot", "publicationPartialUnmeasurable"),
+            "qualification publication",
+        ),
+        (
+            bridge,
+            "productionProcessBlockedRoot",
+            ("productionProcessRoot", "productionProcessUnmeasurable"),
+            "bridge process",
+        ),
+        (
+            bridge,
+            "productionTrustedBlockedRoot",
+            ("productionTrustedRoot", "productionTrustedUnmeasurable"),
+            "bridge trusted",
+        ),
+        (
+            bridge,
+            "publicationPartialBlockedRoot",
+            ("publicationPartialRoot", "publicationPartialUnmeasurable"),
+            "bridge publication",
+        ),
+        (
+            bridge,
+            "replayHolderBlockedRoot",
+            ("replayHolderRoot", "replayHolderUnmeasurable"),
+            "bridge holder",
+        ),
+    )
+    for document, definition, expected_definitions, label in blocked_root_unions:
+        observed_refs = [
+            item.get("$ref")
+            for item in document.get("$defs", {}).get(definition, {}).get("oneOf", ())
+        ]
+        expected_refs = [f"#/$defs/{name}" for name in expected_definitions]
+        if observed_refs != expected_refs:
+            errors.append(f"W3 blocked {label} sealed/unmeasurable union drifted")
+    expected_count_caps = (
+        (qualification, "processRetainedCounts", (512, 512, 134217728), "qualification process"),
+        (qualification, "trustedRetainedCounts", (4096, 4096, 1073741824), "qualification trusted"),
+        (
+            qualification,
+            "publicationRetainedCounts",
+            (128, 128, 33554432),
+            "qualification publication",
+        ),
+        (bridge, "processRootCounts", (512, 512, 134217728), "bridge process"),
+        (bridge, "trustedRootCounts", (4096, 4096, 1073741824), "bridge trusted"),
+        (bridge, "publicationRootCounts", (128, 128, 33554432), "bridge publication"),
+        (bridge, "holderRootCounts", (16384, 16384, 3221225472), "bridge holder"),
+    )
+    for document, definition, expected_caps, label in expected_count_caps:
+        properties = document.get("$defs", {}).get(definition, {}).get("properties", {})
+        observed_caps = tuple(
+            properties.get(name, {}).get("maximum") for name in ("files", "directories", "bytes")
+        )
+        if observed_caps != expected_caps:
+            errors.append(f"W3 {label} retained-root caps drifted")
+    bridge_variant_keys = {
+        "qualified": {
+            "schema_version",
+            "replay_id",
+            "status",
+            "claim",
+            "authority_manifest_sha256",
+            "runs",
+            "normalized_projection_sha256",
+            "capsule_manifest_sha256",
+            "counts",
+            "roles",
+            "nonce_model",
+            "artifacts",
+            "non_claims",
+            "cleanup",
+            "manifest_sha256",
+        },
+        "blocked": {
+            "schema_version",
+            "replay_id",
+            "status",
+            "claim",
+            "reason",
+            "observed_runs",
+            "cleanup",
+        },
+    }
+    bridge_cleanup_refs = {
+        "qualified": "#/$defs/qualifiedReplayCleanup",
+        "blocked": "#/$defs/blockedReplayCleanup",
+    }
+    for name, expected_keys in bridge_variant_keys.items():
+        variant = bridge.get("$defs", {}).get(name, {})
+        if "cleanup" not in variant.get("required", ()):
+            errors.append(f"W3 bridge {name} does not require cleanup")
+        if variant.get("properties", {}).get("cleanup") != {"$ref": bridge_cleanup_refs[name]}:
+            errors.append(f"W3 bridge {name} cleanup schema binding drifted")
+        if (
+            variant.get("additionalProperties") is not False
+            or set(variant.get("required", ())) != expected_keys
+            or set(variant.get("properties", {})) != expected_keys
+        ):
+            errors.append(f"W3 bridge {name} required-key contract drifted")
+    qualified = bridge.get("$defs", {}).get("qualified", {})
+    required = set(qualified.get("required", ()))
+    if bridge.get("$defs", {}).get("qualified", {}).get("properties", {}).get("schema_version") != {
+        "const": 2
+    }:
+        errors.append("W3 bridge qualified schema version is not v2")
+    if not {"runs", "normalized_projection_sha256"}.issubset(required):
+        errors.append("W3 bridge qualified physical/normalized replay binding is incomplete")
+    if {"qualification_manifest_sha256", "reports_sha256"} & required:
+        errors.append("W3 bridge qualified retains a legacy singular replay digest")
+    if bridge.get("$defs", {}).get("physicalRun", {}).get("properties", {}).get("cleanup") != {
+        "$ref": "#/$defs/qualifiedChildCleanup"
+    }:
+        errors.append("W3 bridge physical-run cleanup roster binding drifted")
+    observed_run_refs = [
+        item.get("$ref") for item in bridge.get("$defs", {}).get("observedRun", {}).get("oneOf", ())
+    ]
+    if observed_run_refs != [
+        "#/$defs/qualifiedObservedRun",
+        "#/$defs/blockedObservedRun",
+        "#/$defs/noReportObservedRun",
+    ]:
+        errors.append("W3 bridge observed-run status contract drifted")
+    if bridge.get("$defs", {}).get("qualifiedObservedRun", {}).get("properties", {}).get(
+        "cleanup"
+    ) != {"$ref": "#/$defs/qualifiedChildCleanup"}:
+        errors.append("W3 bridge qualified observed-run cleanup roster binding drifted")
+    if bridge.get("$defs", {}).get("blockedObservedRun", {}).get("properties", {}).get(
+        "cleanup"
+    ) != {"$ref": "#/$defs/blockedChildCleanup"}:
+        errors.append("W3 bridge blocked observed-run cleanup roster binding drifted")
+    observed_roster = (
+        bridge.get("$defs", {}).get("blocked", {}).get("properties", {}).get("observed_runs", {})
+    )
+    if (
+        observed_roster.get("minItems") != 0
+        or observed_roster.get("maxItems") != 2
+        or observed_roster.get("items") is not False
+        or [item.get("$ref") for item in observed_roster.get("prefixItems", ())]
+        != ["#/$defs/observedRun1", "#/$defs/observedRun2"]
+    ):
+        errors.append("W3 bridge blocked observed-run prefix order drifted")
+    for index in (1, 2):
+        expected = [
+            {"$ref": "#/$defs/observedRun"},
+            {"properties": {"run_index": {"const": index}}},
+        ]
+        if bridge.get("$defs", {}).get(f"observedRun{index}", {}).get("allOf") != expected:
+            errors.append(f"W3 bridge observed-run {index} index binding drifted")
+    return errors
+
+
 def validate_foundation(root: Path | None = None) -> ValidationReport:
     root = (root or repository_root()).resolve()
     report = ValidationReport()
@@ -677,6 +1045,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             report.errors.append(f"invalid schema {schema_path}: {error.message}")
         else:
             report.passes.append(f"schema={schema_path}")
+
+    retained_schema_errors = validate_w3_retained_report_schema_contract(root)
+    if retained_schema_errors:
+        report.errors.extend(retained_schema_errors)
+    else:
+        report.passes.append("w3-retained-report-schemas=6/6")
 
     decision_errors = validate_cross_contracts(root)
     if decision_errors:

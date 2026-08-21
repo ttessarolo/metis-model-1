@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import contextlib
+import hashlib
+import inspect
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -18,10 +23,411 @@ from metis_model1.oracles import (
     verify_oracle_envelope,
 )
 
-METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
+METIS_ROOT = Path(
+    os.environ.get(
+        "METIS_MODEL1_METIS_ROOT",
+        "/Users/tommasotessarolo/Developer/ares-matioska/metis",
+    )
+).resolve()
 RUNNER = Path(__file__).parents[1] / "runtime/metis_oracle/runner.ts"
 PINNED_NODE = oracle_module._resolve_pinned_node()[0]
 VALID = 'metis 0.43\nendpoint play.test as "test" {\n  variant v { empty }\n}\n'
+
+
+def _oracle_open_fd_snapshot() -> dict[int, tuple[int, int, int, int]]:
+    """Measure live descriptors by fstat; discard the closed /dev/fd scan handle."""
+
+    discovered = [int(name) for name in os.listdir("/dev/fd") if name.isdigit()]
+    ceiling = max([64, *discovered]) + 32
+    census: dict[int, tuple[int, int, int, int]] = {}
+    for descriptor in range(ceiling):
+        try:
+            metadata = os.fstat(descriptor)
+        except OSError:
+            continue
+        census[descriptor] = (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_mode,
+            metadata.st_rdev,
+        )
+    return census
+
+
+def _oracle_raise_on_line_after(
+    function: object,
+    needle: str,
+    invoke: object,
+    *,
+    target_needle: str | None = None,
+) -> BaseException:
+    """Inject a BaseException at a source-resolved post-acquisition line."""
+
+    source_function = getattr(function, "__wrapped__", function)
+    source, start = inspect.getsourcelines(source_function)
+    matches = [index for index, line in enumerate(source) if needle in line]
+    assert len(matches) == 1, (needle, matches)
+    target_index = matches[0] + 1
+    if target_needle is not None:
+        targets = [
+            index
+            for index, line in enumerate(source[target_index:], start=target_index)
+            if target_needle in line
+        ]
+        assert targets, (needle, target_needle)
+        target_index = targets[0]
+    target_line = start + target_index
+
+    def trace(frame: object, event: str, _argument: object):
+        if (
+            event == "line"
+            and frame.f_code.co_filename == source_function.__code__.co_filename
+            and frame.f_lineno == target_line
+        ):
+            sys.settrace(None)
+            raise KeyboardInterrupt
+        return trace
+
+    retained: list[BaseException] = []
+    sys.settrace(trace)
+    try:
+        invoke()
+    except BaseException as error:
+        retained.append(error)
+    finally:
+        sys.settrace(None)
+    assert len(retained) == 1
+    assert isinstance(retained[0], KeyboardInterrupt)
+    assert retained[0].__traceback__ is not None
+    return retained[0]
+
+
+ORACLE_FD_TRANSFER_CASES = (
+    "capsule-directory-dup",
+    "capsule-directory-child-fstat",
+    "capsule-roster-child-return",
+    "capsule-read-parent-return",
+    "capsule-materialize-target-open",
+    "capsule-materialize-parent-return",
+    "capsule-materialize-directory-return",
+    "secure-output-child-fstat",
+    "capsule-run-materializer-return",
+    "run-oracle-directory-open",
+)
+
+
+@pytest.mark.parametrize("case", ORACLE_FD_TRANSFER_CASES)
+def test_oracle_fd_transfer_windows_are_baseexception_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    """Every sequential descriptor handoff must close on interruption and I/O failure."""
+
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    fds: list[int] = []
+    probe_fds: list[int] = []
+    probe_identities: list[tuple[int, int]] = []
+    function: object
+    invoke: object
+    needle: str
+    target_needle: str | None = None
+
+    if case.startswith("capsule-directory"):
+        root = tmp_path / case
+        root.mkdir(mode=0o700)
+        if case == "capsule-directory-child-fstat":
+            (root / "child").mkdir(mode=0o700)
+        root_fd = os.open(root, directory_flags)
+        fds.append(root_fd)
+        function = oracle_module._open_capsule_preimage_directory_at
+        if case == "capsule-directory-dup":
+            needle = "current_fd = os.dup(root_fd)"
+
+            def invoke() -> None:
+                function(root_fd, (), create=False)
+
+        else:
+            needle = "child_fd = os.open(component, flags, dir_fd=current_fd)"
+            target_needle = "metadata = os.fstat(child_fd)"
+
+            def invoke() -> None:
+                function(root_fd, ("child",), create=False)
+    elif case == "capsule-roster-child-return":
+        root = tmp_path / case
+        child = root / "child"
+        child.mkdir(parents=True, mode=0o700)
+        root_fd = os.open(root, directory_flags)
+        fds.append(root_fd)
+        function = oracle_module._capsule_preimage_roster_at
+        needle = "child_fd = _open_capsule_preimage_directory_at("
+        target_needle = "child_files, child_directories = _capsule_preimage_roster_at("
+        original_open_directory = oracle_module._open_capsule_preimage_directory_at
+
+        def observe_open_directory(*args: object, **kwargs: object) -> int:
+            descriptor = original_open_directory(*args, **kwargs)
+            metadata = os.fstat(descriptor)
+            probe_fds.append(descriptor)
+            probe_identities.append((metadata.st_dev, metadata.st_ino))
+            return descriptor
+
+        monkeypatch.setattr(
+            oracle_module,
+            "_open_capsule_preimage_directory_at",
+            observe_open_directory,
+        )
+
+        def invoke() -> None:
+            function(root_fd)
+    elif case == "capsule-read-parent-return":
+        root = tmp_path / case
+        root.mkdir(mode=0o700)
+        (root / "value").write_bytes(b"value")
+        root_fd = os.open(root, directory_flags)
+        fds.append(root_fd)
+        function = oracle_module._read_capsule_preimage_file_at
+        needle = "parent_fd = _open_capsule_preimage_directory_at("
+        target_needle = "descriptor = os.open("
+
+        def invoke() -> None:
+            function(root_fd, PurePosixPath("value"), 64, "fd read")
+    elif case.startswith("capsule-materialize"):
+        invocation = tmp_path / f"{case}-invocation"
+        invocation.mkdir(mode=0o700)
+        invocation_fd = os.open(invocation, directory_flags)
+        fds.append(invocation_fd)
+        manifest: dict[str, object] = {
+            "manifest_sha256": "sha256:" + "1" * 64,
+            "files": [],
+        }
+        contents: dict[str, bytes] = {}
+        if case != "capsule-materialize-target-open":
+            contents = (
+                {"value": b"value"}
+                if case == "capsule-materialize-parent-return"
+                else {"nested/value": b"value"}
+            )
+            manifest["files"] = [{"path": name, "mode": 0o444} for name in contents]
+        function = oracle_module._materialize_runtime_capsule_preimage
+        if case == "capsule-materialize-target-open":
+            needle = "target_fd = os.open("
+            target_needle = "all_files ="
+        elif case == "capsule-materialize-parent-return":
+            needle = "parent_fd = _open_capsule_preimage_directory_at("
+            target_needle = "_write_capsule_preimage_file_at("
+        else:
+            needle = "directory_fd = _open_capsule_preimage_directory_at("
+            target_needle = "os.fchmod(directory_fd"
+
+        def invoke() -> None:
+            function(invocation, invocation_fd, manifest, contents)
+    elif case == "secure-output-child-fstat":
+        root = tmp_path / case
+        root.mkdir(mode=0o700)
+        output = root / "nested" / "result.json"
+        function = oracle_module._secure_output_parent
+        needle = "child_fd = os.open(component, directory_flags, dir_fd=parent_fd)"
+        target_needle = "metadata = os.fstat(child_fd)"
+
+        def invoke() -> None:
+            with function(root, output):
+                pass
+
+    elif case == "capsule-run-materializer-return":
+        capsule = tmp_path / f"{case}-capsule"
+        capsule.mkdir(mode=0o700)
+        process = tmp_path / f"{case}-process"
+        process.mkdir(mode=0o700)
+        semantic = oracle_module.build_oracle_request(
+            VALID,
+            endpoint="play.test",
+            revision=oracle_module.PINNED_METIS_REVISION,
+            tree=oracle_module.PINNED_METIS_TREE,
+        )
+        request = {
+            "schema_version": 2,
+            "protocol": oracle_module.CAPSULE_PROTOCOL,
+            "execution_id": "candidate-fd.author",
+            "run_nonce": "1" * 64,
+            "capsule_manifest_sha256": "sha256:" + "2" * 64,
+            "request": semantic,
+        }
+        manifest = {"manifest_sha256": request["capsule_manifest_sha256"], "files": []}
+        leaked: list[int] = []
+        monkeypatch.setattr(
+            oracle_module,
+            "verify_runtime_capsule",
+            lambda *_args, **_kwargs: (capsule, manifest),
+        )
+        monkeypatch.setattr(oracle_module, "_capture_runtime_capsule_contents", lambda *_: {})
+
+        def materialize(invocation: Path, *_args: object) -> tuple[Path, int]:
+            descriptor = os.open(invocation, directory_flags)
+            leaked.append(descriptor)
+            return invocation, descriptor
+
+        monkeypatch.setattr(oracle_module, "_materialize_runtime_capsule_preimage", materialize)
+        function = oracle_module.run_oracle_from_capsule
+        needle = "_owned_materialized_runtime_capsule_preimage("
+        target_needle = "write_fd = -1"
+
+        def invoke() -> None:
+            function(
+                request,
+                capsule_root=capsule,
+                process_root=process,
+                output_path=process / "result.json",
+            )
+    else:
+        root = tmp_path / "run-oracle-root"
+        root.mkdir(mode=0o700)
+        runner = tmp_path / "runner.ts"
+        runner.write_text("runner", encoding="utf-8")
+        output = root / "results" / "oracle.json"
+        result = {"diagnostics": {}, "ast": {"inventory": {}}, "ir": {"value": None}}
+
+        class Holder:
+            def cleanup(self) -> None:
+                return None
+
+        monkeypatch.setattr(oracle_module, "_assert_sandbox_policy", lambda: None)
+        monkeypatch.setattr(
+            oracle_module,
+            "validate_pinned_metis",
+            lambda *_args, **_kwargs: (
+                root,
+                oracle_module.PINNED_METIS_REVISION,
+                oracle_module.PINNED_METIS_TREE,
+                {
+                    "package_sha256": oracle_module.PINNED_TOOLING_PACKAGE_SHA256,
+                    "lock_sha256": oracle_module.PINNED_TOOLING_LOCK_SHA256,
+                    "node_modules_sha256": oracle_module.PINNED_NODE_MODULES_SHA256,
+                },
+            ),
+        )
+        monkeypatch.setattr(oracle_module, "_validate_runner_path", lambda path, *_: Path(path))
+        monkeypatch.setattr(oracle_module, "_validate_output_path", lambda path, *_: Path(path))
+        monkeypatch.setattr(
+            oracle_module,
+            "_resolve_pinned_node",
+            lambda: (Path("/bin/true"), oracle_module.PINNED_NODE_BINARY_SHA256),
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_runtime_identity",
+            lambda *_: oracle_module._runtime_identity_policy(
+                oracle_module.PINNED_METIS_REVISION,
+                oracle_module.PINNED_METIS_TREE,
+            ),
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_node_modules_sha256",
+            lambda *_: oracle_module.PINNED_NODE_MODULES_SHA256,
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_file_sha256",
+            lambda path: (
+                oracle_module.PINNED_NODE_BINARY_SHA256
+                if Path(path).name == "true"
+                else oracle_module.PINNED_RUNNER_SHA256
+            ),
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_git",
+            lambda _root, *args: (
+                oracle_module.PINNED_METIS_REVISION
+                if args == ("rev-parse", "HEAD")
+                else oracle_module.PINNED_METIS_TREE
+                if args == ("rev-parse", "HEAD^{tree}")
+                else ""
+            ),
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_build_isolated_snapshot",
+            lambda *_args: (Holder(), root, root, runner, Path("/bin/true")),
+        )
+        monkeypatch.setattr(
+            oracle_module,
+            "_check_response",
+            lambda value, *_args, **_kwargs: value,
+        )
+        monkeypatch.setattr(oracle_module, "verify_oracle_envelope", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            oracle_module.subprocess,
+            "run",
+            lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=oracle_module._canonical(result).decode(), stderr=""
+            ),
+        )
+        function = oracle_module.run_oracle
+        needle = "directory_fd = os.open(output.parent, os.O_RDONLY)"
+        target_needle = "os.fsync(directory_fd)"
+
+        def invoke() -> None:
+            function(
+                VALID,
+                metis_root=root,
+                runner_path=runner,
+                output_path=output,
+            )
+
+    before = _oracle_open_fd_snapshot()
+    after: dict[int, tuple[int, int, int, int]] = {}
+    extra_fds: set[int] = set()
+    try:
+        _oracle_raise_on_line_after(
+            function,
+            needle,
+            invoke,
+            target_needle=target_needle,
+        )
+        after = _oracle_open_fd_snapshot()
+        extra_fds = set(after) - set(before)
+
+        if case == "capsule-roster-child-return":
+            assert len(probe_fds) == len(probe_identities) == 1
+            expected = (root / "child").stat()
+            assert probe_identities == [(expected.st_dev, expected.st_ino)]
+            assert after == before, "roster child descriptor survived the try-boundary interrupt"
+        elif case == "capsule-directory-child-fstat":
+            # The same acquisition must also close its child when the real fstat fails.
+            for descriptor in extra_fds:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+            before_oserror = _oracle_open_fd_snapshot()
+            original_fstat = oracle_module.os.fstat
+            fstat_failed = False
+
+            def fail_child_fstat(descriptor: int):
+                nonlocal fstat_failed
+                if not fstat_failed:
+                    fstat_failed = True
+                    raise OSError("injected child fstat failure")
+                return original_fstat(descriptor)
+
+            monkeypatch.setattr(oracle_module.os, "fstat", fail_child_fstat)
+            with pytest.raises(OSError, match="injected child fstat failure"):
+                invoke()
+            after_oserror = _oracle_open_fd_snapshot()
+            assert after == before, "KeyboardInterrupt after child open leaked descriptors"
+            assert after_oserror == before_oserror, "child fstat OSError leaked descriptors"
+            monkeypatch.setattr(oracle_module.os, "fstat", original_fstat)
+        else:
+            assert after == before
+    finally:
+        for descriptor in probe_fds:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+        for descriptor in set(after) - set(before):
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+        for descriptor in fds:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
 
 
 @pytest.fixture
@@ -383,3 +789,841 @@ def test_metis_checkout_status_is_unchanged_after_isolated_execution(artifact_tm
         text=True,
     ).stdout
     assert after == before
+
+
+def _capsule_fixture(tmp_path: Path) -> tuple[Path, dict]:
+    root = tmp_path / "capsule"
+    files = {
+        "bin/node": (b"node", 0o555, "node"),
+        "tooling/node_modules/tsx/dist/loader.mjs": (b"tsx", 0o444, "tsx"),
+        ".metis-oracle/runner.ts": (b"runner", 0o444, "runner"),
+        "tooling/package.json": (b"{}", 0o444, "tooling"),
+    }
+    rows = []
+    for name, (raw, mode, role) in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        path.chmod(mode)
+        rows.append(
+            {
+                "path": name,
+                "size": len(raw),
+                "mode": mode,
+                "sha256": "sha256:" + oracle_module.hashlib.sha256(raw).hexdigest(),
+                "role": role,
+            }
+        )
+    rows.sort(key=lambda row: row["path"])
+    by_role = {row["role"]: row for row in rows}
+    body = {
+        "schema_version": 2,
+        "capsule_id": "pytest-capsule-v2",
+        "revision": oracle_module.PINNED_METIS_REVISION,
+        "tree": oracle_module.PINNED_METIS_TREE,
+        "language_version": "0.43",
+        "node": {key: by_role["node"][key] for key in ("path", "sha256", "mode")},
+        "tsx": {key: by_role["tsx"][key] for key in ("path", "sha256", "mode")},
+        "runner": {key: by_role["runner"][key] for key in ("path", "sha256", "mode")},
+        "tooling": {
+            "package_sha256": "sha256:" + oracle_module.PINNED_TOOLING_PACKAGE_SHA256,
+            "lock_sha256": "sha256:" + oracle_module.PINNED_TOOLING_LOCK_SHA256,
+            "node_modules_sha256": "sha256:" + oracle_module.PINNED_NODE_MODULES_SHA256,
+        },
+        "counts": {"files": len(rows), "bytes": sum(row["size"] for row in rows)},
+        "files": rows,
+        "roster_sha256": oracle_module._sha(rows),
+    }
+    manifest = {**body, "manifest_sha256": oracle_module._sha(body)}
+    (root / "capsule.json").write_bytes(oracle_module._canonical(manifest))
+    (root / "capsule.json").chmod(0o444)
+    for directory in sorted(
+        (item for item in root.rglob("*") if item.is_dir()),
+        key=lambda item: len(item.parts),
+        reverse=True,
+    ):
+        directory.chmod(0o555)
+    root.chmod(0o555)
+    return root, manifest
+
+
+@pytest.mark.parametrize("value", ["bin//node", "bin/./node"])
+def test_capsule_path_rejects_noncanonical_lexical_aliases(value: str) -> None:
+    with pytest.raises(OracleError, match="forbidden"):
+        oracle_module._safe_capsule_path(value, "capsule path")
+
+
+def test_runtime_capsule_verifier_accepts_only_exact_immutable_roster(tmp_path: Path) -> None:
+    root, manifest = _capsule_fixture(tmp_path)
+    verified_root, verified = oracle_module.verify_runtime_capsule(
+        root, expected_manifest_sha256=manifest["manifest_sha256"]
+    )
+    assert verified_root == root
+    assert verified == manifest
+
+
+def test_runtime_capsule_rejects_symlink_in_parent_ancestry(tmp_path: Path) -> None:
+    root, manifest = _capsule_fixture(tmp_path)
+    alias = tmp_path / "capsule-parent-alias"
+    alias.symlink_to(root.parent, target_is_directory=True)
+
+    with pytest.raises(OracleError, match="ancestry contains a symlink"):
+        oracle_module.verify_runtime_capsule(
+            alias / root.name,
+            expected_manifest_sha256=manifest["manifest_sha256"],
+        )
+
+
+@pytest.mark.parametrize("attack", ["extra", "mode", "symlink", "revision", "hash"])
+def test_runtime_capsule_mutations_fail_closed(tmp_path: Path, attack: str) -> None:
+    root, manifest = _capsule_fixture(tmp_path)
+    root.chmod(0o755)
+    changed = manifest
+    if attack == "extra":
+        (root / "extra").write_text("x")
+        (root / "extra").chmod(0o444)
+    elif attack == "mode":
+        (root / "bin/node").chmod(0o444)
+    elif attack == "symlink":
+        (root / "escape").symlink_to(tmp_path / "outside")
+    else:
+        changed = json.loads(oracle_module._canonical(manifest))
+        if attack == "revision":
+            changed["revision"] = "0" * 40
+        else:
+            changed["files"][0]["sha256"] = "sha256:" + "0" * 64
+        body = {key: value for key, value in changed.items() if key != "manifest_sha256"}
+        changed["manifest_sha256"] = oracle_module._sha(body)
+        (root / "capsule.json").chmod(0o644)
+        (root / "capsule.json").write_bytes(oracle_module._canonical(changed))
+        (root / "capsule.json").chmod(0o444)
+    root.chmod(0o555)
+    with pytest.raises(OracleError):
+        oracle_module.verify_runtime_capsule(
+            root,
+            expected_manifest_sha256=(
+                changed["manifest_sha256"]
+                if attack in {"revision", "hash"}
+                else manifest["manifest_sha256"]
+            ),
+        )
+    root.chmod(0o755)
+    for item in root.rglob("*"):
+        if item.is_symlink():
+            item.unlink()
+        elif item.is_dir():
+            item.chmod(0o755)
+        else:
+            item.chmod(0o644)
+
+
+def _complete_mock_capsule_manifest(capsule: Path, manifest: dict) -> None:
+    records = []
+    for role in ("node", "tsx", "runner"):
+        path = capsule / manifest[role]["path"]
+        path.chmod(0o555 if role == "node" else 0o444)
+        raw = path.read_bytes()
+        records.append(
+            {
+                "path": manifest[role]["path"],
+                "size": len(raw),
+                "mode": 0o555 if role == "node" else 0o444,
+                "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+                "role": role,
+            }
+        )
+    manifest["files"] = records
+    manifest["manifest_sha256"] = "sha256:" + "2" * 64
+
+
+@pytest.mark.parametrize("use_directory_fd", [False, True])
+def test_capsule_command_stderr_open_failure_closes_stdout_and_retains_partial_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, use_directory_fd: bool
+) -> None:
+    capsule = tmp_path / "capsule-stderr-open-failure"
+    cwd = capsule / "work"
+    cwd.mkdir(parents=True)
+    node = capsule / "bin/node"
+    node.parent.mkdir()
+    node.write_bytes(b"#!/bin/sh\nexit 0\n")
+    node.chmod(0o755)
+    process = tmp_path / "process-stderr-open-failure"
+    process.mkdir()
+    stream_directory_fd = (
+        os.open(process, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        if use_directory_fd
+        else None
+    )
+    original_open = oracle_module.os.open
+
+    def block_stderr_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if Path(os.fspath(path)).name.startswith("stderr-"):
+            raise PermissionError("stderr open blocked")
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(oracle_module.os, "open", block_stderr_open)
+    descriptor_snapshot = _oracle_open_fd_snapshot()
+    try:
+        for index in range(5):
+            with pytest.raises(OracleError, match="capsule runner could not start"):
+                oracle_module._run_capsule_command(
+                    [str(node)],
+                    cwd=cwd,
+                    request_bytes=b"{}",
+                    stdout_path=process / f"stdout-{index}",
+                    stderr_path=process / f"stderr-{index}",
+                    timeout=1.0,
+                    node_executable=node,
+                    capsule_root=capsule,
+                    process_root=process,
+                    stream_directory_fd=stream_directory_fd,
+                )
+            assert _oracle_open_fd_snapshot() == descriptor_snapshot
+            assert sorted(path.name for path in process.iterdir()) == [
+                f"stdout-{retained}" for retained in range(index + 1)
+            ]
+            assert all(path.read_bytes() == b"" for path in process.iterdir())
+    finally:
+        if stream_directory_fd is not None:
+            os.close(stream_directory_fd)
+
+
+@pytest.mark.parametrize("use_directory_fd", [False, True])
+def test_capsule_command_stderr_open_race_preserves_replacement_and_owned_partial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, use_directory_fd: bool
+) -> None:
+    capsule = tmp_path / f"capsule-stderr-race-{use_directory_fd}"
+    cwd = capsule / "work"
+    cwd.mkdir(parents=True)
+    node = capsule / "bin/node"
+    node.parent.mkdir()
+    node.write_bytes(b"#!/bin/sh\nexit 0\n")
+    node.chmod(0o755)
+    process = tmp_path / f"process-stderr-race-{use_directory_fd}"
+    process.mkdir()
+    stdout_path = process / "stdout-race"
+    stderr_path = process / "stderr-race"
+    displaced = process / "stdout-owned-displaced"
+    stream_directory_fd = (
+        os.open(process, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        if use_directory_fd
+        else None
+    )
+    original_open = oracle_module.os.open
+    original_rename = oracle_module.os.rename
+
+    def race_stderr_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if Path(os.fspath(path)).name == stderr_path.name:
+            if dir_fd is None:
+                original_rename(stdout_path, displaced)
+                replacement_fd = original_open(
+                    stdout_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                )
+            else:
+                original_rename(
+                    stdout_path.name,
+                    displaced.name,
+                    src_dir_fd=dir_fd,
+                    dst_dir_fd=dir_fd,
+                )
+                replacement_fd = original_open(
+                    stdout_path.name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                    dir_fd=dir_fd,
+                )
+            os.write(replacement_fd, b"replacement-preserve-exact")
+            os.close(replacement_fd)
+            raise PermissionError("stderr open blocked after stdout displacement")
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(oracle_module.os, "open", race_stderr_open)
+    descriptor_snapshot = _oracle_open_fd_snapshot()
+    try:
+        with pytest.raises(OracleError, match="capsule runner could not start"):
+            oracle_module._run_capsule_command(
+                [str(node)],
+                cwd=cwd,
+                request_bytes=b"{}",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                timeout=1.0,
+                node_executable=node,
+                capsule_root=capsule,
+                process_root=process,
+                stream_directory_fd=stream_directory_fd,
+            )
+        assert _oracle_open_fd_snapshot() == descriptor_snapshot
+        assert stdout_path.read_bytes() == b"replacement-preserve-exact"
+        assert displaced.read_bytes() == b""
+    finally:
+        if stream_directory_fd is not None:
+            os.close(stream_directory_fd)
+
+
+@pytest.mark.parametrize("use_directory_fd", [False, True])
+def test_capsule_command_keyboard_interrupt_reaps_group_and_retains_partial_streams(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, use_directory_fd: bool
+) -> None:
+    capsule = tmp_path / f"capsule-interrupt-{use_directory_fd}"
+    cwd = capsule / "work"
+    cwd.mkdir(parents=True)
+    node = capsule / "bin/node"
+    node.parent.mkdir()
+    node.write_bytes(b"#!/bin/sh\nexit 0\n")
+    node.chmod(0o755)
+    process_root = tmp_path / f"process-interrupt-{use_directory_fd}"
+    process_root.mkdir()
+    stdout_path = process_root / "stdout-interrupt"
+    stderr_path = process_root / "stderr-interrupt"
+    stream_directory_fd = (
+        os.open(process_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        if use_directory_fd
+        else None
+    )
+    descriptor_snapshot = _oracle_open_fd_snapshot()
+    real_popen = subprocess.Popen
+    spawned: list[subprocess.Popen[bytes]] = []
+
+    def interrupting_popen(*_args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        process = real_popen(
+            ["/bin/sleep", "30"],
+            stdin=subprocess.PIPE,
+            stdout=kwargs["stdout"],
+            stderr=kwargs["stderr"],
+            start_new_session=True,
+        )
+
+        def interrupt(*_args: object, **_kwargs: object) -> tuple[bytes, bytes]:
+            assert process.stdin is not None
+            process.stdin.close()
+            process.stdin = None
+            raise KeyboardInterrupt
+
+        process.communicate = interrupt  # type: ignore[method-assign]
+        spawned.append(process)
+        return process
+
+    monkeypatch.setattr(oracle_module.subprocess, "Popen", interrupting_popen)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            oracle_module._run_capsule_command(
+                [str(node)],
+                cwd=cwd,
+                request_bytes=b"{}",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                timeout=5.0,
+                node_executable=node,
+                capsule_root=capsule,
+                process_root=process_root,
+                stream_directory_fd=stream_directory_fd,
+            )
+        assert len(spawned) == 1
+        assert _oracle_open_fd_snapshot() == descriptor_snapshot
+        assert stdout_path.read_bytes() == b""
+        assert stderr_path.read_bytes() == b""
+        pid = spawned[0].pid
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+        with pytest.raises(ProcessLookupError):
+            os.killpg(pid, 0)
+    finally:
+        for process in spawned:
+            if process.poll() is None:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(process.pid, 9)
+            with contextlib.suppress(ProcessLookupError, subprocess.TimeoutExpired):
+                process.wait(timeout=2)
+        if stream_directory_fd is not None:
+            os.close(stream_directory_fd)
+
+
+def test_run_from_capsule_never_calls_live_checkout_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capsule = tmp_path / "capsule-low-level"
+    for name, raw in {
+        "bin/node": b"node",
+        "tooling/node_modules/tsx/dist/loader.mjs": b"tsx",
+        ".metis-oracle/runner.ts": b"runner",
+    }.items():
+        path = capsule / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "runner": {"path": ".metis-oracle/runner.ts"},
+    }
+    _complete_mock_capsule_manifest(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    monkeypatch.setattr(
+        oracle_module,
+        "_build_isolated_snapshot",
+        lambda *args, **kwargs: pytest.fail("live snapshot builder called"),
+    )
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    runtime = oracle_module._runtime_identity_policy(
+        oracle_module.PINNED_METIS_REVISION, oracle_module.PINNED_METIS_TREE
+    )
+    ir_value = {"name": "play.capsule"}
+    result = {
+        "schema_version": 1,
+        "status": "ok",
+        "endpoint": {"name": "play.capsule", "count": 1},
+        "diagnostics": {"parser": [], "link": [], "validation": [], "all": []},
+        "ast": {"inventory": {}, "signature": oracle_module._sha({})},
+        "ir": {"value": ir_value, "signature": oracle_module._sha(ir_value)},
+        "toolchain": {
+            "revision": oracle_module.PINNED_METIS_REVISION,
+            "tree": oracle_module.PINNED_METIS_TREE,
+            "language_version": "0.43",
+        },
+        "runtime": runtime,
+        "failure": None,
+    }
+    completed = oracle_module.subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=oracle_module._canonical(result), stderr=b""
+    )
+    monkeypatch.setattr(oracle_module, "_run_capsule_command", lambda *args, **kwargs: completed)
+    process = tmp_path / "process"
+    process.mkdir()
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "request": semantic,
+    }
+    envelope = oracle_module.run_oracle_from_capsule(
+        request,
+        capsule_root=capsule,
+        process_root=process,
+        output_path=process / "output.json",
+    )
+    assert envelope["capsule_manifest_sha256"] == request["capsule_manifest_sha256"]
+    assert oracle_module.normalize_capsule_oracle_envelope(envelope).get("run_nonce") is None
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["execution_id", "run_nonce", "capsule_manifest_sha256"],
+)
+def test_capsule_oracle_envelope_non_string_identity_is_typed_blocked(field: str) -> None:
+    body = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "request_sha256": "sha256:" + "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "execution_policy": dict(oracle_module.CAPSULE_EXECUTION_POLICY),
+        "oracle_envelope": {},
+    }
+    envelope = {
+        **body,
+        "run_nonce": "3" * 64,
+        "manifest_sha256": oracle_module._sha(body),
+    }
+    envelope[field] = 7
+
+    with pytest.raises(oracle_module.OracleError, match="envelope identity is invalid"):
+        oracle_module.verify_capsule_oracle_envelope(envelope)
+
+
+def test_public_capsule_executes_captured_preimage_during_runner_swap_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capsule = tmp_path / "public-capsule-preimage"
+    node = capsule / "bin/node"
+    loader = capsule / "tooling/loader.mjs"
+    runner = capsule / "runner.mjs"
+    node.parent.mkdir(parents=True)
+    loader.parent.mkdir(parents=True)
+    shutil.copy2(PINNED_NODE, node)
+    original = (
+        "import fs from 'node:fs';let writeDenied=false;"
+        "try{fs.writeFileSync(new URL(import.meta.url),'mutated')}"
+        "catch(error){writeDenied=error.code==='EPERM'||error.code==='EACCES'};"
+        "process.stdout.write(JSON.stringify({ast:{inventory:{}},diagnostics:{},"
+        "ir:{value:null},marker:'original',writeDenied}));"
+    )
+    loader.write_text("export {};", encoding="utf-8")
+    runner.write_text(original, encoding="utf-8")
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/loader.mjs"},
+        "runner": {"path": "runner.mjs"},
+    }
+    _complete_mock_capsule_manifest(capsule, manifest)
+    measured = oracle_module._capture_runtime_capsule_contents(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    real_materialize = oracle_module._materialize_runtime_capsule_preimage
+    swapped = False
+
+    def swap_after_capture(
+        invocation: Path,
+        invocation_fd: int,
+        supplied_manifest: dict,
+        contents: dict[str, bytes],
+    ) -> tuple[Path, int]:
+        nonlocal swapped
+        assert contents == measured
+        runner.chmod(0o644)
+        runner.write_text(
+            "process.stdout.write(JSON.stringify({ast:{inventory:{}},diagnostics:{},"
+            "ir:{value:null},marker:'swapped',writeDenied:false}));",
+            encoding="utf-8",
+        )
+        runner.chmod(0o444)
+        swapped = True
+        return real_materialize(invocation, invocation_fd, supplied_manifest, contents)
+
+    monkeypatch.setattr(
+        oracle_module,
+        "_materialize_runtime_capsule_preimage",
+        swap_after_capture,
+    )
+    monkeypatch.setattr(oracle_module, "_check_response", lambda result, *args, **kwargs: result)
+    monkeypatch.setattr(oracle_module, "verify_oracle_envelope", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_capsule_oracle_envelope",
+        lambda *args, **kwargs: {},
+    )
+    process = tmp_path / "public-process-preimage"
+    process.mkdir()
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": manifest["manifest_sha256"],
+        "request": semantic,
+    }
+
+    envelope = oracle_module.run_oracle_from_capsule(
+        request,
+        capsule_root=capsule,
+        process_root=process,
+        output_path=process / "output.json",
+        timeout=5,
+    )
+
+    runner.chmod(0o644)
+    runner.write_text(original, encoding="utf-8")
+    runner.chmod(0o444)
+    restored = oracle_module._capture_runtime_capsule_contents(capsule, manifest)
+    preimages = list((process / "invocations").glob("*/capsule-*"))
+    assert len(preimages) == 1
+    oracle_module._verify_runtime_capsule_preimage(preimages[0], manifest, measured)
+    result = envelope["oracle_envelope"]["result"]
+    assert swapped
+    assert result["marker"] == "original"
+    assert result["writeDenied"] is True
+    assert restored == measured
+
+
+def test_public_capsule_invocation_creation_rejects_preexisting_parent_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capsule = tmp_path / "capsule-invocation-symlink"
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "runner": {"path": ".metis-oracle/runner.ts"},
+    }
+    for relative in (item["path"] for item in manifest.values()):
+        target = capsule / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"fixture")
+    _complete_mock_capsule_manifest(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    process = tmp_path / "process-invocation-symlink"
+    process.mkdir()
+    outside = tmp_path / "outside-invocation-symlink"
+    outside.mkdir()
+    (process / "invocations").symlink_to(outside, target_is_directory=True)
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "request": semantic,
+    }
+
+    with pytest.raises(OracleError, match="created securely"):
+        oracle_module.run_oracle_from_capsule(
+            request,
+            capsule_root=capsule,
+            process_root=process,
+            output_path=process / "output.json",
+        )
+    assert list(outside.iterdir()) == []
+
+
+def test_public_capsule_materialization_blocks_timed_invocation_symlink_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capsule = tmp_path / "capsule-invocation-timed-swap"
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "runner": {"path": ".metis-oracle/runner.ts"},
+    }
+    for relative in (item["path"] for item in manifest.values()):
+        target = capsule / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"fixture")
+    _complete_mock_capsule_manifest(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    process = tmp_path / "process-invocation-timed-swap"
+    process.mkdir()
+    outside = tmp_path / "outside-invocation-timed-swap"
+    outside.mkdir()
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": manifest["manifest_sha256"],
+        "request": semantic,
+    }
+    invocation = process / "invocations" / "candidate-f1.author-1111111111111111"
+    displaced = process / "displaced-invocation"
+    real_write = oracle_module._write_capsule_preimage_file_at
+    swapped = False
+
+    def swap_then_write(directory_fd: int, name: str, raw: bytes, mode: int) -> None:
+        nonlocal swapped
+        if not swapped:
+            invocation.rename(displaced)
+            invocation.symlink_to(outside, target_is_directory=True)
+            swapped = True
+        real_write(directory_fd, name, raw, mode)
+
+    monkeypatch.setattr(oracle_module, "_write_capsule_preimage_file_at", swap_then_write)
+
+    with pytest.raises(OracleError, match="namespace changed during materialization"):
+        oracle_module.run_oracle_from_capsule(
+            request,
+            capsule_root=capsule,
+            process_root=process,
+            output_path=process / "output.json",
+        )
+    assert swapped
+    assert list(outside.iterdir()) == []
+
+
+@pytest.mark.parametrize("mode", [0o777, 0o555])
+def test_public_capsule_invocation_creation_rejects_nonprivate_namespace_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: int
+) -> None:
+    capsule = tmp_path / "capsule-invocation-mode"
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "runner": {"path": ".metis-oracle/runner.ts"},
+    }
+    for relative in (item["path"] for item in manifest.values()):
+        target = capsule / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"fixture")
+    _complete_mock_capsule_manifest(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    process = tmp_path / "process-invocation-mode"
+    process.mkdir()
+    namespace = process / "invocations"
+    namespace.mkdir()
+    namespace.chmod(mode)
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "request": semantic,
+    }
+
+    with pytest.raises(OracleError, match="namespace is not a private directory"):
+        oracle_module.run_oracle_from_capsule(
+            request,
+            capsule_root=capsule,
+            process_root=process,
+            output_path=process / "output.json",
+        )
+
+
+def test_public_capsule_output_parent_timed_symlink_swap_writes_nothing_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capsule = tmp_path / "capsule-output-swap"
+    manifest = {
+        "node": {"path": "bin/node"},
+        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "runner": {"path": ".metis-oracle/runner.ts"},
+    }
+    for relative in (item["path"] for item in manifest.values()):
+        target = capsule / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"fixture")
+    _complete_mock_capsule_manifest(capsule, manifest)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (capsule, manifest),
+    )
+    process = tmp_path / "process-output-swap"
+    process.mkdir()
+    output_parent = process / "results"
+    output_parent.mkdir(mode=0o700)
+    outside = tmp_path / "outside-output-swap"
+    outside.mkdir()
+    displaced = process / "displaced-results"
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "request": semantic,
+    }
+    result = {
+        "diagnostics": {},
+        "ast": {"inventory": {}},
+        "ir": {"value": None},
+    }
+
+    def swap_output_parent(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        output_parent.rename(displaced)
+        output_parent.symlink_to(outside, target_is_directory=True)
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=oracle_module._canonical(result), stderr=b""
+        )
+
+    monkeypatch.setattr(oracle_module, "_run_capsule_command", swap_output_parent)
+    monkeypatch.setattr(oracle_module, "_check_response", lambda *args, **kwargs: result)
+    monkeypatch.setattr(oracle_module, "verify_oracle_envelope", lambda *args, **kwargs: {})
+    monkeypatch.setattr(oracle_module, "verify_capsule_oracle_envelope", lambda *args, **kwargs: {})
+
+    with pytest.raises(OracleError, match="opened securely"):
+        oracle_module.run_oracle_from_capsule(
+            request,
+            capsule_root=capsule,
+            process_root=process,
+            output_path=output_parent / "output.json",
+        )
+    assert list(outside.iterdir()) == []
+
+
+@pytest.mark.parametrize("field", ["process", "output"])
+def test_public_capsule_boundary_rejects_parent_symlink_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    capsule = tmp_path / "capsule"
+    capsule.mkdir()
+    process = tmp_path / "process"
+    process.mkdir()
+    semantic = oracle_module.build_oracle_request(
+        'metis 0.43\nendpoint play.capsule as "capsule" { variant v { empty } }\n',
+        endpoint="play.capsule",
+    )
+    request = {
+        "schema_version": 2,
+        "protocol": oracle_module.CAPSULE_PROTOCOL,
+        "execution_id": "candidate-f1.author",
+        "run_nonce": "1" * 64,
+        "capsule_manifest_sha256": "sha256:" + "2" * 64,
+        "request": semantic,
+    }
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_runtime_capsule",
+        lambda *args, **kwargs: (
+            capsule,
+            {
+                "node": {"path": "bin/node"},
+                "tsx": {"path": "tooling/tsx.mjs"},
+                "runner": {"path": "runner.ts"},
+            },
+        ),
+    )
+    if field == "process":
+        alias = tmp_path / "process-parent-alias"
+        alias.symlink_to(process.parent, target_is_directory=True)
+        supplied_process = alias / process.name
+        supplied_output = process / "output.json"
+    else:
+        output_parent = process / "real-output"
+        output_parent.mkdir()
+        alias = process / "output-parent-alias"
+        alias.symlink_to(output_parent, target_is_directory=True)
+        supplied_process = process
+        supplied_output = alias / "output.json"
+
+    with pytest.raises(OracleError, match="ancestry contains a symlink"):
+        oracle_module.run_oracle_from_capsule(
+            request,
+            capsule_root=capsule,
+            process_root=supplied_process,
+            output_path=supplied_output,
+        )

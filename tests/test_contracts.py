@@ -18,12 +18,15 @@ from metis_model1.contracts import (
     validate_instance,
     validate_qualification_contract,
     validate_repository_file_contents,
+    validate_w3_retained_report_schema_contract,
 )
 
 
 def test_repository_foundation_is_valid() -> None:
     report = validate_foundation(repository_root())
     assert report.errors == []
+    assert "schema=schemas/w3-bridge-replay.schema.json" in report.passes
+    assert "schema=schemas/w3-production-authority.schema.json" in report.passes
     assert "schema=schemas/w3-qualification.schema.json" in report.passes
     assert "schema=schemas/w3-semantic-spec.schema.json" in report.passes
     assert "schema=schemas/w3-source-register.schema.json" in report.passes
@@ -31,6 +34,52 @@ def test_repository_foundation_is_valid() -> None:
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
+
+
+def test_w3_report_schemas_require_deferred_cleanup_on_all_six_variants() -> None:
+    root = repository_root()
+    qualification = load_json(root / "schemas/w3-qualification.schema.json")
+    bridge = load_json(root / "schemas/w3-bridge-replay.schema.json")
+
+    qualifier_variants = [
+        qualification["$defs"][name]
+        for name in ("qualified", "blocked", "productionQualified", "productionBlocked")
+    ]
+    bridge_variants = [bridge["$defs"][name] for name in ("qualified", "blocked")]
+
+    assert all("cleanup" in variant["required"] for variant in qualifier_variants)
+    assert all("cleanup" in variant["required"] for variant in bridge_variants)
+    assert qualification["$defs"]["cleanup"]["properties"]["delete_attempts"] == {"const": 0}
+    assert bridge["$defs"]["cleanup"]["properties"]["delete_attempts"] == {"const": 0}
+    assert qualification["$defs"]["qualified"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/qualifiedV1Cleanup"
+    }
+    assert qualification["$defs"]["productionQualified"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/qualifiedV2Cleanup"
+    }
+    assert qualification["$defs"]["blocked"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/blockedV1Cleanup"
+    }
+    assert qualification["$defs"]["productionBlocked"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/blockedV2Cleanup"
+    }
+    assert bridge["$defs"]["qualified"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/qualifiedReplayCleanup"
+    }
+    assert bridge["$defs"]["blocked"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/blockedReplayCleanup"
+    }
+    assert bridge["$defs"]["physicalRun"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/qualifiedChildCleanup"
+    }
+    assert bridge["$defs"]["blockedObservedRun"]["properties"]["cleanup"] == {
+        "$ref": "#/$defs/blockedChildCleanup"
+    }
+    assert [
+        item["$ref"]
+        for item in bridge["$defs"]["blocked"]["properties"]["observed_runs"]["prefixItems"]
+    ] == ["#/$defs/observedRun1", "#/$defs/observedRun2"]
+    assert validate_w3_retained_report_schema_contract(root) == []
 
 
 def test_ratified_benchmark_plan_has_six_families_and_thirty_distinct_allocations() -> None:

@@ -1,6 +1,28 @@
 {
   "schema_version": 1,
   "teams": {
+    "qwen": {
+      "bin": "qwen",
+      "promptFlag": "-p",
+      "args": [
+        "--output-format",
+        "stream-json"
+      ],
+      "modelFlag": "-m",
+      "resumeFlag": "-r",
+      "writeFlag": "--yolo",
+      "sessionIdKey": "session_id",
+      "model": "qwen3.8-max",
+      "verified": true,
+      "notes": [
+        "Qwen Code CLI 0.21.12 is installed locally and exposes streaming headless execution, model override and session resume.",
+        "The human explicitly requested Qwen be added and used alongside Kimi on 2026-08-21.",
+        "The live init envelope identifies the working configured frontier as qwen3.8-max; that exact model is pinned rather than trusting a drifting default.",
+        "The headless CLI exposes no effort flag; maximum reasoning effort is required by the master brief.",
+        "bin/verify-team.sh passed write, streaming and session-id probes on qwen3.8-max on 2026-08-21.",
+        "An initial qwen3.7-plus override was rejected with HTTP 401 and was not used for project work."
+      ]
+    },
     "kimi": {
       "bin": "kimi",
       "promptFlag": "-p",

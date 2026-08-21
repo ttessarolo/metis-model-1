@@ -8,15 +8,21 @@ Metis checkout.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
+import signal
+import stat
 import subprocess
 import tarfile
 import tempfile
-from pathlib import Path
+import time
+from collections.abc import Iterator
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -62,6 +68,77 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = (PROJECT_ROOT / "artifacts").resolve()
 RUNNER_PATH = (PROJECT_ROOT / "runtime/metis_oracle/runner.ts").resolve()
 SCHEMA_PATH = PROJECT_ROOT / "schemas/oracle-result.schema.json"
+CAPSULE_PROTOCOL = "metis-runtime-capsule-v2"
+CAPSULE_SCHEMA_VERSION = 2
+CAPSULE_MANIFEST_NAME = "capsule.json"
+MAX_CAPSULE_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_CAPSULE_FILE_BYTES = 256 * 1024 * 1024
+MAX_CAPSULE_STDOUT_BYTES = 8 * 1024 * 1024
+MAX_CAPSULE_STDERR_BYTES = 64 * 1024
+CAPSULE_ANCESTOR_SLOTS = 32
+_CAPSULE_ANCESTOR_POLICY = "\n".join(
+    f'  (literal (param "CAPSULE_ANCESTOR_{index:02d}"))' for index in range(CAPSULE_ANCESTOR_SLOTS)
+)
+CAPSULE_EXECUTION_POLICY_TEMPLATE = (
+    """(version 1)
+(deny default)
+(deny network*)
+(deny process-fork)
+(allow process-exec (literal (param "NODE_EXECUTABLE")))
+(allow file-read*
+  (literal "/dev/null")
+  (subpath "/System/Library")
+  (subpath "/usr/lib")
+  (subpath "/private/var/db/dyld")
+  (subpath (param "CAPSULE_ROOT"))
+  (subpath (param "PROCESS_ROOT")))
+"""
+    + '(allow file-read-data (literal "/"))\n'
+    + '(allow file-read-metadata\n  (literal "/")\n'
+    + _CAPSULE_ANCESTOR_POLICY
+    + "\n)\n"
+    + """\
+(deny file-write* (subpath (param "CAPSULE_ROOT")))
+(allow file-write* (subpath (param "PROCESS_ROOT")))
+(allow sysctl-read)
+(allow mach-lookup)
+"""
+)
+CAPSULE_EXECUTION_POLICY = {
+    "sandbox_policy_sha256": (
+        "sha256:" + hashlib.sha256(CAPSULE_EXECUTION_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
+    ),
+    "capsule_ancestor_slots": CAPSULE_ANCESTOR_SLOTS,
+    "process_fork": "denied",
+    "supervision": "node-session-group-leader",
+}
+CAPSULE_REQUEST_KEYS = frozenset(
+    {
+        "schema_version",
+        "protocol",
+        "execution_id",
+        "run_nonce",
+        "capsule_manifest_sha256",
+        "request",
+    }
+)
+CAPSULE_MANIFEST_KEYS = frozenset(
+    {
+        "schema_version",
+        "capsule_id",
+        "revision",
+        "tree",
+        "language_version",
+        "node",
+        "tsx",
+        "runner",
+        "tooling",
+        "counts",
+        "files",
+        "roster_sha256",
+        "manifest_sha256",
+    }
+)
 
 
 class OracleError(ValueError):
@@ -95,6 +172,579 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _exact_object(value: Any, keys: set[str] | frozenset[str], label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != set(keys):
+        raise OracleError(f"{label} does not have the exact registered fields")
+    return value
+
+
+def _safe_capsule_path(value: Any, label: str) -> PurePosixPath:
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise OracleError(f"{label} is not a safe relative POSIX path")
+    path = PurePosixPath(value)
+    lowered = {part.lower() for part in path.parts}
+    if (
+        path.is_absolute()
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or path.as_posix() != value
+        or ".git" in lowered
+        or any(part == ".env" or part.startswith(".env.") for part in lowered)
+    ):
+        raise OracleError(f"{label} is forbidden")
+    return path
+
+
+def _read_exact_regular(path: Path, limit: int, label: str) -> bytes:
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise OracleError(f"{label} is unavailable") from error
+    if path.is_symlink() or not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+        raise OracleError(f"{label} must be a bounded regular non-symlink file")
+    try:
+        raw = path.read_bytes()
+        after = path.lstat()
+    except OSError as error:
+        raise OracleError(f"{label} cannot be read") from error
+    identity = lambda item: (  # noqa: E731 - compact immutable stat identity
+        item.st_dev,
+        item.st_ino,
+        item.st_size,
+        item.st_mtime_ns,
+        item.st_ctime_ns,
+        item.st_mode,
+    )
+    if identity(before) != identity(after) or len(raw) != before.st_size:
+        raise OracleError(f"{label} changed while it was read")
+    return raw
+
+
+def _capsule_file(root: Path, relative: PurePosixPath, label: str) -> Path:
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise OracleError(f"{label} crosses a symlink")
+    try:
+        resolved = current.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise OracleError(f"{label} is unavailable") from error
+    if not _contains(root, resolved):
+        raise OracleError(f"{label} escapes the capsule root")
+    return resolved
+
+
+def verify_runtime_capsule(
+    capsule_root: str | os.PathLike[str],
+    *,
+    expected_manifest_sha256: str,
+) -> tuple[Path, dict[str, Any]]:
+    """Verify an immutable, exact-roster runtime capsule without consulting Git."""
+
+    root = _strict_canonical_path(
+        capsule_root,
+        "runtime capsule root",
+        must_exist=True,
+        directory=True,
+    )
+    if stat.S_IMODE(root.lstat().st_mode) != 0o555:
+        raise OracleError("runtime capsule root mode differs from its immutable contract")
+    raw = _read_exact_regular(
+        root / CAPSULE_MANIFEST_NAME,
+        MAX_CAPSULE_MANIFEST_BYTES,
+        "runtime capsule manifest",
+    )
+    try:
+        manifest = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise OracleError("runtime capsule manifest is not valid JSON") from error
+    if raw != _canonical(manifest):
+        raise OracleError("runtime capsule manifest is not canonical JSON")
+    manifest = _exact_object(manifest, CAPSULE_MANIFEST_KEYS, "runtime capsule manifest")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 2:
+        raise OracleError("runtime capsule schema version is invalid")
+    body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    measured_manifest = _sha(body)
+    if (
+        manifest["manifest_sha256"] != measured_manifest
+        or measured_manifest != expected_manifest_sha256
+    ):
+        raise OracleError("runtime capsule manifest differs from its independent digest")
+    if (
+        manifest["revision"] != PINNED_METIS_REVISION
+        or manifest["tree"] != PINNED_METIS_TREE
+        or manifest["language_version"] != LANGUAGE_VERSION
+    ):
+        raise OracleError("runtime capsule revision, tree or language version drifted")
+
+    files = manifest["files"]
+    if not isinstance(files, list) or not files:
+        raise OracleError("runtime capsule file roster is empty")
+    registered: dict[str, dict[str, Any]] = {}
+    byte_total = 0
+    for index, record in enumerate(files):
+        record = _exact_object(
+            record,
+            {"path", "size", "mode", "sha256", "role"},
+            f"runtime capsule file {index}",
+        )
+        relative = _safe_capsule_path(record["path"], f"runtime capsule file {index} path")
+        name = relative.as_posix()
+        if name == CAPSULE_MANIFEST_NAME or name in registered:
+            raise OracleError("runtime capsule file paths are not unique")
+        if (
+            type(record["size"]) is not int
+            or record["size"] < 0
+            or type(record["mode"]) is not int
+            or record["mode"] not in {0o444, 0o555}
+            or not isinstance(record["sha256"], str)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", record["sha256"])
+            or record["role"] not in {"git-archive", "tooling", "node", "tsx", "runner"}
+        ):
+            raise OracleError("runtime capsule file record is invalid")
+        path = _capsule_file(root, relative, f"runtime capsule file {name}")
+        content = _read_exact_regular(path, MAX_CAPSULE_FILE_BYTES, f"runtime capsule file {name}")
+        if (
+            len(content) != record["size"]
+            or stat.S_IMODE(path.lstat().st_mode) != record["mode"]
+            or "sha256:" + hashlib.sha256(content).hexdigest() != record["sha256"]
+        ):
+            raise OracleError(f"runtime capsule file {name} differs from its exact record")
+        byte_total += len(content)
+        registered[name] = record
+
+    items = list(root.rglob("*"))
+    if any(item.is_symlink() for item in items):
+        raise OracleError("runtime capsule contains a symlink")
+    actual_files = {
+        item.relative_to(root).as_posix() for item in items if stat.S_ISREG(item.lstat().st_mode)
+    }
+    if actual_files != set(registered) | {CAPSULE_MANIFEST_NAME}:
+        raise OracleError("runtime capsule contains missing, extra or untracked content")
+    if any(stat.S_IMODE(item.lstat().st_mode) != 0o555 for item in items if item.is_dir()):
+        raise OracleError("runtime capsule directory mode drifted")
+    counts = _exact_object(manifest["counts"], {"files", "bytes"}, "capsule counts")
+    if counts != {"files": len(registered), "bytes": byte_total}:
+        raise OracleError("runtime capsule counts differ from the verified roster")
+    if manifest["roster_sha256"] != _sha(files):
+        raise OracleError("runtime capsule roster digest is invalid")
+
+    identities = {
+        "node": (manifest["node"], "node"),
+        "tsx": (manifest["tsx"], "tsx"),
+        "runner": (manifest["runner"], "runner"),
+    }
+    for label, (identity, role) in identities.items():
+        identity = _exact_object(identity, {"path", "sha256", "mode"}, f"capsule {label}")
+        record = registered.get(identity["path"])
+        if (
+            record is None
+            or record["role"] != role
+            or record["sha256"] != identity["sha256"]
+            or record["mode"] != identity["mode"]
+        ):
+            raise OracleError(f"capsule {label} identity is not in the verified roster")
+    tooling = _exact_object(
+        manifest["tooling"],
+        {"package_sha256", "lock_sha256", "node_modules_sha256"},
+        "capsule tooling",
+    )
+    if tooling != {
+        "package_sha256": "sha256:" + PINNED_TOOLING_PACKAGE_SHA256,
+        "lock_sha256": "sha256:" + PINNED_TOOLING_LOCK_SHA256,
+        "node_modules_sha256": "sha256:" + PINNED_NODE_MODULES_SHA256,
+    }:
+        raise OracleError("capsule tooling identity differs from its pins")
+    return root, manifest
+
+
+def _capture_runtime_capsule_contents(root: Path, manifest: dict[str, Any]) -> dict[str, bytes]:
+    records = manifest.get("files")
+    if not isinstance(records, list) or not records:
+        raise OracleError("runtime capsule preimage roster is unavailable")
+    contents: dict[str, bytes] = {}
+    for index, record in enumerate(records):
+        record = _exact_object(
+            record,
+            {"path", "size", "mode", "sha256", "role"},
+            f"runtime capsule preimage file {index}",
+        )
+        relative = _safe_capsule_path(record["path"], "runtime capsule preimage path")
+        name = relative.as_posix()
+        if name in contents or name == CAPSULE_MANIFEST_NAME:
+            raise OracleError("runtime capsule preimage paths are not unique")
+        path = _capsule_file(root, relative, f"runtime capsule preimage file {name}")
+        raw = _read_exact_regular(path, MAX_CAPSULE_FILE_BYTES, f"runtime capsule file {name}")
+        if (
+            type(record["size"]) is not int
+            or record["size"] != len(raw)
+            or type(record["mode"]) is not int
+            or record["mode"] not in {0o444, 0o555}
+            or stat.S_IMODE(path.lstat().st_mode) != record["mode"]
+            or record["sha256"] != "sha256:" + hashlib.sha256(raw).hexdigest()
+        ):
+            raise OracleError(f"runtime capsule preimage file {name} differs from its record")
+        contents[name] = raw
+    return contents
+
+
+def _write_capsule_preimage_file_at(
+    directory_fd: int,
+    name: str,
+    raw: bytes,
+    mode: int,
+) -> None:
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            mode,
+            dir_fd=directory_fd,
+        )
+        view = memoryview(raw)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OracleError("runtime capsule preimage write was incomplete")
+            view = view[written:]
+        os.fchmod(descriptor, mode)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != mode
+            or metadata.st_size != len(raw)
+        ):
+            raise OracleError("runtime capsule preimage file identity is invalid")
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError("runtime capsule preimage file could not be created securely") from error
+    finally:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
+def _open_capsule_preimage_directory_at(
+    root_fd: int,
+    parts: tuple[str, ...],
+    *,
+    create: bool,
+) -> int:
+    current_fd = -1
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        current_fd = os.dup(root_fd)
+        for component in parts:
+            if create:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(component, 0o700, dir_fd=current_fd)
+            child_fd = -1
+            try:
+                child_fd = os.open(component, flags, dir_fd=current_fd)
+                metadata = os.fstat(child_fd)
+                if not stat.S_ISDIR(metadata.st_mode):
+                    raise OracleError("runtime capsule preimage ancestry is invalid")
+                os.close(current_fd)
+                current_fd = child_fd
+                child_fd = -1
+            finally:
+                if child_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(child_fd)
+        return current_fd
+    except BaseException:
+        with contextlib.suppress(OSError):
+            if current_fd >= 0:
+                os.close(current_fd)
+        raise
+
+
+def _read_capsule_preimage_file_at(
+    root_fd: int,
+    relative: PurePosixPath,
+    limit: int,
+    label: str,
+) -> tuple[bytes, os.stat_result]:
+    parent_fd = -1
+    descriptor = -1
+    try:
+        parent_fd = _open_capsule_preimage_directory_at(
+            root_fd,
+            tuple(relative.parts[:-1]),
+            create=False,
+        )
+        descriptor = os.open(
+            relative.name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=parent_fd,
+        )
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+            raise OracleError(f"{label} must be a bounded regular file")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(descriptor, min(1024 * 1024, limit + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > limit:
+                raise OracleError(f"{label} exceeds its cap")
+        after = os.fstat(descriptor)
+        identity = lambda item: (  # noqa: E731
+            item.st_dev,
+            item.st_ino,
+            item.st_size,
+            item.st_mtime_ns,
+            item.st_ctime_ns,
+            item.st_mode,
+        )
+        if identity(before) != identity(after) or total != before.st_size:
+            raise OracleError(f"{label} changed while it was read")
+        return b"".join(chunks), after
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError(f"{label} cannot be read securely") from error
+    finally:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+        if parent_fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(parent_fd)
+
+
+def _capsule_preimage_roster_at(
+    root_fd: int,
+    prefix: PurePosixPath | None = None,
+) -> tuple[set[str], dict[str, int]]:
+    if prefix is None:
+        prefix = PurePosixPath()
+    files: set[str] = set()
+    directories: dict[str, int] = {}
+    try:
+        names = os.listdir(root_fd)
+    except OSError as error:
+        raise OracleError("runtime capsule preimage roster cannot be listed securely") from error
+    for name in names:
+        if name in {"", ".", ".."} or "/" in name:
+            raise OracleError("runtime capsule preimage roster contains an invalid name")
+        metadata = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        relative = prefix / name
+        rendered = relative.as_posix()
+        if stat.S_ISREG(metadata.st_mode):
+            files.add(rendered)
+        elif stat.S_ISDIR(metadata.st_mode):
+            directories[rendered] = stat.S_IMODE(metadata.st_mode)
+            child_fd = -1
+            try:
+                child_fd = _open_capsule_preimage_directory_at(
+                    root_fd,
+                    (name,),
+                    create=False,
+                )
+                child_files, child_directories = _capsule_preimage_roster_at(child_fd, relative)
+            finally:
+                if child_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(child_fd)
+            files |= child_files
+            directories.update(child_directories)
+        else:
+            raise OracleError("runtime capsule preimage contains a non-regular entry")
+    return files, directories
+
+
+def _directory_fd_matches_path(directory_fd: int, path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    opened = os.fstat(directory_fd)
+    return (
+        not stat.S_ISLNK(metadata.st_mode)
+        and stat.S_ISDIR(metadata.st_mode)
+        and (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino)
+    )
+
+
+def _verify_runtime_capsule_preimage(
+    root: Path,
+    manifest: dict[str, Any],
+    contents: dict[str, bytes],
+) -> None:
+    if root.is_symlink() or not root.is_dir() or stat.S_IMODE(root.lstat().st_mode) != 0o555:
+        raise OracleError("runtime capsule preimage root is not immutable")
+    items = list(root.rglob("*"))
+    if any(item.is_symlink() or not (item.is_file() or item.is_dir()) for item in items):
+        raise OracleError("runtime capsule preimage contains a non-regular entry")
+    actual_files = {item.relative_to(root).as_posix() for item in items if item.is_file()}
+    if actual_files != set(contents) | {CAPSULE_MANIFEST_NAME}:
+        raise OracleError("runtime capsule preimage roster changed")
+    if any(stat.S_IMODE(item.lstat().st_mode) != 0o555 for item in items if item.is_dir()):
+        raise OracleError("runtime capsule preimage directory mode changed")
+    manifest_raw = _read_exact_regular(
+        root / CAPSULE_MANIFEST_NAME,
+        MAX_CAPSULE_MANIFEST_BYTES,
+        "runtime capsule preimage manifest",
+    )
+    if (
+        manifest_raw != _canonical(manifest)
+        or stat.S_IMODE((root / CAPSULE_MANIFEST_NAME).lstat().st_mode) != 0o444
+    ):
+        raise OracleError("runtime capsule preimage manifest changed")
+    records = {record["path"]: record for record in manifest["files"]}
+    for name, expected in contents.items():
+        path = _capsule_file(root, _safe_capsule_path(name, "capsule preimage path"), name)
+        raw = _read_exact_regular(path, MAX_CAPSULE_FILE_BYTES, f"capsule preimage file {name}")
+        if raw != expected or stat.S_IMODE(path.lstat().st_mode) != records[name]["mode"]:
+            raise OracleError(f"runtime capsule preimage file {name} changed")
+
+
+def _verify_runtime_capsule_preimage_at(
+    root_fd: int,
+    manifest: dict[str, Any],
+    contents: dict[str, bytes],
+) -> None:
+    root_metadata = os.fstat(root_fd)
+    if not stat.S_ISDIR(root_metadata.st_mode) or stat.S_IMODE(root_metadata.st_mode) != 0o555:
+        raise OracleError("runtime capsule preimage opened root is not immutable")
+    actual_files, directories = _capsule_preimage_roster_at(root_fd)
+    if actual_files != set(contents) | {CAPSULE_MANIFEST_NAME}:
+        raise OracleError("runtime capsule opened preimage roster changed")
+    if any(mode != 0o555 for mode in directories.values()):
+        raise OracleError("runtime capsule opened preimage directory mode changed")
+    manifest_raw, manifest_metadata = _read_capsule_preimage_file_at(
+        root_fd,
+        PurePosixPath(CAPSULE_MANIFEST_NAME),
+        MAX_CAPSULE_MANIFEST_BYTES,
+        "runtime capsule opened preimage manifest",
+    )
+    if manifest_raw != _canonical(manifest) or stat.S_IMODE(manifest_metadata.st_mode) != 0o444:
+        raise OracleError("runtime capsule opened preimage manifest changed")
+    records = {record["path"]: record for record in manifest["files"]}
+    for name, expected in contents.items():
+        relative = _safe_capsule_path(name, "runtime capsule opened preimage path")
+        raw, metadata = _read_capsule_preimage_file_at(
+            root_fd,
+            relative,
+            MAX_CAPSULE_FILE_BYTES,
+            f"runtime capsule opened preimage file {name}",
+        )
+        if raw != expected or stat.S_IMODE(metadata.st_mode) != records[name]["mode"]:
+            raise OracleError(f"runtime capsule opened preimage file {name} changed")
+
+
+def _materialize_runtime_capsule_preimage(
+    invocation: Path,
+    invocation_fd: int,
+    manifest: dict[str, Any],
+    contents: dict[str, bytes],
+) -> tuple[Path, int]:
+    manifest_sha256 = manifest.get("manifest_sha256")
+    if (
+        not isinstance(manifest_sha256, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", manifest_sha256) is None
+    ):
+        raise OracleError("runtime capsule preimage content address is invalid")
+    records = {record["path"]: record for record in manifest["files"]}
+    if set(records) != set(contents):
+        raise OracleError("runtime capsule preimage byte roster is incomplete")
+    target_name = f"capsule-{manifest_sha256[7:]}"
+    target = invocation / target_name
+    target_fd = -1
+    try:
+        os.mkdir(target_name, 0o700, dir_fd=invocation_fd)
+        target_fd = os.open(
+            target_name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=invocation_fd,
+        )
+        all_files = {CAPSULE_MANIFEST_NAME: _canonical(manifest), **contents}
+        modes = {
+            CAPSULE_MANIFEST_NAME: 0o444,
+            **{name: record["mode"] for name, record in records.items()},
+        }
+        for name in sorted(all_files):
+            relative = _safe_capsule_path(name, "runtime capsule preimage path")
+            parent_fd = -1
+            try:
+                parent_fd = _open_capsule_preimage_directory_at(
+                    target_fd,
+                    tuple(relative.parts[:-1]),
+                    create=True,
+                )
+                _write_capsule_preimage_file_at(
+                    parent_fd,
+                    relative.name,
+                    all_files[name],
+                    modes[name],
+                )
+            finally:
+                if parent_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(parent_fd)
+        directory_paths = {
+            parent
+            for name in all_files
+            for parent in PurePosixPath(name).parents
+            if parent.as_posix() != "."
+        }
+        for relative in sorted(directory_paths, key=lambda value: len(value.parts), reverse=True):
+            directory_fd = -1
+            try:
+                directory_fd = _open_capsule_preimage_directory_at(
+                    target_fd,
+                    tuple(relative.parts),
+                    create=False,
+                )
+                os.fchmod(directory_fd, 0o555)
+            finally:
+                if directory_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(directory_fd)
+        os.fchmod(target_fd, 0o555)
+        _verify_runtime_capsule_preimage_at(target_fd, manifest, contents)
+        if not _directory_fd_matches_path(
+            invocation_fd, invocation
+        ) or not _directory_fd_matches_path(target_fd, target):
+            raise OracleError("runtime capsule preimage namespace changed during materialization")
+        return target, target_fd
+    except BaseException:
+        if target_fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(target_fd)
+        raise
+
+
+@contextlib.contextmanager
+def _owned_materialized_runtime_capsule_preimage(
+    invocation: Path,
+    invocation_fd: int,
+    manifest: dict[str, Any],
+    contents: dict[str, bytes],
+) -> Iterator[tuple[Path, int]]:
+    """Keep the materializer descriptor owned until the caller has finished setup."""
+
+    preimage_fd = -1
+    try:
+        preimage, preimage_fd = _materialize_runtime_capsule_preimage(
+            invocation,
+            invocation_fd,
+            manifest,
+            contents,
+        )
+        yield preimage, preimage_fd
+    finally:
+        if preimage_fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(preimage_fd)
 
 
 def _assert_sandbox_policy() -> None:
@@ -331,6 +981,47 @@ def _contains(root: Path, candidate: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _strict_canonical_path(
+    value: str | os.PathLike[str],
+    label: str,
+    *,
+    must_exist: bool,
+    directory: bool | None = None,
+) -> Path:
+    raw = os.fspath(value)
+    if not isinstance(raw, str) or not raw or raw != os.path.abspath(raw):
+        raise OracleError(f"{label} must be a lexical-canonical absolute path")
+    candidate = Path(raw)
+    cursor = Path(candidate.anchor)
+    missing = False
+    for part in candidate.parts[1:]:
+        cursor /= part
+        if missing:
+            continue
+        try:
+            metadata = cursor.lstat()
+        except FileNotFoundError:
+            missing = True
+            continue
+        except OSError as error:
+            raise OracleError(f"{label} ancestry is unavailable") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise OracleError(f"{label} ancestry contains a symlink")
+    if must_exist and missing:
+        raise OracleError(f"{label} is unavailable")
+    try:
+        resolved = candidate.resolve(strict=must_exist)
+    except (OSError, RuntimeError) as error:
+        raise OracleError(f"{label} is unavailable") from error
+    if resolved != candidate:
+        raise OracleError(f"{label} is not lexical-canonical")
+    if not missing and directory is True and not candidate.is_dir():
+        raise OracleError(f"{label} is not a directory")
+    if not missing and directory is False and not candidate.is_file():
+        raise OracleError(f"{label} is not a file")
+    return candidate
 
 
 def _reject_symlink_parents(path: Path, label: str) -> None:
@@ -687,6 +1378,753 @@ def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict
     return envelope
 
 
+def _validate_capsule_request(value: Any) -> dict[str, Any]:
+    request = _exact_object(value, CAPSULE_REQUEST_KEYS, "capsule oracle request")
+    if (
+        type(request["schema_version"]) is not int
+        or request["schema_version"] != CAPSULE_SCHEMA_VERSION
+        or request["protocol"] != CAPSULE_PROTOCOL
+        or not isinstance(request["execution_id"], str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", request["execution_id"]) is None
+        or not isinstance(request["run_nonce"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", request["run_nonce"]) is None
+        or not isinstance(request["capsule_manifest_sha256"], str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", request["capsule_manifest_sha256"]) is None
+    ):
+        raise OracleError("capsule oracle request identity is invalid")
+    semantic = request["request"]
+    if not isinstance(semantic, dict):
+        raise OracleError("capsule oracle semantic request is missing")
+    rebuilt = build_oracle_request(
+        semantic.get("source"),
+        filename=semantic.get("filename"),
+        execution_mode=semantic.get("execution_mode"),
+        endpoint=semantic.get("endpoint"),
+        workspace_sources={
+            row["filename"]: row["source"]
+            for row in semantic.get("workspace_sources", [])
+            if isinstance(row, dict) and set(row) == {"filename", "source"}
+        }
+        if isinstance(semantic.get("workspace_sources"), list)
+        else None,
+        revision=semantic.get("metis_revision"),
+        tree=semantic.get("metis_tree"),
+    )
+    if semantic != rebuilt:
+        raise OracleError("capsule oracle semantic request is not canonical")
+    return request
+
+
+def normalize_capsule_oracle_envelope(envelope: Any) -> dict[str, Any]:
+    """Remove only the modeled execution nonce from a verified capsule envelope."""
+
+    verified = verify_capsule_oracle_envelope(envelope)
+    return {key: value for key, value in verified.items() if key != "run_nonce"}
+
+
+def verify_capsule_oracle_envelope(
+    envelope: Any,
+    *,
+    capsule_request: Any | None = None,
+) -> dict[str, Any]:
+    keys = {
+        "schema_version",
+        "protocol",
+        "execution_id",
+        "run_nonce",
+        "request_sha256",
+        "capsule_manifest_sha256",
+        "execution_policy",
+        "oracle_envelope",
+        "manifest_sha256",
+    }
+    envelope = _exact_object(envelope, keys, "capsule oracle envelope")
+    if (
+        type(envelope["schema_version"]) is not int
+        or envelope["schema_version"] != CAPSULE_SCHEMA_VERSION
+        or envelope["protocol"] != CAPSULE_PROTOCOL
+        or not isinstance(envelope["execution_id"], str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", envelope["execution_id"]) is None
+        or not isinstance(envelope["run_nonce"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", envelope["run_nonce"]) is None
+        or not isinstance(envelope["capsule_manifest_sha256"], str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", envelope["capsule_manifest_sha256"]) is None
+        or envelope["execution_policy"] != CAPSULE_EXECUTION_POLICY
+    ):
+        raise OracleError("capsule oracle envelope identity is invalid")
+    if capsule_request is not None:
+        request = _validate_capsule_request(capsule_request)
+        if (
+            envelope["execution_id"] != request["execution_id"]
+            or envelope["run_nonce"] != request["run_nonce"]
+            or envelope["capsule_manifest_sha256"] != request["capsule_manifest_sha256"]
+            or envelope["request_sha256"] != _sha(request["request"])
+        ):
+            raise OracleError("capsule oracle envelope differs from its request")
+        verify_oracle_envelope(envelope["oracle_envelope"], request=request["request"])
+    else:
+        verify_oracle_envelope(envelope["oracle_envelope"])
+    body = {
+        key: value for key, value in envelope.items() if key not in {"run_nonce", "manifest_sha256"}
+    }
+    if envelope["manifest_sha256"] != _sha(body):
+        raise OracleError("capsule oracle envelope digest is invalid")
+    return envelope
+
+
+def _capsule_ancestor_definitions(capsule: Path) -> dict[str, str]:
+    capsule = _strict_canonical_path(
+        capsule,
+        "capsule root for process policy",
+        must_exist=True,
+        directory=True,
+    )
+    ancestors: list[Path] = []
+    current = capsule.parent
+    while current != current.parent:
+        try:
+            metadata = current.lstat()
+        except OSError as error:
+            raise OracleError("capsule ancestry is unavailable") from error
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise OracleError("capsule ancestry contains a non-directory or symlink")
+        ancestors.append(current)
+        current = current.parent
+    if len(ancestors) > CAPSULE_ANCESTOR_SLOTS:
+        raise OracleError("capsule ancestry exceeds the process policy slot cap")
+    padded = [*ancestors, *([capsule] * (CAPSULE_ANCESTOR_SLOTS - len(ancestors)))]
+    return {f"CAPSULE_ANCESTOR_{index:02d}": str(path) for index, path in enumerate(padded)}
+
+
+def _kill_and_reap_capsule_group(process: subprocess.Popen[bytes]) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired as error:
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        process.wait(timeout=2)
+        raise OracleError("capsule runner group could not be reaped") from error
+    deadline = time.monotonic() + 2
+    while True:
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return
+        if time.monotonic() >= deadline:
+            raise OracleError("capsule runner descendants remained after process-group kill")
+        time.sleep(0.01)
+
+
+@contextlib.contextmanager
+def _secure_invocation_workspace(root: Path, name: str):
+    """Create/open ``invocations/name`` without following any mutable link."""
+
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,191}", name) is None:
+        raise OracleError("capsule invocation workspace name is invalid")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    root_fd = -1
+    invocations_fd = -1
+    invocation_fd = -1
+    try:
+        root_fd = os.open(root, directory_flags)
+        with contextlib.suppress(FileExistsError):
+            os.mkdir("invocations", 0o700, dir_fd=root_fd)
+        invocations_fd = os.open("invocations", directory_flags, dir_fd=root_fd)
+        invocations_stat = os.fstat(invocations_fd)
+        if (
+            not stat.S_ISDIR(invocations_stat.st_mode)
+            or stat.S_IMODE(invocations_stat.st_mode) != 0o700
+        ):
+            raise OracleError("capsule invocations namespace is not a private directory")
+        try:
+            os.stat(name, dir_fd=invocations_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise OracleError("capsule invocation workspace already exists")
+        os.mkdir(name, 0o700, dir_fd=invocations_fd)
+        invocation_fd = os.open(name, directory_flags, dir_fd=invocations_fd)
+        metadata = os.fstat(invocation_fd)
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o700:
+            raise OracleError("capsule invocation workspace is invalid")
+        yield root / "invocations" / name, invocation_fd
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError("capsule invocation workspace could not be created securely") from error
+    finally:
+        for descriptor in (invocation_fd, invocations_fd, root_fd):
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+
+
+@contextlib.contextmanager
+def _secure_output_parent(root: Path, output: Path):
+    """Open/create an output ancestry by descriptor without following aliases."""
+
+    try:
+        relative = output.relative_to(root)
+    except ValueError as error:
+        raise OracleError("capsule oracle output escaped the process root") from error
+    if len(relative.parts) < 1 or any(part in {"", ".", ".."} for part in relative.parts):
+        raise OracleError("capsule oracle output path is invalid")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    root_fd = -1
+    parent_fd = -1
+    try:
+        root_fd = os.open(root, directory_flags)
+        parent_fd = os.dup(root_fd)
+        for component in relative.parts[:-1]:
+            with contextlib.suppress(FileExistsError):
+                os.mkdir(component, 0o700, dir_fd=parent_fd)
+            child_fd = -1
+            try:
+                child_fd = os.open(component, directory_flags, dir_fd=parent_fd)
+                metadata = os.fstat(child_fd)
+                if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o700:
+                    raise OracleError("capsule oracle output ancestry is not private")
+                os.close(parent_fd)
+                parent_fd = child_fd
+                child_fd = -1
+            finally:
+                if child_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(child_fd)
+        yield parent_fd, relative.name
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError("capsule oracle output ancestry could not be opened securely") from error
+    finally:
+        for descriptor in (parent_fd, root_fd):
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+
+
+def _publish_regular_at(directory_fd: int, name: str, raw: bytes) -> None:
+    """Publish once by exclusive descriptor; retain every partial on failure."""
+
+    if not name or "/" in name or name in {".", ".."}:
+        raise OracleError("capsule oracle output filename is invalid")
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+            dir_fd=directory_fd,
+        )
+        view = memoryview(raw)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OracleError("capsule oracle output could not be written completely")
+            view = view[written:]
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_size != len(raw)
+        ):
+            raise OracleError("capsule oracle temporary output is invalid")
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = -1
+        os.fsync(directory_fd)
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError("capsule oracle output could not be published securely") from error
+    finally:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
+def _read_exact_regular_at(directory_fd: int, name: str, limit: int, label: str) -> bytes:
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=directory_fd,
+        )
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+            raise OracleError(f"{label} must be a bounded regular file")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(descriptor, min(1024 * 1024, limit + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > limit:
+                raise OracleError(f"{label} exceeds its cap")
+        after = os.fstat(descriptor)
+        identity = lambda item: (  # noqa: E731 - compact immutable stat identity
+            item.st_dev,
+            item.st_ino,
+            item.st_size,
+            item.st_mtime_ns,
+            item.st_ctime_ns,
+            item.st_mode,
+        )
+        if identity(before) != identity(after) or total != before.st_size:
+            raise OracleError(f"{label} changed while it was read")
+        return b"".join(chunks)
+    except OracleError:
+        raise
+    except OSError as error:
+        raise OracleError(f"{label} cannot be read securely") from error
+    finally:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
+def _run_capsule_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    request_bytes: bytes,
+    stdout_path: Path,
+    stderr_path: Path,
+    timeout: float,
+    node_executable: Path,
+    capsule_root: Path,
+    process_root: Path,
+    stream_directory_fd: int | None = None,
+    capsule_root_fd: int | None = None,
+    process_root_fd: int | None = None,
+) -> subprocess.CompletedProcess[bytes]:
+    node_executable = _strict_canonical_path(
+        node_executable,
+        "capsule Node executable",
+        must_exist=True,
+        directory=False,
+    )
+    capsule_root = _strict_canonical_path(
+        capsule_root,
+        "capsule command root",
+        must_exist=True,
+        directory=True,
+    )
+    process_root = _strict_canonical_path(
+        process_root,
+        "capsule process root",
+        must_exist=True,
+        directory=True,
+    )
+    cwd = _strict_canonical_path(
+        cwd,
+        "capsule command working directory",
+        must_exist=True,
+        directory=True,
+    )
+    stdout_path = _strict_canonical_path(
+        stdout_path,
+        "capsule stdout path",
+        must_exist=False,
+        directory=False,
+    )
+    stderr_path = _strict_canonical_path(
+        stderr_path,
+        "capsule stderr path",
+        must_exist=False,
+        directory=False,
+    )
+    if (
+        capsule_root_fd is not None
+        and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+    ) or (
+        process_root_fd is not None
+        and not _directory_fd_matches_path(process_root_fd, process_root)
+    ):
+        raise OracleError("capsule command opened roots differ from their path identities")
+    if not command or command[0] != str(node_executable):
+        raise OracleError("capsule command does not start with the registered Node executable")
+    if (
+        not _contains(capsule_root, cwd)
+        or not _contains(process_root, stdout_path)
+        or not _contains(process_root, stderr_path)
+        or stdout_path == stderr_path
+    ):
+        raise OracleError("capsule command paths differ from their registered roots")
+    if (
+        type(timeout) not in {int, float}
+        or not 0 < timeout <= 60
+        or not isinstance(request_bytes, bytes)
+        or len(request_bytes) > MAX_CAPSULE_FILE_BYTES
+    ):
+        raise OracleError("capsule command request or timeout exceeds its cap")
+    measured_policy = {
+        "sandbox_policy_sha256": (
+            "sha256:"
+            + hashlib.sha256(CAPSULE_EXECUTION_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
+        ),
+        "capsule_ancestor_slots": CAPSULE_ANCESTOR_SLOTS,
+        "process_fork": "denied",
+        "supervision": "node-session-group-leader",
+    }
+    if measured_policy != CAPSULE_EXECUTION_POLICY:
+        raise OracleError("capsule process policy bytes differ from their runtime identity")
+    ancestor_definitions = _capsule_ancestor_definitions(capsule_root)
+    ancestor_arguments = [
+        argument
+        for name, value in ancestor_definitions.items()
+        for argument in ("-D", f"{name}={value}")
+    ]
+    supervised_command = [
+        str(SANDBOX_EXEC_PATH),
+        "-p",
+        CAPSULE_EXECUTION_POLICY_TEMPLATE,
+        "-D",
+        f"PROCESS_ROOT={process_root}",
+        "-D",
+        f"NODE_EXECUTABLE={node_executable}",
+        "-D",
+        f"CAPSULE_ROOT={capsule_root}",
+        *ancestor_arguments,
+        *command,
+    ]
+    process: subprocess.Popen[bytes] | None = None
+    supervision_complete = False
+    stdout_descriptor = -1
+    stderr_descriptor = -1
+    try:
+        try:
+            if stream_directory_fd is None:
+                stdout_descriptor = os.open(
+                    stdout_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                )
+                stderr_descriptor = os.open(
+                    stderr_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                )
+            else:
+                stdout_descriptor = os.open(
+                    stdout_path.name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                    dir_fd=stream_directory_fd,
+                )
+                stderr_descriptor = os.open(
+                    stderr_path.name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                    dir_fd=stream_directory_fd,
+                )
+            with contextlib.ExitStack() as streams:
+                stdout = streams.enter_context(os.fdopen(stdout_descriptor, "wb"))
+                stdout_descriptor = -1
+                stderr = streams.enter_context(os.fdopen(stderr_descriptor, "wb"))
+                stderr_descriptor = -1
+                if (
+                    capsule_root_fd is not None
+                    and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+                ) or (
+                    process_root_fd is not None
+                    and not _directory_fd_matches_path(process_root_fd, process_root)
+                ):
+                    raise OracleError("capsule command roots changed before execution")
+                process = subprocess.Popen(
+                    supervised_command,
+                    cwd=cwd,
+                    stdin=subprocess.PIPE,
+                    stdout=stdout,
+                    stderr=stderr,
+                    env={"PATH": "", "LANG": "C", "LC_ALL": "C"},
+                    start_new_session=True,
+                )
+                if os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
+                    _kill_and_reap_capsule_group(process)
+                    supervision_complete = True
+                    raise OracleError("capsule Node is not its supervised session leader")
+                try:
+                    process.communicate(input=request_bytes, timeout=timeout)
+                except subprocess.TimeoutExpired as error:
+                    _kill_and_reap_capsule_group(process)
+                    supervision_complete = True
+                    raise OracleError("capsule runner exceeded the timeout cap") from error
+                _kill_and_reap_capsule_group(process)
+                supervision_complete = True
+        except OracleError:
+            raise
+        except (OSError, subprocess.SubprocessError) as error:
+            raise OracleError("capsule runner could not start") from error
+        if process is None:
+            raise OracleError("capsule runner process was not created")
+        process.wait(timeout=2)
+        if (
+            capsule_root_fd is not None
+            and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+        ) or (
+            process_root_fd is not None
+            and not _directory_fd_matches_path(process_root_fd, process_root)
+        ):
+            raise OracleError("capsule command roots changed during execution")
+        if stream_directory_fd is None:
+            stdout = _read_exact_regular(stdout_path, MAX_CAPSULE_STDOUT_BYTES, "capsule stdout")
+            stderr = _read_exact_regular(stderr_path, MAX_CAPSULE_STDERR_BYTES, "capsule stderr")
+        else:
+            stdout = _read_exact_regular_at(
+                stream_directory_fd,
+                stdout_path.name,
+                MAX_CAPSULE_STDOUT_BYTES,
+                "capsule stdout",
+            )
+            stderr = _read_exact_regular_at(
+                stream_directory_fd,
+                stderr_path.name,
+                MAX_CAPSULE_STDERR_BYTES,
+                "capsule stderr",
+            )
+        return subprocess.CompletedProcess(
+            command, process.returncode, stdout=stdout, stderr=stderr
+        )
+    finally:
+        cleanup_error: OracleError | None = None
+        if process is not None and not supervision_complete:
+            try:
+                _kill_and_reap_capsule_group(process)
+            except OracleError as error:
+                cleanup_error = error
+        for descriptor in (stdout_descriptor, stderr_descriptor):
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+        if cleanup_error is not None:
+            raise cleanup_error
+
+
+def _capsule_command(
+    capsule: Path,
+    manifest: dict[str, Any],
+    runtime: dict[str, Any],
+) -> tuple[Path, list[str]]:
+    node = _capsule_file(
+        capsule,
+        _safe_capsule_path(manifest["node"]["path"], "node"),
+        "node",
+    )
+    tsx = _capsule_file(
+        capsule,
+        _safe_capsule_path(manifest["tsx"]["path"], "tsx"),
+        "tsx",
+    )
+    runner = _capsule_file(
+        capsule,
+        _safe_capsule_path(manifest["runner"]["path"], "runner"),
+        "runner",
+    )
+    return node, [
+        str(node),
+        "--import",
+        str(tsx),
+        str(runner),
+        "--metis-root",
+        str(capsule),
+        "--metis-revision",
+        PINNED_METIS_REVISION,
+        "--metis-tree",
+        PINNED_METIS_TREE,
+        "--tsx-path",
+        str(tsx),
+        "--runtime-node-path",
+        runtime["node_path"],
+        "--node-actual-path",
+        str(node),
+        "--runtime-tsx-path",
+        runtime["tsx_path"],
+        "--runtime-runner-path",
+        runtime["runner_path"],
+        "--runner-actual-path",
+        str(runner),
+        "--snapshot-identity",
+        f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}",
+        "--node-modules-sha256",
+        PINNED_NODE_MODULES_SHA256,
+        "--runner-sha256",
+        PINNED_RUNNER_SHA256,
+        "--node-binary-sha256",
+        PINNED_NODE_BINARY_SHA256,
+        "--sandbox-policy-version",
+        SANDBOX_POLICY_VERSION,
+        "--sandbox-policy-sha256",
+        SANDBOX_POLICY_SHA256,
+        "--tooling-package-sha256",
+        PINNED_TOOLING_PACKAGE_SHA256,
+        "--tooling-lock-sha256",
+        PINNED_TOOLING_LOCK_SHA256,
+    ]
+
+
+def run_oracle_from_capsule(
+    capsule_request: Any,
+    *,
+    capsule_root: str | os.PathLike[str],
+    process_root: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+    timeout: float = 60.0,
+) -> dict[str, Any]:
+    """Run the exact registered Node/tsx/runner closure from an immutable capsule.
+
+    This low-level boundary deliberately has no ``metis_root`` or ``runner_path``
+    override and never calls :func:`_build_isolated_snapshot` or reads Git.
+    """
+
+    request = _validate_capsule_request(capsule_request)
+    if type(timeout) not in {int, float} or not 0 < timeout <= 60:
+        raise OracleError("capsule oracle timeout is outside the registered cap")
+    capsule, manifest = verify_runtime_capsule(
+        capsule_root,
+        expected_manifest_sha256=request["capsule_manifest_sha256"],
+    )
+    root = _strict_canonical_path(
+        process_root,
+        "capsule process root",
+        must_exist=True,
+        directory=True,
+    )
+    output = _strict_canonical_path(
+        output_path,
+        "capsule oracle output",
+        must_exist=False,
+        directory=False,
+    )
+    if not _contains(root, output):
+        raise OracleError("capsule oracle output must stay below the process root")
+    _reject_symlink_parents(output, "capsule oracle output")
+    invocation_name = f"{request['execution_id']}-{request['run_nonce'][:16]}"
+
+    capsule_contents = _capture_runtime_capsule_contents(capsule, manifest)
+    runtime = _runtime_identity_policy(PINNED_METIS_REVISION, PINNED_METIS_TREE)
+    semantic = request["request"]
+    with (
+        _secure_invocation_workspace(root, invocation_name) as (invocation, invocation_fd),
+        _owned_materialized_runtime_capsule_preimage(
+            invocation,
+            invocation_fd,
+            manifest,
+            capsule_contents,
+        ) as (capsule_preimage, capsule_preimage_fd),
+    ):
+        write_fd = -1
+        try:
+            os.mkdir("write", 0o700, dir_fd=invocation_fd)
+            write_fd = os.open(
+                "write",
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=invocation_fd,
+            )
+            write_root = invocation / "write"
+            write_metadata = os.fstat(write_fd)
+            if (
+                not stat.S_ISDIR(write_metadata.st_mode)
+                or stat.S_IMODE(write_metadata.st_mode) != 0o700
+            ):
+                raise OracleError("capsule writable invocation root is invalid")
+            node, command = _capsule_command(capsule_preimage, manifest, runtime)
+            completed = _run_capsule_command(
+                command,
+                cwd=capsule_preimage / "tooling",
+                request_bytes=_canonical(semantic),
+                stdout_path=write_root / "stdout.json",
+                stderr_path=write_root / "stderr.txt",
+                timeout=float(timeout),
+                node_executable=node,
+                capsule_root=capsule_preimage,
+                process_root=write_root,
+                stream_directory_fd=write_fd,
+                capsule_root_fd=capsule_preimage_fd,
+                process_root_fd=write_fd,
+            )
+            _verify_runtime_capsule_preimage_at(
+                capsule_preimage_fd,
+                manifest,
+                capsule_contents,
+            )
+            if not _directory_fd_matches_path(capsule_preimage_fd, capsule_preimage):
+                raise OracleError("runtime capsule preimage path changed during execution")
+        except OracleError:
+            raise
+        except OSError as error:
+            raise OracleError("capsule invocation roots could not be created securely") from error
+        finally:
+            if write_fd >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(write_fd)
+    if completed.returncode != 0:
+        raise OracleError(f"capsule runner exited {completed.returncode}")
+    if completed.stderr:
+        raise OracleError("capsule runner emitted unregistered stderr")
+    try:
+        result = json.loads(completed.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise OracleError("capsule runner emitted malformed JSON") from error
+    if completed.stdout != _canonical(result):
+        raise OracleError("capsule runner output is not canonical JSON")
+    result = _check_response(
+        result,
+        PINNED_METIS_REVISION,
+        PINNED_METIS_TREE,
+        expected_runtime=runtime,
+        expected_mode=semantic["execution_mode"],
+    )
+    evidence = {
+        "input_sha256": _sha(semantic),
+        "diagnostics_sha256": _sha(result["diagnostics"]),
+        "ast_sha256": _sha(result["ast"]["inventory"]),
+        "ir_sha256": None if result["ir"]["value"] is None else _sha(result["ir"]["value"]),
+        "toolchain_revision": PINNED_METIS_REVISION,
+        "toolchain_tree": PINNED_METIS_TREE,
+        "runtime_sha256": _sha(runtime),
+        "runtime_identity": runtime,
+        "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
+        "tooling_package_sha256": "sha256:" + PINNED_TOOLING_PACKAGE_SHA256,
+        "tooling_lock_sha256": "sha256:" + PINNED_TOOLING_LOCK_SHA256,
+        "node_modules_sha256": "sha256:" + PINNED_NODE_MODULES_SHA256,
+        "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
+        "sandbox_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "metis_status_sha256": _sha(""),
+        "metis_status": "",
+    }
+    oracle_envelope: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "result": result,
+        "evidence": evidence,
+    }
+    oracle_envelope["evidence"]["envelope_sha256"] = _sha(oracle_envelope)
+    verify_oracle_envelope(oracle_envelope, request=semantic)
+    capsule_body = {
+        "schema_version": CAPSULE_SCHEMA_VERSION,
+        "protocol": CAPSULE_PROTOCOL,
+        "execution_id": request["execution_id"],
+        "request_sha256": _sha(semantic),
+        "capsule_manifest_sha256": request["capsule_manifest_sha256"],
+        "execution_policy": dict(CAPSULE_EXECUTION_POLICY),
+        "oracle_envelope": oracle_envelope,
+    }
+    envelope = {
+        **capsule_body,
+        "run_nonce": request["run_nonce"],
+        "manifest_sha256": _sha(capsule_body),
+    }
+    verify_capsule_oracle_envelope(envelope, capsule_request=request)
+    with _secure_output_parent(root, output) as (output_parent_fd, output_name):
+        _publish_regular_at(output_parent_fd, output_name, _canonical(envelope))
+    return envelope
+
+
 def run_oracle(
     source: str,
     *,
@@ -892,11 +2330,14 @@ def run_oracle(
             temporary = Path(tmp.name)
         try:
             os.replace(temporary, output)
-            directory_fd = os.open(output.parent, os.O_RDONLY)
+            directory_fd = -1
             try:
+                directory_fd = os.open(output.parent, os.O_RDONLY)
                 os.fsync(directory_fd)
             finally:
-                os.close(directory_fd)
+                if directory_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(directory_fd)
         finally:
             temporary.unlink(missing_ok=True)
         return envelope

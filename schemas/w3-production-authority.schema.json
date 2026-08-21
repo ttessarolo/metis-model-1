@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-production-authority.schema.json",
+  "title": "External W3 production capsule authority v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authority_id",
+    "status",
+    "ratification",
+    "project",
+    "source_bundle",
+    "dependency_bundle",
+    "capsule",
+    "expected",
+    "non_claims",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "authority_id": { "const": "w3-f1-f3-production-capsule-authority-v2" },
+    "status": { "const": "independently_ratified" },
+    "ratification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "scope", "independent", "kimi_report_sha256"],
+      "properties": {
+        "verdict": { "const": "RATIFIABLE" },
+        "scope": { "const": ["F-1", "F-2", "F-3"] },
+        "independent": { "const": true },
+        "kimi_report_sha256": {
+          "const": "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "candidate_manifest",
+        "semantic_registry",
+        "launcher",
+        "worker"
+      ],
+      "properties": {
+        "revision": { "const": "4ec625fcec8a9c41423bc048688d17775e57353c" },
+        "candidate_manifest": {
+          "$ref": "#/$defs/frozenCandidate"
+        },
+        "semantic_registry": {
+          "$ref": "#/$defs/frozenRegistry"
+        },
+        "launcher": { "$ref": "#/$defs/launcher" },
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256", "protocol"],
+          "properties": {
+            "path": { "$ref": "#/$defs/path" },
+            "sha256": { "$ref": "#/$defs/hash" },
+            "protocol": { "const": "w3-production-capsule-worker-v2" }
+          }
+        }
+      }
+    },
+    "source_bundle": { "$ref": "#/$defs/sourceBundle" },
+    "dependency_bundle": { "$ref": "#/$defs/dependencyBundle" },
+    "capsule": { "$ref": "#/$defs/capsule" },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidates", "executions", "roles"],
+      "properties": {
+        "candidates": { "const": 3 },
+        "executions": { "const": 5 },
+        "roles": { "$ref": "#/$defs/oneEachRole" }
+      }
+    },
+    "non_claims": { "$ref": "#/$defs/nonClaims" },
+    "manifest_sha256": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "rawHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*(?:^|/)\\.env(?:\\.|/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "mode", "sha256", "role"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "size": { "type": "integer", "minimum": 0 },
+        "mode": { "enum": [292, 365] },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "role": { "type": "string", "minLength": 1 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 1 },
+        "bytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sourceBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "bundle_id",
+        "kind",
+        "counts",
+        "files",
+        "roster_sha256",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "bundle_id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "source" },
+        "counts": { "$ref": "#/$defs/counts" },
+        "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/file" } },
+        "roster_sha256": { "$ref": "#/$defs/hash" },
+        "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "dependencyBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "bundle_id",
+        "kind",
+        "python",
+        "counts",
+        "files",
+        "roster_sha256",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "bundle_id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "dependency" },
+        "python": {
+          "const": {
+            "implementation": "CPython",
+            "version": "3.13.3",
+            "abi": "cp313-macosx_arm64",
+            "machine": "arm64"
+          }
+        },
+        "counts": {
+          "const": { "files": 144, "bytes": 1799002 }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 144,
+          "maxItems": 144,
+          "items": { "$ref": "#/$defs/file" }
+        },
+        "roster_sha256": {
+          "const": "db649bc14ee947ff43a2e5dbd540585123a259bb771a087692b72a4c0d463f42"
+        },
+        "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "capsuleIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "mode"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "mode": { "enum": [292, 365] }
+      }
+    },
+    "capsule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "capsule_id",
+        "revision",
+        "tree",
+        "language_version",
+        "node",
+        "tsx",
+        "runner",
+        "tooling",
+        "counts",
+        "files",
+        "roster_sha256",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "capsule_id": { "type": "string", "minLength": 1 },
+        "revision": { "const": "a2dde2b191f6b78c2003d74875560da782470968" },
+        "tree": { "const": "75473e26deff4084a0eb077a4c3e27d52dc07998" },
+        "language_version": { "const": "0.43" },
+        "node": { "$ref": "#/$defs/capsuleIdentity" },
+        "tsx": { "$ref": "#/$defs/capsuleIdentity" },
+        "runner": { "$ref": "#/$defs/capsuleIdentity" },
+        "tooling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package_sha256", "lock_sha256", "node_modules_sha256"],
+          "properties": {
+            "package_sha256": {
+              "const": "sha256:f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80"
+            },
+            "lock_sha256": {
+              "const": "sha256:fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb"
+            },
+            "node_modules_sha256": {
+              "const": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
+            }
+          }
+        },
+        "counts": { "$ref": "#/$defs/counts" },
+        "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/file" } },
+        "roster_sha256": { "$ref": "#/$defs/hash" },
+        "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "frozenCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "manifest_sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "manifest_sha256": {
+          "const": "sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5"
+        }
+      }
+    },
+    "frozenRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "manifest_sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "manifest_sha256": {
+          "const": "sha256:9b9aa14836eb6924e61df0ab1e0a7b7224f9958b78056ae66fd27f59868cc7c3"
+        }
+      }
+    },
+    "launcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualifier_path",
+        "qualifier_sha256",
+        "python_executable",
+        "python_executable_sha256",
+        "python_version",
+        "required_flags",
+        "sandbox_exec_path",
+        "sandbox_exec_sha256",
+        "sandbox_policy_template_sha256",
+        "qualifier_bootstrap_sha256"
+      ],
+      "properties": {
+        "qualifier_path": { "type": "string", "minLength": 1 },
+        "qualifier_sha256": { "$ref": "#/$defs/hash" },
+        "python_executable": { "type": "string", "minLength": 1 },
+        "python_executable_sha256": { "$ref": "#/$defs/hash" },
+        "python_version": { "const": "3.13.3" },
+        "required_flags": { "const": ["-I", "-S", "-B"] },
+        "sandbox_exec_path": { "const": "/usr/bin/sandbox-exec" },
+        "sandbox_exec_sha256": { "$ref": "#/$defs/hash" },
+        "sandbox_policy_template_sha256": { "$ref": "#/$defs/hash" },
+        "qualifier_bootstrap_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "oneEachRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "before", "after", "mutated", "fixed"],
+      "properties": {
+        "author": { "const": 1 },
+        "before": { "const": 1 },
+        "after": { "const": 1 },
+        "mutated": { "const": 1 },
+        "fixed": { "const": 1 }
+      }
+    },
+    "nonClaims": {
+      "const": [
+        "no_w1_15_of_15_claim",
+        "no_f4_f5_f6_claim",
+        "no_benchmark_v1_claim",
+        "no_w5_claim",
+        "no_semantic_accuracy_claim"
+      ]
+    }
+  }
+}

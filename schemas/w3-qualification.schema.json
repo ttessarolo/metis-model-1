@@ -4,12 +4,330 @@
   "title": "Clean-process W3 bounded qualification report",
   "oneOf": [
     { "$ref": "#/$defs/qualified" },
-    { "$ref": "#/$defs/blocked" }
+    { "$ref": "#/$defs/blocked" },
+    { "$ref": "#/$defs/productionQualified" },
+    { "$ref": "#/$defs/productionBlocked" }
   ],
   "$defs": {
     "hash": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "processRetainedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "directories", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "directories": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 134217728 }
+      }
+    },
+    "trustedRetainedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "directories", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 0, "maximum": 4096 },
+        "directories": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 }
+      }
+    },
+    "publicationRetainedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "directories", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 0, "maximum": 128 },
+        "directories": { "type": "integer", "minimum": 1, "maximum": 128 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 33554432 }
+      }
+    },
+    "sealedRetainedRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state", "kind", "logical_root", "anchor", "locator", "counts",
+        "physical_roster_sha256", "normalized_roster_sha256",
+        "snapshot_first_sha256", "snapshot_second_sha256", "sealed", "root_id"
+      ],
+      "properties": {
+        "state": { "const": "sealed" },
+        "kind": {
+          "enum": [
+            "worker-process-root", "production-process-root",
+            "production-trusted-root", "qualification-publication-partial-root"
+          ]
+        },
+        "logical_root": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "anchor": { "enum": ["artifact-root", "run-root"] },
+        "locator": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        },
+        "counts": { "type": "object" },
+        "physical_roster_sha256": { "$ref": "#/$defs/hash" },
+        "normalized_roster_sha256": { "$ref": "#/$defs/hash" },
+        "snapshot_first_sha256": { "$ref": "#/$defs/hash" },
+        "snapshot_second_sha256": { "$ref": "#/$defs/hash" },
+        "sealed": { "const": true },
+        "root_id": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "workerProcessRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "worker-process-root" },
+            "logical_root": { "const": "process" },
+            "anchor": { "const": "artifact-root" },
+            "counts": { "$ref": "#/$defs/processRetainedCounts" }
+          }
+        }
+      ]
+    },
+    "productionProcessRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-process-root" },
+            "logical_root": { "const": "process" },
+            "anchor": { "const": "run-root" },
+            "counts": { "$ref": "#/$defs/processRetainedCounts" }
+          }
+        }
+      ]
+    },
+    "productionTrustedRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-trusted-root" },
+            "logical_root": { "const": "trusted" },
+            "anchor": { "const": "run-root" },
+            "counts": { "$ref": "#/$defs/trustedRetainedCounts" }
+          }
+        }
+      ]
+    },
+    "publicationPartialRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "qualification-publication-partial-root" },
+            "logical_root": { "const": "qualification-publication-partial" },
+            "anchor": { "const": "artifact-root" },
+            "counts": { "$ref": "#/$defs/publicationRetainedCounts" }
+          }
+        }
+      ]
+    },
+    "unmeasurableRetainedRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state", "kind", "logical_root", "anchor", "locator",
+        "creation_observed", "reason", "root_id"
+      ],
+      "properties": {
+        "state": { "const": "unmeasurable" },
+        "kind": {
+          "enum": [
+            "worker-process-root", "production-process-root",
+            "production-trusted-root", "qualification-publication-partial-root"
+          ]
+        },
+        "logical_root": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "anchor": { "enum": ["artifact-root", "run-root"] },
+        "locator": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        },
+        "creation_observed": { "const": true },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "root_id": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "workerProcessUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "worker-process-root" },
+            "logical_root": { "const": "process" },
+            "anchor": { "const": "artifact-root" }
+          }
+        }
+      ]
+    },
+    "productionProcessUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-process-root" },
+            "logical_root": { "const": "process" },
+            "anchor": { "const": "run-root" }
+          }
+        }
+      ]
+    },
+    "productionTrustedUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-trusted-root" },
+            "logical_root": { "const": "trusted" },
+            "anchor": { "const": "run-root" }
+          }
+        }
+      ]
+    },
+    "publicationPartialUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "qualification-publication-partial-root" },
+            "logical_root": { "const": "qualification-publication-partial" },
+            "anchor": { "const": "artifact-root" }
+          }
+        }
+      ]
+    },
+    "workerProcessBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/workerProcessRoot" },
+        { "$ref": "#/$defs/workerProcessUnmeasurable" }
+      ]
+    },
+    "productionProcessBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/productionProcessRoot" },
+        { "$ref": "#/$defs/productionProcessUnmeasurable" }
+      ]
+    },
+    "productionTrustedBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/productionTrustedRoot" },
+        { "$ref": "#/$defs/productionTrustedUnmeasurable" }
+      ]
+    },
+    "publicationPartialBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/publicationPartialRoot" },
+        { "$ref": "#/$defs/publicationPartialUnmeasurable" }
+      ]
+    },
+    "retainedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/workerProcessRoot" },
+        { "$ref": "#/$defs/productionProcessRoot" },
+        { "$ref": "#/$defs/productionTrustedRoot" },
+        { "$ref": "#/$defs/publicationPartialRoot" },
+        { "$ref": "#/$defs/workerProcessUnmeasurable" },
+        { "$ref": "#/$defs/productionProcessUnmeasurable" },
+        { "$ref": "#/$defs/productionTrustedUnmeasurable" },
+        { "$ref": "#/$defs/publicationPartialUnmeasurable" }
+      ]
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
+      "properties": {
+        "status": { "const": "cleanup_deferred" },
+        "gc_policy": { "const": "separately_ratified_quiescent_exclusive_v1" },
+        "delete_attempts": { "const": 0 },
+        "retained_roots": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/retainedRoot" }
+        }
+      }
+    },
+    "qualifiedV1Cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
+      "properties": {
+        "status": { "const": "cleanup_deferred" },
+        "gc_policy": { "const": "separately_ratified_quiescent_exclusive_v1" },
+        "delete_attempts": { "const": 0 },
+        "retained_roots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [{ "$ref": "#/$defs/workerProcessRoot" }],
+          "items": false
+        }
+      }
+    },
+    "qualifiedV2Cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
+      "properties": {
+        "status": { "const": "cleanup_deferred" },
+        "gc_policy": { "const": "separately_ratified_quiescent_exclusive_v1" },
+        "delete_attempts": { "const": 0 },
+        "retained_roots": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            { "$ref": "#/$defs/productionProcessRoot" },
+            { "$ref": "#/$defs/productionTrustedRoot" }
+          ],
+          "items": false
+        }
+      }
+    },
+    "blockedV1Cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
+      "properties": {
+        "status": { "const": "cleanup_deferred" },
+        "gc_policy": { "const": "separately_ratified_quiescent_exclusive_v1" },
+        "delete_attempts": { "const": 0 },
+        "retained_roots": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "prefixItems": [
+            { "$ref": "#/$defs/workerProcessBlockedRoot" },
+            { "$ref": "#/$defs/publicationPartialBlockedRoot" }
+          ],
+          "items": false
+        }
+      }
+    },
+    "blockedV2Cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
+      "properties": {
+        "status": { "const": "cleanup_deferred" },
+        "gc_policy": { "const": "separately_ratified_quiescent_exclusive_v1" },
+        "delete_attempts": { "const": 0 },
+        "retained_roots": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 3,
+          "prefixItems": [
+            { "$ref": "#/$defs/productionProcessBlockedRoot" },
+            { "$ref": "#/$defs/productionTrustedBlockedRoot" },
+            { "$ref": "#/$defs/publicationPartialBlockedRoot" }
+          ],
+          "items": false
+        }
+      }
     },
     "launcher": {
       "type": "object",
@@ -35,6 +353,34 @@
         "sandbox_exec_path": { "const": "/usr/bin/sandbox-exec" },
         "sandbox_exec_sha256": { "$ref": "#/$defs/hash" },
         "sandbox_policy_template_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "launcherV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualifier_path",
+        "qualifier_sha256",
+        "python_executable",
+        "python_executable_sha256",
+        "python_version",
+        "required_flags",
+        "sandbox_exec_path",
+        "sandbox_exec_sha256",
+        "sandbox_policy_template_sha256",
+        "qualifier_bootstrap_sha256"
+      ],
+      "properties": {
+        "qualifier_path": { "type": "string", "minLength": 1 },
+        "qualifier_sha256": { "$ref": "#/$defs/hash" },
+        "python_executable": { "type": "string", "minLength": 1 },
+        "python_executable_sha256": { "$ref": "#/$defs/hash" },
+        "python_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "required_flags": { "const": ["-I", "-S", "-B"] },
+        "sandbox_exec_path": { "const": "/usr/bin/sandbox-exec" },
+        "sandbox_exec_sha256": { "$ref": "#/$defs/hash" },
+        "sandbox_policy_template_sha256": { "$ref": "#/$defs/hash" },
+        "qualifier_bootstrap_sha256": { "$ref": "#/$defs/hash" }
       }
     },
     "counts": {
@@ -109,6 +455,7 @@
         "roles",
         "executions",
         "stops",
+        "cleanup",
         "manifest_sha256"
       ],
       "properties": {
@@ -144,13 +491,153 @@
             "no_semantic_accuracy_claim"
           ]
         },
+        "cleanup": { "$ref": "#/$defs/qualifiedV1Cleanup" },
         "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "productionExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "family",
+        "role",
+        "request_sha256",
+        "capsule_envelope_sha256",
+        "oracle_envelope_sha256",
+        "result_sha256",
+        "artifact_path",
+        "artifact_sha256"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "family": { "enum": ["F-1", "F-2", "F-3"] },
+        "role": { "enum": ["author", "before", "after", "mutated", "fixed"] },
+        "request_sha256": { "$ref": "#/$defs/hash" },
+        "capsule_envelope_sha256": { "$ref": "#/$defs/hash" },
+        "oracle_envelope_sha256": { "$ref": "#/$defs/hash" },
+        "result_sha256": { "$ref": "#/$defs/hash" },
+        "artifact_path": {
+          "type": "string",
+          "pattern": "^artifacts/(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.json$"
+        },
+        "artifact_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "productionQualified": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "qualification_id",
+        "qualification_kind",
+        "status",
+        "claim",
+        "authority_manifest_sha256",
+        "ratification_evidence_sha256",
+        "project_revision",
+        "source_bundle_manifest_sha256",
+        "dependency_bundle_manifest_sha256",
+        "dependency_roster_sha256",
+        "capsule_manifest_sha256",
+        "candidate_manifest_sha256",
+        "semantic_registry_sha256",
+        "worker_input_sha256",
+        "worker_output_sha256",
+        "launcher",
+        "counts",
+        "roles",
+        "executions",
+        "non_claims",
+        "cleanup",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "qualification_id": {
+          "const": "w3-f1-f3-production-capsule-qualification-v2"
+        },
+        "qualification_kind": { "const": "production-capsule-v2" },
+        "status": { "const": "qualified" },
+        "claim": {
+          "const": "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
+        },
+        "authority_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "ratification_evidence_sha256": {
+          "const": "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
+        },
+        "project_revision": {
+          "const": "4ec625fcec8a9c41423bc048688d17775e57353c"
+        },
+        "source_bundle_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "dependency_bundle_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "dependency_roster_sha256": {
+          "const": "db649bc14ee947ff43a2e5dbd540585123a259bb771a087692b72a4c0d463f42"
+        },
+        "capsule_manifest_sha256": { "$ref": "#/$defs/hash" },
+        "candidate_manifest_sha256": {
+          "const": "sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5"
+        },
+        "semantic_registry_sha256": {
+          "const": "sha256:9b9aa14836eb6924e61df0ab1e0a7b7224f9958b78056ae66fd27f59868cc7c3"
+        },
+        "worker_input_sha256": { "$ref": "#/$defs/hash" },
+        "worker_output_sha256": { "$ref": "#/$defs/hash" },
+        "launcher": { "$ref": "#/$defs/launcherV2" },
+        "counts": { "$ref": "#/$defs/counts" },
+        "roles": { "$ref": "#/$defs/roles" },
+        "executions": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/productionExecution" }
+        },
+        "non_claims": {
+          "const": [
+            "no_w1_15_of_15_claim",
+            "no_f4_f5_f6_claim",
+            "no_benchmark_v1_claim",
+            "no_w5_claim",
+            "no_semantic_accuracy_claim"
+          ]
+        },
+        "cleanup": { "$ref": "#/$defs/qualifiedV2Cleanup" },
+        "manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "productionBlocked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "qualification_id",
+        "qualification_kind",
+        "status",
+        "claim",
+        "reason",
+        "cleanup"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "qualification_id": {
+          "const": "w3-f1-f3-production-capsule-qualification-v2"
+        },
+        "qualification_kind": { "const": "production-capsule-v2" },
+        "status": { "const": "blocked" },
+        "claim": { "const": "no_qualification_claim" },
+        "reason": { "type": "string", "minLength": 1 },
+        "cleanup": { "$ref": "#/$defs/blockedV2Cleanup" }
       }
     },
     "blocked": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "qualification_id", "status", "claim", "reason"],
+      "required": [
+        "schema_version", "qualification_id", "status", "claim", "reason", "cleanup"
+      ],
       "properties": {
         "schema_version": { "const": 1 },
         "qualification_id": {
@@ -158,7 +645,8 @@
         },
         "status": { "const": "blocked" },
         "claim": { "const": "no_qualification_claim" },
-        "reason": { "type": "string", "minLength": 1 }
+        "reason": { "type": "string", "minLength": 1 },
+        "cleanup": { "$ref": "#/$defs/blockedV1Cleanup" }
       }
     }
   }
