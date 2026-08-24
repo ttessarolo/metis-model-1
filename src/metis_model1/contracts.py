@@ -56,6 +56,10 @@ CONTRACT_PAIRS = (
         "schemas/catalog-retrieval-execution-receipt.schema.json",
         "manifests/catalog-retrieval-execution-v1.json",
     ),
+    (
+        "schemas/catalog-maintenance-probe.schema.json",
+        "manifests/catalog-maintenance-probe-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -99,6 +103,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/catalog_maintenance_pin.py",
     "src/metis_model1/catalog_retrieval.py",
     "src/metis_model1/catalog_retrieval_refresh.py",
+    "src/metis_model1/catalog_maintenance_probe.py",
     "src/metis_model1/maintenance_decision.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
@@ -129,7 +134,18 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/catalog-maintenance-pin-v1.json",
     "manifests/catalog-retrieval-execution-v1.json",
     "manifests/catalog-retrieval-public-synthetic-v1.json",
+    "manifests/catalog-maintenance-probe-v1.json",
     "manifests/accuracy-uplift-plan.json",
+    "schemas/catalog-maintenance-probe.schema.json",
+    "schemas/catalog-maintenance-probe-freeze.schema.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/author-open.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/author-nested-enum2.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/edit-inline4-to-enum4.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/edit-invalid-open-inline.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/repair-unsynchronized-enum.json",
+    "fixtures/catalog-maintenance/probe-v1/cases/author-retrieval-curated.json",
     "fixtures/catalog-maintenance/public-synthetic-v1/metis.toml",
     "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis",
     "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/bb-people.metis",
@@ -191,6 +207,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/accuracy-maintenance-roster.schema.json",
     "schemas/catalog-maintenance-pin.schema.json",
     "schemas/catalog-retrieval-execution-receipt.schema.json",
+    "schemas/catalog-maintenance-probe.schema.json",
+    "schemas/catalog-maintenance-probe-freeze.schema.json",
     "schemas/catalog-retrieval-receipt.schema.json",
     "schemas/accuracy-uplift-plan.schema.json",
     "schemas/f5-migration-fixture.schema.json",
@@ -213,6 +231,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_catalog_maintenance_pin.py",
     "tests/test_catalog_retrieval.py",
     "tests/test_catalog_retrieval_refresh.py",
+    "tests/test_catalog_maintenance_probe_manifest.py",
+    "tests/test_catalog_maintenance_probe.py",
     "tests/test_accuracy_uplift_plan.py",
     "tests/test_f5_migration.py",
     "tests/test_f6_human_review.py",
@@ -583,6 +603,96 @@ def validate_w5_xs_plan_contract(root: Path) -> list[str]:
         return [f"W5-XS plan contract unreadable: {type(error).__name__}: {error}"]
 
 
+def validate_catalog_maintenance_probe_contract(root: Path) -> list[str]:
+    """Validate the immutable, public-synthetic probe specification only.
+
+    This gate intentionally validates no model outputs and cannot create a
+    pre-output seal.  The separate Git seal/evaluation authority remains
+    fail-closed until an explicitly authorized wave wires it.
+    """
+
+    try:
+        manifest_path = root / "manifests/catalog-maintenance-probe-v1.json"
+        schema_path = root / "schemas/catalog-maintenance-probe.schema.json"
+        manifest = load_json(manifest_path)
+        schema = load_json(schema_path)
+        errors = validate_instance(manifest, schema)
+        if errors:
+            return [f"catalog maintenance probe schema: {error}" for error in errors]
+
+        def digest(payload: bytes) -> str:
+            return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+        body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+        canonical = json.dumps(
+            body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        if manifest["manifest_sha256"] != digest(canonical):
+            errors.append("catalog maintenance probe manifest hash contains drift")
+
+        expected_paths = {item["path"] for item in manifest["files"]}
+        actual_paths = {
+            path.relative_to(root).as_posix()
+            for path in (root / "fixtures/catalog-maintenance/probe-v1").rglob("*")
+            if path.is_file()
+        }
+        if actual_paths != expected_paths:
+            errors.append("catalog maintenance probe case roster differs from manifest files")
+
+        case_schema = schema["$defs"]["case"]
+        cases: dict[str, dict[str, Any]] = {}
+        for record in manifest["files"]:
+            path = root / record["path"]
+            if digest(path.read_bytes()) != record["sha256"]:
+                errors.append(f"catalog maintenance probe case hash drift: {record['path']}")
+            case = load_json(path)
+            case_errors = validate_instance(case, case_schema)
+            errors.extend(
+                f"catalog maintenance probe case {record['path']}: {error}" for error in case_errors
+            )
+            case_id = case.get("case_id")
+            if case_id in cases:
+                errors.append(f"catalog maintenance probe duplicate case ID: {case_id}")
+            cases[case_id] = case
+
+        bindings = manifest["cases"]
+        if len(bindings) != manifest["counts"]["cases"] or len(cases) != 8:
+            errors.append("catalog maintenance probe must contain exactly 8 cases")
+        if {binding["case_id"] for binding in bindings} != set(cases):
+            errors.append("catalog maintenance probe case bindings do not match case files")
+        if len({binding["root_id"] for binding in bindings}) != 8:
+            errors.append("catalog maintenance probe roots are not distinct")
+        if len({binding["template_id"] for binding in bindings}) != 8:
+            errors.append("catalog maintenance probe templates are not distinct")
+        if {case["provenance"]["lineage_component"] for case in cases.values()} != {
+            "public-synthetic-catalog-v1"
+        }:
+            errors.append("catalog maintenance probe lineage is outside public synthetic scope")
+        mode_counts = {
+            "author": sum(case["mode"] == "author" for case in cases.values()),
+            "edit": sum(case["mode"] == "edit" for case in cases.values()),
+            "repair": sum(case["mode"] == "repair" for case in cases.values()),
+        }
+        declared_counts = {
+            "authors": manifest["counts"]["authors"],
+            "edits": manifest["counts"]["edits"],
+            "repairs": manifest["counts"]["repairs"],
+        }
+        if mode_counts != {
+            "author": declared_counts["authors"],
+            "edit": declared_counts["edits"],
+            "repair": declared_counts["repairs"],
+        }:
+            errors.append("catalog maintenance probe mode counts are not recomputed from cases")
+        if manifest["status"] != "static_pre_output_specification":
+            errors.append("catalog maintenance probe spec is not pre-output only")
+        if manifest["gates"]["model_outputs_before_seal"] is not False:
+            errors.append("catalog maintenance probe permits model output before its seal")
+        return errors
+    except Exception as error:  # noqa: BLE001 - the gate must fail closed
+        return [f"catalog maintenance probe unreadable: {type(error).__name__}: {error}"]
+
+
 def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
     """Validate the forward-only accuracy plan and its pending grammar boundary."""
 
@@ -596,6 +706,38 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             return schema_errors
 
         errors: list[str] = []
+        probe_errors = validate_catalog_maintenance_probe_contract(root)
+        errors.extend(probe_errors)
+        probe = plan["catalog_maintenance_probe"]
+        for name in ("manifest", "schema", "retrieval_manifest", "retrieval_receipt"):
+            reference = probe[name]
+            path = root / reference["path"]
+            if not path.is_file():
+                errors.append(f"catalog maintenance probe {name} reference is missing")
+            elif "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest() != reference["sha256"]:
+                errors.append(f"catalog maintenance probe {name} reference hash contains drift")
+        if probe["status"] != "spec_ready":
+            errors.append("catalog maintenance probe seal/evaluation authority is not wired")
+        if (
+            probe["pre_output_seal"] is not None
+            or probe["evaluation_receipt"] is not None
+            or probe["decision_report"] is not None
+            or probe["model_outputs_observed"] is not False
+        ):
+            errors.append("catalog maintenance probe is not in its fail-closed spec-ready state")
+        if probe["case_count"] != 8:
+            errors.append("catalog maintenance probe case count is not 8")
+        if (
+            plan["catalog_value_domain"]["materialization_scope"]
+            != "catalog_maintenance_probe_only"
+        ):
+            errors.append("catalog value-domain materialization scope is broader than the probe")
+        if (
+            plan["gates"]["catalog_probe_sealed_pre_output"]
+            or plan["gates"]["catalog_probe_evaluation_allowed"]
+        ):
+            errors.append("catalog probe seal/evaluation gate opened before its verifier")
+
         register = load_json(root / "manifests/decision-register.json")
         decisions = [item for item in register["open_decisions"] if item.get("id") == "O-010"]
         if (
@@ -654,10 +796,10 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         pending_forbidden = {
             "catalog_domain_prompt_truth",
             "catalog_domain_oracle_truth",
-            "catalog_domain_split_materialization",
             "t30_model_outputs_before_complete_seal",
             "tenant_value_payloads",
             "training",
+            "catalog_probe_model_outputs_before_probe_seal",
         }
         if pending:
             if upstream["pin"] is not None:
@@ -781,7 +923,8 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             required_allowed = {
                 "catalog_domain_prompt_truth",
                 "catalog_domain_oracle_truth",
-                "catalog_domain_split_materialization",
+                "catalog_probe_spec_and_oracle_truth",
+                "catalog_probe_pre_output_seal",
             }
             if not required_allowed.issubset(plan["execution_partition"]["allowed_now"]):
                 errors.append("refreshed execution partition omits catalog construction work")
@@ -789,6 +932,7 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
                 "t30_model_outputs_before_complete_seal",
                 "tenant_value_payloads",
                 "training",
+                "catalog_probe_model_outputs_before_probe_seal",
             }
             if not required_forbidden.issubset(plan["execution_partition"]["forbidden_now"]):
                 errors.append("refreshed execution partition omits persistent prohibitions")
@@ -796,12 +940,13 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
                 errors.append("refreshed catalog construction remains contradictory")
 
         final_test = wave["final_test"]
-        diagnostic = wave["diagnostic"]
         benchmark_evidence = plan["maintenance_benchmark_evidence"]
-        if diagnostic["materialized"] != 0 or final_test["materialized"] != 0:
+        if any(
+            wave[name]["materialized"] != 0 for name in ("diagnostic", "train", "dev", "final_test")
+        ):
             errors.append(
-                "maintenance roster verifier is not integrated; D18/T30 materialization "
-                "counters remain zero"
+                "broad D18/train/dev/T30 materialization remains forbidden "
+                "while the probe is active"
             )
         if (
             final_test["seal_status"] == "sealed_pre_output"
@@ -893,7 +1038,7 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         if pinned and refresh_ready:
             if (
                 plan["status"] != "benchmark_construction_active"
-                or gates["active_work"] != "benchmark_materialization"
+                or gates["active_work"] != "catalog_probe_pre_output_seal"
             ):
                 errors.append("refreshed plan status or active-work state contains drift")
             stale_nonclaims = {"no_retrieval_refresh", "no_semantic_oracle_refresh"}
@@ -1735,6 +1880,14 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         )
     else:
         report.passes.append("catalog-retrieval-refresh=public-synthetic/8-goldens/redacted")
+
+    catalog_probe_errors = validate_catalog_maintenance_probe_contract(root)
+    if catalog_probe_errors:
+        report.errors.extend(
+            f"catalog-maintenance-probe: {error}" for error in catalog_probe_errors
+        )
+    else:
+        report.passes.append("catalog-maintenance-probe=8-cases/spec-ready/no-output")
 
     from metis_model1.maintenance_decision import (
         build_blocked_maintenance_contract,

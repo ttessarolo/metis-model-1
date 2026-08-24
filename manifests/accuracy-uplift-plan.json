@@ -5,7 +5,7 @@
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:1228cee8db79579d884f022b1c0be229c855f0abdb92c0de4cf023859a71de75"
+    "sha256": "sha256:3507ce8a42b5b90c3e059d597da0e3ae8d045fb2a53f9b678dcf57755cdd186f"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
@@ -93,6 +93,7 @@
   },
   "catalog_value_domain": {
     "construct_id": "catalog_value_domain",
+    "materialization_scope": "catalog_maintenance_probe_only",
     "status": "ready_for_materialization",
     "canonical_surface_authority": "upstream_grammar_at_pinned_revision",
     "legacy_inline_materialized_values": "forbidden_as_canonical",
@@ -183,13 +184,15 @@
       "catalog_retrieval_adapter_contract_work",
       "catalog_domain_prompt_truth",
       "catalog_domain_oracle_truth",
-      "catalog_domain_split_materialization",
+      "catalog_probe_spec_and_oracle_truth",
+      "catalog_probe_pre_output_seal",
       "upstream_read_only_pin_monitoring"
     ],
     "forbidden_now": [
       "t30_model_outputs_before_complete_seal",
       "tenant_value_payloads",
-      "training"
+      "training",
+      "catalog_probe_model_outputs_before_probe_seal"
     ]
   },
   "maintenance": {
@@ -235,16 +238,50 @@
     "pre_output_seal": null,
     "decision_report": null
   },
+  "catalog_maintenance_probe": {
+    "status": "spec_ready",
+    "authority_scope": "public_synthetic_only",
+    "manifest": {
+      "path": "manifests/catalog-maintenance-probe-v1.json",
+      "sha256": "sha256:f9b53a7868e07155153052cd80e936e6c7dadea4a0afb71f3898f7aa00be4046"
+    },
+    "schema": {
+      "path": "schemas/catalog-maintenance-probe.schema.json",
+      "sha256": "sha256:4440d8ffcfaf65fd7f0ba25aab820a4b19a8cc5cf6dc67040bc63e8e4cf31b4e"
+    },
+    "retrieval_manifest": {
+      "path": "manifests/catalog-retrieval-public-synthetic-v1.json",
+      "sha256": "sha256:203ed68a1574c869910fc0b096cfa3a760a3e0b6857a9fb89d1902d582241bb2"
+    },
+    "retrieval_receipt": {
+      "path": "manifests/catalog-retrieval-execution-v1.json",
+      "sha256": "sha256:dd5a2b3046842dba35bffd06111882caafe52c66d80bd1f0d3b7c3a7d911ea5b"
+    },
+    "case_count": 8,
+    "decision_policy": {
+      "pass_verdict": "NO_RETRAIN",
+      "failure_action": "diagnostic_only",
+      "training_auto_authorized": false,
+      "promotion_claim": false,
+      "accuracy_claim": false
+    },
+    "pre_output_seal": null,
+    "evaluation_receipt": null,
+    "decision_report": null,
+    "model_outputs_observed": false
+  },
   "gates": {
     "surface_pin_complete": true,
     "upstream_pin_complete": true,
     "retrieval_contract_refreshed": true,
     "semantic_oracle_refreshed": true,
     "catalog_materialization_allowed": true,
+    "catalog_probe_sealed_pre_output": false,
+    "catalog_probe_evaluation_allowed": false,
     "t30_sealed_before_model_outputs": false,
     "model_evaluation_allowed": false,
     "training_allowed": false,
-    "active_work": "benchmark_materialization"
+    "active_work": "catalog_probe_pre_output_seal"
   },
   "nonclaims": [
     "no_catalog_domain_dataset",

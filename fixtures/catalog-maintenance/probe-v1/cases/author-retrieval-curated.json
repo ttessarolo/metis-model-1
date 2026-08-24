@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "evidence_role": "catalog_probe_case_spec",
+  "case_id": "author-retrieval-curated",
+  "status": "sealed_pre_output_spec",
+  "upstream": {"revision":"5e112f9148f40e7e792052e896c5a9efe8eaf0a2","tree":"41c7a2b6890fa42d8123bd93f6560d0b9bfae8af","language_version":"0.43"},
+  "family": "F-1",
+  "mode": "author",
+  "construct": "retrieval_boundary_no_inline",
+  "difficulty": "intermediate",
+  "provenance": {"semantic_root":"root/catalog-retrieval-boundary-v1","template_id":"template/catalog-retrieval-boundary-v1","lineage_component":"public-synthetic-catalog-v1","parents":["public-synthetic/catalog-video/genre-editorial-curated"]},
+  "prompt": {"request":"The public-synthetic catalog:values retrieval returned Curated for video.genre. Author or preserve only the catalog skeleton. Keep genre canonical as keyword enum(3) and do not inline Curated or any other values.","context_refs":["manifests/catalog-retrieval-execution-v1.json#values-enum-editorial","fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis"],"retrieved_value":{"catalog":"video","field":"genre","value":"Curated","source":"public-synthetic per-field retrieval"}},
+  "target": {"expected_source":"metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    genre keyword enum(3)\n  }\n}\n","required_fragments":["genre keyword enum(3)"],"forbidden_fragments":["genre keyword values","genre keyword enum(3) values","Curated"]},
+  "oracle": {"status":"pending_execution","expected_stages":["parse","link","validate","catalog_describe_semantic"],"semantic_checks":["catalog genre remains enum size 3","retrieved Curated literal is not materialized in catalog skeleton","catalog source contains no domain values"],"model_outputs_observed":false},
+  "retrieval": {"kind":"public_synthetic_value","query":{"operation":"values","catalog":"video","field":"genre"},"expected":{"kind":"enum","size":1,"nature":"editorial","value":"Curated","source_receipt_query":"values-enum-editorial"}}
+}

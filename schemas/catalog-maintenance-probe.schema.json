@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-probe.schema.json",
+  "title": "Metis Model 1 catalog maintenance probe",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "probe_id",
+    "status",
+    "authority_scope",
+    "upstream",
+    "model",
+    "cases",
+    "counts",
+    "gates",
+    "nonclaims",
+    "files",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "probe_id": { "const": "catalog-maintenance/probe-v1" },
+    "status": { "const": "static_pre_output_specification" },
+    "authority_scope": { "const": "public_synthetic_only" },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "revision", "tree", "language_version"],
+      "properties": {
+        "repository": { "const": "ares-matioska/metis" },
+        "revision": { "const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2" },
+        "tree": { "const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af" },
+        "language_version": { "const": "0.43" }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "adapter_enabled", "temperature", "seed", "max_tokens", "max_repair_cycles"],
+      "properties": {
+        "family": { "const": "Qwen3.8" },
+        "adapter_enabled": { "const": false },
+        "temperature": { "const": 0 },
+        "seed": { "const": 17 },
+        "max_tokens": { "const": 512 },
+        "max_repair_cycles": { "const": 2 }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "const": [
+        {"case_id":"author-enum3","family":"F-1","mode":"author","construct":"enum_external_top_level","difficulty":"basic","root_id":"root/catalog-enum3-author-v1","template_id":"template/catalog-enum3-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json"},
+        {"case_id":"author-open","family":"F-1","mode":"author","construct":"open_live_index","difficulty":"basic","root_id":"root/catalog-open-author-v1","template_id":"template/catalog-open-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-open.json"},
+        {"case_id":"author-inline-tiny","family":"F-1","mode":"author","construct":"tiny_stable_inline","difficulty":"basic","root_id":"root/catalog-inline-author-v1","template_id":"template/catalog-inline-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json"},
+        {"case_id":"author-nested-enum2","family":"F-1","mode":"author","construct":"enum_external_nested","difficulty":"intermediate","root_id":"root/catalog-nested-enum-author-v1","template_id":"template/catalog-nested-enum-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-nested-enum2.json"},
+        {"case_id":"edit-inline4-to-enum4","family":"F-2","mode":"edit","construct":"inline_to_external_enum","difficulty":"intermediate","root_id":"root/catalog-inline4-edit-v1","template_id":"template/catalog-inline4-edit-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/edit-inline4-to-enum4.json"},
+        {"case_id":"edit-invalid-open-inline","family":"F-2","mode":"edit","construct":"open_without_materialized_values","difficulty":"adversarial","root_id":"root/catalog-open-invalid-edit-v1","template_id":"template/catalog-open-invalid-edit-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/edit-invalid-open-inline.json"},
+        {"case_id":"repair-unsynchronized-enum","family":"F-3","mode":"repair","construct":"unsynchronized_enum_no_invention","difficulty":"adversarial","root_id":"root/catalog-unsynchronized-repair-v1","template_id":"template/catalog-unsynchronized-repair-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/repair-unsynchronized-enum.json"},
+        {"case_id":"author-retrieval-curated","family":"F-1","mode":"author","construct":"retrieval_boundary_no_inline","difficulty":"intermediate","root_id":"root/catalog-retrieval-boundary-v1","template_id":"template/catalog-retrieval-boundary-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-retrieval-curated.json"}
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases", "distinct_roots", "distinct_templates", "source_lineages", "authors", "edits", "repairs"],
+      "properties": {
+        "cases": { "const": 8 },
+        "distinct_roots": { "const": 8 },
+        "distinct_templates": { "const": 8 },
+        "source_lineages": { "const": 1 },
+        "authors": { "const": 5 },
+        "edits": { "const": 2 },
+        "repairs": { "const": 1 }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_case_passes", "critical_failures_max", "invented_values_max", "legacy_inline_for_enum_or_open_max", "retrieval_errors_max", "model_outputs_before_seal", "accuracy_claim", "promotion_claim", "training_authority"],
+      "properties": {
+        "required_case_passes": { "const": "8/8" },
+        "critical_failures_max": { "const": 0 },
+        "invented_values_max": { "const": 0 },
+        "legacy_inline_for_enum_or_open_max": { "const": 0 },
+        "retrieval_errors_max": { "const": 0 },
+        "model_outputs_before_seal": { "const": false },
+        "accuracy_claim": { "const": false },
+        "promotion_claim": { "const": false },
+        "training_authority": { "const": false }
+      }
+    },
+    "nonclaims": {
+      "type": "array",
+      "const": ["no_accuracy_claim", "no_promotion_claim", "no_training_authority", "no_tenant_dataset_authority", "no_independent_accuracy_denominator", "no_live_execution_attestation", "nonpromotable"]
+    },
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "bytes", "sha256"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^fixtures/catalog-maintenance/probe-v1/cases/[a-z0-9-]+\\.json$" },
+          "bytes": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "manifest_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "evidence_role", "case_id", "status", "upstream", "family", "mode", "construct", "difficulty", "provenance", "prompt", "target", "oracle", "retrieval"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "evidence_role": { "const": "catalog_probe_case_spec" },
+        "case_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "status": { "const": "sealed_pre_output_spec" },
+        "upstream": {
+          "type": "object", "additionalProperties": false,
+          "required": ["revision", "tree", "language_version"],
+          "properties": {
+            "revision": { "const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2" },
+            "tree": { "const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af" },
+            "language_version": { "const": "0.43" }
+          }
+        },
+        "family": { "enum": ["F-1", "F-2", "F-3"] },
+        "mode": { "enum": ["author", "edit", "repair"] },
+        "construct": { "type": "string", "minLength": 1 },
+        "difficulty": { "enum": ["basic", "intermediate", "adversarial"] },
+        "provenance": {
+          "type": "object", "additionalProperties": false,
+          "required": ["semantic_root", "template_id", "lineage_component", "parents"],
+          "properties": {
+            "semantic_root": { "type": "string", "minLength": 1 },
+            "template_id": { "type": "string", "minLength": 1 },
+            "lineage_component": { "const": "public-synthetic-catalog-v1" },
+            "parents": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "prompt": {
+          "type": "object", "additionalProperties": false,
+          "required": ["request", "context_refs"],
+          "properties": {
+            "request": { "type": "string", "minLength": 1 },
+            "context_refs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "before_source": { "type": "string", "minLength": 1 },
+            "retrieved_value": {
+              "type": "object", "additionalProperties": false,
+              "required": ["catalog", "field", "value", "source"],
+              "properties": {
+                "catalog": { "type": "string", "minLength": 1 },
+                "field": { "type": "string", "minLength": 1 },
+                "value": { "type": "string", "minLength": 1 },
+                "source": { "const": "public-synthetic per-field retrieval" }
+              }
+            }
+          }
+        },
+        "target": {
+          "type": "object", "additionalProperties": false,
+          "required": ["expected_source", "required_fragments", "forbidden_fragments"],
+          "properties": {
+            "expected_source": { "type": "string", "minLength": 1 },
+            "required_fragments": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "forbidden_fragments": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "oracle": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "expected_stages", "semantic_checks", "model_outputs_observed"],
+          "properties": {
+            "status": { "const": "pending_execution" },
+            "expected_stages": { "const": ["parse", "link", "validate", "catalog_describe_semantic"] },
+            "semantic_checks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "model_outputs_observed": { "const": false }
+          }
+        },
+    "retrieval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "query", "expected"],
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "not_required" },
+            "query": { "const": null },
+            "expected": { "const": { "values_in_model_input": false } }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "public_synthetic_value" },
+            "query": {
+              "type": "object", "additionalProperties": false,
+              "required": ["operation", "catalog", "field"],
+              "properties": {
+                "operation": { "const": "values" },
+                "catalog": { "const": "video" },
+                "field": { "const": "genre" }
+              }
+            },
+            "expected": {
+              "const": {
+                "kind": "enum",
+                "size": 1,
+                "nature": "editorial",
+                "value": "Curated",
+                "source_receipt_query": "values-enum-editorial"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+            "kind": { "enum": ["not_required", "public_synthetic_value"] },
+            "query": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["operation", "catalog", "field"],
+                  "properties": {
+                    "operation": { "const": "values" },
+                    "catalog": { "const": "video" },
+                    "field": { "type": "string", "minLength": 1 }
+                  }
+                }
+              ]
+            },
+            "expected": { "type": "object", "minProperties": 1, "additionalProperties": true }
+          }
+        }
+      }
+    }
+  }
+}

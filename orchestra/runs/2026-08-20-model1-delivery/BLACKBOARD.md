@@ -4217,3 +4217,43 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   the three pre-existing protected/live-dependent groups (`oracles=31`,
   `w3_bridge_gate=25`, `w3_qualifier=46`); no catalog-refresh test regressed.
   This is scoped checkpoint evidence, not a production-qualification claim.
+- DECISION — L0 rejects the 48-new-task D18/T30 roster as the critical path for
+  this bounded catalog grammar maintenance change. The broad six-family
+  accuracy wave is postponed, remains materialized at zero and cannot observe
+  model output. The active path is a separate public-synthetic eight-case,
+  non-statistical and non-promotional probe; `8/8` plus zero vetoes may support
+  `NO_RETRAIN`, while any failure is diagnostic and never authorizes training.
+- FACT — The probe specification closes `in=8 out=8 distinct_case_ids=8
+  distinct_roots=8 distinct_templates=8 gaps=0`, with author/edit/repair
+  `5/2/1` and one honest public-synthetic lineage. Exact pinned
+  `catalog:describe` replay accepts all eight expected sources; only the
+  dedicated retrieval-boundary case receives `Curated`, and no target source
+  is present in a prompt. Model outputs remain zero.
+- FIX — The pre-output runner binds exact published `HEAD`, Git blob OIDs and
+  worktree bytes for the complete local import/fixture closure; raw/self receipt
+  identities; the fixed three Qwen3.8 shards plus every auxiliary checkpoint
+  file; worker, Python and checkpoint-report identities; prompt/truth/retrieval
+  recomputation; a sterile environment; deny-network execution; bounded worker
+  I/O; post-load/per-generation checkpoint metadata; canonical case/root gate
+  arithmetic; and atomic ignored output. Training authority is always false.
+- DONE — Three independent read-only audits plus L0 replay close current probe
+  specification and runner at P0=0/P1=0. Focused results are probe `18/18`,
+  plan/contracts `54/54`, retrieval/pin `33/33`; foundation, Ruff, formatting,
+  compile and diff checks are green. No freeze, inference, adapter, dataset or
+  training payload has been produced by this checkpoint.
+- RISK — Current live AWS evidence supersedes the earlier canary claim for the
+  newly configured SSO profile: STS assumes the expected account/role, but a
+  zero-byte `s3:PutObject` canary is denied because the permission set has no
+  identity-based `s3:PutObject` grant. No object was created. S3 backup remains
+  independent of, and nonblocking for, the local model probe.
+- OPEN — Exact next sequence: commit and push this spec/runner checkpoint;
+  generate the no-output freeze against that exact remote preimage; independently
+  verify and commit/push the seal; then run the adapter-off Qwen3.8 probe once.
+  `NO_RETRAIN` is available only at `8/8` with all veto counters zero.
+- RISK — Required repository-wide `make check` is complete: foundation has
+  `56` passes and zero errors, pilot/lint/format are green, and full pytest is
+  `1126 passed, 102 failed, 1 skipped` in `449.62s`. The unchanged 102 failures
+  remain exactly confined to historical protected/live-dependent groups
+  (`tests/test_oracles.py=31`, `tests/test_w3_bridge_gate.py=25`,
+  `tests/test_w3_qualifier.py=46`); probe/retrieval/plan tests do not regress.
+  No repository-wide green or production-qualification claim is made.

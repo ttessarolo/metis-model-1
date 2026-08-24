@@ -67,15 +67,30 @@ def test_accuracy_uplift_plan_is_green_and_implementation_pinned() -> None:
     assert plan["gates"]["retrieval_contract_refreshed"] is True
     assert plan["gates"]["semantic_oracle_refreshed"] is True
     assert plan["status"] == "benchmark_construction_active"
-    assert plan["gates"]["active_work"] == "benchmark_materialization"
+    assert plan["gates"]["active_work"] == "catalog_probe_pre_output_seal"
     assert plan["catalog_value_domain"]["materialization_allowed"] is True
+    assert plan["catalog_value_domain"]["materialization_scope"] == "catalog_maintenance_probe_only"
+    assert plan["catalog_maintenance_probe"]["status"] == "spec_ready"
+    assert plan["catalog_maintenance_probe"]["case_count"] == 8
+    assert plan["catalog_maintenance_probe"]["pre_output_seal"] is None
+    assert plan["catalog_maintenance_probe"]["evaluation_receipt"] is None
+    assert plan["catalog_maintenance_probe"]["decision_report"] is None
+    assert plan["catalog_maintenance_probe"]["model_outputs_observed"] is False
+    assert plan["gates"]["catalog_probe_sealed_pre_output"] is False
+    assert plan["gates"]["catalog_probe_evaluation_allowed"] is False
     assert plan["gates"]["training_allowed"] is False
     assert plan["maintenance"]["default_verdict"] == "NO_INITIAL_TRAIN"
     assert plan["historical_evidence"]["fine_tuned_adapter_present"] is False
     assert plan["historical_evidence"]["semantic_score"] == "11/12"
     assert plan["historical_evidence"]["source_oracle_audit"] == "12/12"
     assert "catalog_retrieval_adapter_contract_work" in plan["execution_partition"]["allowed_now"]
-    assert "catalog_domain_split_materialization" in plan["execution_partition"]["allowed_now"]
+    assert "catalog_domain_split_materialization" not in plan["execution_partition"]["allowed_now"]
+    assert "catalog_probe_spec_and_oracle_truth" in plan["execution_partition"]["allowed_now"]
+    assert "catalog_probe_pre_output_seal" in plan["execution_partition"]["allowed_now"]
+    assert (
+        "catalog_probe_model_outputs_before_probe_seal"
+        in plan["execution_partition"]["forbidden_now"]
+    )
     assert plan["maintenance_benchmark_evidence"] == {
         "roster": None,
         "pre_output_seal": None,
@@ -146,6 +161,41 @@ def test_semantic_gate_rejects_training_authority_laundering(
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
     assert "accuracy-uplift planning contract cannot authorize training" in errors
+
+
+def test_semantic_gate_rejects_probe_evaluation_before_git_seal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["gates"].update(
+            {
+                "catalog_probe_sealed_pre_output": True,
+                "catalog_probe_evaluation_allowed": True,
+            }
+        ),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "catalog probe seal/evaluation gate opened before its verifier" in errors
+
+
+def test_semantic_gate_rejects_probe_reference_hash_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["catalog_maintenance_probe"]["manifest"].update(
+            {"sha256": "sha256:" + "0" * 64}
+        ),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "catalog maintenance probe manifest reference hash contains drift" in errors
 
 
 def test_semantic_gate_rejects_counter_only_t30_false_seal(
@@ -225,7 +275,7 @@ def test_semantic_gate_rejects_unbacked_materialization_counters(
 
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
-    assert any("materialization counters remain zero" in error for error in errors)
+    assert any("materialization remains forbidden" in error for error in errors)
 
 
 def test_semantic_gate_rejects_previous_adapter_wording(
@@ -292,7 +342,8 @@ def test_semantic_gate_requires_ratified_maintenance_policy(
     [
         "catalog_domain_prompt_truth",
         "catalog_domain_oracle_truth",
-        "catalog_domain_split_materialization",
+        "catalog_probe_spec_and_oracle_truth",
+        "catalog_probe_pre_output_seal",
     ],
 )
 def test_refreshed_state_requires_every_catalog_construction_operation(

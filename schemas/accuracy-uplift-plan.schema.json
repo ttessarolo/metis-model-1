@@ -18,6 +18,7 @@
     "execution_partition",
     "maintenance",
     "maintenance_benchmark_evidence",
+    "catalog_maintenance_probe",
     "gates",
     "nonclaims"
   ],
@@ -116,7 +117,8 @@
               "catalog_retrieval_adapter_contract_work",
               "catalog_domain_prompt_truth",
               "catalog_domain_oracle_truth",
-              "catalog_domain_split_materialization",
+              "catalog_probe_spec_and_oracle_truth",
+              "catalog_probe_pre_output_seal",
               "upstream_read_only_pin_monitoring"
             ]
           }
@@ -129,10 +131,10 @@
             "enum": [
               "catalog_domain_prompt_truth",
               "catalog_domain_oracle_truth",
-              "catalog_domain_split_materialization",
               "t30_model_outputs_before_complete_seal",
               "tenant_value_payloads",
-              "training"
+              "training",
+              "catalog_probe_model_outputs_before_probe_seal"
             ]
           }
         }
@@ -141,6 +143,9 @@
     "maintenance": { "$ref": "#/$defs/maintenance" },
     "maintenance_benchmark_evidence": {
       "$ref": "#/$defs/maintenanceBenchmarkEvidence"
+    },
+    "catalog_maintenance_probe": {
+      "$ref": "#/$defs/catalogMaintenanceProbe"
     },
     "gates": { "$ref": "#/$defs/gates" },
     "nonclaims": {
@@ -280,6 +285,7 @@
       "additionalProperties": false,
       "required": [
         "construct_id",
+        "materialization_scope",
         "status",
         "canonical_surface_authority",
         "legacy_inline_materialized_values",
@@ -296,6 +302,7 @@
       ],
       "properties": {
         "construct_id": { "const": "catalog_value_domain" },
+        "materialization_scope": { "const": "catalog_maintenance_probe_only" },
         "status": {
           "enum": [
             "reserved_pending_upstream_pin",
@@ -621,6 +628,61 @@
         }
       }
     },
+    "catalogMaintenanceProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "authority_scope",
+        "manifest",
+        "schema",
+        "retrieval_manifest",
+        "retrieval_receipt",
+        "case_count",
+        "decision_policy",
+        "pre_output_seal",
+        "evaluation_receipt",
+        "decision_report",
+        "model_outputs_observed"
+      ],
+      "properties": {
+        "status": { "enum": ["spec_ready", "sealed_pre_output", "evaluated"] },
+        "authority_scope": { "const": "public_synthetic_only" },
+        "manifest": { "$ref": "#/$defs/evidenceFile" },
+        "schema": { "$ref": "#/$defs/evidenceFile" },
+        "retrieval_manifest": { "$ref": "#/$defs/evidenceFile" },
+        "retrieval_receipt": { "$ref": "#/$defs/evidenceFile" },
+        "case_count": { "const": 8 },
+        "decision_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pass_verdict",
+            "failure_action",
+            "training_auto_authorized",
+            "promotion_claim",
+            "accuracy_claim"
+          ],
+          "properties": {
+            "pass_verdict": { "const": "NO_RETRAIN" },
+            "failure_action": { "const": "diagnostic_only" },
+            "training_auto_authorized": { "const": false },
+            "promotion_claim": { "const": false },
+            "accuracy_claim": { "const": false }
+          }
+        },
+        "pre_output_seal": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        },
+        "evaluation_receipt": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        },
+        "decision_report": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        },
+        "model_outputs_observed": { "type": "boolean" }
+      }
+    },
     "gates": {
       "type": "object",
       "additionalProperties": false,
@@ -630,6 +692,8 @@
         "retrieval_contract_refreshed",
         "semantic_oracle_refreshed",
         "catalog_materialization_allowed",
+        "catalog_probe_sealed_pre_output",
+        "catalog_probe_evaluation_allowed",
         "t30_sealed_before_model_outputs",
         "model_evaluation_allowed",
         "training_allowed",
@@ -641,6 +705,8 @@
         "retrieval_contract_refreshed": { "type": "boolean" },
         "semantic_oracle_refreshed": { "type": "boolean" },
         "catalog_materialization_allowed": { "type": "boolean" },
+        "catalog_probe_sealed_pre_output": { "type": "boolean" },
+        "catalog_probe_evaluation_allowed": { "type": "boolean" },
         "t30_sealed_before_model_outputs": { "type": "boolean" },
         "model_evaluation_allowed": { "type": "boolean" },
         "training_allowed": { "type": "boolean" },
@@ -650,6 +716,7 @@
             "pin_refresh",
             "retrieval_refresh",
             "benchmark_materialization",
+            "catalog_probe_pre_output_seal",
             "maintenance_evaluation",
             "conditional_delta_training"
           ]

@@ -42,7 +42,13 @@ Consequences:
 
 ## 2. Work partition after the Model 1 refresh
 
-The wave remains active.  The following work may proceed now:
+The broad D18/T30 accuracy wave is deliberately deferred. Its six-family
+rosters, train/dev construction, and final-test materialization remain a
+nonblocking accuracy backlog; they are not required to close this grammar
+maintenance change and no model output is authorized for them.
+
+The following work is postponed to a separately authorized broad-accuracy
+wave and is not on the current critical path:
 
 - design and freeze non-catalog D18 tasks;
 - design non-catalog T30 tasks and their oracle truth;
@@ -51,18 +57,23 @@ The wave remains active.  The following work may proceed now:
 - implement and verify the Model 1 adapter for the pinned offline
   `catalog:describe` / `catalog:values` contract.
 
-The following work is now open only for the pinned public-synthetic lineage:
+The only active work is now open for the pinned public-synthetic lineage:
 
 - catalog-domain prompt or expected-output truth;
 - catalog-domain oracle truth;
-- materialization of catalog-domain D18, train, dev, or T30 slots;
+- a separate eight-case catalog-maintenance probe after its Git pre-output
+  seal;
 
 Catalog truth derived from prose alone remains forbidden. Tenant payloads and
 live-index values remain outside the dataset and outside this authorization.
 
-No model output is observed for this accuracy wave until the complete T30,
-including the reserved catalog-domain slots, is sealed before output.  This is
-a contamination guard, not a stop to task and oracle construction.
+The eight-case probe is non-statistical and non-promotional. Its result is a
+maintenance diagnostic only: `8/8` semantic passes support `NO_RETRAIN` for
+this grammar change, while failures identify repair work and never
+auto-authorize training. Probe output is forbidden until the separate probe
+manifest, schema, retrieval references, and case files have been sealed in a
+Git pre-output commit. The broad D18/T30 wave remains unmaterialized and
+output-forbidden.
 
 ## 3. Frozen wave arithmetic
 
@@ -115,11 +126,11 @@ goldens cover describe, inline, list, editorial enum, reflected nested enum,
 unsynchronized enum, open and none. The fixed fixture manifest is
 `manifests/catalog-retrieval-public-synthetic-v1.json`; the observed receipt is
 `manifests/catalog-retrieval-execution-v1.json`. Both validate against pinned
-raw digests and exact output summaries/hashes. This is sufficient to open
-reserved-task materialization for this synthetic lineage; it is not tenant or
-production authority. The next state transition is D18/T30 construction and
-the complete maintenance seal. Old benchmark and delivery evidence remain
-historical and unchanged.
+raw digests and exact output summaries/hashes. This is sufficient to open the
+separate probe specification for this synthetic lineage; it is not tenant or
+production authority. The next state transition is the probe's Git pre-output
+seal. D18/T30 construction remains deferred and old benchmark and delivery
+evidence remain historical and unchanged.
 
 ## 5. Model decision path
 
@@ -128,23 +139,22 @@ The ratified O-010 order is mandatory:
 1. pin and diff the upstream revision;
 2. refresh retrieval;
 3. regenerate affected oracles;
-4. seal the maintenance benchmark before model outputs;
-5. run the Qwen3.8 base plus refreshed retrieval baseline; B12-v4 is historical
-   adapter-off evidence, not a fine-tuned adapter;
-6. return `NO_INITIAL_TRAIN` from D18 when at least 17/18 tasks are semantically
-   correct, every family reaches 2/3, and critical, invented-symbol and recurring
-   failure counts are all zero;
-7. consider one bounded initial micro-QLoRA only after at least three correctable
-   semantic failures across at least two independent roots, with dev-only
-   checkpoint selection and no T30 feedback.
+4. seal the eight-case maintenance probe before its model outputs;
+5. run the Qwen3.8 base plus refreshed retrieval baseline only for that sealed
+   probe; B12-v4 is historical adapter-off evidence, not a fine-tuned adapter;
+6. return `NO_RETRAIN` from the probe only when all 8/8 cases are semantically
+   correct and critical, invented-value, legacy-inline, and retrieval-error
+   counts are all zero;
+7. treat any probe failure as diagnostic evidence only. It does not authorize
+   a dataset, a checkpoint, a QLoRA run, or promotion. A future training wave
+   still requires its own explicit authorization and the preregistered
+   three-failures/two-roots condition.
 
-All D18 and T30 tasks, their truth, oracle/retrieval receipts, provenance and
-genealogy must exist and hash-match a sealed roster before any model output is
-observed. Counters and status flags alone never constitute a seal. T30 is run
-once only as final local confirmation: at least 29/30 overall and 4/5 per family,
-with zero vetoes, may support `MODEL1_USABLE_LOCAL`; its outcomes cannot reopen
-training or checkpoint selection. These are observed-local denominators, not a
-population Accuracy-99 claim.
+The broad D18/T30 tasks, truth, oracle/retrieval receipts, provenance and
+genealogy remain unmaterialized and cannot produce model output in this
+maintenance wave. Counters and status flags alone never constitute a seal.
+The probe's 8/8 result is not an independent accuracy denominator and cannot
+support `MODEL1_USABLE_LOCAL` or any population Accuracy-99 claim.
 
 A full successor is considered only if the normalized AST/IR or verified
 semantic contract changes, or if refreshed retrieval plus a compatible bounded
@@ -154,6 +164,8 @@ delta still fails the semantic or replay gates.
 
 This planning contract records an executable upstream implementation pin plus
 a locally replayed, value-redacted public-synthetic retrieval/oracle refresh.
-No catalog-domain benchmark item has yet been materialized. This is not tenant
-dataset authority, model evaluation, training authorization, an accuracy claim,
+The separate probe specification is not a tenant dataset and has no statistical
+or promotional authority. Until its Git pre-output seal exists, no probe model
+output is observed. The broad D18/T30 benchmark remains unmaterialized. This is
+not tenant dataset authority, training authorization, an accuracy claim,
 external execution attestation, or a promotion verdict.

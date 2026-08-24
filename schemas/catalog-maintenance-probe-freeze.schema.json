@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-probe-freeze.schema.json",
+  "title": "Catalog maintenance probe pre-output freeze",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "freeze_id", "status", "preimage_commit", "preimage_tree",
+    "remote", "remote_ref", "probe_manifest_sha256", "probe_manifest_file_sha256", "probe_schema_sha256",
+    "bound_inputs", "catalog_pin", "retrieval", "checkpoint", "runtime", "model", "counts",
+    "tasks", "model_outputs_observed", "training_authorized", "nonclaims", "freeze_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "freeze_id": {"const": "catalog-maintenance-probe-freeze/v1"},
+    "status": {"const": "frozen_before_model_output"},
+    "preimage_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "preimage_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "remote": {"type": "string", "minLength": 1},
+    "remote_ref": {"type": "string", "pattern": "^refs/heads/[A-Za-z0-9._/-]+$"},
+    "probe_manifest_sha256": {"const": "sha256:e3c1280085995f8eb14012cfa8b0a0b787609d6a47ed2c04eb254a22358be24f"},
+    "probe_manifest_file_sha256": {"const": "sha256:f9b53a7868e07155153052cd80e936e6c7dadea4a0afb71f3898f7aa00be4046"},
+    "probe_schema_sha256": {"const": "sha256:4440d8ffcfaf65fd7f0ba25aab820a4b19a8cc5cf6dc67040bc63e8e4cf31b4e"},
+    "bound_inputs": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "git_blob_oid"], "properties": {
+        "path": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "git_blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }}
+    },
+    "catalog_pin": {"type": "object", "additionalProperties": false, "required": ["revision", "tree", "manifest_sha256", "verification"], "properties": {
+      "revision": {"const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"},
+      "tree": {"const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"},
+      "manifest_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "verification": {"const": "verified_local_cooperative"}
+    }},
+      "retrieval": {"type": "object", "additionalProperties": false, "required": ["manifest_sha256", "receipt_file_sha256", "receipt_self_sha256", "queries", "curated"], "properties": {
+      "manifest_sha256": {"const": "sha256:203ed68a1574c869910fc0b096cfa3a760a3e0b6857a9fb89d1902d582241bb2"},
+      "receipt_file_sha256": {"const": "sha256:dd5a2b3046842dba35bffd06111882caafe52c66d80bd1f0d3b7c3a7d911ea5b"},
+      "receipt_self_sha256": {"const": "sha256:6d007c933ffa9ec4c672b007538c6146b33b19e415174ef474dfc96f455f360d"},
+      "queries": {"const": 8},
+      "curated": {"type": "object", "additionalProperties": false, "required": ["kind", "size", "nature", "value", "receipt_sha256"], "properties": {
+        "kind": {"const": "enum"}, "size": {"const": 1}, "nature": {"const": "editorial"}, "value": {"const": "Curated"}, "receipt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }}
+    }},
+    "checkpoint": {"type": "object", "additionalProperties": false, "required": ["path", "report_sha256", "config_sha256", "config_bytes", "weights", "auxiliary_files", "revision"], "properties": {
+      "path": {"type": "string", "minLength": 1},
+      "report_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "config_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "config_bytes": {"type": "integer", "minimum": 1},
+      "weights": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/checkpoint_file"}},
+      "auxiliary_files": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/checkpoint_file"}},
+      "revision": {"const": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff"}
+    }},
+    "runtime": {"type": "object", "additionalProperties": false, "required": ["probe_runner", "worker_script", "worker_python", "checkpoint_report"], "properties": {
+      "probe_runner": {"$ref": "#/$defs/file_identity"},
+      "worker_script": {"$ref": "#/$defs/file_identity"},
+      "worker_python": {"$ref": "#/$defs/file_identity"},
+      "checkpoint_report": {"$ref": "#/$defs/file_identity"}
+    }},
+    "model": {"type": "object", "additionalProperties": false, "required": ["family", "adapter_enabled", "temperature", "seed", "max_tokens", "max_repair_cycles"], "properties": {
+      "family": {"const": "Qwen3.8"}, "adapter_enabled": {"const": false}, "temperature": {"const": 0}, "seed": {"const": 17}, "max_tokens": {"const": 512}, "max_repair_cycles": {"const": 2}
+    }},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["cases_in", "cases_out", "cases_distinct", "gaps"], "properties": {"cases_in": {"const": 8}, "cases_out": {"const": 8}, "cases_distinct": {"const": 8}, "gaps": {"const": 0}}},
+    "tasks": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"type": "object", "additionalProperties": false, "required": ["case_id", "family", "mode", "root_id", "prompt", "prompt_sha256", "expected_skeleton", "expected_skeleton_sha256", "expected_describe_receipt_sha256", "retrieval", "model_output_observed"], "properties": {
+      "case_id": {"type": "string"}, "family": {"enum": ["F-1", "F-2", "F-3"]}, "mode": {"enum": ["author", "edit", "repair"]}, "root_id": {"type": "string"}, "prompt": {"type": "string", "minLength": 1}, "prompt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "expected_skeleton": {"type": "object"}, "expected_skeleton_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "expected_describe_receipt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "retrieval": {"type": ["object", "null"]}, "model_output_observed": {"const": false}
+    }}},
+    "model_outputs_observed": {"const": false},
+    "training_authorized": {"const": false},
+    "nonclaims": {"const": ["no_accuracy_claim", "no_promotion_claim", "no_training_authority", "no_tenant_dataset_authority", "no_independent_accuracy_denominator", "no_live_execution_attestation", "nonpromotable"]},
+    "freeze_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "checkpoint_file": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "device", "inode", "mtime_ns", "ctime_ns"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^[^/]+$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "device": {"type": "integer", "minimum": 0},
+        "inode": {"type": "integer", "minimum": 0},
+        "mtime_ns": {"type": "integer", "minimum": 0},
+        "ctime_ns": {"type": "integer", "minimum": 0}
+      }
+    },
+    "file_identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

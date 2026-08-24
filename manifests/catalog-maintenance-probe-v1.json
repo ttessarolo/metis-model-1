@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "probe_id": "catalog-maintenance/probe-v1",
+  "status": "static_pre_output_specification",
+  "authority_scope": "public_synthetic_only",
+  "upstream": {
+    "repository": "ares-matioska/metis",
+    "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+    "language_version": "0.43"
+  },
+  "model": {
+    "family": "Qwen3.8",
+    "adapter_enabled": false,
+    "temperature": 0,
+    "seed": 17,
+    "max_tokens": 512,
+    "max_repair_cycles": 2
+  },
+  "cases": [
+    {"case_id":"author-enum3","family":"F-1","mode":"author","construct":"enum_external_top_level","difficulty":"basic","root_id":"root/catalog-enum3-author-v1","template_id":"template/catalog-enum3-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json"},
+    {"case_id":"author-open","family":"F-1","mode":"author","construct":"open_live_index","difficulty":"basic","root_id":"root/catalog-open-author-v1","template_id":"template/catalog-open-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-open.json"},
+    {"case_id":"author-inline-tiny","family":"F-1","mode":"author","construct":"tiny_stable_inline","difficulty":"basic","root_id":"root/catalog-inline-author-v1","template_id":"template/catalog-inline-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json"},
+    {"case_id":"author-nested-enum2","family":"F-1","mode":"author","construct":"enum_external_nested","difficulty":"intermediate","root_id":"root/catalog-nested-enum-author-v1","template_id":"template/catalog-nested-enum-author-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-nested-enum2.json"},
+    {"case_id":"edit-inline4-to-enum4","family":"F-2","mode":"edit","construct":"inline_to_external_enum","difficulty":"intermediate","root_id":"root/catalog-inline4-edit-v1","template_id":"template/catalog-inline4-edit-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/edit-inline4-to-enum4.json"},
+    {"case_id":"edit-invalid-open-inline","family":"F-2","mode":"edit","construct":"open_without_materialized_values","difficulty":"adversarial","root_id":"root/catalog-open-invalid-edit-v1","template_id":"template/catalog-open-invalid-edit-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/edit-invalid-open-inline.json"},
+    {"case_id":"repair-unsynchronized-enum","family":"F-3","mode":"repair","construct":"unsynchronized_enum_no_invention","difficulty":"adversarial","root_id":"root/catalog-unsynchronized-repair-v1","template_id":"template/catalog-unsynchronized-repair-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/repair-unsynchronized-enum.json"},
+    {"case_id":"author-retrieval-curated","family":"F-1","mode":"author","construct":"retrieval_boundary_no_inline","difficulty":"intermediate","root_id":"root/catalog-retrieval-boundary-v1","template_id":"template/catalog-retrieval-boundary-v1","fixture_path":"fixtures/catalog-maintenance/probe-v1/cases/author-retrieval-curated.json"}
+  ],
+  "counts": {"cases":8,"distinct_roots":8,"distinct_templates":8,"source_lineages":1,"authors":5,"edits":2,"repairs":1},
+  "gates": {
+    "required_case_passes":"8/8",
+    "critical_failures_max":0,
+    "invented_values_max":0,
+    "legacy_inline_for_enum_or_open_max":0,
+    "retrieval_errors_max":0,
+    "model_outputs_before_seal":false,
+    "accuracy_claim":false,
+    "promotion_claim":false,
+    "training_authority":false
+  },
+  "nonclaims": ["no_accuracy_claim","no_promotion_claim","no_training_authority","no_tenant_dataset_authority","no_independent_accuracy_denominator","no_live_execution_attestation","nonpromotable"],
+  "files": [
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json","bytes":1670,"sha256":"sha256:b8924d66bb309e9cb5c2e18254c6f2a25156eed6b15692a6e1244dbfaedb1cac"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json","bytes":1736,"sha256":"sha256:99e618f23d1a474f89f0a56389d1c09d07d972aeef148b6286b7d180a758a0ac"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/author-nested-enum2.json","bytes":1804,"sha256":"sha256:c51c8dbef9d7aa93129b019aedaddce17a346f1d20f185859cb353caf9126917"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/author-open.json","bytes":1591,"sha256":"sha256:5e56478a97c09363a96517287538b635159f6bc5f6a209fed6a5eb965a2c5fae"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/author-retrieval-curated.json","bytes":2065,"sha256":"sha256:5e3163cbc7fa55282ba83cff76c3fb3a803b1b9f401bec998653ced7e3ed34b2"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/edit-inline4-to-enum4.json","bytes":1946,"sha256":"sha256:4dbb3e956f5301ce8823f0ac33224ca996007997ecb98784c3c392ed18846954"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/edit-invalid-open-inline.json","bytes":1880,"sha256":"sha256:2a968ab6c4eddc009537b3c3b370ac44a36388c34303486d7718fd8eca521159"},
+    {"path":"fixtures/catalog-maintenance/probe-v1/cases/repair-unsynchronized-enum.json","bytes":1984,"sha256":"sha256:b16fb05630fa02f7bb9ca4c0768ec2515ec5be718d0cf8779be24d60789a401d"}
+  ],
+  "manifest_sha256": "sha256:e3c1280085995f8eb14012cfa8b0a0b787609d6a47ed2c04eb254a22358be24f"
+}

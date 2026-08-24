@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "evidence_role": "catalog_probe_case_spec",
+  "case_id": "repair-unsynchronized-enum",
+  "status": "sealed_pre_output_spec",
+  "upstream": {"revision":"5e112f9148f40e7e792052e896c5a9efe8eaf0a2","tree":"41c7a2b6890fa42d8123bd93f6560d0b9bfae8af","language_version":"0.43"},
+  "family": "F-3",
+  "mode": "repair",
+  "construct": "unsynchronized_enum_no_invention",
+  "difficulty": "adversarial",
+  "provenance": {"semantic_root":"root/catalog-unsynchronized-repair-v1","template_id":"template/catalog-unsynchronized-repair-v1","lineage_component":"public-synthetic-catalog-v1","parents":["public-synthetic/catalog-video/labels-enum-unsynchronized"]},
+  "prompt": {"request":"Repair the labels field to the canonical unsynchronized external enum marker. Do not invent, copy, or materialize label values when retrieval reports no synchronized values.","context_refs":["manifests/catalog-retrieval-execution-v1.json#describe-all","fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis"],"before_source":"metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    labels keyword multi enum(2) values [\"legacy-a\", \"legacy-b\"]\n  }\n}\n"},
+  "target": {"expected_source":"metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    labels keyword multi enum(2)\n  }\n}\n","required_fragments":["labels keyword multi enum(2)"],"forbidden_fragments":["labels keyword values","labels keyword multi enum(2) values","legacy-a","legacy-b"]},
+  "oracle": {"status":"pending_execution","expected_stages":["parse","link","validate","catalog_describe_semantic"],"semantic_checks":["labels remains multi","labels enum size is 2","no value is invented when synchronized value count is zero"],"model_outputs_observed":false},
+  "retrieval": {"kind":"not_required","query":null,"expected":{"values_in_model_input":false}}
+}
