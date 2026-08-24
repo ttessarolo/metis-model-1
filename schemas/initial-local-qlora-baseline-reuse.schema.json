@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis.local/schemas/initial-local-qlora-baseline-reuse.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "status",
+    "reason",
+    "source",
+    "destination",
+    "execution",
+    "nonclaims",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "initial-local-qlora-baseline-reuse/v1"},
+    "status": {"const": "authorized_post_output_recovery"},
+    "reason": {"type": "string", "minLength": 1},
+    "source": {"type": "object"},
+    "destination": {"type": "object"},
+    "execution": {"type": "object"},
+    "nonclaims": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 4,
+      "uniqueItems": true
+    },
+    "manifest_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

@@ -81,6 +81,10 @@ CONTRACT_PAIRS = (
         "schemas/initial-local-qlora-plan.schema.json",
         "manifests/initial-local-qlora-plan-v1.json",
     ),
+    (
+        "schemas/initial-local-qlora-baseline-reuse.schema.json",
+        "manifests/initial-local-qlora-baseline-reuse-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -174,12 +178,14 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/catalog-maintenance-probe-decision.schema.json",
     "manifests/catalog-maintenance-successor-probe-v1.json",
     "manifests/initial-local-qlora-plan-v1.json",
+    "manifests/initial-local-qlora-baseline-reuse-v1.json",
     "manifests/initial-local-qlora-exclusions-v1.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",
     "schemas/catalog-maintenance-successor-decision.schema.json",
     "schemas/initial-local-qlora-plan.schema.json",
+    "schemas/initial-local-qlora-baseline-reuse.schema.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-open.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json",

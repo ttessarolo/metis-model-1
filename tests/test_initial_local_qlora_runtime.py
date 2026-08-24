@@ -165,6 +165,9 @@ def _training_receipt(tmp_path, dataset, adapter):
         "evidence": {
             "freeze_file_sha256": "sha256:" + "7" * 64,
             "freeze_self_sha256": "sha256:" + "8" * 64,
+            "baseline_reuse_receipt_file_sha256": "sha256:" + "a" * 64,
+            "baseline_reuse_receipt_self_sha256": "sha256:" + "b" * 64,
+            "baseline_origin_sha256": "sha256:" + "c" * 64,
             "preimage_commit": "a" * 40,
             "published_execution_head": "b" * 40,
             "checkpoint": {
@@ -312,7 +315,14 @@ def test_exact_normalized_and_messages_reject_target_role():
         rt._messages({"messages": [{"role": "assistant", "content": "secret"}]})
 
 
-def test_metal_jit_sandbox_canary_uses_both_darwin_cache_aliases():
+def test_metal_jit_sandbox_canary_uses_both_darwin_cache_aliases(tmp_path, monkeypatch):
+    cache = tmp_path.resolve() / "evaluation-cache"
+    policy = rt.EVALUATION_SANDBOX_POLICY.replace(
+        str(rt.EVALUATION_CACHE_ROOT.resolve(strict=False)),
+        str(cache),
+    )
+    monkeypatch.setattr(rt, "EVALUATION_CACHE_ROOT", cache)
+    monkeypatch.setattr(rt, "EVALUATION_SANDBOX_POLICY", policy)
     result = rt._metal_jit_sandbox_canary()
     assert result["status"] == "pass"
     assert result["darwin_cache_aliases"] == list(rt.DARWIN_USER_CACHE_ROOTS)
@@ -821,3 +831,83 @@ def test_score_dev_candidates_uses_pinned_semantic_oracle(tmp_path, monkeypatch)
     )
     assert result["semantic_correct"] == 16
     assert json.loads(report.read_text())["counts"]["critical_failures"] == 0
+
+
+def _write_dev_score_report(tmp_path):
+    families = ["F-1"] * 5 + ["F-2"] * 5 + ["F-3"] * 6
+    observations = []
+    for index in range(16):
+        critical = int(index == 0)
+        invented = int(index == 1)
+        observations.append(
+            {
+                "case_id": f"case-{index:02d}",
+                "family": families[index],
+                "source_sha256": "sha256:" + f"{index + 1:064x}"[-64:],
+                "extraction": "parse error" if critical else "ok",
+                "oracle": "rejected" if critical else "ok",
+                "oracle_failure_sha256": None,
+                "candidate_receipt_sha256": None if critical else "sha256:" + "b" * 64,
+                "target_receipt_sha256": "sha256:" + "c" * 64,
+                "skeleton_match": not critical,
+                "exact_normalized": not critical,
+                "minimal": not critical,
+                "invented_values": invented,
+                "critical_failure": critical,
+                "semantic_correct": int(not critical and not invented),
+            }
+        )
+    counts = {
+        "in": 16,
+        "out": 16,
+        "distinct": 16,
+        "gaps": 0,
+        "semantic_correct": 14,
+        "critical_failures": 1,
+        "invented_values": 1,
+        "family_semantic_correct": {"F-1": 3, "F-2": 5, "F-3": 6},
+    }
+    body = {
+        "schema_version": 1,
+        "status": "verified",
+        "wave": "INITIAL_LOCAL_QLORA_V1",
+        "selection_surface": "frozen_dev16",
+        "dataset_receipt_sha256": "sha256:" + "d" * 64,
+        "generation_report_sha256": "sha256:" + "e" * 64,
+        "generation_identity": {
+            "base_revision": rt._json(rt.CHECKPOINT_PIN)["revision"],
+            "adapter_enabled": False,
+        },
+        "candidates_sha256": "sha256:" + "f" * 64,
+        "counts": counts,
+        "observations": observations,
+    }
+    path = tmp_path / "semantic.json"
+    path.write_text(json.dumps({**body, "report_sha256": rt._canonical_hash(body)}))
+    return path
+
+
+def test_verified_dev_score_accepts_truthful_baseline_failures(tmp_path):
+    report = _write_dev_score_report(tmp_path)
+
+    verified = rt._verified_dev_score(report)
+
+    assert verified["counts"]["semantic_correct"] == 14
+    assert verified["counts"]["critical_failures"] == 1
+    assert verified["counts"]["invented_values"] == 1
+
+
+@pytest.mark.parametrize("tamper", ["observation", "count"])
+def test_verified_dev_score_rejects_refirmed_observation_or_count_tamper(tmp_path, tamper):
+    report = _write_dev_score_report(tmp_path)
+    forged = json.loads(report.read_text())
+    if tamper == "observation":
+        forged["observations"][2]["critical_failure"] = 1
+    else:
+        forged["counts"]["invented_values"] = 2
+    body = {key: item for key, item in forged.items() if key != "report_sha256"}
+    forged["report_sha256"] = rt._canonical_hash(body)
+    report.write_text(json.dumps(forged))
+
+    with pytest.raises(rt.RuntimeContractError, match="dev semantic score"):
+        rt._verified_dev_score(report)

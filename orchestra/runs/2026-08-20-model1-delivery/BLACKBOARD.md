@@ -4572,3 +4572,27 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   unchanged; the new step25/50/100 sandbox hashes bind the Metal JIT cure and
   the freeze again states model output=false/training started=false. Commit,
   push and strict reopen remain mandatory before baseline generation.
+- FACT — The first valid adapter-off dev16 is consumed exactly once from the
+  published Metal-safe freeze: semantic=6/16 (37.5%), F-1/F-2/F-3=0/0/6,
+  critical=10 and invented=5. Raw hashes are candidates `74a6e30e...` (4690
+  bytes), generation `78f53dd5...` (5626 bytes, self `c064e6ce...`) and
+  semantic `9fffca3b...` (10653 bytes, self `091d3a23...`). The run-v1 roster
+  contains only those three regular files plus empty evaluation-cache
+  directories; marker/checkpoint/optimizer/training state count is zero.
+- STOP — Step25 stops before its no-retry marker because `_verified_dev_score`
+  equates a verified evidence report with a perfect model result and rejects
+  the truthful base counts. L114 and L116 independently replay all 16 raw
+  candidates against the pinned Metis oracle and reproduce the report exactly;
+  dataset/model identity is intact and no optimizer invocation occurred.
+- FIX — L0 separates evidence validity from adapter policy: every dev report is
+  schema/arithmetic checked and deterministically replayed from raw candidates,
+  frozen dev16 and the pinned oracle, while zero critical/invented remains an
+  adapter-only veto. Post-output recovery preserves run-v1/freeze-v1, targets
+  fresh run-v2/freeze-v2, declares the binding post-hoc, and permits only an
+  atomic byte-identical import with zero additional model/optimizer calls.
+  Focused contract/runtime/train/B12 tests are 42/42, additional recovery tests
+  are 6/6, lint/format/diff checks are green, and the real legacy replay is
+  score6 with bundle `sha256:6899fee3d2e33e773f6c1ae2d9dce1541b6d2277cca30dca7c8c83a16600e417`.
+- OPEN — Publish the static recovery preimage, generate and publish freeze-v2
+  while run-v2 is absent, import the three sealed base files, reopen the exact
+  receipt/oracle evidence, and only then create the step25 optimizer marker.

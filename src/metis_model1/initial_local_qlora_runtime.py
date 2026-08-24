@@ -61,10 +61,13 @@ CHECKPOINT_REPORT = (
 BASE_CHECKPOINT = PROJECT_ROOT / "artifacts/w4/2026-08-20-qualification/checkpoint"
 RUNTIME_PIN = PROJECT_ROOT / "qualification/runtime-pin.json"
 RUNTIME_LOCK = PROJECT_ROOT / "qualification/uv.lock"
-DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v1"
+LEGACY_OUTPUT_ROOT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v1"
+DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v2"
 DEFAULT_SELECTION_RECEIPT = DEFAULT_OUTPUT_ROOT / "selection.json"
 DEFAULT_RESTORE_RECEIPT = DEFAULT_OUTPUT_ROOT / "adapter-off-restore.json"
 DEFAULT_TRAINING_RECEIPT = DEFAULT_OUTPUT_ROOT / "training-receipt.json"
+DEFAULT_PINNED_METIS_ROOT = PROJECT_ROOT.parent / "ares-matioska/metis"
+DEFAULT_NODE_PATH = PROJECT_ROOT.parents[1] / ".local/bin/node"
 CONFIG = {
     "rank": 8,
     "alpha": 16,
@@ -973,88 +976,20 @@ def _candidate_rows(path: Path) -> list[dict[str, str]]:
     return result
 
 
-def score_dev_candidates(
-    dataset_dir: Path,
-    candidates_path: Path,
-    generation_report: Path,
-    report: Path,
+def _dev_observations(
+    cases: list[dict[str, Any]],
+    candidates: list[dict[str, str]],
     *,
     metis_root: Path,
     node_path: Path,
-) -> dict[str, Any]:
-    """Score one frozen dev16 candidate roster with the pinned catalog oracle."""
+) -> list[dict[str, Any]]:
+    """Replay the exact dev16 semantics from raw candidate bytes and the pinned oracle."""
     from metis_model1.catalog_maintenance_probe import (
         _describe_source_in_snapshot,
         _extract_source,
     )
     from metis_model1.catalog_retrieval_refresh import _pinned_snapshot
 
-    dataset_dir = _under(dataset_dir, PROJECT_ROOT / "artifacts")
-    report = _under(report, PROJECT_ROOT / "artifacts")
-    candidates_path = _under(candidates_path, PROJECT_ROOT / "artifacts")
-    generation_report = _under(generation_report, PROJECT_ROOT / "artifacts")
-    if report.exists() or report.is_symlink():
-        _fail("semantic score report must be absent")
-    allowed_reports = {
-        _fixed_dev_report(label) for label in ("base", "restored", "step25", "step50", "step100")
-    }
-    if (
-        report.resolve() not in allowed_reports
-        or generation_report.resolve() != report.parent.resolve() / "generation.json"
-        or candidates_path.resolve() != report.parent.resolve() / "candidates.jsonl"
-    ):
-        _fail("dev scoring must consume the exact fixed phase bundle")
-    receipt = _check_receipt(dataset_dir / "receipt.json")
-    generation = _json(generation_report)
-    generation_body = {key: value for key, value in generation.items() if key != "report_sha256"}
-    generation_cases = generation.get("cases")
-    generation_identity = generation.get("identity")
-    generation_peak = generation.get("peak_metal_gb")
-    if (
-        generation.get("schema_version") != 1
-        or generation.get("status") != "complete"
-        or generation.get("contract") != "INITIAL_LOCAL_QLORA_V1"
-        or generation.get("report_sha256") != _canonical_hash(generation_body)
-        or generation.get("candidate_jsonl_sha256") != _prefixed_sha256(candidates_path)
-        or generation.get("dataset_receipt_sha256") != receipt["receipt_sha256"]
-        or generation.get("dev_jsonl_sha256") != _prefixed_sha256(dataset_dir / "dev.jsonl")
-        or not isinstance(generation_identity, Mapping)
-        or generation_identity.get("base_revision") != _json(CHECKPOINT_PIN).get("revision")
-        or type(generation_identity.get("adapter_enabled")) is not bool
-        or not isinstance(generation_cases, list)
-        or len(generation_cases) != 16
-        or type(generation_peak) not in (int, float)
-        or not math.isfinite(generation_peak)
-        or not 0 <= generation_peak <= LIMITS["metal_gb"]
-    ):
-        _fail("dev generation report does not bind candidates and model identity")
-    cases = _jsonl_cases(dataset_dir / "dev.jsonl")
-    candidates = _candidate_rows(candidates_path)
-    if len(cases) != 16 or len(candidates) != 16:
-        _fail("semantic scoring requires exactly dev16")
-    expected_ids = [_case_id(case) for case in cases]
-    candidate_ids = [row["case_id"] for row in candidates]
-    if candidate_ids != expected_ids or len(set(expected_ids)) != 16:
-        _fail("candidate roster/order differs from frozen dev16")
-    expected_generation_cases = [
-        {
-            "case_id": row["case_id"],
-            "prompt_sha256": _canonical_hash(_dev_prompt_messages(case)),
-            "source_sha256": hashlib.sha256(row["source"].encode()).hexdigest(),
-        }
-        for case, row in zip(cases, candidates, strict=True)
-    ]
-    observed_generation_cases = [
-        {
-            "case_id": row.get("case_id"),
-            "prompt_sha256": row.get("prompt_sha256"),
-            "source_sha256": row.get("source_sha256"),
-        }
-        for row in generation_cases
-        if isinstance(row, Mapping)
-    ]
-    if observed_generation_cases != expected_generation_cases:
-        _fail("dev generation report case roster does not bind candidate sources")
     families = {
         family: sum(case.get("task_family") == family for case in cases)
         for family in CATEGORY_COUNTS
@@ -1126,7 +1061,11 @@ def score_dev_candidates(
                     "semantic_correct": int(semantic),
                 }
             )
-    counts = {
+    return observations
+
+
+def _dev_counts(observations: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
         "in": 16,
         "out": len(observations),
         "distinct": len({row["case_id"] for row in observations}),
@@ -1139,6 +1078,91 @@ def score_dev_candidates(
             for family in CATEGORY_COUNTS
         },
     }
+
+
+def score_dev_candidates(
+    dataset_dir: Path,
+    candidates_path: Path,
+    generation_report: Path,
+    report: Path,
+    *,
+    metis_root: Path,
+    node_path: Path,
+) -> dict[str, Any]:
+    """Score one frozen dev16 candidate roster with the pinned catalog oracle."""
+    dataset_dir = _under(dataset_dir, PROJECT_ROOT / "artifacts")
+    report = _under(report, PROJECT_ROOT / "artifacts")
+    candidates_path = _under(candidates_path, PROJECT_ROOT / "artifacts")
+    generation_report = _under(generation_report, PROJECT_ROOT / "artifacts")
+    if report.exists() or report.is_symlink():
+        _fail("semantic score report must be absent")
+    allowed_reports = {
+        _fixed_dev_report(label) for label in ("base", "restored", "step25", "step50", "step100")
+    }
+    if (
+        report.resolve() not in allowed_reports
+        or generation_report.resolve() != report.parent.resolve() / "generation.json"
+        or candidates_path.resolve() != report.parent.resolve() / "candidates.jsonl"
+    ):
+        _fail("dev scoring must consume the exact fixed phase bundle")
+    receipt = _check_receipt(dataset_dir / "receipt.json")
+    generation = _json(generation_report)
+    generation_body = {key: value for key, value in generation.items() if key != "report_sha256"}
+    generation_cases = generation.get("cases")
+    generation_identity = generation.get("identity")
+    generation_peak = generation.get("peak_metal_gb")
+    if (
+        generation.get("schema_version") != 1
+        or generation.get("status") != "complete"
+        or generation.get("contract") != "INITIAL_LOCAL_QLORA_V1"
+        or generation.get("report_sha256") != _canonical_hash(generation_body)
+        or generation.get("candidate_jsonl_sha256") != _prefixed_sha256(candidates_path)
+        or generation.get("dataset_receipt_sha256") != receipt["receipt_sha256"]
+        or generation.get("dev_jsonl_sha256") != _prefixed_sha256(dataset_dir / "dev.jsonl")
+        or not isinstance(generation_identity, Mapping)
+        or generation_identity.get("base_revision") != _json(CHECKPOINT_PIN).get("revision")
+        or type(generation_identity.get("adapter_enabled")) is not bool
+        or not isinstance(generation_cases, list)
+        or len(generation_cases) != 16
+        or type(generation_peak) not in (int, float)
+        or not math.isfinite(generation_peak)
+        or not 0 <= generation_peak <= LIMITS["metal_gb"]
+    ):
+        _fail("dev generation report does not bind candidates and model identity")
+    cases = _jsonl_cases(dataset_dir / "dev.jsonl")
+    candidates = _candidate_rows(candidates_path)
+    if len(cases) != 16 or len(candidates) != 16:
+        _fail("semantic scoring requires exactly dev16")
+    expected_ids = [_case_id(case) for case in cases]
+    candidate_ids = [row["case_id"] for row in candidates]
+    if candidate_ids != expected_ids or len(set(expected_ids)) != 16:
+        _fail("candidate roster/order differs from frozen dev16")
+    expected_generation_cases = [
+        {
+            "case_id": row["case_id"],
+            "prompt_sha256": _canonical_hash(_dev_prompt_messages(case)),
+            "source_sha256": hashlib.sha256(row["source"].encode()).hexdigest(),
+        }
+        for case, row in zip(cases, candidates, strict=True)
+    ]
+    observed_generation_cases = [
+        {
+            "case_id": row.get("case_id"),
+            "prompt_sha256": row.get("prompt_sha256"),
+            "source_sha256": row.get("source_sha256"),
+        }
+        for row in generation_cases
+        if isinstance(row, Mapping)
+    ]
+    if observed_generation_cases != expected_generation_cases:
+        _fail("dev generation report case roster does not bind candidate sources")
+    observations = _dev_observations(
+        cases,
+        candidates,
+        metis_root=metis_root,
+        node_path=node_path,
+    )
+    counts = _dev_counts(observations)
     body = {
         "schema_version": 1,
         "status": "verified" if counts["out"] == 16 and counts["distinct"] == 16 else "stopped",
@@ -1169,21 +1193,73 @@ def _verified_dev_score(path: Path) -> dict[str, Any]:
     counts = value.get("counts")
     identity = value.get("generation_identity")
     observations = value.get("observations")
+    count_keys = {
+        "in",
+        "out",
+        "distinct",
+        "gaps",
+        "semantic_correct",
+        "critical_failures",
+        "invented_values",
+        "family_semantic_correct",
+    }
+    observation_keys = {
+        "case_id",
+        "family",
+        "source_sha256",
+        "extraction",
+        "oracle",
+        "oracle_failure_sha256",
+        "candidate_receipt_sha256",
+        "target_receipt_sha256",
+        "skeleton_match",
+        "exact_normalized",
+        "minimal",
+        "invented_values",
+        "critical_failure",
+        "semantic_correct",
+    }
     if (
-        value.get("schema_version") != 1
+        set(value)
+        != {
+            "schema_version",
+            "status",
+            "wave",
+            "selection_surface",
+            "dataset_receipt_sha256",
+            "generation_report_sha256",
+            "generation_identity",
+            "candidates_sha256",
+            "counts",
+            "observations",
+            "report_sha256",
+        }
+        or value.get("schema_version") != 1
         or value.get("status") != "verified"
         or value.get("wave") != "INITIAL_LOCAL_QLORA_V1"
         or value.get("selection_surface") != "frozen_dev16"
         or value.get("report_sha256") != _canonical_hash(body)
+        or not _is_hash(value.get("dataset_receipt_sha256"))
+        or not _is_hash(value.get("generation_report_sha256"))
+        or not _is_hash(value.get("candidates_sha256"))
         or not isinstance(counts, Mapping)
+        or set(counts) != count_keys
+        or any(type(counts.get(key)) is not int for key in ("in", "out", "distinct", "gaps"))
         or counts.get("in") != 16
         or counts.get("out") != 16
         or counts.get("distinct") != 16
         or counts.get("gaps") != 0
-        or type(counts.get("semantic_correct")) is not int
-        or not 0 <= counts["semantic_correct"] <= 16
-        or counts.get("critical_failures") != 0
-        or counts.get("invented_values") != 0
+        or any(
+            type(counts.get(key)) is not int or not 0 <= counts[key] <= 16
+            for key in ("semantic_correct", "critical_failures", "invented_values")
+        )
+        or not isinstance(counts.get("family_semantic_correct"), Mapping)
+        or set(counts["family_semantic_correct"]) != set(CATEGORY_COUNTS)
+        or any(
+            type(counts["family_semantic_correct"].get(family)) is not int
+            or not 0 <= counts["family_semantic_correct"][family] <= denominator
+            for family, denominator in CATEGORY_COUNTS.items()
+        )
         or not isinstance(identity, Mapping)
         or identity.get("base_revision") != _json(CHECKPOINT_PIN).get("revision")
         or type(identity.get("adapter_enabled")) is not bool
@@ -1191,26 +1267,63 @@ def _verified_dev_score(path: Path) -> dict[str, Any]:
         or len(observations) != 16
     ):
         _fail("dev semantic score report is not a verified dev16 result")
-    ids = [item.get("case_id") for item in observations if isinstance(item, Mapping)]
-    if (
-        len(ids) != 16
-        or len(set(ids)) != 16
-        or sum(item.get("semantic_correct") == 1 for item in observations)
-        != counts["semantic_correct"]
-        or sum(item.get("critical_failure") == 1 for item in observations) != 0
-        or sum(item.get("invented_values") == 1 for item in observations) != 0
-        or any(
-            item.get("oracle") != "ok"
-            or not _is_hash(item.get("candidate_receipt_sha256"))
+    normalized: list[dict[str, Any]] = []
+    for item in observations:
+        if not isinstance(item, Mapping) or set(item) != observation_keys:
+            _fail("dev semantic score observation roster is incomplete or inconsistent")
+        extraction = item.get("extraction")
+        oracle = item.get("oracle")
+        candidate_receipt = item.get("candidate_receipt_sha256")
+        oracle_failure = item.get("oracle_failure_sha256")
+        if (
+            not isinstance(item.get("case_id"), str)
+            or not item["case_id"]
+            or item.get("family") not in CATEGORY_COUNTS
+            or not _is_hash(item.get("source_sha256"))
+            or not isinstance(extraction, str)
+            or not extraction
+            or oracle not in {"ok", "rejected"}
             or not _is_hash(item.get("target_receipt_sha256"))
-            for item in observations
+            or any(
+                type(item.get(key)) is not bool
+                for key in ("skeleton_match", "exact_normalized", "minimal")
+            )
+            or any(
+                type(item.get(key)) is not int or item[key] not in {0, 1}
+                for key in ("invented_values", "critical_failure", "semantic_correct")
+            )
+        ):
+            _fail("dev semantic score observation roster is incomplete or inconsistent")
+        if extraction == "ok" and oracle == "ok":
+            receipt_shape_ok = _is_hash(candidate_receipt) and oracle_failure is None
+        elif extraction == "ok" and oracle == "rejected":
+            receipt_shape_ok = candidate_receipt is None and _is_hash(oracle_failure)
+        else:
+            receipt_shape_ok = (
+                oracle == "rejected" and candidate_receipt is None and oracle_failure is None
+            )
+        expected_critical = int(extraction != "ok" or oracle != "ok")
+        expected_semantic = int(
+            extraction == "ok"
+            and oracle == "ok"
+            and item["skeleton_match"]
+            and item["minimal"]
+            and item["invented_values"] == 0
         )
-    ):
+        if (
+            not receipt_shape_ok
+            or item["critical_failure"] != expected_critical
+            or item["semantic_correct"] != expected_semantic
+        ):
+            _fail("dev semantic score observation roster is incomplete or inconsistent")
+        normalized.append(dict(item))
+    ids = [item["case_id"] for item in normalized]
+    if len(set(ids)) != 16 or counts != _dev_counts(normalized):
         _fail("dev semantic score observation roster is incomplete or inconsistent")
     return value
 
 
-def _fixed_dev_report(label: str) -> Path:
+def _fixed_dev_report(label: str, *, output_root: Path | None = None) -> Path:
     allowed = {"base", "restored", "step25", "step50", "step100"}
     if label not in allowed:
         _fail("unknown fixed dev evidence label")
@@ -1221,22 +1334,24 @@ def _fixed_dev_report(label: str) -> Path:
         "step50": "step50-dev",
         "step100": "step100-dev",
     }[label]
-    return (DEFAULT_OUTPUT_ROOT / directory / "semantic.json").resolve()
+    root = output_root or DEFAULT_OUTPUT_ROOT
+    return (root / directory / "semantic.json").resolve()
 
 
-def _run_relative(path: Path) -> str:
+def _run_relative(path: Path, *, output_root: Path | None = None) -> str:
+    root = output_root or DEFAULT_OUTPUT_ROOT
     resolved = path.resolve(strict=True)
     try:
-        return resolved.relative_to(DEFAULT_OUTPUT_ROOT.resolve()).as_posix()
+        return resolved.relative_to(root.resolve()).as_posix()
     except ValueError:
         _fail("dev evidence path is outside the fixed run root")
 
 
-def _artifact_ref(path: Path) -> dict[str, Any]:
+def _artifact_ref(path: Path, *, output_root: Path | None = None) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
         _fail(f"dev evidence is missing, linked, or not regular: {path}")
     return {
-        "path": _run_relative(path),
+        "path": _run_relative(path, output_root=output_root),
         "bytes": path.stat().st_size,
         "sha256": _prefixed_sha256(path),
     }
@@ -1247,9 +1362,11 @@ def _verified_dev_bundle(
     *,
     dataset_receipt: Path,
     adapter: Path | None,
+    output_root: Path | None = None,
 ) -> dict[str, Any]:
     """Reopen and cross-check one exact generation/candidates/semantic bundle."""
-    semantic_path = _fixed_dev_report(label)
+    root = output_root or DEFAULT_OUTPUT_ROOT
+    semantic_path = _fixed_dev_report(label, output_root=root)
     generation_path = semantic_path.parent / "generation.json"
     candidates_path = semantic_path.parent / "candidates.jsonl"
     if semantic_path.parent.is_symlink() or not semantic_path.parent.is_dir():
@@ -1262,11 +1379,11 @@ def _verified_dev_bundle(
         _fail(f"{label} dev evidence roster is not exact")
     dataset = _check_receipt(dataset_receipt)
     base_checkpoint = _check_checkpoint(BASE_CHECKPOINT)
-    semantic = _verified_dev_score(semantic_path)
     generation = _json(generation_path)
     generation_body = {key: item for key, item in generation.items() if key != "report_sha256"}
     candidates = _candidate_rows(candidates_path)
     dev = _jsonl_cases(dataset_receipt.parent / "dev.jsonl")
+    semantic = _verified_dev_score(semantic_path)
     expected_ids = [_case_id(row) for row in dev]
     candidate_ids = [row["case_id"] for row in candidates]
     candidate_sources = {row["case_id"]: row["source"] for row in candidates}
@@ -1325,6 +1442,16 @@ def _verified_dev_bundle(
     ]
     if observed_generation != expected_generation or observed_observations != expected_observations:
         _fail(f"{label} dev case/source evidence drift")
+    replayed_observations = _dev_observations(
+        dev,
+        candidates,
+        metis_root=DEFAULT_PINNED_METIS_ROOT,
+        node_path=DEFAULT_NODE_PATH,
+    )
+    if observations != replayed_observations or semantic["counts"] != _dev_counts(
+        replayed_observations
+    ):
+        _fail(f"{label} dev semantic evidence differs from pinned-oracle replay")
     identity = semantic["generation_identity"]
     expected_base_identity = {
         "base_revision": base_checkpoint["revision"],
@@ -1352,12 +1479,14 @@ def _verified_dev_bundle(
         if (
             identity.get("adapter_enabled") is not True
             or identity.get("adapter") != expected_adapter
+            or semantic["counts"]["critical_failures"] != 0
+            or semantic["counts"]["invented_values"] != 0
         ):
-            _fail(f"{label} dev evidence does not bind its exact adapter")
+            _fail(f"{label} dev evidence does not bind a veto-free exact adapter")
     files = {
-        "candidates": _artifact_ref(candidates_path),
-        "generation": _artifact_ref(generation_path),
-        "semantic": _artifact_ref(semantic_path),
+        "candidates": _artifact_ref(candidates_path, output_root=root),
+        "generation": _artifact_ref(generation_path, output_root=root),
+        "semantic": _artifact_ref(semantic_path, output_root=root),
     }
     body = {
         "label": label,
@@ -1407,6 +1536,7 @@ def _training_evidence(adapter: Path, dataset_receipt: Path) -> dict[str, Any]:
 
     checkpoint = verify_checkpoint(adapter, expected_dataset=dataset_receipt.parent / "train.jsonl")
     freeze = trainer.verify_freeze(require_remote=True)
+    reuse = trainer._verified_reuse_receipt(freeze)
     expected_steps = {
         25: [25],
         50: [25, 50],
@@ -1439,6 +1569,9 @@ def _training_evidence(adapter: Path, dataset_receipt: Path) -> dict[str, Any]:
     return {
         "freeze_file_sha256": _prefixed_sha256(trainer.FREEZE_PATH),
         "freeze_self_sha256": freeze["freeze_sha256"],
+        "baseline_reuse_receipt_file_sha256": _prefixed_sha256(trainer.REUSE_RECEIPT_PATH),
+        "baseline_reuse_receipt_self_sha256": reuse["receipt_sha256"],
+        "baseline_origin_sha256": _canonical_hash(freeze["baseline_origin"]),
         "preimage_commit": freeze["preimage_commit"],
         "published_execution_head": trainer._published_git_identity()["head"],
         "checkpoint": {
@@ -2173,6 +2306,9 @@ def _verify_portable_package_receipts(
         or not isinstance(evidence, Mapping)
         or not _is_hash(evidence.get("freeze_file_sha256"))
         or not _is_hash(evidence.get("freeze_self_sha256"))
+        or not _is_hash(evidence.get("baseline_reuse_receipt_file_sha256"))
+        or not _is_hash(evidence.get("baseline_reuse_receipt_self_sha256"))
+        or not _is_hash(evidence.get("baseline_origin_sha256"))
         or not _is_hex_digest(evidence.get("preimage_commit"), 40)
         or not _is_hex_digest(evidence.get("published_execution_head"), 40)
         or not isinstance(checkpoint, Mapping)

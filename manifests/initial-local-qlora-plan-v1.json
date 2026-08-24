@@ -108,6 +108,18 @@
     "max_optimizer_steps": 100,
     "reworks_allowed": 0
   },
+  "post_output_recovery": {
+    "reason": "P0 dev verifier rejected truthful baseline failures before any optimizer marker or state existed",
+    "source_namespace": "run-v1",
+    "destination_namespace": "run-v2",
+    "reuse_manifest": "manifests/initial-local-qlora-baseline-reuse-v1.json",
+    "prior_freeze_preserved": true,
+    "fresh_freeze_required": true,
+    "exact_byte_import_only": true,
+    "second_baseline_model_call": false,
+    "oracle_replay_for_verification_only": true,
+    "optimizer_retries_added": 0
+  },
   "artifact_policy": {
     "artifact_root": "artifacts/initial-local-qlora-v1",
     "max_new_bytes": 8589934592,
@@ -174,5 +186,5 @@
     "no_adapter_distribution",
     "no_base_dataset_optimizer_or_raw_output_upload"
   ],
-  "plan_sha256": "sha256:53df2c1fec8d8dbf9aa21495a379d77b560fd9549b2f3cfeb59bfa2082dd98c8"
+  "plan_sha256": "sha256:0237dd7bba9adba1824a8d4b5c4fb612419c6c2594e9c4302bdeb8183e81e97e"
 }

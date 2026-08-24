@@ -56,10 +56,10 @@ DEFAULT_BASELINE = DELIVERY_ROOT / "b12-run-v4/baseline-b12.json"
 DEFAULT_METIS_ROOT = DELIVERY_ROOT / "metis-pinned"
 DEFAULT_MODEL = PROJECT_ROOT / "artifacts/w4/2026-08-20-qualification/checkpoint"
 DEFAULT_WORKER_PYTHON = PROJECT_ROOT / "qualification/.venv/bin/python"
-DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v1/b12-adapter"
+DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v2/b12-adapter"
 DEFAULT_DATASET_RECEIPT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/dataset/receipt.json"
 DEFAULT_RESTORE_RECEIPT = (
-    PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v1/adapter-off-restore.json"
+    PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v2/adapter-off-restore.json"
 )
 ROSTER_FILE_SHA256 = "sha256:1459d1fa171b9f124c016aabed559081c9d3e7ca34db6d31b7285e692b175e6d"
 FREEZE_FILE_SHA256 = "sha256:d61efffcca96947c23c43f956e20f49137ccd1956637be588a0886933d115c33"

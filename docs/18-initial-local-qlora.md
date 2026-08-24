@@ -139,6 +139,16 @@ or optimizer step requires a fresh namespace and mandate. Pre-output tooling
 may be corrected and republished only while every fixed model/training output
 path remains absent.
 
+The observed `run-v1` baseline exposed a P0 verifier defect before any optimizer
+marker, checkpoint, telemetry, or training state existed: a complete but imperfect
+baseline was incorrectly treated as invalid evidence. Recovery therefore preserves
+the published v1 freeze and immutable three-file baseline, publishes a v2 freeze
+against the corrected verifier, and imports those exact bytes atomically into the
+fresh `run-v2` namespace. The import performs zero model calls and zero optimizer
+steps; pinned-oracle replay verifies the existing evidence only and does not consume
+the dev set a second time. Adapter gates retain their zero-critical/zero-invented
+veto.
+
 The supervisor runs with a closed environment and network-denied sandbox. It
 authorizes every phase from reopened dev evidence before writing the no-retry
 marker, measures cumulative optimizer time with a monotonic clock, enforces the
@@ -182,9 +192,11 @@ NODE_PATH="$(command -v node)"
   --metis-root /Users/tommasotessarolo/Developer/ares-matioska/metis \
   --node-path "$NODE_PATH"
 .venv/bin/python src/metis_model1/initial_local_qlora_dataset.py verify
-qualification/.venv/bin/python src/metis_model1/initial_local_qlora_train.py freeze
-qualification/.venv/bin/python src/metis_model1/initial_local_qlora_train.py verify-freeze
-qualification/.venv/bin/python src/metis_model1/initial_local_qlora_train.py run --target 25
+.venv/bin/python src/metis_model1/initial_local_qlora_train.py freeze
+## Commit and push the generated v2 freeze before importing the sealed baseline.
+.venv/bin/python src/metis_model1/initial_local_qlora_train.py import-baseline
+.venv/bin/python src/metis_model1/initial_local_qlora_train.py verify-freeze
+.venv/bin/python src/metis_model1/initial_local_qlora_train.py run --target 25
 ```
 
 Base/step evaluation, continuation, selection, adapter-off restoration, B12 and

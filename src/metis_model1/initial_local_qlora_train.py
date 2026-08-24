@@ -9,6 +9,7 @@ import json
 import math
 import os
 import resource
+import shutil
 import signal
 import stat
 import subprocess
@@ -32,6 +33,7 @@ from metis_model1.initial_local_qlora_runtime import (
     _check_runtime,
     _dataset_fingerprint,
     _prefixed_sha256,
+    _verified_dev_bundle,
     verify_checkpoint,
     verify_continuation_gate,
 )
@@ -39,7 +41,8 @@ from metis_model1.initial_local_qlora_runtime import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = PROJECT_ROOT / "artifacts/initial-local-qlora-v1"
 DATASET_ROOT = ARTIFACT_ROOT / "dataset"
-RUN_ROOT = ARTIFACT_ROOT / "run-v1"
+LEGACY_RUN_ROOT = ARTIFACT_ROOT / "run-v1"
+RUN_ROOT = ARTIFACT_ROOT / "run-v2"
 CHECKPOINT_ROOT = RUN_ROOT / "checkpoints"
 MODEL_PATH = PROJECT_ROOT / "artifacts/w4/2026-08-20-qualification/checkpoint"
 CHECKPOINT_REPORT = (
@@ -48,12 +51,22 @@ CHECKPOINT_REPORT = (
 QUALIFICATION_PYTHON = PROJECT_ROOT / "qualification/.venv/bin/python"
 TRAINER = PROJECT_ROOT / "qualification/train_full_state.py"
 TELEMETRY = PROJECT_ROOT / "qualification/run_with_telemetry.py"
-FREEZE_PATH = PROJECT_ROOT / "manifests/initial-local-qlora-training-freeze-v1.json"
+PRIOR_FREEZE_PATH = PROJECT_ROOT / "manifests/initial-local-qlora-training-freeze-v1.json"
+FREEZE_PATH = PROJECT_ROOT / "manifests/initial-local-qlora-training-freeze-v2.json"
+REUSE_MANIFEST_PATH = PROJECT_ROOT / "manifests/initial-local-qlora-baseline-reuse-v1.json"
+REUSE_RECEIPT_PATH = RUN_ROOT / "baseline-reuse.json"
+PRIOR_FREEZE_PUBLICATION = "0777a0a64704f815a13cfd63875d37afbfc231d2"
+PRIOR_FREEZE_FILE_SHA256 = "sha256:5847fc2889696406989e79cb8413e41bb1cdff1e08f8fa30e3cd9e7d381fdc28"
+PRIOR_FREEZE_SELF_SHA256 = "sha256:443ca34bb67c394089c0506dfaa9ec816514568f6a4d9b1b8ad3ca945b3dd824"
+REUSE_MANIFEST_SELF_SHA256 = (
+    "sha256:b51cac04ce851cf38e9013b8f81936cb06c02322a091025f9f07a0e14f5edc6e"
+)
 ALLOWED_STEPS = (25, 50, 100)
 EXPECTED_CHECKPOINTS = {25: [], 50: [25], 100: [25, 50]}
 AFTER_CHECKPOINTS = {25: [25], 50: [25, 50], 100: [25, 50, 75, 100]}
 BOUND_INPUTS = (
     "docs/18-initial-local-qlora.md",
+    "manifests/initial-local-qlora-baseline-reuse-v1.json",
     "manifests/initial-local-qlora-plan-v1.json",
     "manifests/initial-local-qlora-exclusions-v1.json",
     "qualification/checkpoint-pin.json",
@@ -65,11 +78,14 @@ BOUND_INPUTS = (
     "manifests/catalog-maintenance-pin-v1.json",
     "runtime/metis_oracle/runner.ts",
     "schemas/catalog-maintenance-pin.schema.json",
+    "schemas/initial-local-qlora-baseline-reuse.schema.json",
+    "schemas/initial-local-qlora-plan.schema.json",
     "schemas/oracle-result.schema.json",
     "src/metis_model1/catalog_maintenance_pin.py",
     "src/metis_model1/catalog_maintenance_probe.py",
     "src/metis_model1/catalog_retrieval.py",
     "src/metis_model1/catalog_retrieval_refresh.py",
+    "src/metis_model1/contracts.py",
     "src/metis_model1/dataset.py",
     "src/metis_model1/initial_local_qlora_b12.py",
     "src/metis_model1/initial_local_qlora_dataset.py",
@@ -455,20 +471,299 @@ def _training_sandbox_policy(target: int) -> str:
     return policy
 
 
+def _reuse_manifest() -> dict[str, Any]:
+    value = _json(REUSE_MANIFEST_PATH)
+    body = {key: item for key, item in value.items() if key != "manifest_sha256"}
+    source = value.get("source")
+    destination = value.get("destination")
+    execution = value.get("execution")
+    if (
+        set(value)
+        != {
+            "schema_version",
+            "manifest_id",
+            "status",
+            "reason",
+            "source",
+            "destination",
+            "execution",
+            "nonclaims",
+            "manifest_sha256",
+        }
+        or value.get("schema_version") != 1
+        or value.get("manifest_id") != "initial-local-qlora-baseline-reuse/v1"
+        or value.get("status") != "authorized_post_output_recovery"
+        or value.get("manifest_sha256") != REUSE_MANIFEST_SELF_SHA256
+        or value.get("manifest_sha256") != _canonical_hash(body)
+        or not isinstance(source, dict)
+        or source.get("run_root") != "artifacts/initial-local-qlora-v1/run-v1"
+        or source.get("freeze_path") != "manifests/initial-local-qlora-training-freeze-v1.json"
+        or source.get("freeze_publication_commit") != PRIOR_FREEZE_PUBLICATION
+        or source.get("freeze_file_sha256") != PRIOR_FREEZE_FILE_SHA256
+        or source.get("freeze_self_sha256") != PRIOR_FREEZE_SELF_SHA256
+        or not isinstance(destination, dict)
+        or destination.get("run_root") != "artifacts/initial-local-qlora-v1/run-v2"
+        or destination.get("freeze_path") != "manifests/initial-local-qlora-training-freeze-v2.json"
+        or destination.get("copy_roster")
+        != [
+            "base-dev/candidates.jsonl",
+            "base-dev/generation.json",
+            "base-dev/semantic.json",
+        ]
+        or not isinstance(execution, dict)
+        or execution.get("baseline_model_invocations_total") != 1
+        or execution.get("additional_model_invocations") != 0
+        or execution.get("dev_consumptions_total") != 1
+        or execution.get("optimizer_invocations") != 0
+        or execution.get("oracle_replay_for_verification_only") is not True
+        or execution.get("model_replay_allowed") is not False
+        or execution.get("fresh_namespace_required") is not True
+        or execution.get("atomic_copy_required") is not True
+        or execution.get("source_remains_read_only") is not True
+    ):
+        _fail("baseline reuse manifest identity or authority drift")
+    return value
+
+
+def _prior_freeze(manifest: dict[str, Any]) -> dict[str, Any]:
+    value = _json(PRIOR_FREEZE_PATH)
+    body = {key: item for key, item in value.items() if key != "freeze_sha256"}
+    relative = PRIOR_FREEZE_PATH.relative_to(PROJECT_ROOT).as_posix()
+    try:
+        published = subprocess.check_output(
+            [
+                "/usr/bin/git",
+                "-C",
+                str(PROJECT_ROOT),
+                "show",
+                f"{PRIOR_FREEZE_PUBLICATION}:{relative}",
+            ],
+            timeout=30,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        )
+    except subprocess.SubprocessError as exc:
+        _fail(f"cannot reopen the prior published freeze: {exc}")
+    source = manifest["source"]
+    if (
+        published != PRIOR_FREEZE_PATH.read_bytes()
+        or _file_hash(PRIOR_FREEZE_PATH) != PRIOR_FREEZE_FILE_SHA256
+        or value.get("freeze_sha256") != PRIOR_FREEZE_SELF_SHA256
+        or value.get("freeze_sha256") != _canonical_hash(body)
+        or value.get("status") != "frozen_before_model_output"
+        or value.get("model_outputs_observed") is not False
+        or value.get("training_started") is not False
+        or value.get("preimage_commit") != source.get("freeze_preimage_commit")
+        or value.get("preimage_tree") != source.get("freeze_preimage_tree")
+        or _git("merge-base", "--is-ancestor", PRIOR_FREEZE_PUBLICATION, "HEAD")
+    ):
+        _fail("prior training freeze publication or identity drift")
+    return value
+
+
+def _legacy_base_state(manifest: dict[str, Any]) -> dict[str, Any]:
+    if LEGACY_RUN_ROOT.is_symlink() or not LEGACY_RUN_ROOT.is_dir():
+        _fail("legacy run-v1 source is missing or unsafe")
+    expected_directories = {
+        "base-dev",
+        "evaluation-cache",
+        "evaluation-cache/home",
+        "evaluation-cache/tmp",
+    }
+    expected_files = {
+        "base-dev/candidates.jsonl",
+        "base-dev/generation.json",
+        "base-dev/semantic.json",
+    }
+    observed_directories: set[str] = set()
+    observed_files: set[str] = set()
+    for path in LEGACY_RUN_ROOT.rglob("*"):
+        metadata = path.lstat()
+        relative = path.relative_to(LEGACY_RUN_ROOT).as_posix()
+        if path.is_symlink():
+            _fail("legacy run-v1 contains a symlink")
+        if stat.S_ISDIR(metadata.st_mode):
+            observed_directories.add(relative)
+        elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+            observed_files.add(relative)
+        else:
+            _fail("legacy run-v1 contains a linked or nonregular entry")
+    if observed_directories != expected_directories or observed_files != expected_files:
+        _fail("legacy run-v1 roster is not the exact pre-training baseline")
+    expected = manifest["source"]["base_dev"]["files"]
+    files: dict[str, dict[str, Any]] = {}
+    for name in ("candidates.jsonl", "generation.json", "semantic.json"):
+        path = LEGACY_RUN_ROOT / "base-dev" / name
+        reference = expected.get(name)
+        if (
+            not isinstance(reference, dict)
+            or path.stat().st_size != reference.get("bytes")
+            or _file_hash(path) != reference.get("sha256")
+        ):
+            _fail(f"legacy baseline file drift: {name}")
+        files[name] = {
+            "bytes": path.stat().st_size,
+            "sha256": _file_hash(path),
+        }
+        if name in {"generation.json", "semantic.json"}:
+            value = _json(path)
+            body = {key: item for key, item in value.items() if key != "report_sha256"}
+            if value.get("report_sha256") != reference.get("self_sha256") or value.get(
+                "report_sha256"
+            ) != _canonical_hash(body):
+                _fail(f"legacy baseline self-hash drift: {name}")
+            files[name]["self_sha256"] = value["report_sha256"]
+    return {
+        "run_root": "artifacts/initial-local-qlora-v1/run-v1",
+        "directories": sorted(observed_directories),
+        "files": files,
+        "model_invocations_total": 1,
+        "dev_consumptions_total": 1,
+        "training_started": False,
+        "checkpoint_steps": [],
+    }
+
+
+def _static_legacy_bundle(manifest: dict[str, Any]) -> dict[str, Any]:
+    semantic = _json(LEGACY_RUN_ROOT / "base-dev/semantic.json")
+    expected = manifest["source"]["base_dev"]["files"]
+    files = {
+        kind: {
+            "path": f"base-dev/{name}",
+            "bytes": expected[name]["bytes"],
+            "sha256": expected[name]["sha256"],
+        }
+        for kind, name in (
+            ("candidates", "candidates.jsonl"),
+            ("generation", "generation.json"),
+            ("semantic", "semantic.json"),
+        )
+    }
+    body = {
+        "label": "base",
+        "score": manifest["source"]["base_dev"]["score"],
+        "identity": semantic["generation_identity"],
+        "files": files,
+    }
+    return {**body, "bundle_sha256": _canonical_hash(body)}
+
+
+def _baseline_origin(*, replay_oracle: bool) -> dict[str, Any]:
+    manifest = _reuse_manifest()
+    prior = _prior_freeze(manifest)
+    legacy = _legacy_base_state(manifest)
+    bundle = _static_legacy_bundle(manifest)
+    if replay_oracle:
+        replayed = _verified_dev_bundle(
+            "base",
+            dataset_receipt=DATASET_ROOT / "receipt.json",
+            adapter=None,
+            output_root=LEGACY_RUN_ROOT,
+        )
+        if replayed != bundle:
+            _fail("legacy baseline differs from pinned-oracle replay")
+    return {
+        "binding": "post_hoc_exact_bytes_not_embedded_in_original_generation",
+        "reuse_manifest_file_sha256": _file_hash(REUSE_MANIFEST_PATH),
+        "reuse_manifest_self_sha256": manifest["manifest_sha256"],
+        "prior_freeze_publication_commit": PRIOR_FREEZE_PUBLICATION,
+        "prior_freeze_file_sha256": _file_hash(PRIOR_FREEZE_PATH),
+        "prior_freeze_self_sha256": prior["freeze_sha256"],
+        "prior_freeze_preimage_commit": prior["preimage_commit"],
+        "prior_freeze_preimage_tree": prior["preimage_tree"],
+        "legacy_state": legacy,
+        "base_dev": bundle,
+    }
+
+
+def _destination_base_files() -> dict[str, dict[str, Any]]:
+    base = RUN_ROOT / "base-dev"
+    if base.is_symlink() or not base.is_dir():
+        _fail("run-v2 imported baseline is missing or unsafe")
+    if {path.name for path in base.iterdir()} != {
+        "candidates.jsonl",
+        "generation.json",
+        "semantic.json",
+    }:
+        _fail("run-v2 imported baseline roster is not exact")
+    result: dict[str, dict[str, Any]] = {}
+    for name in ("candidates.jsonl", "generation.json", "semantic.json"):
+        path = base / name
+        if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+            _fail("run-v2 imported baseline contains an unsafe file")
+        result[name] = {"bytes": path.stat().st_size, "sha256": _file_hash(path)}
+    return result
+
+
+def _verified_reuse_receipt(freeze: dict[str, Any]) -> dict[str, Any]:
+    value = _json(REUSE_RECEIPT_PATH)
+    body = {key: item for key, item in value.items() if key != "receipt_sha256"}
+    source_files = freeze["baseline_origin"]["legacy_state"]["files"]
+    expected_files = {
+        name: {"bytes": item["bytes"], "sha256": item["sha256"]}
+        for name, item in source_files.items()
+    }
+    destination_files = _destination_base_files()
+    if (
+        set(value)
+        != {
+            "schema_version",
+            "status",
+            "wave",
+            "mode",
+            "freeze_file_sha256",
+            "freeze_self_sha256",
+            "reuse_manifest_file_sha256",
+            "reuse_manifest_self_sha256",
+            "source_run_root",
+            "destination_run_root",
+            "source_files",
+            "destination_files",
+            "source_to_destination_exact",
+            "baseline_model_invocations_total",
+            "additional_model_invocations",
+            "dev_consumptions_total",
+            "optimizer_invocations",
+            "receipt_sha256",
+        }
+        or value.get("receipt_sha256") != _canonical_hash(body)
+        or value.get("schema_version") != 1
+        or value.get("status") != "imported_verified"
+        or value.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or value.get("mode") != "post_hoc_exact_byte_reuse_no_model_replay"
+        or value.get("freeze_file_sha256") != _file_hash(FREEZE_PATH)
+        or value.get("freeze_self_sha256") != freeze.get("freeze_sha256")
+        or value.get("reuse_manifest_file_sha256") != _file_hash(REUSE_MANIFEST_PATH)
+        or value.get("reuse_manifest_self_sha256") != REUSE_MANIFEST_SELF_SHA256
+        or value.get("source_run_root") != "artifacts/initial-local-qlora-v1/run-v1"
+        or value.get("destination_run_root") != "artifacts/initial-local-qlora-v1/run-v2"
+        or value.get("source_files") != expected_files
+        or value.get("destination_files") != destination_files
+        or destination_files != expected_files
+        or value.get("source_to_destination_exact") is not True
+        or value.get("baseline_model_invocations_total") != 1
+        or value.get("additional_model_invocations") != 0
+        or value.get("dev_consumptions_total") != 1
+        or value.get("optimizer_invocations") != 0
+    ):
+        _fail("baseline reuse receipt or imported bytes drift")
+    return value
+
+
 def freeze_training() -> dict[str, Any]:
     if FREEZE_PATH.exists() or FREEZE_PATH.is_symlink():
         _fail("training freeze output already exists")
     if RUN_ROOT.exists() or RUN_ROOT.is_symlink():
-        _fail("run-v1 must be absent when the training preimage is frozen")
+        _fail("run-v2 must be absent when the recovery preimage is frozen")
     runtime = _check_runtime()
     checkpoint = _check_checkpoint(MODEL_PATH)
     dataset = _check_receipt(DATASET_ROOT / "receipt.json")
+    origin = _baseline_origin(replay_oracle=True)
     census = artifact_census()
     publication = _published_git_identity()
     preimage = publication["head"]
     body = {
-        "schema_version": 1,
-        "status": "frozen_before_model_output",
+        "schema_version": 2,
+        "status": "refrozen_after_base_before_training",
         "wave": "INITIAL_LOCAL_QLORA_V1",
         "preimage_commit": preimage,
         "preimage_tree": publication["tree"],
@@ -486,35 +781,56 @@ def freeze_training() -> dict[str, Any]:
         "config": CONFIG,
         "limits": LIMITS,
         "artifact_census": census,
-        "run_root": "artifacts/initial-local-qlora-v1/run-v1",
-        "checkpoint_root": "artifacts/initial-local-qlora-v1/run-v1/checkpoints",
+        "run_root": "artifacts/initial-local-qlora-v1/run-v2",
+        "checkpoint_root": "artifacts/initial-local-qlora-v1/run-v2/checkpoints",
+        "baseline_import_receipt": "artifacts/initial-local-qlora-v1/run-v2/baseline-reuse.json",
+        "baseline_origin": origin,
         "commands": {str(step): _command(step) for step in ALLOWED_STEPS},
         "training_environment": _training_environment(),
         "sandbox_policy_sha256": {
             str(step): _canonical_hash(_training_sandbox_policy(step)) for step in ALLOWED_STEPS
         },
-        "model_outputs_observed": False,
+        "prior_model_output_present": True,
+        "run_v2_output_absent_at_freeze": True,
+        "model_outputs_observed": True,
         "training_started": False,
+        "baseline_model_invocations_total": 1,
+        "additional_model_invocations": 0,
+        "dev_consumptions_total": 1,
+        "model_replay_allowed": False,
         "network": "denied_during_model_and_optimizer_execution",
         "configurations": 1,
     }
     freeze = {**body, "freeze_sha256": _canonical_hash(body)}
+    if (
+        RUN_ROOT.exists()
+        or RUN_ROOT.is_symlink()
+        or artifact_census() != census
+        or _baseline_origin(replay_oracle=False) != origin
+    ):
+        _fail("training recovery inputs changed while freeze-v2 was being built")
     _atomic_write(FREEZE_PATH, freeze)
     return freeze
 
 
-def verify_freeze(*, require_remote: bool = True) -> dict[str, Any]:
+def verify_freeze(*, require_remote: bool = True, require_import: bool = True) -> dict[str, Any]:
     value = _json(FREEZE_PATH)
     body = {key: item for key, item in value.items() if key != "freeze_sha256"}
     if (
         value.get("freeze_sha256") != _canonical_hash(body)
-        or value.get("schema_version") != 1
-        or value.get("status") != "frozen_before_model_output"
+        or value.get("schema_version") != 2
+        or value.get("status") != "refrozen_after_base_before_training"
         or value.get("wave") != "INITIAL_LOCAL_QLORA_V1"
         or value.get("config") != CONFIG
         or value.get("limits") != LIMITS
-        or value.get("model_outputs_observed") is not False
+        or value.get("prior_model_output_present") is not True
+        or value.get("run_v2_output_absent_at_freeze") is not True
+        or value.get("model_outputs_observed") is not True
         or value.get("training_started") is not False
+        or value.get("baseline_model_invocations_total") != 1
+        or value.get("additional_model_invocations") != 0
+        or value.get("dev_consumptions_total") != 1
+        or value.get("model_replay_allowed") is not False
         or value.get("configurations") != 1
         or value.get("remote") != REMOTE
         or value.get("remote_head_at_freeze") != value.get("preimage_commit")
@@ -527,6 +843,11 @@ def verify_freeze(*, require_remote: bool = True) -> dict[str, Any]:
         or value.get("training_environment") != _training_environment()
         or value.get("sandbox_policy_sha256")
         != {str(step): _canonical_hash(_training_sandbox_policy(step)) for step in ALLOWED_STEPS}
+        or value.get("run_root") != "artifacts/initial-local-qlora-v1/run-v2"
+        or value.get("checkpoint_root") != "artifacts/initial-local-qlora-v1/run-v2/checkpoints"
+        or value.get("baseline_import_receipt")
+        != "artifacts/initial-local-qlora-v1/run-v2/baseline-reuse.json"
+        or value.get("baseline_origin") != _baseline_origin(replay_oracle=False)
     ):
         _fail("training freeze identity or contract drift")
     runtime = _check_runtime()
@@ -537,7 +858,84 @@ def verify_freeze(*, require_remote: bool = True) -> dict[str, Any]:
     ):
         _fail("training freeze runtime or dataset drift")
     _verify_freeze_publication(value, require_remote=require_remote)
+    if require_import:
+        _verified_reuse_receipt(value)
     return value
+
+
+def import_baseline() -> dict[str, Any]:
+    freeze = verify_freeze(require_remote=True, require_import=False)
+    if RUN_ROOT.exists() or RUN_ROOT.is_symlink():
+        _fail("run-v2 already exists; baseline import is single-use")
+    manifest = _reuse_manifest()
+    source_before = _legacy_base_state(manifest)
+    ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".run-v2-import-", dir=ARTIFACT_ROOT))
+    try:
+        destination = staging / "base-dev"
+        destination.mkdir()
+        for name in ("candidates.jsonl", "generation.json", "semantic.json"):
+            source = LEGACY_RUN_ROOT / "base-dev" / name
+            target = destination / name
+            with source.open("rb") as input_stream, target.open("xb") as output_stream:
+                shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
+                output_stream.flush()
+                os.fsync(output_stream.fileno())
+        source_files = {
+            name: {"bytes": item["bytes"], "sha256": item["sha256"]}
+            for name, item in source_before["files"].items()
+        }
+        destination_files: dict[str, dict[str, Any]] = {}
+        for name in ("candidates.jsonl", "generation.json", "semantic.json"):
+            path = destination / name
+            if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+                _fail("baseline import staging contains an unsafe file")
+            destination_files[name] = {"bytes": path.stat().st_size, "sha256": _file_hash(path)}
+        if destination_files != source_files:
+            _fail("baseline import staging differs from the immutable source")
+        body = {
+            "schema_version": 1,
+            "status": "imported_verified",
+            "wave": "INITIAL_LOCAL_QLORA_V1",
+            "mode": "post_hoc_exact_byte_reuse_no_model_replay",
+            "freeze_file_sha256": _file_hash(FREEZE_PATH),
+            "freeze_self_sha256": freeze["freeze_sha256"],
+            "reuse_manifest_file_sha256": _file_hash(REUSE_MANIFEST_PATH),
+            "reuse_manifest_self_sha256": manifest["manifest_sha256"],
+            "source_run_root": "artifacts/initial-local-qlora-v1/run-v1",
+            "destination_run_root": "artifacts/initial-local-qlora-v1/run-v2",
+            "source_files": source_files,
+            "destination_files": destination_files,
+            "source_to_destination_exact": True,
+            "baseline_model_invocations_total": 1,
+            "additional_model_invocations": 0,
+            "dev_consumptions_total": 1,
+            "optimizer_invocations": 0,
+        }
+        receipt = {**body, "receipt_sha256": _canonical_hash(body)}
+        _atomic_write(staging / "baseline-reuse.json", receipt)
+        for directory in (destination, staging):
+            descriptor = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        if _legacy_base_state(manifest) != source_before:
+            _fail("legacy baseline changed during import")
+        os.replace(staging, RUN_ROOT)
+        parent = os.open(ARTIFACT_ROOT, os.O_RDONLY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    except Exception:
+        with contextlib.suppress(FileNotFoundError):
+            shutil.rmtree(staging)
+        raise
+    verified = _verified_reuse_receipt(freeze)
+    if _legacy_base_state(manifest) != source_before:
+        _fail("legacy baseline changed after import")
+    return verified
 
 
 def _elapsed_training_seconds(freeze: dict[str, Any]) -> float:
@@ -938,6 +1336,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("freeze")
     sub.add_parser("verify-freeze")
+    sub.add_parser("import-baseline")
     command = sub.add_parser("command")
     command.add_argument("--target", type=int, required=True)
     run = sub.add_parser("run")
@@ -949,6 +1348,8 @@ def main(argv: list[str] | None = None) -> int:
             result = freeze_training()
         elif args.command == "verify-freeze":
             result = verify_freeze()
+        elif args.command == "import-baseline":
+            result = import_baseline()
         elif args.command == "command":
             result = {"command": _command(args.target)}
         elif args.command == "run":
