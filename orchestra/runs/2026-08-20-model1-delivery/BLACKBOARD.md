@@ -4562,3 +4562,13 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   recoverable from commit `e7c712e` but is removed from the cured preimage.
   Dataset remains 7 files/466479 bytes; a published freeze-absent preimage is
   required before regenerating the zero-output freeze.
+- FACT — Published cured preimage `a49931e032f3afa51b17d4d4af892e313e4c96e7`
+  passes the real Metal JIT canary with zero local files, then yields replacement
+  freeze self-hash
+  `sha256:443ca34bb67c394089c0506dfaa9ec816514568f6a4d9b1b8ad3ca945b3dd824`
+  and file SHA-256
+  `5847fc2889696406989e79cb8413e41bb1cdff1e08f8fa30e3cd9e7d381fdc28`.
+  Dataset/base identities and 7-file/466479-byte/zero-checkpoint census remain
+  unchanged; the new step25/50/100 sandbox hashes bind the Metal JIT cure and
+  the freeze again states model output=false/training started=false. Commit,
+  push and strict reopen remain mandatory before baseline generation.
