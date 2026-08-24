@@ -67,6 +67,10 @@ derivation and never cross train, dev, or B12. Train and dev use disjoint
 template roots. The pinned public-synthetic oracle intentionally describes only
 `public.video`, so held-out diversity changes field names, field order, indices,
 identifiers and domain cardinalities while retaining that required catalog name.
+Because the pinned describe projection deliberately redacts/normalizes value
+payloads, F-3 also applies the ratified surface invariant directly: a declaration
+that combines external `enum(N)` with inline `values [...]` is rejected even if
+the describe projection would otherwise erase the forbidden suffix.
 
 ## One-run evaluation and training
 

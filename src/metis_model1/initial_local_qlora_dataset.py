@@ -271,6 +271,23 @@ def _call(source: str, *, snapshot: Any) -> dict[str, Any]:
     return {"result": {"status": "ok", "normalized": normalized, "receipt": receipt}}
 
 
+def _call_with_external_domain_contract(source: str, *, snapshot: Any) -> dict[str, Any]:
+    """Apply the ratified surface invariant after the pinned describe parser."""
+    engine = _call(source, snapshot=snapshot)
+    if not _oracle_ok(engine):
+        return engine
+    if " enum(" in source and " values [" in source:
+        return {
+            "result": {
+                "status": "invalid",
+                "failure_code": "external_domain_inline_values_forbidden",
+                "source_sha256": _hash(source),
+                "engine_evidence_sha256": _hash(engine),
+            }
+        }
+    return engine
+
+
 def _prompt_input(row: dict[str, Any], *, diagnostic: str = "") -> tuple[dict[str, Any], str]:
     family, number = row["family"], row["number"]
     before_source: str | None = None
@@ -355,7 +372,7 @@ def _example(row: dict[str, Any], *, snapshot: Any) -> tuple[dict[str, Any], lis
         oracles = ["patch_minimality", "parse", "link", "validate", "compile", "semantic"]
     else:
         before, source = _source(family, number, "mutated"), fixed
-        bad = _call(
+        bad = _call_with_external_domain_contract(
             before,
             snapshot=snapshot,
         )

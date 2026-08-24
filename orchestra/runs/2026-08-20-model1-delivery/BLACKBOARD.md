@@ -4487,3 +4487,12 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   AES256/version metadata, fresh download hash and `verify-archive` are required;
   no receipt, dataset, base, optimizer state, raw output, log or credential is
   uploaded.
+- FIX — The first real materialization attempt failed closed before publishing
+  `dataset/`: the outer sandbox blocked the pinned probe's own network-denial
+  canary, and a subsequent direct pinned replay exposed that catalog `describe`
+  intentionally normalizes away forbidden `enum(N) values [...]` suffixes.
+  L0 adds the already-ratified external-domain surface invariant after the
+  engine projection, with source/evidence hashes but no value payload in the
+  diagnostic. Train and dev F-3 canaries now both pass, emit zero inline values,
+  and the final dataset path remains absent; no model output or optimizer step
+  has occurred, so republishing this corrected preimage is authorized.

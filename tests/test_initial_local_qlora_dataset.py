@@ -86,3 +86,12 @@ def test_f2_is_one_replacement_and_f3_has_real_failure_diagnostic(monkeypatch, t
     example, _ = builder._example(builder._rows()[59], snapshot=object())
     assert '"failure_code": "catalog_domain_rejected"' in example["input"]["request"]
     assert "legacy declaration" not in example["input"]["request"]
+
+
+def test_f3_surface_oracle_rejects_values_even_when_describe_normalizes_them(monkeypatch) -> None:
+    monkeypatch.setattr(builder, "_describe_source_in_snapshot", lambda *_args: _fake_success())
+    source = builder._source("F-3", 0, "mutated")
+    result = builder._call_with_external_domain_contract(source, snapshot=object())
+    assert result["result"]["status"] == "invalid"
+    assert result["result"]["failure_code"] == "external_domain_inline_values_forbidden"
+    assert "amber" not in json.dumps(result)
