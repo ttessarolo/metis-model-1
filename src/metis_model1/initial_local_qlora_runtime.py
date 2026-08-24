@@ -307,7 +307,7 @@ def _check_checkpoint(checkpoint: Path, pin_path: Path = CHECKPOINT_PIN) -> dict
     return dict(result)
 
 
-def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK) -> dict[str, Any]:
+def _runtime_contract(pin_path: Path, lock_path: Path) -> tuple[dict[str, Any], Path]:
     pin = _json(pin_path)
     if pin.get("status") != "qualified" or _sha256(lock_path) != pin["lock_sha256"]:
         _fail("runtime pin or lock mismatch")
@@ -318,6 +318,13 @@ def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK)
     ):
         _fail("qualification wrapper hash mismatch")
     expected_prefix = (PROJECT_ROOT / "qualification/.venv").resolve()
+    return pin, expected_prefix
+
+
+def _check_runtime_current(
+    pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK
+) -> dict[str, Any]:
+    pin, expected_prefix = _runtime_contract(pin_path, lock_path)
     if Path(sys.prefix).resolve() != expected_prefix or sys.version.split()[0] != pin.get("python"):
         _fail("executing Python is not the pinned qualification virtualenv")
     expected_packages = pin.get("packages")
@@ -335,6 +342,77 @@ def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK)
         "packages": live_packages,
         "lock_sha256": pin["lock_sha256"],
     }
+
+
+def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK) -> dict[str, Any]:
+    """Verify the live qualification runtime, directly or through its exact interpreter."""
+    pin, expected_prefix = _runtime_contract(pin_path, lock_path)
+    current_prefix = Path(sys.prefix).resolve()
+    if current_prefix == expected_prefix:
+        return _check_runtime_current(pin_path, lock_path)
+    coordinator_prefix = (PROJECT_ROOT / ".venv").resolve()
+    if current_prefix != coordinator_prefix:
+        _fail("coordinator Python is not the fixed project virtualenv")
+    qualification_python = expected_prefix / "bin/python"
+    if qualification_python.is_symlink():
+        try:
+            interpreter = qualification_python.resolve(strict=True)
+        except OSError as exc:
+            _fail(f"qualification Python symlink is unavailable: {exc}")
+        if not interpreter.is_file():
+            _fail("qualification Python symlink target is not a regular file")
+    elif not qualification_python.is_file():
+        _fail("qualification Python is not a regular file")
+    command = [
+        str(qualification_python),
+        str(Path(__file__).resolve()),
+        "runtime-proof",
+        "--pin-path",
+        str(pin_path.resolve()),
+        "--lock-path",
+        str(lock_path.resolve()),
+    ]
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+    try:
+        completed = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=30,
+            check=False,
+            env=environment,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _fail(f"qualification runtime proof could not execute: {exc}")
+    if (
+        completed.returncode != 0
+        or completed.stderr
+        or len(completed.stdout) > 16 * 1024
+        or completed.stdout.count(b"\n") != 1
+    ):
+        _fail("qualification runtime proof process failed closed")
+    try:
+        proof = json.loads(
+            completed.stdout,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+        )
+    except (UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        _fail(f"qualification runtime proof is invalid JSON: {exc}")
+    expected = {
+        "python": pin.get("python"),
+        "python_prefix": str(expected_prefix),
+        "packages": pin.get("packages"),
+        "lock_sha256": pin["lock_sha256"],
+    }
+    if proof != expected:
+        _fail("qualification runtime proof does not match the pinned contract")
+    return proof
 
 
 def _check_receipt(path: Path) -> dict[str, Any]:
@@ -2535,6 +2613,9 @@ def main(argv: list[str] | None = None) -> int:
     q = sub.add_parser("preflight")
     q.add_argument("--checkpoint", type=Path, required=True)
     q.add_argument("--dataset-receipt", type=Path, required=True)
+    runtime_proof = sub.add_parser("runtime-proof")
+    runtime_proof.add_argument("--pin-path", type=Path, default=RUNTIME_PIN)
+    runtime_proof.add_argument("--lock-path", type=Path, default=RUNTIME_LOCK)
     v = sub.add_parser("verify-checkpoint")
     v.add_argument("step", type=Path)
     z = sub.add_parser("verify-package")
@@ -2586,6 +2667,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "preflight":
             result = preflight(args.checkpoint, args.dataset_receipt)
+        elif args.command == "runtime-proof":
+            result = _check_runtime_current(args.pin_path, args.lock_path)
         elif args.command == "verify-checkpoint":
             result = verify_checkpoint(args.step)
         elif args.command == "verify-package":

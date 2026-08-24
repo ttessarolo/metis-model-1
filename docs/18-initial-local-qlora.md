@@ -86,6 +86,13 @@ dev semantic gain over adapter-off, and step 100 needs another gain over step
 25. No gain simply ends the run at the current valid checkpoint; it does not
 permit another configuration or retry.
 
+The model worker and training process run only in the pinned qualification
+virtualenv. Receipt/oracle/package coordination runs in the fixed project
+virtualenv; whenever it needs qualification-runtime evidence it invokes the
+exact qualification interpreter as a bounded child, which rechecks its own
+prefix, Python version, package versions, lock and wrapper. The parent accepts
+only the exact one-line JSON proof with empty stderr and a 30-second timeout.
+
 After dev is consumed, the independent terminal check replays the frozen B12
 once with the adapter and compares it only to its existing frozen base result.
 It establishes no-regression/uplift evidence and never feeds training or

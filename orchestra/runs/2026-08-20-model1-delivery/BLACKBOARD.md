@@ -4506,3 +4506,20 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   explicit non-publication test for staged-verifier failure; the previously
   generated dataset is not eligible for freeze and will be regenerated from the
   republished preimage. No model output or optimizer step exists.
+- FACT — Dataset regeneration from published `f3f7b52` passes the verifier both
+  before atomic publication and independently afterwards: in=80 out=80
+  distinct=80 gaps=0, train=64, dev=16, F-1/F-2/F-3 exactly 22/21/21 and 5/5/6,
+  receipt `sha256:f826db7fec84fd44526e3122409cf24046475483d123f6d40171b08e3a98de08`.
+  All 27 mutated F-3 envelopes use the exact hash-only surface rejection and no
+  adapter target contains `values [...]`; read-only Metis remains HEAD
+  `c1aca0f629ec96a5ea1f52eea5b4561d0c41f6b5`, tree
+  `fca6e0eebe341d134c06efc16a003582ef4f9fe7`.
+- FIX — L109 catches a pre-freeze interpreter deadlock: B12/oracle coordination
+  needs the project environment while training receipts re-prove the MLX
+  qualification environment. L0 keeps both boundaries exact: only the fixed
+  project virtualenv may coordinate, and it delegates a bounded `runtime-proof`
+  child to the exact qualification interpreter. The child rechecks live prefix,
+  Python/packages, lock and wrapper; the parent requires exit0, empty stderr,
+  one JSON line under 16 KiB, exact schema/value equality and 30-second timeout.
+  Real direct-qualification and delegated-project canaries pass; direct
+  `runtime-proof` from the project interpreter is rejected.

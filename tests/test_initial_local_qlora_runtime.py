@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import subprocess
 import tarfile
 from contextlib import contextmanager
 
@@ -309,6 +310,60 @@ def test_exact_normalized_and_messages_reject_target_role():
     assert rt.exact_normalized(" a\n b ", "a b")
     with pytest.raises(rt.RuntimeContractError):
         rt._messages({"messages": [{"role": "assistant", "content": "secret"}]})
+
+
+def test_project_coordinator_requires_exact_qualification_runtime_proof(monkeypatch):
+    pin = rt._json(rt.RUNTIME_PIN)
+    expected = {
+        "python": pin["python"],
+        "python_prefix": str((rt.PROJECT_ROOT / "qualification/.venv").resolve()),
+        "packages": pin["packages"],
+        "lock_sha256": pin["lock_sha256"],
+    }
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(json.dumps(expected, sort_keys=True) + "\n").encode(),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(rt.subprocess, "run", run)
+    assert rt._check_runtime() == expected
+    assert calls[0][0][0] == str(rt.PROJECT_ROOT / "qualification/.venv/bin/python")
+    assert calls[0][0][2] == "runtime-proof"
+    assert calls[0][1]["timeout"] == 30
+    assert calls[0][1]["env"] == {
+        "PATH": "/usr/bin:/bin",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "stderr"),
+    [
+        (1, b"", b"failure"),
+        (0, b"{}\n{}\n", b""),
+        (0, b"{}\n", b"unexpected"),
+        (0, b"x" * (16 * 1024 + 1) + b"\n", b""),
+    ],
+)
+def test_project_coordinator_rejects_bad_runtime_proof(monkeypatch, returncode, stdout, stderr):
+    monkeypatch.setattr(
+        rt.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, returncode, stdout=stdout, stderr=stderr
+        ),
+    )
+    with pytest.raises(rt.RuntimeContractError, match="runtime proof"):
+        rt._check_runtime()
 
 
 def test_verify_checkpoint_hash_and_finite_telemetry(tmp_path):
