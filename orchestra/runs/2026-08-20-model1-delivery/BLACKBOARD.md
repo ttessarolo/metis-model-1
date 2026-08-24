@@ -4596,3 +4596,20 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - OPEN — Publish the static recovery preimage, generate and publish freeze-v2
   while run-v2 is absent, import the three sealed base files, reopen the exact
   receipt/oracle evidence, and only then create the step25 optimizer marker.
+- FIX — L116's adversarial recovery audit rejects the first cure for two
+  remaining alternate-root and hard-link gaps. L0 closes the full roster at
+  `{dataset,run-v1}` before import and `{dataset,run-v1,run-v2}` afterwards,
+  rejects abandoned staging and every alternate namespace, rejects hard-linked
+  JSON evidence at the read boundary, and replaces both file and directory
+  publication with atomic no-clobber primitives. The plan/schema/docs now state
+  the post-output recovery sequence explicitly; freeze-v2, run-v2, markers,
+  checkpoints and optimizer state remain absent.
+- FACT — L116's second read-only audit returns GO on every original finding;
+  L115 independently replays the immutable baseline at in=16 out=16 distinct=16
+  gaps=0, score=6, critical=10, invented=5 and bundle
+  `sha256:6899fee3d2e33e773f6c1ae2d9dce1541b6d2277cca30dca7c8c83a16600e417`.
+  Focused QLoRA tests are 60/60, foundation is 67/0, Ruff/format/diff are green.
+  Required broad replay is `1233 passed, 102 failed, 1 skipped`; all 102 are the
+  inherited Oracle/W3 protected-authority or historical-pin groups, with zero
+  INITIAL_LOCAL_QLORA_V1 regression. Exact commit+push remains mandatory before
+  freeze-v2 publication.

@@ -18,16 +18,53 @@
     "schema_version": {"const": 1},
     "manifest_id": {"const": "initial-local-qlora-baseline-reuse/v1"},
     "status": {"const": "authorized_post_output_recovery"},
-    "reason": {"type": "string", "minLength": 1},
-    "source": {"type": "object"},
-    "destination": {"type": "object"},
-    "execution": {"type": "object"},
-    "nonclaims": {
-      "type": "array",
-      "items": {"type": "string"},
-      "minItems": 4,
-      "uniqueItems": true
-    },
+    "reason": {"const": "P0 dev verifier treated truthful baseline failures as invalid evidence before any optimizer marker or state existed"},
+    "source": {"const": {
+      "run_root": "artifacts/initial-local-qlora-v1/run-v1",
+      "freeze_path": "manifests/initial-local-qlora-training-freeze-v1.json",
+      "freeze_publication_commit": "0777a0a64704f815a13cfd63875d37afbfc231d2",
+      "freeze_file_sha256": "sha256:5847fc2889696406989e79cb8413e41bb1cdff1e08f8fa30e3cd9e7d381fdc28",
+      "freeze_self_sha256": "sha256:443ca34bb67c394089c0506dfaa9ec816514568f6a4d9b1b8ad3ca945b3dd824",
+      "freeze_preimage_commit": "a49931e032f3afa51b17d4d4af892e313e4c96e7",
+      "freeze_preimage_tree": "a6fdd085239eed67561c0b34e50d8bb2bd447678",
+      "base_dev": {
+        "score": 6,
+        "critical_failures": 10,
+        "invented_values": 5,
+        "family_semantic_correct": {"F-1": 0, "F-2": 0, "F-3": 6},
+        "files": {
+          "candidates.jsonl": {"bytes": 4690, "sha256": "sha256:74a6e30e975594ee9a1176e56a1235f2f9047908fc144eb14837b7ffa21ed5e1"},
+          "generation.json": {"bytes": 5626, "sha256": "sha256:78f53dd5cd91463f6de1ecb7874c043329383c7c21869fae4e660b3b2b87efb9", "self_sha256": "sha256:c064e6cea6d97d8b19ea828496f8a9dd5ad3441aaa5db18277f29415eaea9ae0"},
+          "semantic.json": {"bytes": 10653, "sha256": "sha256:9fffca3bf5a7073d5749ed824160402cbb3e309d8215deab03e40afd3dc60a49", "self_sha256": "sha256:091d3a233cc4653baefdec33181ae8c5237c61fe7f2ada9d5d824049fd4afd0a"}
+        }
+      }
+    }},
+    "destination": {"const": {
+      "run_root": "artifacts/initial-local-qlora-v1/run-v2",
+      "freeze_path": "manifests/initial-local-qlora-training-freeze-v2.json",
+      "copy_roster": [
+        "base-dev/candidates.jsonl",
+        "base-dev/generation.json",
+        "base-dev/semantic.json"
+      ]
+    }},
+    "execution": {"const": {
+      "baseline_model_invocations_total": 1,
+      "additional_model_invocations": 0,
+      "dev_consumptions_total": 1,
+      "optimizer_invocations": 0,
+      "oracle_replay_for_verification_only": true,
+      "model_replay_allowed": false,
+      "fresh_namespace_required": true,
+      "atomic_copy_required": true,
+      "source_remains_read_only": true
+    }},
+    "nonclaims": {"const": [
+      "post_hoc_exact_byte_binding_not_embedded_in_original_generation",
+      "no_second_baseline_inference",
+      "no_optimizer_execution",
+      "no_accuracy_promotion"
+    ]},
     "manifest_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
   }
 }

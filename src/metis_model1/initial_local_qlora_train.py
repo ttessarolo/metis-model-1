@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import ctypes
+import errno
 import hashlib
 import json
 import math
@@ -113,7 +115,7 @@ def _file_hash(path: Path) -> str:
 
 
 def _json(path: Path) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
+    if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
         _fail(f"required JSON is missing or unsafe: {path}")
     try:
         value = json.loads(
@@ -139,7 +141,11 @@ def _atomic_write(path: Path, value: dict[str, Any]) -> None:
             )
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_name, path)
+        try:
+            os.link(temporary_name, path, follow_symlinks=False)
+        except FileExistsError:
+            _fail(f"refusing to overwrite training evidence: {path}")
+        os.unlink(temporary_name)
         directory = os.open(path.parent, os.O_RDONLY)
         try:
             os.fsync(directory)
@@ -149,6 +155,33 @@ def _atomic_write(path: Path, value: dict[str, Any]) -> None:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(temporary_name)
         raise
+
+
+def _atomic_publish_directory(staging: Path, destination: Path) -> None:
+    """Publish one sibling directory with Darwin's atomic no-replace primitive."""
+    if (
+        sys.platform != "darwin"
+        or staging.parent.resolve() != destination.parent.resolve()
+        or staging.is_symlink()
+        or not staging.is_dir()
+    ):
+        _fail("atomic directory publication requires safe Darwin sibling paths")
+    libc = ctypes.CDLL(None, use_errno=True)
+    renamex_np = libc.renamex_np
+    renamex_np.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+    renamex_np.restype = ctypes.c_int
+    rename_exclusive = 0x00000004
+    result = renamex_np(
+        os.fsencode(staging),
+        os.fsencode(destination),
+        rename_exclusive,
+    )
+    if result == 0:
+        return
+    error = ctypes.get_errno()
+    if error == errno.EEXIST:
+        _fail(f"refusing to replace existing run namespace: {destination}")
+    raise OSError(error, os.strerror(error), str(destination))
 
 
 def _git(*args: str) -> str:
@@ -279,7 +312,31 @@ def _checkpoint_steps() -> list[int]:
     return sorted(steps)
 
 
+def _assert_no_import_staging() -> None:
+    if not ARTIFACT_ROOT.exists():
+        return
+    if ARTIFACT_ROOT.is_symlink() or not ARTIFACT_ROOT.is_dir():
+        _fail("wave artifact root is unsafe")
+    if any(path.name.startswith(".run-v2-import-") for path in ARTIFACT_ROOT.iterdir()):
+        _fail("abandoned or alternate run-v2 import path exists")
+
+
+def _assert_artifact_root_roster(*, require_run_v2: bool) -> None:
+    _assert_no_import_staging()
+    expected = {"dataset", "run-v1"}
+    if require_run_v2:
+        expected.add("run-v2")
+    observed = {path.name for path in ARTIFACT_ROOT.iterdir()}
+    if observed != expected:
+        _fail("wave artifact root contains an alternate namespace")
+    for name in expected:
+        path = ARTIFACT_ROOT / name
+        if path.is_symlink() or not path.is_dir():
+            _fail("wave artifact root contains an unsafe namespace")
+
+
 def artifact_census() -> dict[str, Any]:
+    _assert_no_import_staging()
     total = 0
     files = 0
     if ARTIFACT_ROOT.exists():
@@ -306,6 +363,7 @@ def artifact_census() -> dict[str, Any]:
 
 
 def _artifact_usage() -> dict[str, int]:
+    _assert_no_import_staging()
     total = 0
     files = 0
     if not ARTIFACT_ROOT.exists():
@@ -695,6 +753,7 @@ def _destination_base_files() -> dict[str, dict[str, Any]]:
 
 
 def _verified_reuse_receipt(freeze: dict[str, Any]) -> dict[str, Any]:
+    _assert_artifact_root_roster(require_run_v2=True)
     value = _json(REUSE_RECEIPT_PATH)
     body = {key: item for key, item in value.items() if key != "receipt_sha256"}
     source_files = freeze["baseline_origin"]["legacy_state"]["files"]
@@ -749,6 +808,33 @@ def _verified_reuse_receipt(freeze: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _assert_pristine_import_roster() -> None:
+    if RUN_ROOT.is_symlink() or not RUN_ROOT.is_dir():
+        _fail("run-v2 imported namespace is missing or unsafe")
+    if {path.name for path in RUN_ROOT.iterdir()} != {"base-dev", "baseline-reuse.json"}:
+        _fail("run-v2 contains alternate or premature training outputs")
+
+
+def _preimport_artifact_census() -> dict[str, Any]:
+    total = 0
+    files = 0
+    for root in (DATASET_ROOT, LEGACY_RUN_ROOT):
+        if root.is_symlink() or not root.is_dir():
+            _fail("pre-import artifact source is unsafe")
+        for path in root.rglob("*"):
+            metadata = path.lstat()
+            if path.is_symlink() or not (
+                stat.S_ISREG(metadata.st_mode) or stat.S_ISDIR(metadata.st_mode)
+            ):
+                _fail("pre-import artifact source contains an unsafe entry")
+            if stat.S_ISREG(metadata.st_mode):
+                if metadata.st_nlink != 1:
+                    _fail("pre-import artifact source contains a hard-linked file")
+                total += metadata.st_size
+                files += 1
+    return {"bytes": total, "files": files, "checkpoint_steps": []}
+
+
 def freeze_training() -> dict[str, Any]:
     if FREEZE_PATH.exists() or FREEZE_PATH.is_symlink():
         _fail("training freeze output already exists")
@@ -758,7 +844,10 @@ def freeze_training() -> dict[str, Any]:
     checkpoint = _check_checkpoint(MODEL_PATH)
     dataset = _check_receipt(DATASET_ROOT / "receipt.json")
     origin = _baseline_origin(replay_oracle=True)
+    _assert_artifact_root_roster(require_run_v2=False)
     census = artifact_census()
+    if census != _preimport_artifact_census():
+        _fail("pre-freeze artifact census is not the exact dataset plus legacy baseline")
     publication = _published_git_identity()
     preimage = publication["head"]
     body = {
@@ -802,6 +891,7 @@ def freeze_training() -> dict[str, Any]:
         "configurations": 1,
     }
     freeze = {**body, "freeze_sha256": _canonical_hash(body)}
+    _assert_artifact_root_roster(require_run_v2=False)
     if (
         RUN_ROOT.exists()
         or RUN_ROOT.is_symlink()
@@ -813,11 +903,57 @@ def freeze_training() -> dict[str, Any]:
     return freeze
 
 
-def verify_freeze(*, require_remote: bool = True, require_import: bool = True) -> dict[str, Any]:
+def verify_freeze(
+    *,
+    require_remote: bool = True,
+    require_import: bool = True,
+    require_pristine_import: bool = False,
+) -> dict[str, Any]:
     value = _json(FREEZE_PATH)
+    _assert_artifact_root_roster(require_run_v2=require_import)
     body = {key: item for key, item in value.items() if key != "freeze_sha256"}
     if (
-        value.get("freeze_sha256") != _canonical_hash(body)
+        set(value)
+        != {
+            "schema_version",
+            "status",
+            "wave",
+            "preimage_commit",
+            "preimage_tree",
+            "branch",
+            "remote",
+            "remote_ref",
+            "remote_head_at_freeze",
+            "preimage_published",
+            "bound_inputs",
+            "checkpoint",
+            "checkpoint_report_sha256",
+            "runtime",
+            "dataset_receipt_sha256",
+            "train_fingerprint_sha256",
+            "config",
+            "limits",
+            "artifact_census",
+            "run_root",
+            "checkpoint_root",
+            "baseline_import_receipt",
+            "baseline_origin",
+            "commands",
+            "training_environment",
+            "sandbox_policy_sha256",
+            "prior_model_output_present",
+            "run_v2_output_absent_at_freeze",
+            "model_outputs_observed",
+            "training_started",
+            "baseline_model_invocations_total",
+            "additional_model_invocations",
+            "dev_consumptions_total",
+            "model_replay_allowed",
+            "network",
+            "configurations",
+            "freeze_sha256",
+        }
+        or value.get("freeze_sha256") != _canonical_hash(body)
         or value.get("schema_version") != 2
         or value.get("status") != "refrozen_after_base_before_training"
         or value.get("wave") != "INITIAL_LOCAL_QLORA_V1"
@@ -836,6 +972,7 @@ def verify_freeze(*, require_remote: bool = True, require_import: bool = True) -
         or value.get("remote_head_at_freeze") != value.get("preimage_commit")
         or value.get("preimage_published") is not True
         or value.get("bound_inputs") != _bound_inputs(str(value.get("preimage_commit")))
+        or value.get("checkpoint") != _check_checkpoint(MODEL_PATH)
         or value.get("checkpoint_report_sha256") != _file_hash(CHECKPOINT_REPORT)
         or value.get("train_fingerprint_sha256")
         != _dataset_fingerprint(DATASET_ROOT / "train.jsonl")
@@ -848,6 +985,8 @@ def verify_freeze(*, require_remote: bool = True, require_import: bool = True) -
         or value.get("baseline_import_receipt")
         != "artifacts/initial-local-qlora-v1/run-v2/baseline-reuse.json"
         or value.get("baseline_origin") != _baseline_origin(replay_oracle=False)
+        or value.get("artifact_census") != _preimport_artifact_census()
+        or value.get("network") != "denied_during_model_and_optimizer_execution"
     ):
         _fail("training freeze identity or contract drift")
     runtime = _check_runtime()
@@ -860,6 +999,8 @@ def verify_freeze(*, require_remote: bool = True, require_import: bool = True) -
     _verify_freeze_publication(value, require_remote=require_remote)
     if require_import:
         _verified_reuse_receipt(value)
+        if require_pristine_import:
+            _assert_pristine_import_roster()
     return value
 
 
@@ -922,7 +1063,7 @@ def import_baseline() -> dict[str, Any]:
                 os.close(descriptor)
         if _legacy_base_state(manifest) != source_before:
             _fail("legacy baseline changed during import")
-        os.replace(staging, RUN_ROOT)
+        _atomic_publish_directory(staging, RUN_ROOT)
         parent = os.open(ARTIFACT_ROOT, os.O_RDONLY)
         try:
             os.fsync(parent)
@@ -933,6 +1074,7 @@ def import_baseline() -> dict[str, Any]:
             shutil.rmtree(staging)
         raise
     verified = _verified_reuse_receipt(freeze)
+    _assert_pristine_import_roster()
     if _legacy_base_state(manifest) != source_before:
         _fail("legacy baseline changed after import")
     return verified
@@ -1176,9 +1318,12 @@ def _verified_phase_receipt(step: int, freeze: dict[str, Any]) -> dict[str, Any]
 
 
 def run_step(target: int) -> dict[str, Any]:
-    freeze = verify_freeze(require_remote=True)
     if target not in ALLOWED_STEPS:
         _fail("target step must be 25, 50, or 100")
+    freeze = verify_freeze(
+        require_remote=True,
+        require_pristine_import=target == 25,
+    )
     if _checkpoint_steps() != EXPECTED_CHECKPOINTS[target]:
         _fail("checkpoint roster does not authorize this phase")
     for prior in EXPECTED_CHECKPOINTS[target]:
@@ -1229,6 +1374,7 @@ def run_step(target: int) -> dict[str, Any]:
         "artifact_census_before": before,
     }
     marker_value = {**marker_body, "marker_sha256": _canonical_hash(marker_body)}
+    _assert_artifact_root_roster(require_run_v2=True)
     _atomic_write(marker, marker_value)
     telemetry_root.mkdir()
     CHECKPOINT_ROOT.mkdir(exist_ok=True)
@@ -1347,7 +1493,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "freeze":
             result = freeze_training()
         elif args.command == "verify-freeze":
-            result = verify_freeze()
+            result = verify_freeze(require_pristine_import=True)
         elif args.command == "import-baseline":
             result = import_baseline()
         elif args.command == "command":

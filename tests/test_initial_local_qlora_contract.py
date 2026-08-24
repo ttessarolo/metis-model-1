@@ -38,6 +38,7 @@ def test_initial_local_qlora_plan_is_strict_and_self_hashed() -> None:
     assert sorted(error.message for error in Draft202012Validator(schema).iter_errors(plan)) == []
     assert plan["plan_sha256"] == _self_hash(plan, "plan_sha256")
     assert plan["user_mandate"] == "INITIAL_LOCAL_QLORA_V1"
+    assert plan["status"] == "user_mandated_post_output_recovery"
     assert plan["decision_boundary"] == {
         "o011_limited_waiver": "new_initial_local_adapter_only",
         "o010_delta_not_used": True,
@@ -141,6 +142,9 @@ def test_fixed_counts_training_caps_and_terminal_separation() -> None:
         "dataset_materialized",
         "dataset_training_freeze_published",
         "base_dev16_consumed",
+        "baseline_recovery_preimage_published",
+        "recovery_freeze_v2_published",
+        "baseline_exact_byte_imported",
         "qlora_step25",
         "optional_qlora_step50_or100_if_dev_gain",
         "adapter_dev16_consumed",

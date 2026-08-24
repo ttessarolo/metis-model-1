@@ -226,3 +226,100 @@ def test_legacy_base_state_rejects_extra_symlink_or_hardlink(
 
     with pytest.raises(train.TrainingContractError, match="legacy run-v1"):
         train._legacy_base_state(manifest)
+
+
+def test_atomic_write_refuses_to_overwrite_existing_target(tmp_path) -> None:
+    target = tmp_path / "evidence.json"
+    target.write_text("original\n")
+
+    with pytest.raises(train.TrainingContractError, match="refusing to overwrite"):
+        train._atomic_write(target, {"value": "replacement"})
+
+    assert target.read_text() == "original\n"
+
+
+def test_atomic_write_loses_target_creation_race_without_overwrite(tmp_path, monkeypatch) -> None:
+    target = tmp_path / "evidence.json"
+    real_link = os.link
+
+    def racing_link(source, destination, *, follow_symlinks=True):
+        Path(destination).write_text("racer\n")
+        return real_link(
+            source,
+            destination,
+            follow_symlinks=follow_symlinks,
+        )
+
+    monkeypatch.setattr(train.os, "link", racing_link)
+
+    with pytest.raises(train.TrainingContractError, match="refusing to overwrite"):
+        train._atomic_write(target, {"value": "replacement"})
+
+    assert target.read_text() == "racer\n"
+
+
+def test_atomic_publish_directory_refuses_empty_destination_and_preserves_trees(tmp_path) -> None:
+    staging = tmp_path / ".run-v2-import-staging"
+    destination = tmp_path / "run-v2"
+    staging.mkdir()
+    destination.mkdir()
+    (staging / "payload").write_text("staged\n")
+
+    with pytest.raises(train.TrainingContractError, match="refusing to replace"):
+        train._atomic_publish_directory(staging, destination)
+
+    assert staging.is_dir()
+    assert (staging / "payload").read_text() == "staged\n"
+    assert destination.is_dir()
+    assert list(destination.iterdir()) == []
+
+
+def test_abandoned_run_v2_import_staging_is_rejected(tmp_path, monkeypatch) -> None:
+    artifact_root = tmp_path / "artifacts"
+    (artifact_root / ".run-v2-import-abandoned").mkdir(parents=True)
+    monkeypatch.setattr(train, "ARTIFACT_ROOT", artifact_root)
+
+    with pytest.raises(train.TrainingContractError, match="abandoned or alternate"):
+        train._assert_no_import_staging()
+
+
+def test_alternate_run_namespace_is_rejected(tmp_path, monkeypatch) -> None:
+    artifact_root = tmp_path / "artifacts"
+    for name in ("dataset", "run-v1", "run-v3"):
+        (artifact_root / name).mkdir(parents=True)
+    monkeypatch.setattr(train, "ARTIFACT_ROOT", artifact_root)
+
+    with pytest.raises(train.TrainingContractError, match="alternate namespace"):
+        train._assert_artifact_root_roster(require_run_v2=False)
+
+
+def test_json_rejects_hard_linked_receipt(tmp_path) -> None:
+    receipt = tmp_path / "baseline-reuse.json"
+    receipt.write_text("{}\n")
+    os.link(receipt, tmp_path / "external-link.json")
+
+    with pytest.raises(train.TrainingContractError, match="unsafe"):
+        train._json(receipt)
+
+
+def test_run_step_requests_pristine_import_before_any_marker(tmp_path, monkeypatch) -> None:
+    run_root = tmp_path / "run-v2"
+    calls = {}
+
+    def verify_freeze(**kwargs):
+        calls.update(kwargs)
+        if kwargs.get("require_pristine_import") is not True:
+            raise AssertionError("run_step must require pristine import verification")
+        raise train.TrainingContractError("pristine-import sentinel")
+
+    monkeypatch.setattr(train, "verify_freeze", verify_freeze)
+    monkeypatch.setattr(train, "RUN_ROOT", run_root)
+
+    with pytest.raises(train.TrainingContractError, match="pristine-import sentinel"):
+        train.run_step(25)
+
+    assert calls == {
+        "require_remote": True,
+        "require_pristine_import": True,
+    }
+    assert not run_root.exists()

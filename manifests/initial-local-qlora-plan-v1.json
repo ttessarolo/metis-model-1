@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "plan_id": "initial-local-qlora-plan/v1",
-  "status": "user_mandated_pre_output",
+  "status": "user_mandated_post_output_recovery",
   "user_mandate": "INITIAL_LOCAL_QLORA_V1",
   "decision_boundary": {
     "o011_limited_waiver": "new_initial_local_adapter_only",
@@ -147,6 +147,9 @@
     "dataset_materialized",
     "dataset_training_freeze_published",
     "base_dev16_consumed",
+    "baseline_recovery_preimage_published",
+    "recovery_freeze_v2_published",
+    "baseline_exact_byte_imported",
     "qlora_step25",
     "optional_qlora_step50_or100_if_dev_gain",
     "adapter_dev16_consumed",
@@ -186,5 +189,5 @@
     "no_adapter_distribution",
     "no_base_dataset_optimizer_or_raw_output_upload"
   ],
-  "plan_sha256": "sha256:0237dd7bba9adba1824a8d4b5c4fb612419c6c2594e9c4302bdeb8183e81e97e"
+  "plan_sha256": "sha256:f7d573bbbab73cd01e29ba8de713edc08d988fdd7cb090928b0440eb09ccd7ef"
 }

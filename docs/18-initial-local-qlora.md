@@ -1,6 +1,6 @@
 # Initial local QLoRA v1
 
-Status: **PREIMAGE IMPLEMENTED — NO DATASET, MODEL, OR PACKAGE OUTPUT YET**.
+Status: **POST-OUTPUT RECOVERY CONTRACT — LOCAL QLORA AUTHORIZED, PAYLOADS OUTSIDE GIT**.
 
 `INITIAL_LOCAL_QLORA_V1` is a new, local, bounded research wave. It neither
 reopens the catalog-maintenance runs nor changes their sealed `DIAGNOSE 4/8`
@@ -113,13 +113,16 @@ cap breach stops the wave.
 Caps are one configuration, no rework, at most 100 optimizer steps, four
 checkpoints, four hours, 8 GiB new artifacts, and 110 GB peak Metal.
 
-## Pre-output state machine
+## Post-output recovery state machine
 
 ```text
 contract_preimage_published
   -> dataset_materialized
   -> dataset_training_freeze_published
   -> base_dev16_consumed
+  -> baseline_recovery_preimage_published
+  -> recovery_freeze_v2_published
+  -> baseline_exact_byte_imported
   -> qlora_step25
   -> optional_qlora_step50_or100_if_dev_gain
   -> adapter_dev16_consumed
@@ -135,9 +138,9 @@ exact inputs, a single fresh ignored output path, and the one authorized phase.
 Existing directories, alternate paths, stale receipts, symlinks, nonregular
 files, hard links, raw tracked output, exclusion hits, altered bound inputs, or
 a missing required publication fail closed. A correction after any model output
-or optimizer step requires a fresh namespace and mandate. Pre-output tooling
-may be corrected and republished only while every fixed model/training output
-path remains absent.
+or optimizer step requires a fresh namespace and mandate. Recovery tooling may
+be corrected and republished only while the fresh `run-v2` model/training output
+path and freeze-v2 remain absent.
 
 The observed `run-v1` baseline exposed a P0 verifier defect before any optimizer
 marker, checkpoint, telemetry, or training state existed: a complete but imperfect
