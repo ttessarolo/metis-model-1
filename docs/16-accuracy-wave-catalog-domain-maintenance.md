@@ -71,10 +71,10 @@ The eight-case probe is non-statistical and non-promotional. Its result is a
 maintenance diagnostic only: `8/8` semantic passes support `NO_RETRAIN` for
 this grammar change, while failures identify repair work and never
 auto-authorize training. The first freeze was revoked after the worker launcher
-resolved away its virtualenv and stopped before model load. A replacement seal
-must bind the virtualenv launcher, target and exact Python/MLX/MLX-VLM versions
-before any retry. The broad D18/T30 wave remains unmaterialized and
-output-forbidden.
+resolved away its virtualenv and stopped before model load. The replacement
+seal must bind the virtualenv launcher, target, exact Python/MLX/MLX-VLM
+versions and the sole fixed ignored run directory before any retry. The broad
+D18/T30 wave remains unmaterialized and output-forbidden.
 
 ## 3. Frozen wave arithmetic
 
@@ -131,9 +131,9 @@ raw digests and exact output summaries/hashes. This is sufficient to open the
 separate probe specification for this synthetic lineage; it is not tenant or
 production authority. The prior run stopped at Python import before model
 load, emitted no inference output and invalidated its freeze. The next state
-transition is a replacement Git pre-output seal. D18/T30 construction remains
-deferred and old benchmark and delivery evidence remain historical and
-unchanged.
+transition is a replacement Git pre-output seal binding the cured runtime and
+the single fixed evaluation directory. D18/T30 construction remains deferred
+and old benchmark and delivery evidence remain historical and unchanged.
 
 ## 5. Model decision path
 

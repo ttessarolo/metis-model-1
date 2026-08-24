@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 
 from metis_model1.catalog_maintenance_probe import (
+    DEFAULT_RUN_DIR,
+    RUN_OUTPUT_RELATIVE,
     CatalogMaintenanceProbeError,
     _extract_source,
+    _frozen_run_dir,
     _python_runtime_identity,
     _safe_checkpoint_weight_name,
     _worker_sandbox_policy,
@@ -201,6 +204,13 @@ def test_worker_python_identity_preserves_qualification_virtualenv() -> None:
     assert identity["python_version"] == "3.12.10"
     assert identity["mlx"] == "0.32.1"
     assert identity["mlx_vlm"] == "0.6.15"
+
+
+def test_freeze_binds_the_only_allowed_evaluation_directory() -> None:
+    freeze = {"run_dir": RUN_OUTPUT_RELATIVE}
+    assert _frozen_run_dir(freeze, DEFAULT_RUN_DIR) == DEFAULT_RUN_DIR.resolve()
+    with pytest.raises(CatalogMaintenanceProbeError, match="frozen evaluation path"):
+        _frozen_run_dir(freeze, ROOT / "artifacts/catalog-maintenance-probe-v1-replay")
 
 
 def test_freeze_seal_tamper_is_detectable() -> None:

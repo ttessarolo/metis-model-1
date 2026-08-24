@@ -7,7 +7,7 @@
   "required": [
     "schema_version", "freeze_id", "status", "preimage_commit", "preimage_tree",
     "remote", "remote_ref", "probe_manifest_sha256", "probe_manifest_file_sha256", "probe_schema_sha256",
-    "bound_inputs", "catalog_pin", "retrieval", "checkpoint", "runtime", "model", "counts",
+    "bound_inputs", "catalog_pin", "retrieval", "checkpoint", "runtime", "run_dir", "model", "counts",
     "tasks", "model_outputs_observed", "training_authorized", "nonclaims", "freeze_sha256"
   ],
   "properties": {
@@ -62,6 +62,7 @@
       "checkpoint_report": {"$ref": "#/$defs/file_identity"},
       "sandbox_policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
     }},
+    "run_dir": {"const": "artifacts/catalog-maintenance-probe-v1"},
     "model": {"type": "object", "additionalProperties": false, "required": ["family", "adapter_enabled", "temperature", "seed", "max_tokens", "max_repair_cycles"], "properties": {
       "family": {"const": "Qwen3.8"}, "adapter_enabled": {"const": false}, "temperature": {"const": 0}, "seed": {"const": 17}, "max_tokens": {"const": 512}, "max_repair_cycles": {"const": 2}
     }},

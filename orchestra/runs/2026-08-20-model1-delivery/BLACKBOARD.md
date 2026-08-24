@@ -4285,3 +4285,17 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `3.12.10`, MLX `0.32.1` and MLX-VLM `0.6.15`; the sandbox command uses the
   launcher path. Focused spec-state tests are `74/74`, foundation `56/0`, and a
   replacement freeze is required before any retry.
+- STOP — Independent contract audit rejects the uncommitted replacement freeze
+  before model output: the plan still listed five explicitly postponed broad
+  operations as active, and the freeze did not bind the sole evaluation output
+  directory. The freeze remains retained only under ignored artifacts; model
+  tasks, generations, report and score are zero.
+- FIX — The active partition now contains only catalog truth, the probe seal and
+  upstream read-only monitoring. The freeze schema and runner bind exactly
+  `artifacts/catalog-maintenance-probe-v1`; alternate run directories fail
+  closed before worker startup, and an existing fixed directory blocks replay.
+  A new preimage commit and replacement freeze are required.
+- DONE — Independent runner replay returns P0=0/P1=0 for fixed-directory
+  binding, alternate-path rejection, existing-directory replay denial, exact
+  schema hash `89b2873c...` and broad-work reintroduction rejection. L0 focused
+  tests are `76/76`, Ruff/format/diff are green and foundation is `56/0`.

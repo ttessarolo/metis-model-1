@@ -5,7 +5,7 @@
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:cbb353de91fc4025d31d62e13531fbff91c2eefaa12b608cac8fc0077ac90407"
+    "sha256": "sha256:2b07dc490006a04d6b82e29fbf3f57b6a18dafa1ac5d338ba9e73a043d626bd7"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
@@ -177,11 +177,6 @@
   },
   "execution_partition": {
     "allowed_now": [
-      "non_catalog_d18_task_design",
-      "non_catalog_t30_task_and_oracle_design",
-      "f6_structural_oracle_implementation",
-      "non_catalog_f4_f5_oracle_contract_work",
-      "catalog_retrieval_adapter_contract_work",
       "catalog_domain_prompt_truth",
       "catalog_domain_oracle_truth",
       "catalog_probe_spec_and_oracle_truth",

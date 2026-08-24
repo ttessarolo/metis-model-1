@@ -83,10 +83,15 @@ def test_accuracy_uplift_plan_is_green_and_implementation_pinned() -> None:
     assert plan["historical_evidence"]["fine_tuned_adapter_present"] is False
     assert plan["historical_evidence"]["semantic_score"] == "11/12"
     assert plan["historical_evidence"]["source_oracle_audit"] == "12/12"
-    assert "catalog_retrieval_adapter_contract_work" in plan["execution_partition"]["allowed_now"]
     assert "catalog_domain_split_materialization" not in plan["execution_partition"]["allowed_now"]
     assert "catalog_probe_spec_and_oracle_truth" in plan["execution_partition"]["allowed_now"]
-    assert "catalog_probe_pre_output_seal" in plan["execution_partition"]["allowed_now"]
+    assert plan["execution_partition"]["allowed_now"] == [
+        "catalog_domain_prompt_truth",
+        "catalog_domain_oracle_truth",
+        "catalog_probe_spec_and_oracle_truth",
+        "catalog_probe_pre_output_seal",
+        "upstream_read_only_pin_monitoring",
+    ]
     assert "catalog_probe_evaluation" not in plan["execution_partition"]["allowed_now"]
     assert (
         "catalog_probe_model_outputs_before_probe_seal"
@@ -360,6 +365,22 @@ def test_refreshed_state_requires_every_catalog_construction_operation(
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
     assert "refreshed execution partition omits catalog construction work" in errors
+
+
+def test_refreshed_state_rejects_postponed_broad_work_in_active_partition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["execution_partition"]["allowed_now"].append(
+            "non_catalog_d18_task_design"
+        ),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "postponed broad accuracy work remains in the active partition" in errors
 
 
 @pytest.mark.parametrize(

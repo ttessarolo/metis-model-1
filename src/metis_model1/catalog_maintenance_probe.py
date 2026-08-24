@@ -41,6 +41,8 @@ PROBE_MANIFEST = PROJECT_ROOT / "manifests/catalog-maintenance-probe-v1.json"
 PROBE_SCHEMA = PROJECT_ROOT / "schemas/catalog-maintenance-probe.schema.json"
 FREEZE_SCHEMA = PROJECT_ROOT / "schemas/catalog-maintenance-probe-freeze.schema.json"
 FREEZE_OUTPUT = PROJECT_ROOT / "manifests/catalog-maintenance-probe-freeze-v1.json"
+RUN_OUTPUT_RELATIVE = "artifacts/catalog-maintenance-probe-v1"
+DEFAULT_RUN_DIR = PROJECT_ROOT / RUN_OUTPUT_RELATIVE
 RETRIEVAL_MANIFEST = PROJECT_ROOT / "manifests/catalog-retrieval-public-synthetic-v1.json"
 RETRIEVAL_RECEIPT = PROJECT_ROOT / "manifests/catalog-retrieval-execution-v1.json"
 RETRIEVAL_SCHEMA = PROJECT_ROOT / "schemas/catalog-retrieval-execution-receipt.schema.json"
@@ -59,7 +61,7 @@ RETRIEVAL_MANIFEST_SHA256 = (
 )
 RETRIEVAL_RECEIPT_SHA256 = "sha256:dd5a2b3046842dba35bffd06111882caafe52c66d80bd1f0d3b7c3a7d911ea5b"
 RETRIEVAL_SCHEMA_SHA256 = "sha256:22d90adf2ad28eaaf81285dccbd29058311573c1e8dd71bac4fd3c2edf0e8046"
-FREEZE_SCHEMA_SHA256 = "sha256:3072cb821a30390f6a2610fb86de2aa44ca37898a7aeea23d9583b4ba07b5647"
+FREEZE_SCHEMA_SHA256 = "sha256:89b2873cac8481b18a192cae06c325e1075a58a2358f04002550e1d0be2623df"
 PROBE_MANIFEST_FILE_SHA256 = (
     "sha256:f9b53a7868e07155153052cd80e936e6c7dadea4a0afb71f3898f7aa00be4046"
 )
@@ -942,6 +944,7 @@ def _freeze_body(args: argparse.Namespace) -> dict[str, Any]:
         },
         "checkpoint": checkpoint,
         "runtime": runtime,
+        "run_dir": RUN_OUTPUT_RELATIVE,
         "model": manifest["model"],
         "counts": {"cases_in": 8, "cases_out": 8, "cases_distinct": 8, "gaps": 0},
         "tasks": tasks,
@@ -959,10 +962,11 @@ def freeze(args: argparse.Namespace) -> int:
         raise CatalogMaintenanceProbeError("freeze output path is fixed in the repository")
     if output.exists():
         raise CatalogMaintenanceProbeError(f"freeze output already exists: {output}")
-    if Path(args.run_dir).exists():
-        raise CatalogMaintenanceProbeError(
-            f"run output already exists: {Path(args.run_dir).resolve()}"
-        )
+    run_dir = Path(args.run_dir).resolve()
+    if run_dir != DEFAULT_RUN_DIR.resolve():
+        raise CatalogMaintenanceProbeError("run output path is fixed by the probe contract")
+    if run_dir.exists():
+        raise CatalogMaintenanceProbeError(f"run output already exists: {run_dir}")
     body = _freeze_body(args)
     freeze_schema = _schema(
         PROJECT_ROOT / FREEZE_SCHEMA.relative_to(PROJECT_ROOT),
@@ -1015,6 +1019,21 @@ def _read_worker_json(
         if not chunk:
             raise CatalogMaintenanceProbeError(f"worker exited before {label}")
         buffer.extend(chunk)
+
+
+def _frozen_run_dir(freeze: Mapping[str, Any], requested: Path) -> Path:
+    """Return the one output directory bound by the pre-output seal."""
+
+    output_dir = requested.resolve()
+    try:
+        relative = output_dir.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError as error:
+        raise CatalogMaintenanceProbeError(
+            "run output does not match the frozen evaluation path"
+        ) from error
+    if freeze.get("run_dir") != RUN_OUTPUT_RELATIVE or relative != RUN_OUTPUT_RELATIVE:
+        raise CatalogMaintenanceProbeError("run output does not match the frozen evaluation path")
+    return output_dir
 
 
 def _worker_request(
@@ -1076,6 +1095,7 @@ def run(args: argparse.Namespace) -> int:
         "freeze schema",
     )
     _validate(freeze, freeze_schema, "freeze manifest")
+    output_dir = _frozen_run_dir(freeze, Path(args.run_dir))
     freeze_relative = freeze_path.relative_to(PROJECT_ROOT).as_posix()
     if _git_blob(PROJECT_ROOT, freeze_relative) != raw_hash(freeze_raw):
         raise CatalogMaintenanceProbeError("freeze manifest is not committed byte-for-byte at HEAD")
@@ -1146,7 +1166,6 @@ def run(args: argparse.Namespace) -> int:
                 raise CatalogMaintenanceProbeError(
                     f"frozen oracle receipt drift: {case['case_id']}"
                 )
-    output_dir = Path(args.run_dir).resolve()
     if output_dir.exists():
         raise CatalogMaintenanceProbeError(f"run output already exists: {output_dir}")
     try:
@@ -1341,9 +1360,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     result.add_argument("mode", choices=("freeze", "run"))
     result.add_argument("--freeze-output", type=Path, default=FREEZE_OUTPUT)
-    result.add_argument(
-        "--run-dir", type=Path, default=PROJECT_ROOT / "artifacts/catalog-maintenance-probe-v1"
-    )
+    result.add_argument("--run-dir", type=Path, default=DEFAULT_RUN_DIR)
     result.add_argument("--remote", default="origin")
     result.add_argument("--remote-ref", default=None)
     result.add_argument("--metis-root", type=Path, default=DEFAULT_METIS_ROOT)

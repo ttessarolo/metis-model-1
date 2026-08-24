@@ -988,6 +988,15 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             )
             if not required_allowed.issubset(plan["execution_partition"]["allowed_now"]):
                 errors.append("refreshed execution partition omits catalog construction work")
+            deferred_broad_operations = {
+                "non_catalog_d18_task_design",
+                "non_catalog_t30_task_and_oracle_design",
+                "f6_structural_oracle_implementation",
+                "non_catalog_f4_f5_oracle_contract_work",
+                "catalog_retrieval_adapter_contract_work",
+            }
+            if deferred_broad_operations.intersection(plan["execution_partition"]["allowed_now"]):
+                errors.append("postponed broad accuracy work remains in the active partition")
             required_forbidden = {
                 "t30_model_outputs_before_complete_seal",
                 "tenant_value_payloads",
