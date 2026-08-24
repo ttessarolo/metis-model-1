@@ -4128,6 +4128,44 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   enum(214) reflected), play-prod `31dc23d` (2 fields migrated + opt-in
   `values []` on genere_mcm/content_channels awaiting a live sync run).
 
+- FACT — L0 evaluated `https://fx.sh/` on 2026-08-24. The linked product is
+  `vercel-labs/fx`, an Apache-2.0 experimental coding-agent harness written in
+  Zig, not the older `antonmedv/fx` JSON viewer. Its potentially relevant
+  surfaces are a lightweight native CLI, model/provider selection, skills,
+  MCP, per-child model/effort/permission subagents, `fx acp`, and experimental
+  JavaScript/WASM embedding. Official sources:
+  `https://github.com/vercel-labs/fx`,
+  `https://fx.sh/docs/capabilities/subagents`,
+  `https://fx.sh/docs/using-fx/acp`, and `https://fx.sh/docs/lib`.
+- DECISION — Treat fx only as a bounded candidate for the still-open O-008
+  CLI/editor/agent interface, not as a Model 1 dependency, oracle, gatekeeper,
+  promotion authority, or replacement for the pinned Qwen3.8 + checkout
+  retrieval + parser/linker/validator/compiler/semantic-oracle architecture.
+  The useful hypothesis is that fx could supply a shell/ACP interface around a
+  compatible local Qwen endpoint and narrowly exposed Metis tools. No fx
+  installation, repository configuration, provider login, or adoption has
+  occurred.
+- RISK — The latest verified release is `v0.0.5` from 2026-08-21 and remains
+  explicitly experimental. Its release notes state that approved captured,
+  background, and monitor commands run as ordinary host subprocesses and that
+  sandbox configuration was retired; parts of the current documentation still
+  describe the prior sandbox contract. The official installer also publishes
+  no signature/checksum verification, and cloud inference sends the context
+  actually loaded for a turn to the selected provider. Therefore fx receives
+  no authority over the active worktree, tenant/live data, credentials,
+  datasets, model payloads, training, external writes, or semantic claims.
+  Sources: `https://github.com/vercel-labs/fx/releases/tag/v0.0.5`,
+  `https://fx.sh/docs/getting-started/installation`, and
+  `https://fx.sh/docs/using-fx/data-and-privacy`.
+- OPEN — If separately authorized after the active writer wave, evaluate fx in
+  a disposable worktree/container only: pin one reviewed release and internal
+  artifact hash, disable automatic updates, deny outbound network, use only a
+  public-synthetic fixture, expose a read-only command/tool roster, and verify
+  (1) compatibility with the exact local Qwen3.8 inference surface, (2) a
+  bounded generate -> compile -> diagnose -> repair loop, (3) ACP/editor
+  behavior, (4) zero unauthorized filesystem/network effects, and (5) durable
+  evidence export. Failure of any item rejects fx for O-008; a green POC still
+  grants no benchmark, training, promotion, or production credit.
 - FACT — L0 independently pins the published catalog implementation at Metis
   commit `5e112f9148f40e7e792052e896c5a9efe8eaf0a2`, tree
   `41c7a2b6890fa42d8123bd93f6560d0b9bfae8af`; a detached `ls-remote` before and
