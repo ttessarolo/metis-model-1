@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/accuracy-maintenance-roster.schema.json",
+  "title": "Metis Model 1 local accuracy-maintenance roster",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "roster_id",
+    "status",
+    "authority_status",
+    "model_outputs_observed",
+    "upstream_pin",
+    "construct_registry",
+    "tasks",
+    "counts",
+    "roster_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "roster_id": {"$ref": "#/$defs/id"},
+    "status": {"enum": ["pending", "local_unpublished_draft"]},
+    "authority_status": {"enum": ["NO_AUTHORITY_PENDING", "LOCAL_UNPUBLISHED_DRAFT"]},
+    "model_outputs_observed": {"const": false},
+    "upstream_pin": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/pin"}]},
+    "construct_registry": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/registry"}]},
+    "tasks": {"type": "array", "maxItems": 48, "items": {"$ref": "#/$defs/task"}},
+    "counts": {"$ref": "#/$defs/counts"},
+    "roster_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "pending"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "authority_status": {"const": "NO_AUTHORITY_PENDING"},
+          "upstream_pin": {"type": "null"},
+          "construct_registry": {"type": "null"},
+          "tasks": {"maxItems": 0},
+          "counts": {"const": {
+            "D18": {"tasks": 0, "families": {"F-1": 0, "F-2": 0, "F-3": 0, "F-4": 0, "F-5": 0, "F-6": 0}},
+            "T30": {"tasks": 0, "families": {"F-1": 0, "F-2": 0, "F-3": 0, "F-4": 0, "F-5": 0, "F-6": 0}},
+            "total": 0
+          }}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "local_unpublished_draft"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "authority_status": {"const": "LOCAL_UNPUBLISHED_DRAFT"},
+          "upstream_pin": {"$ref": "#/$defs/pin"},
+          "construct_registry": {"$ref": "#/$defs/registry"},
+          "tasks": {"minItems": 48, "maxItems": 48},
+          "counts": {"const": {
+            "D18": {"tasks": 18, "families": {"F-1": 3, "F-2": 3, "F-3": 3, "F-4": 3, "F-5": 3, "F-6": 3}},
+            "T30": {"tasks": 30, "families": {"F-1": 5, "F-2": 5, "F-3": 5, "F-4": 5, "F-5": 5, "F-6": 5}},
+            "total": 48
+          }}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$",
+      "maxLength": 512
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "revision", "tree", "probe_receipt"],
+      "properties": {
+        "repository": {"const": "ares-matioska/metis"},
+        "revision": {"$ref": "#/$defs/oid"},
+        "tree": {"$ref": "#/$defs/oid"},
+        "probe_receipt": {"$ref": "#/$defs/reference"}
+      }
+    },
+    "registryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["construct", "families", "catalog_domain", "oracle_authority"],
+      "properties": {
+        "construct": {"$ref": "#/$defs/id"},
+        "families": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"]}
+        },
+        "catalog_domain": {"type": "boolean"},
+        "oracle_authority": {"$ref": "#/$defs/id"}
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry_id", "entries", "registry_sha256"],
+      "properties": {
+        "registry_id": {"$ref": "#/$defs/id"},
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/registryEntry"}
+        },
+        "registry_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "retrievalEvidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "sha256"],
+          "properties": {
+            "kind": {"const": "receipt"},
+            "path": {"$ref": "#/$defs/path"},
+            "sha256": {"$ref": "#/$defs/hash"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "marker"],
+          "properties": {
+            "kind": {"const": "non_catalog"},
+            "marker": {"const": "non_catalog"}
+          }
+        }
+      ]
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "split",
+        "family",
+        "construct",
+        "prompt",
+        "truth",
+        "oracle_receipt",
+        "retrieval_evidence",
+        "genealogy",
+        "provenance_root_sha256",
+        "content_root_sha256",
+        "genealogy_root_sha256",
+        "identifier_root_sha256",
+        "normalized_ast_root_sha256",
+        "normalized_ir_root_sha256",
+        "expected_output_root_sha256",
+        "upstream_revision",
+        "upstream_tree",
+        "pre_output_status"
+      ],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/id"},
+        "split": {"enum": ["D18", "T30"]},
+        "family": {"enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"]},
+        "construct": {"$ref": "#/$defs/id"},
+        "prompt": {"$ref": "#/$defs/reference"},
+        "truth": {"$ref": "#/$defs/reference"},
+        "oracle_receipt": {"$ref": "#/$defs/reference"},
+        "retrieval_evidence": {"$ref": "#/$defs/retrievalEvidence"},
+        "genealogy": {"$ref": "#/$defs/reference"},
+        "provenance_root_sha256": {"$ref": "#/$defs/hash"},
+        "content_root_sha256": {"$ref": "#/$defs/hash"},
+        "genealogy_root_sha256": {"$ref": "#/$defs/hash"},
+        "identifier_root_sha256": {"$ref": "#/$defs/hash"},
+        "normalized_ast_root_sha256": {"$ref": "#/$defs/hash"},
+        "normalized_ir_root_sha256": {"$ref": "#/$defs/hash"},
+        "expected_output_root_sha256": {"$ref": "#/$defs/hash"},
+        "upstream_revision": {"$ref": "#/$defs/oid"},
+        "upstream_tree": {"$ref": "#/$defs/oid"},
+        "pre_output_status": {"const": "local_preoutput_evidence"}
+      }
+    },
+    "familyCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"],
+      "properties": {
+        "F-1": {"type": "integer", "minimum": 0},
+        "F-2": {"type": "integer", "minimum": 0},
+        "F-3": {"type": "integer", "minimum": 0},
+        "F-4": {"type": "integer", "minimum": 0},
+        "F-5": {"type": "integer", "minimum": 0},
+        "F-6": {"type": "integer", "minimum": 0}
+      }
+    },
+    "splitCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tasks", "families"],
+      "properties": {
+        "tasks": {"type": "integer", "minimum": 0},
+        "families": {"$ref": "#/$defs/familyCounts"}
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["D18", "T30", "total"],
+      "properties": {
+        "D18": {"$ref": "#/$defs/splitCounts"},
+        "T30": {"$ref": "#/$defs/splitCounts"},
+        "total": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

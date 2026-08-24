@@ -4079,3 +4079,103 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   failed, 1 skipped`. The failures are the already-open external-Metis revision
   mismatch and absent protected W3/Oracle authorities; no board, backup-contract
   or S3-access regression is present, and no broad-green claim is made.
+- FACT — L76's three-lane read-only census independently separates the new
+  catalog surface from an executable maintenance pin. Metis commits `1e5e1bee`,
+  `68d680f2`, `b4f5e676` and local WP-D `5a2afe50` cover grammar/resolution,
+  value-set synchronization, editor/LSP and corpus migration, but `origin/main`
+  remains at the specification-only `1f7eaae9`; the local checkout is dirty and
+  therefore cannot be promoted by Model 1.
+- STOP — The first `catalog:describe` / `catalog:values` implementation and its
+  test are present only as untracked upstream working bytes. L0 copied those
+  bytes over a `git archive 5a2afe50` snapshot, leaving the external checkout
+  read-only: TypeScript typecheck passed, but the retrieval test reported three
+  subfield-nesting failures and then raised `TypeError`. The scratch copy and
+  incidental npm error log were moved to Trash. No implementation pin,
+  retrieval refresh, catalog oracle or model output is accepted from this WIP.
+- RISK — L76's adversarial audit reproduced a counter-only false seal: setting
+  T30 `materialized=30`, `sealed_pre_output` and matching boolean gates returned
+  no contract error despite zero roster and nonexistent evidence. It also proved
+  that self-declared upstream evidence paths could previously make a fabricated
+  implementation pin appear complete.
+- FIX — L77 first hardening changes the no-adapter branch from `NO_RETRAIN` to
+  `NO_INITIAL_TRAIN`, preregisters D18 `17/18` plus zero veto/recurring failure
+  triage, keeps the three-failure/two-root micro-QLoRA trigger on D18 only, and
+  makes T30 a one-shot observed-local confirmation (`29/30`, family `4/5`) with
+  no training feedback. A T30 counter/flag pair no longer seals without roster
+  and pre-output evidence, and evaluation cannot open before pin, retrieval and
+  oracle refresh. Focused plan tests are `11/11`; capability-bound roster and
+  decision writers remain under adversarial review before acceptance.
+- FACT — The concurrent upstream writer subsequently corrected the uncommitted
+  retrieval subfield projection. L0 repeated the same archive-overlay replay
+  from fresh bytes: TypeScript typecheck and all `catalog-domain.ts` assertions
+  A1-A25, B1-B3, C1-C11, D1-D3, E1 and F1-F9 are green. This supersedes only the
+  prior WIP test result; the files, retrieval contract and package-script edit
+  remain uncommitted and `origin/main` remains `1f7eaae9`, so the implementation
+  pin is still OPEN. The second temporary copy was moved to Trash.
+
+- FACT — UPSTREAM IMPLEMENTATION SEALED (2026-08-24, written by the ares-matioska
+  session, follow-up to the pin note above). The §9.172 surface is now fully
+  implemented and pushed at Metis main `5e112f91` (full test suite green,
+  ledger entry §9.173; grammar pin for Model 1 remains `1f7eaae9` — the surface
+  did not change during implementation). Retrieval API for progressive
+  discovery is live and contract-documented in
+  `docs/design/catalog-values/retrieval-api.md`: `npm run catalog:describe --
+  --tenant <dir>` (skeleton: fields with domain kind none|inline|list|enum|open,
+  sizes, natures, effective thresholds) and `npm run catalog:values --
+  --tenant <dir> --catalog <c> --field <f>` (per-field domain slice) — offline
+  on the checkout, no secrets, stable JSON `schema: 1`. Live tenants migrated
+  and pushed: play-demo `e2bd044` (5 fields → enum(N), e.g. genere_mcm
+  enum(214) reflected), play-prod `31dc23d` (2 fields migrated + opt-in
+  `values []` on genere_mcm/content_channels awaiting a live sync run).
+
+- FACT — L0 independently pins the published catalog implementation at Metis
+  commit `5e112f9148f40e7e792052e896c5a9efe8eaf0a2`, tree
+  `41c7a2b6890fa42d8123bd93f6560d0b9bfae8af`; a detached `ls-remote` before and
+  after execution observes the same commit on `refs/heads/main`. The mutable
+  external worktree is excluded: all evidence and executable source comes from
+  the exact Git commit/tree/blob/archive identities.
+- FIX — The executable catalog pin verifier binds the fixed system Git and Node
+  binaries, raw schema/manifest preimages, the exact `18/18` evidence roster,
+  copied dependency identity and `5/5` bounded catalog/typecheck probes. Remote
+  Git discovery runs from root-owned `/private/var/empty`; write, host-home read
+  and loopback-network canaries are denied by the probe sandbox. Fresh replay is
+  `18/18 distinct=18 gaps=0`, `5/5`, remote=true, manifest
+  `f971eafb...`.
+- DONE — Independent adversarial replay returns P0=0/P1=0 for the emitted
+  `verified_local_cooperative` claim. The report explicitly excludes resistance
+  to a hostile concurrent same-UID process and general untrusted-code sandboxing;
+  it grants no retrieval refresh, semantic truth, model, training, accuracy or
+  promotion authority.
+- DONE — L77 closes counter-only and self-declared authority paths. The exact
+  D18/T30 draft contract, genealogy/leakage checks and decision schema cannot
+  mint `VerifiedMaintenanceRoster`, a pre-output seal, `NO_INITIAL_TRAIN`,
+  `MICRO_QLORA_ELIGIBLE` or a T30 result until protected Git/oracle/chronology
+  issuers exist. Focused roster `18/18`, decision `12/12` and plan `21/21` are
+  green; current materialized and authoritative counts remain zero.
+- DONE — L78 implements a pure schema-1 `catalog:describe` / `catalog:values`
+  response adapter. It validates deterministic structure, pin/query/input/output
+  hashes, nested fields and domain semantics while redacting all value payloads;
+  focused tests are `20/20`. Its receipt is deliberately
+  `validated_response_non_authoritative`, with execution and retrieval-refresh
+  flags false.
+- FACT — The maintenance benchmark design roster is arithmetically complete at
+  `in=48 out=48 distinct_task_ids=48 gaps=0`: D18 has 3 per F-1..F-6, T30 has
+  5 per family, and catalog-domain reservations are exactly four (F-1 and F-6
+  in each split). Existing B12 tasks are observed and share only two lineage
+  components, so they receive zero new-root credit. New independent roots and
+  complete protected oracle authority are currently `0/48`; no synthetic rename
+  is laundered into a dataset.
+- OPEN — Critical path now: execute retrieval only on newly authored
+  public-synthetic tenants at the pinned commit, bind payload-redacted execution
+  receipts, refresh affected semantic oracles, author independent D18/T30 roots,
+  then publish the Git pre-output seal. Model output remains forbidden until
+  that complete seal; S3 remains ready but receives no base/W4 payload because a
+  real Model 1 adapter/checkpoint still does not exist.
+- RISK — Mandatory post-hardening `make check` is complete, not sampled:
+  foundation `52/0`, Ruff and formatting are green; pytest is `1100 passed, 102
+  failed, 1 skipped` in `474.69s`. The exact last-failed roster is confined to
+  historical/protected surfaces: `tests/test_oracles.py` 31,
+  `tests/test_w3_bridge_gate.py` 25 and `tests/test_w3_qualifier.py` 46. The
+  focused catalog pin/retrieval/roster/decision/plan suite is `78/78`; no new
+  maintenance file appears in the broad failures and no broad-green claim is
+  made.

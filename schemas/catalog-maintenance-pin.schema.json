@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-pin.schema.json",
+  "title": "Metis catalog-domain maintenance implementation pin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "pin_id",
+    "repository",
+    "surface_revision",
+    "revision",
+    "tree",
+    "remote_url",
+    "remote_ref",
+    "language_version",
+    "tooling_version",
+    "runtime",
+    "evidence",
+    "probes",
+    "policy",
+    "nonclaims"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "pin_id": {"const": "catalog-domain-maintenance/2026-08-24-v1"},
+    "repository": {"const": "ares-matioska/metis"},
+    "surface_revision": {"const": "1f7eaae9d803edc90f51ff492ea443f18570015e"},
+    "revision": {"const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"},
+    "tree": {"const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"},
+    "remote_url": {"const": "git@github.com:ttessarolo/metis.git"},
+    "remote_ref": {"const": "refs/heads/main"},
+    "language_version": {"const": "0.43"},
+    "tooling_version": {"const": "0.23.88"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_version",
+        "node_sha256",
+        "node_bytes",
+        "node_modules_sha256"
+      ],
+      "properties": {
+        "node_version": {"const": "v22.22.3"},
+        "node_sha256": {"const": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"},
+        "node_bytes": {"const": 112915776},
+        "node_modules_sha256": {"const": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "probes": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {"$ref": "#/$defs/probe"}
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git_objects_only",
+        "surface_ancestor_required",
+        "remote_ref_match_required",
+        "tracked_worktree_excluded",
+        "untracked_worktree_excluded",
+        "archive_execution",
+        "network_denied",
+        "external_repository_writes_denied"
+      ],
+      "properties": {
+        "git_objects_only": {"const": true},
+        "surface_ancestor_required": {"const": true},
+        "remote_ref_match_required": {"const": true},
+        "tracked_worktree_excluded": {"const": true},
+        "untracked_worktree_excluded": {"const": true},
+        "archive_execution": {"const": true},
+        "network_denied": {"const": true},
+        "external_repository_writes_denied": {"const": true}
+      }
+    },
+    "nonclaims": {
+      "const": [
+        "no_tenant_payload",
+        "no_model_output",
+        "no_training_authority",
+        "no_accuracy_claim",
+        "nonpromotable"
+      ]
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "blob_oid", "sha256"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "path": {
+          "type": "string",
+          "pattern": "^(docs|tooling)/[A-Za-z0-9_.@+/-]+$"
+        },
+        "blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "cwd", "argv", "success_marker"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "cwd": {"const": "tooling"},
+        "argv": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "success_marker": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

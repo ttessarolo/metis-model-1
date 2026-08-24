@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/maintenance-decision.schema.json",
+  "title": "Metis Model 1 blocked B-only maintenance decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "scope", "preregistered_policy", "authority_requirements", "blocked_outputs", "observations", "decision", "decision_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"const": "PROTECTED_AUTHORITY_REQUIRED"},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variant", "system", "adapter", "evidence_scope", "population_accuracy_claim", "training_authority", "final_test_feedback_allowed"],
+      "properties": {
+        "variant": {"const": "B"},
+        "system": {"const": "qwen3.8_base_plus_retrieval_and_compiler_loop"},
+        "adapter": {"const": "none"},
+        "evidence_scope": {"const": "no_observation_accepted_until_protected_authority"},
+        "population_accuracy_claim": {"const": false},
+        "training_authority": {"const": false},
+        "final_test_feedback_allowed": {"const": false}
+      }
+    },
+    "preregistered_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["d18", "t30"],
+      "properties": {
+        "d18": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_count", "tasks_per_family", "no_initial_train_min_successes", "no_initial_train_family_min_successes", "micro_qlora_min_correctable_failures", "micro_qlora_min_distinct_genealogy_roots", "zero_category_ambiguity_required", "zero_veto_and_recurring_failures_for_no_initial_train", "compatible_ast_ir_semantics_required", "training_authority_if_eligible"],
+          "properties": {
+            "task_count": {"const": 18},
+            "tasks_per_family": {"const": 3},
+            "no_initial_train_min_successes": {"const": 17},
+            "no_initial_train_family_min_successes": {"const": 2},
+            "micro_qlora_min_correctable_failures": {"const": 3},
+            "micro_qlora_min_distinct_genealogy_roots": {"const": 2},
+            "zero_category_ambiguity_required": {"const": true},
+            "zero_veto_and_recurring_failures_for_no_initial_train": {"const": true},
+            "compatible_ast_ir_semantics_required": {"const": true},
+            "training_authority_if_eligible": {"const": false}
+          }
+        },
+        "t30": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_count", "tasks_per_family", "confirm_local_min_successes", "confirm_local_family_min_successes", "zero_category_ambiguity_required", "zero_veto_and_recurring_failures_required", "training_feedback_allowed", "population_accuracy_claim"],
+          "properties": {
+            "task_count": {"const": 30},
+            "tasks_per_family": {"const": 5},
+            "confirm_local_min_successes": {"const": 29},
+            "confirm_local_family_min_successes": {"const": 4},
+            "zero_category_ambiguity_required": {"const": true},
+            "zero_veto_and_recurring_failures_required": {"const": true},
+            "training_feedback_allowed": {"const": false},
+            "population_accuracy_claim": {"const": false}
+          }
+        }
+      }
+    },
+    "authority_requirements": {
+      "const": [
+        "remote_verified_preoutput_git_seal",
+        "approved_independent_oracle_root",
+        "signed_task_level_oracle_receipts",
+        "executable_ast_ir_compatibility_receipt",
+        "remote_verified_d18_freeze_before_t30",
+        "protected_single_use_t30_nonce_ledger",
+        "exact_t30_in30_out30_no_extra_attempts_receipt"
+      ]
+    },
+    "blocked_outputs": {
+      "const": ["NO_INITIAL_TRAIN", "MICRO_QLORA_ELIGIBLE", "CONFIRM_LOCAL", "FAIL_LOCAL", "observed_accuracy", "wilson95"]
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["d18_results", "t30_results", "observed_accuracy", "wilson95", "per_family"],
+      "properties": {
+        "d18_results": {"type": "null"},
+        "t30_results": {"type": "null"},
+        "observed_accuracy": {"type": "null"},
+        "wilson95": {"type": "null"},
+        "per_family": {"const": {}}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "reason", "training_authority", "promotion_eligible"],
+      "properties": {
+        "outcome": {"const": "PROTECTED_AUTHORITY_REQUIRED"},
+        "reason": {"const": "protected_semantic_and_chronology_authority_not_integrated"},
+        "training_authority": {"const": false},
+        "promotion_eligible": {"const": false}
+      }
+    },
+    "decision_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

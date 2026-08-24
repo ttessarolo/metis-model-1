@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "pin_id": "catalog-domain-maintenance/2026-08-24-v1",
+  "repository": "ares-matioska/metis",
+  "surface_revision": "1f7eaae9d803edc90f51ff492ea443f18570015e",
+  "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+  "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+  "remote_url": "git@github.com:ttessarolo/metis.git",
+  "remote_ref": "refs/heads/main",
+  "language_version": "0.43",
+  "tooling_version": "0.23.88",
+  "runtime": {
+    "node_version": "v22.22.3",
+    "node_sha256": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
+    "node_bytes": 112915776,
+    "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
+  },
+  "evidence": [
+    {"id": "specification", "path": "docs/design/catalog-values/spec.md", "blob_oid": "00e3bf13c16e604d34e64ef30bec78f232322eac", "sha256": "sha256:34f26adb53809f1c0aed8e515564d3ed81e75f8023d125eb77ae51f8ab066678"},
+    {"id": "retrieval_contract", "path": "docs/design/catalog-values/retrieval-api.md", "blob_oid": "e665fa43630fbd57e70586b10549eac295d42538", "sha256": "sha256:0fe9006a0269fe7fb7ad03257734a19d9da768a029b3e1c7fe52bdc823e9b7ab"},
+    {"id": "grammar", "path": "tooling/src/language/metis.langium", "blob_oid": "c4bacc5428dcdfab17b3396761800a6ce8f0c4aa", "sha256": "sha256:4458f5a59ab51003662ad609c2c543df7ced96b49ff911825bf551f9b9983331"},
+    {"id": "generated_ast", "path": "tooling/src/language/generated/ast.ts", "blob_oid": "ba9d3f43dff66efc4629a680daff28f055c28704", "sha256": "sha256:a4160a550bd474deadce949d874c9e21a8cad93b009aa611fe8d610c0cd6c7d0"},
+    {"id": "domain_resolver", "path": "tooling/src/language/field-values.ts", "blob_oid": "f190285aaf9ee6f98672907932819db6953c81b9", "sha256": "sha256:2c607c7dc5588c95b3434f827c28ee82580b2e7d3f2eac07db3a8c85ef5ed803"},
+    {"id": "validator", "path": "tooling/src/language/metis-validator.ts", "blob_oid": "86d4621771dbdcfc190d8ee25503be2fb9e7a209", "sha256": "sha256:16434dba1f966ff09bee7bbcf19b92a0df29b77e4b5f396fe9f199f9590271a2"},
+    {"id": "tenant_threshold_setting_keys", "path": "tooling/src/language/settings-schema.ts", "blob_oid": "4e57db99069ab3bc0133291c5db092c51834559b", "sha256": "sha256:5aa997bcb915fedcf3d6ff6ca3eaa2344a1ca11d69ba0c1c86fed2190ff07adc"},
+    {"id": "language_compiler_bridge", "path": "tooling/src/language/metis-compile.ts", "blob_oid": "abd5df1f76b887aabe31aafd5f2c622107a36e8b", "sha256": "sha256:5680c22985e9dc39388888bd9d08ec791a15bc1d4b8169dd31a8a7cd1d2f2270"},
+    {"id": "compiler", "path": "tooling/src/compiler/compile.ts", "blob_oid": "3682b1f093bbab9f03701141101b2bc9372a3665", "sha256": "sha256:b9799ae73a5a79aba09ded0dd228e24fe23ec1a314376628a8a784aa0f3d7bf4"},
+    {"id": "ir_contract", "path": "tooling/src/compiler/ir.ts", "blob_oid": "64f3735aa6cc677c57dc7f496a6ac44eebba03e0", "sha256": "sha256:88059ec5ee41810a5da02a8192dbd3ffe1b05b69cacc555466cc51bd2f2ca797"},
+    {"id": "catalog_sync", "path": "tooling/src/cli/catalog-sync-values.ts", "blob_oid": "7bba830ffc90fc66a07ddc5cad7905218257f4e1", "sha256": "sha256:49550197f05565b48de9b608fd2d480bf318d5bf4ad46a636508abe64ec44323"},
+    {"id": "retrieval_cli", "path": "tooling/src/cli/catalog-domain.ts", "blob_oid": "757dcb2419863931df79ce16e1d016a8482f0b7d", "sha256": "sha256:cd46a4ee9ba2dff24a9f665b5f33914889f180aa3f36eef0870449e787ba271d"},
+    {"id": "surface_oracle", "path": "tooling/test/catalog-values-surface.ts", "blob_oid": "8838599bc8ef2c86c264088d4958384e41f76408", "sha256": "sha256:5076aea509d3dc0e1244171a1b5cdf3670f21349899695e3ab35d0ae2e4dbd01"},
+    {"id": "sync_oracle", "path": "tooling/test/catalog-sync-values-rewrite.ts", "blob_oid": "467ca42ddbd98783c89eab79d3fa5eb113998100", "sha256": "sha256:5262d3e08c562a8327bc49f43484abfc1903a7f81bd41b3b5f5ed13dd8464b8c"},
+    {"id": "editor_oracle", "path": "tooling/test/catalog-values-tree.ts", "blob_oid": "3eb79117ba9958b13eb97c619b981dfe0796562b", "sha256": "sha256:fcd1eecbc944f148104dbf522ba1e655e950578e0b6b455ba6601552aad4713e"},
+    {"id": "retrieval_oracle", "path": "tooling/test/catalog-domain.ts", "blob_oid": "869782fda6af7ea5a967a5e5ee047b911689ec2e", "sha256": "sha256:8ad6373373fd26fb28165251138a8eaa5c9ac8f34976f8426474ceed0f0c65e2"},
+    {"id": "tooling_package", "path": "tooling/package.json", "blob_oid": "b54800df4030812d7d6bcb620b872d78d002592f", "sha256": "sha256:f02d088aa40c0878511e8fc7ce5430201ef881204dbfbb60eb3094f330c4e34c"},
+    {"id": "tooling_lock", "path": "tooling/package-lock.json", "blob_oid": "547d10d9a8f7806364869bee4ddeb605fba85fd6", "sha256": "sha256:a2e3c9b6bc55412c8f186a162e6c811d6376930262c258aafee7ad0c3336bcda"}
+  ],
+  "probes": [
+    {"id": "typecheck", "cwd": "tooling", "argv": ["node", "node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.probes.json"], "success_marker": null},
+    {"id": "catalog_surface", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-values-surface.ts"], "success_marker": "catalog values — superficie §9.172: VERDE ✓"},
+    {"id": "catalog_sync", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-sync-values-rewrite.ts"], "success_marker": "catalog:sync-values rewrite: VERDE ✓"},
+    {"id": "catalog_tree", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-values-tree.ts"], "success_marker": "CATALOG-VALUES TREE VERDE: 0 fallimenti"},
+    {"id": "catalog_retrieval", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-domain.ts"], "success_marker": "catalog:describe / catalog:values — API di retrieval: VERDE ✓"}
+  ],
+  "policy": {
+    "git_objects_only": true,
+    "surface_ancestor_required": true,
+    "remote_ref_match_required": true,
+    "tracked_worktree_excluded": true,
+    "untracked_worktree_excluded": true,
+    "archive_execution": true,
+    "network_denied": true,
+    "external_repository_writes_denied": true
+  },
+  "nonclaims": [
+    "no_tenant_payload",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim",
+    "nonpromotable"
+  ]
+}

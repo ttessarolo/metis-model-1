@@ -1,16 +1,17 @@
 {
   "schema_version": 1,
   "plan_id": "accuracy-uplift/v1",
-  "status": "pin_refresh_active",
+  "status": "retrieval_refresh_active",
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:0afcb7d43f65c2c418e2ff77529280df53aa670b7d5239791c9ae136f66b9c20"
+    "sha256": "sha256:d1c4cd1aca317b2e80bdf569209928193e614c9be887f7fc61e1052bdb50a3a1"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
     "baseline_mode": "adapter_off",
-    "semantic_audit": "12/12",
+    "semantic_score": "11/12",
+    "source_oracle_audit": "12/12",
     "fine_tuned_adapter_present": false,
     "delivery_ref": "artifacts/w5-xs/2026-08-24-delivery/DELIVERY.md",
     "historical_contracts_immutable": true
@@ -29,27 +30,55 @@
     "diagnostic": {
       "id": "D18",
       "total": 18,
-      "family_counts": {"F-1": 3, "F-2": 3, "F-3": 3, "F-4": 3, "F-5": 3, "F-6": 3},
+      "family_counts": {
+        "F-1": 3,
+        "F-2": 3,
+        "F-3": 3,
+        "F-4": 3,
+        "F-5": 3,
+        "F-6": 3
+      },
       "materialized": 0,
       "model_outputs_allowed": false,
       "use": "failure_categories_only"
     },
     "train": {
       "total": 64,
-      "family_counts": {"F-1": 10, "F-2": 12, "F-3": 12, "F-4": 12, "F-5": 10, "F-6": 8},
+      "family_counts": {
+        "F-1": 10,
+        "F-2": 12,
+        "F-3": 12,
+        "F-4": 12,
+        "F-5": 10,
+        "F-6": 8
+      },
       "materialized": 0,
       "conditional": true
     },
     "dev": {
       "total": 16,
-      "family_counts": {"F-1": 3, "F-2": 3, "F-3": 3, "F-4": 3, "F-5": 2, "F-6": 2},
+      "family_counts": {
+        "F-1": 3,
+        "F-2": 3,
+        "F-3": 3,
+        "F-4": 3,
+        "F-5": 2,
+        "F-6": 2
+      },
       "materialized": 0,
       "checkpoint_selection_only": true
     },
     "final_test": {
       "id": "T30",
       "total": 30,
-      "family_counts": {"F-1": 5, "F-2": 5, "F-3": 5, "F-4": 5, "F-5": 5, "F-6": 5},
+      "family_counts": {
+        "F-1": 5,
+        "F-2": 5,
+        "F-3": 5,
+        "F-4": 5,
+        "F-5": 5,
+        "F-6": 5
+      },
       "materialized": 0,
       "seal_status": "not_sealed",
       "model_outputs_allowed": false,
@@ -75,26 +104,61 @@
     "weights_may_contain_tenant_domain_values": false,
     "provisional_lexemes_authoritative": false,
     "coverage_reservation": {
-      "diagnostic": {"F-1": 1, "F-6": 1},
-      "final_test": {"F-1": 1, "F-6": 1}
+      "diagnostic": { "F-1": 1, "F-6": 1 },
+      "final_test": { "F-1": 1, "F-6": 1 }
     },
     "materialization_allowed": false,
     "oracle_truth_allowed": false
   },
   "upstream_grammar_dependency": {
     "repository": "ares-matioska/metis",
-    "status": "surface_pinned_implementation_pending",
+    "status": "pinned",
     "planning_input": {
       "path": "orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md",
       "commit": "d6cf4066a334d2b8b3419c2d9c6574993ada8c2f"
     },
     "pin": {
-      "revision": "1f7eaae9d803edc90f51ff492ea443f18570015e",
-      "tree": "346ddce27270287c8a3781bced77bf75c5318c11",
+      "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+      "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
       "language_version": "0.43",
-      "specification": {
-        "path": "docs/design/catalog-values/spec.md",
-        "sha256": "sha256:34f26adb53809f1c0aed8e515564d3ed81e75f8023d125eb77ae51f8ab066678"
+      "implementation_manifest": {
+        "path": "manifests/catalog-maintenance-pin-v1.json",
+        "sha256": "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5"
+      },
+      "grammar": {
+        "path": "tooling/src/language/metis.langium",
+        "blob_oid": "c4bacc5428dcdfab17b3396761800a6ce8f0c4aa",
+        "sha256": "sha256:4458f5a59ab51003662ad609c2c543df7ced96b49ff911825bf551f9b9983331"
+      },
+      "validator": {
+        "path": "tooling/src/language/metis-validator.ts",
+        "blob_oid": "86d4621771dbdcfc190d8ee25503be2fb9e7a209",
+        "sha256": "sha256:16434dba1f966ff09bee7bbcf19b92a0df29b77e4b5f396fe9f199f9590271a2"
+      },
+      "compiler": {
+        "path": "tooling/src/compiler/compile.ts",
+        "blob_oid": "3682b1f093bbab9f03701141101b2bc9372a3665",
+        "sha256": "sha256:b9799ae73a5a79aba09ded0dd228e24fe23ec1a314376628a8a784aa0f3d7bf4"
+      },
+      "ir_contract": {
+        "path": "tooling/src/compiler/ir.ts",
+        "blob_oid": "64f3735aa6cc677c57dc7f496a6ac44eebba03e0",
+        "sha256": "sha256:88059ec5ee41810a5da02a8192dbd3ffe1b05b69cacc555466cc51bd2f2ca797"
+      },
+      "retrieval_contract": {
+        "path": "docs/design/catalog-values/retrieval-api.md",
+        "blob_oid": "e665fa43630fbd57e70586b10549eac295d42538",
+        "sha256": "sha256:0fe9006a0269fe7fb7ad03257734a19d9da768a029b3e1c7fe52bdc823e9b7ab"
+      },
+      "semantic_oracle": {
+        "path": "tooling/test/catalog-domain.ts",
+        "blob_oid": "869782fda6af7ea5a967a5e5ee047b911689ec2e",
+        "sha256": "sha256:8ad6373373fd26fb28165251138a8eaa5c9ac8f34976f8426474ceed0f0c65e2"
+      },
+      "tenant_threshold_setting_keys": {
+        "path": "tooling/src/language/settings-schema.ts",
+        "blob_oid": "4e57db99069ab3bc0133291c5db092c51834559b",
+        "sha256": "sha256:5aa997bcb915fedcf3d6ff6ca3eaa2344a1ca11d69ba0c1c86fed2190ff07adc"
       }
     },
     "required_evidence": [
@@ -116,6 +180,7 @@
       "non_catalog_t30_task_and_oracle_design",
       "f6_structural_oracle_implementation",
       "non_catalog_f4_f5_oracle_contract_work",
+      "catalog_retrieval_adapter_contract_work",
       "upstream_read_only_pin_monitoring"
     ],
     "forbidden_now": [
@@ -133,10 +198,25 @@
       "refresh_retrieval",
       "regenerate_oracles",
       "seal_maintenance_benchmark",
-      "run_existing_behavior_baseline",
-      "no_retrain_or_bounded_delta"
+      "run_base_retrieval_behavior_baseline",
+      "no_initial_train_or_bounded_micro_qlora"
     ],
-    "default_verdict": "NO_RETRAIN",
+    "default_verdict": "NO_INITIAL_TRAIN",
+    "d18_decision": {
+      "total": 18,
+      "no_initial_train_semantic_correct_minimum": 17,
+      "per_family_semantic_correct_minimum": 2,
+      "zero_critical_failures_required": true,
+      "zero_invented_symbols_required": true,
+      "zero_recurring_failure_patterns_required": true
+    },
+    "t30_confirmation": {
+      "total": 30,
+      "local_confirm_semantic_correct_minimum": 29,
+      "per_family_semantic_correct_minimum": 4,
+      "training_feedback_allowed": false,
+      "claim_scope": "observed_local_only"
+    },
     "training_open_condition": {
       "minimum_correctable_semantic_failures": 3,
       "minimum_distinct_roots": 2,
@@ -144,28 +224,35 @@
       "separate_explicit_wave_required": true
     },
     "delta_qlora": {
-      "mode": "bounded_delta_only",
+      "mode": "bounded_initial_micro_qlora",
       "checkpoint_selection": "dev_only",
       "final_test_feedback_allowed": false
     },
-    "full_successor_only_if": "ast_ir_or_verified_semantic_contract_changed_or_delta_and_replay_fail"
+    "full_successor_only_if": "ast_ir_or_verified_semantic_contract_changed_or_micro_qlora_and_replay_fail"
+  },
+  "maintenance_benchmark_evidence": {
+    "roster": null,
+    "pre_output_seal": null,
+    "decision_report": null
   },
   "gates": {
     "surface_pin_complete": true,
-    "upstream_pin_complete": false,
+    "upstream_pin_complete": true,
     "retrieval_contract_refreshed": false,
     "semantic_oracle_refreshed": false,
     "catalog_materialization_allowed": false,
     "t30_sealed_before_model_outputs": false,
     "model_evaluation_allowed": false,
     "training_allowed": false,
-    "active_work": "pin_refresh"
+    "active_work": "retrieval_refresh"
   },
   "nonclaims": [
-    "no_upstream_implementation_pin",
+    "no_retrieval_refresh",
+    "no_semantic_oracle_refresh",
     "no_catalog_domain_dataset",
     "no_tenant_dataset_authority",
     "no_model_output",
+    "no_previous_adapter",
     "no_training_authority",
     "no_accuracy_claim",
     "nonpromotable"

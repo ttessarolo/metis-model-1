@@ -48,10 +48,16 @@ CONTRACT_PAIRS = (
         "manifests/w1-held-out-family-map-v1.json",
     ),
     ("schemas/w1-benchmark-seal.schema.json", "manifests/w1-benchmark-seal-v1.json"),
+    (
+        "schemas/catalog-maintenance-pin.schema.json",
+        "manifests/catalog-maintenance-pin-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
 STANDALONE_SCHEMAS = (
+    "schemas/accuracy-maintenance-roster.schema.json",
+    "schemas/catalog-retrieval-receipt.schema.json",
     "schemas/f5-migration-fixture.schema.json",
     "schemas/f5-migration-result.schema.json",
     "schemas/f6-blind-review-request.schema.json",
@@ -60,6 +66,7 @@ STANDALONE_SCHEMAS = (
     "schemas/f6-human-review-receipt.schema.json",
     "schemas/f6-structural-auto-result.schema.json",
     "schemas/f6-structural-truth.schema.json",
+    "schemas/maintenance-decision.schema.json",
     "schemas/w3-bridge-replay.schema.json",
     "schemas/w3-native-loader-evidence.schema.json",
     "schemas/w3-production-authority.schema.json",
@@ -84,6 +91,10 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/f5_migration.py",
     "src/metis_model1/f6_human_review.py",
     "src/metis_model1/f6_structural.py",
+    "src/metis_model1/accuracy_maintenance.py",
+    "src/metis_model1/catalog_maintenance_pin.py",
+    "src/metis_model1/catalog_retrieval.py",
+    "src/metis_model1/maintenance_decision.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -110,6 +121,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/w1-leakage-group-assignment-v1.json",
     "manifests/w1-held-out-family-map-v1.json",
     "manifests/w1-benchmark-seal-v1.json",
+    "manifests/catalog-maintenance-pin-v1.json",
     "manifests/accuracy-uplift-plan.json",
     "qualification/.python-version",
     "qualification/README.md",
@@ -163,6 +175,9 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/w1-leakage-group-assignment.schema.json",
     "schemas/w1-held-out-family-map.schema.json",
     "schemas/w1-benchmark-seal.schema.json",
+    "schemas/accuracy-maintenance-roster.schema.json",
+    "schemas/catalog-maintenance-pin.schema.json",
+    "schemas/catalog-retrieval-receipt.schema.json",
     "schemas/accuracy-uplift-plan.schema.json",
     "schemas/f5-migration-fixture.schema.json",
     "schemas/f5-migration-result.schema.json",
@@ -172,6 +187,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/f6-human-review-receipt.schema.json",
     "schemas/f6-structural-auto-result.schema.json",
     "schemas/f6-structural-truth.schema.json",
+    "schemas/maintenance-decision.schema.json",
     "tests/test_w3_production_adapter.py",
     "tests/test_w3_qualifier.py",
     "tests/test_w3_production_worker.py",
@@ -179,10 +195,14 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_w1_blockers.py",
     "tests/test_w1_seal.py",
     "tests/test_w2_rights.py",
+    "tests/test_accuracy_maintenance.py",
+    "tests/test_catalog_maintenance_pin.py",
+    "tests/test_catalog_retrieval.py",
     "tests/test_accuracy_uplift_plan.py",
     "tests/test_f5_migration.py",
     "tests/test_f6_human_review.py",
     "tests/test_f6_structural.py",
+    "tests/test_maintenance_decision.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -577,6 +597,12 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         if spec_hash != spec["sha256"]:
             errors.append("accuracy-uplift canonical specification hash contains drift")
 
+        historical = plan["historical_evidence"]
+        if historical["semantic_score"] != "11/12" or historical["source_oracle_audit"] != "12/12":
+            errors.append(
+                "historical B12 semantic score and source/oracle audit coverage are conflated"
+            )
+
         wave = plan["wave"]
         expected_families = {f"F-{number}" for number in range(1, 7)}
         for split_name in ("diagnostic", "train", "dev", "final_test"):
@@ -646,11 +672,70 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
 
         if pinned and upstream["pin"] is None:
             errors.append("pinned upstream grammar dependency has no evidence pin")
+        if pinned:
+            from metis_model1.catalog_maintenance_pin import (
+                load_catalog_maintenance_pin,
+                validate_catalog_maintenance_pin_contract,
+            )
+
+            pin = upstream["pin"]
+            pin_errors = validate_catalog_maintenance_pin_contract(root)
+            errors.extend(f"catalog implementation pin: {error}" for error in pin_errors)
+            implementation_ref = pin["implementation_manifest"]
+            implementation_path = root / implementation_ref["path"]
+            implementation_sha256 = (
+                "sha256:" + hashlib.sha256(implementation_path.read_bytes()).hexdigest()
+            )
+            if implementation_sha256 != implementation_ref["sha256"]:
+                errors.append("catalog implementation manifest hash contains drift")
+            implementation = load_catalog_maintenance_pin(root)
+            if (
+                pin["revision"] != implementation["revision"]
+                or pin["tree"] != implementation["tree"]
+                or pin["language_version"] != implementation["language_version"]
+            ):
+                errors.append("accuracy plan and catalog implementation pin identities differ")
+            role_to_evidence_id = {
+                "grammar": "grammar",
+                "validator": "validator",
+                "compiler": "compiler",
+                "ir_contract": "ir_contract",
+                "retrieval_contract": "retrieval_contract",
+                "semantic_oracle": "retrieval_oracle",
+                "tenant_threshold_setting_keys": "tenant_threshold_setting_keys",
+            }
+            implementation_evidence = {
+                item["id"]: {
+                    "path": item["path"],
+                    "blob_oid": item["blob_oid"],
+                    "sha256": item["sha256"],
+                }
+                for item in implementation["evidence"]
+            }
+            for role, evidence_id in role_to_evidence_id.items():
+                if pin[role] != implementation_evidence.get(evidence_id):
+                    errors.append(f"accuracy plan catalog pin evidence differs for {role}")
         refresh_ready = (
             gates["upstream_pin_complete"]
             and gates["retrieval_contract_refreshed"]
             and gates["semantic_oracle_refreshed"]
         )
+        if not refresh_ready and not pending_forbidden.issubset(
+            plan["execution_partition"]["forbidden_now"]
+        ):
+            errors.append("pre-refresh execution partition omits a fail-closed prohibition")
+        if (
+            gates["retrieval_contract_refreshed"]
+            or gates["semantic_oracle_refreshed"]
+            or gates["catalog_materialization_allowed"]
+            or catalog["materialization_allowed"]
+            or catalog["oracle_truth_allowed"]
+            or catalog["status"] == "ready_for_materialization"
+        ):
+            errors.append(
+                "Model 1 retrieval/oracle refresh verifier is not integrated; "
+                "refresh and materialization remain fail-closed"
+            )
         if pending and (
             gates["retrieval_contract_refreshed"] or gates["semantic_oracle_refreshed"]
         ):
@@ -676,16 +761,53 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             errors.append("catalog-domain status claims readiness before all refresh gates")
 
         final_test = wave["final_test"]
+        diagnostic = wave["diagnostic"]
+        benchmark_evidence = plan["maintenance_benchmark_evidence"]
+        if diagnostic["materialized"] != 0 or final_test["materialized"] != 0:
+            errors.append(
+                "maintenance roster verifier is not integrated; D18/T30 materialization "
+                "counters remain zero"
+            )
+        if (
+            final_test["seal_status"] == "sealed_pre_output"
+            or gates["t30_sealed_before_model_outputs"]
+            or gates["model_evaluation_allowed"]
+        ):
+            errors.append(
+                "maintenance benchmark Git pre-output verifier is not integrated; "
+                "seal and evaluation remain fail-closed"
+            )
         t30_sealed = (
             final_test["seal_status"] == "sealed_pre_output"
             and final_test["materialized"] == final_test["total"]
+            and benchmark_evidence["roster"] is not None
+            and benchmark_evidence["pre_output_seal"] is not None
         )
         if gates["t30_sealed_before_model_outputs"] != t30_sealed:
             errors.append("T30 seal gate disagrees with its materialized pre-output state")
-        if final_test["seal_status"] == "sealed_pre_output" and not t30_sealed:
+        if final_test["seal_status"] == "sealed_pre_output" and (
+            benchmark_evidence["roster"] is None or benchmark_evidence["pre_output_seal"] is None
+        ):
+            errors.append("T30 claims a seal without verified roster and pre-output evidence")
+        if final_test["seal_status"] == "sealed_pre_output" and (
+            final_test["materialized"] != final_test["total"]
+        ):
             errors.append("T30 claims a seal without all 30 materialized tasks")
+        if final_test["seal_status"] == "not_sealed" and any(
+            benchmark_evidence[name] is not None for name in ("pre_output_seal", "decision_report")
+        ):
+            errors.append("unsealed T30 carries seal or decision evidence")
+        if final_test["materialized"] == 0 and benchmark_evidence["roster"] is not None:
+            errors.append("unmaterialized maintenance benchmark carries roster evidence")
+        if (
+            benchmark_evidence["decision_report"] is not None
+            and not gates["model_evaluation_allowed"]
+        ):
+            errors.append("maintenance decision evidence exists before model evaluation is allowed")
         if gates["model_evaluation_allowed"] and not t30_sealed:
             errors.append("model evaluation opened before the complete T30 pre-output seal")
+        if gates["model_evaluation_allowed"] and not refresh_ready:
+            errors.append("model evaluation opened before pin, retrieval and oracle refresh")
         if (
             wave["diagnostic"]["model_outputs_allowed"] != gates["model_evaluation_allowed"]
             or final_test["model_outputs_allowed"] != gates["model_evaluation_allowed"]
@@ -694,9 +816,65 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         if gates["training_allowed"]:
             errors.append("accuracy-uplift planning contract cannot authorize training")
 
+        if surface_pending:
+            if plan["status"] != "pin_refresh_active" or gates["active_work"] != "pin_refresh":
+                errors.append("surface-pending plan status or active-work state contains drift")
+            required_nonclaims = {
+                "no_upstream_implementation_pin",
+                "no_catalog_domain_dataset",
+                "no_model_output",
+                "no_previous_adapter",
+                "no_training_authority",
+                "no_accuracy_claim",
+                "nonpromotable",
+            }
+            if not required_nonclaims.issubset(plan["nonclaims"]):
+                errors.append("surface-pending plan omits required nonclaims")
+        if pinned and not refresh_ready:
+            if (
+                plan["status"] != "retrieval_refresh_active"
+                or gates["active_work"] != "retrieval_refresh"
+            ):
+                errors.append(
+                    "implementation-pinned plan status or active-work state contains drift"
+                )
+            if (
+                "catalog_retrieval_adapter_contract_work"
+                not in plan["execution_partition"]["allowed_now"]
+            ):
+                errors.append("implementation-pinned plan omits retrieval adapter contract work")
+            required_nonclaims = {
+                "no_retrieval_refresh",
+                "no_semantic_oracle_refresh",
+                "no_catalog_domain_dataset",
+                "no_model_output",
+                "no_previous_adapter",
+                "no_training_authority",
+                "no_accuracy_claim",
+                "nonpromotable",
+            }
+            if not required_nonclaims.issubset(plan["nonclaims"]):
+                errors.append("implementation-pinned plan omits required refresh nonclaims")
+
         maintenance = plan["maintenance"]
-        if maintenance["default_verdict"] != "NO_RETRAIN":
-            errors.append("accuracy-uplift default verdict is not NO_RETRAIN")
+        if maintenance["default_verdict"] != "NO_INITIAL_TRAIN":
+            errors.append("accuracy-uplift default verdict is not NO_INITIAL_TRAIN")
+        d18_decision = maintenance["d18_decision"]
+        if (
+            d18_decision["total"] != wave["diagnostic"]["total"]
+            or d18_decision["no_initial_train_semantic_correct_minimum"] != 17
+            or d18_decision["per_family_semantic_correct_minimum"] != 2
+        ):
+            errors.append("D18 decision thresholds contain drift")
+        t30_confirmation = maintenance["t30_confirmation"]
+        if (
+            t30_confirmation["total"] != final_test["total"]
+            or t30_confirmation["local_confirm_semantic_correct_minimum"] != 29
+            or t30_confirmation["per_family_semantic_correct_minimum"] != 4
+            or t30_confirmation["training_feedback_allowed"]
+            or t30_confirmation["claim_scope"] != "observed_local_only"
+        ):
+            errors.append("T30 confirmation thresholds or no-feedback scope contain drift")
         condition = maintenance["training_open_condition"]
         if (
             condition["minimum_correctable_semantic_failures"] < 3
@@ -704,10 +882,11 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         ):
             errors.append("delta training condition is weaker than three failures/two roots")
         if (
-            maintenance["delta_qlora"]["checkpoint_selection"] != "dev_only"
+            maintenance["delta_qlora"]["mode"] != "bounded_initial_micro_qlora"
+            or maintenance["delta_qlora"]["checkpoint_selection"] != "dev_only"
             or maintenance["delta_qlora"]["final_test_feedback_allowed"]
         ):
-            errors.append("delta QLoRA selection leaks final-test evidence")
+            errors.append("initial micro-QLoRA contract or final-test isolation contains drift")
 
         repository_files = git_repository_files(root)
         boundary_errors = validate_artifact_policy_paths(repository_files)
@@ -1480,11 +1659,35 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     else:
         report.passes.append("artifact-store=local-only/40GiB-cap/atomic/no-auto-delete")
 
+    from metis_model1.catalog_maintenance_pin import (
+        validate_catalog_maintenance_pin_contract,
+    )
+
+    catalog_pin_errors = validate_catalog_maintenance_pin_contract(root)
+    if catalog_pin_errors:
+        report.errors.extend(f"catalog-maintenance-pin: {error}" for error in catalog_pin_errors)
+    else:
+        report.passes.append("catalog-maintenance-pin-contract=18-evidence+5-probes-registered")
+
+    from metis_model1.maintenance_decision import (
+        build_blocked_maintenance_contract,
+        validate_maintenance_decision,
+    )
+
+    try:
+        validate_maintenance_decision(build_blocked_maintenance_contract())
+    except Exception as error:  # noqa: BLE001 - authority boundary must fail closed
+        report.errors.append(f"maintenance-decision: {type(error).__name__}: {error}")
+    else:
+        report.passes.append("maintenance-decision=protected-authority-required")
+
     accuracy_uplift_errors = validate_accuracy_uplift_plan_contract(root)
     if accuracy_uplift_errors:
         report.errors.extend(accuracy_uplift_errors)
     else:
-        report.passes.append("accuracy-uplift=D18/64+16/T30/catalog-surface-pinned")
+        report.passes.append(
+            "accuracy-uplift=D18/64+16/T30/catalog-implementation-pinned-refresh-pending"
+        )
 
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)
     if hyperparameter_errors:

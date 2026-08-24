@@ -17,54 +17,87 @@
     "upstream_grammar_dependency",
     "execution_partition",
     "maintenance",
+    "maintenance_benchmark_evidence",
     "gates",
     "nonclaims"
   ],
   "properties": {
-    "schema_version": {"const": 1},
-    "plan_id": {"const": "accuracy-uplift/v1"},
-    "status": {"enum": ["planning_active", "pin_refresh_active", "benchmark_construction_active", "benchmark_sealed"]},
-    "decision_ref": {"const": "O-010"},
+    "schema_version": { "const": 1 },
+    "plan_id": { "const": "accuracy-uplift/v1" },
+    "status": {
+      "enum": [
+        "planning_active",
+        "pin_refresh_active",
+        "retrieval_refresh_active",
+        "benchmark_construction_active",
+        "benchmark_sealed"
+      ]
+    },
+    "decision_ref": { "const": "O-010" },
     "canonical_spec": {
       "type": "object",
       "additionalProperties": false,
       "required": ["path", "sha256"],
       "properties": {
-        "path": {"const": "docs/16-accuracy-wave-catalog-domain-maintenance.md"},
-        "sha256": {"$ref": "#/$defs/hash"}
+        "path": {
+          "const": "docs/16-accuracy-wave-catalog-domain-maintenance.md"
+        },
+        "sha256": { "$ref": "#/$defs/hash" }
       }
     },
     "historical_evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["baseline_id", "baseline_mode", "semantic_audit", "fine_tuned_adapter_present", "delivery_ref", "historical_contracts_immutable"],
+      "required": [
+        "baseline_id",
+        "baseline_mode",
+        "semantic_score",
+        "source_oracle_audit",
+        "fine_tuned_adapter_present",
+        "delivery_ref",
+        "historical_contracts_immutable"
+      ],
       "properties": {
-        "baseline_id": {"const": "B12-v4"},
-        "baseline_mode": {"const": "adapter_off"},
-        "semantic_audit": {"const": "12/12"},
-        "fine_tuned_adapter_present": {"const": false},
-        "delivery_ref": {"const": "artifacts/w5-xs/2026-08-24-delivery/DELIVERY.md"},
-        "historical_contracts_immutable": {"const": true}
+        "baseline_id": { "const": "B12-v4" },
+        "baseline_mode": { "const": "adapter_off" },
+        "semantic_score": { "const": "11/12" },
+        "source_oracle_audit": { "const": "12/12" },
+        "fine_tuned_adapter_present": { "const": false },
+        "delivery_ref": {
+          "const": "artifacts/w5-xs/2026-08-24-delivery/DELIVERY.md"
+        },
+        "historical_contracts_immutable": { "const": true }
       }
     },
     "source_scope": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tenant_mode", "tenant_revision", "tenant_tree", "tenant_lineages", "tenant_examples_materialized", "tenant_accuracy_denominator_units", "tenant_values_policy", "dataset_rights_status"],
+      "required": [
+        "tenant_mode",
+        "tenant_revision",
+        "tenant_tree",
+        "tenant_lineages",
+        "tenant_examples_materialized",
+        "tenant_accuracy_denominator_units",
+        "tenant_values_policy",
+        "dataset_rights_status"
+      ],
       "properties": {
-        "tenant_mode": {"const": "read_only_reference_only"},
-        "tenant_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "tenant_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "tenant_lineages": {"const": 1},
-        "tenant_examples_materialized": {"const": 0},
-        "tenant_accuracy_denominator_units": {"const": 0},
-        "tenant_values_policy": {"const": "retrieval_only_never_weight_truth"},
-        "dataset_rights_status": {"const": "not_authorized"}
+        "tenant_mode": { "const": "read_only_reference_only" },
+        "tenant_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tenant_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tenant_lineages": { "const": 1 },
+        "tenant_examples_materialized": { "const": 0 },
+        "tenant_accuracy_denominator_units": { "const": 0 },
+        "tenant_values_policy": {
+          "const": "retrieval_only_never_weight_truth"
+        },
+        "dataset_rights_status": { "const": "not_authorized" }
       }
     },
-    "wave": {"$ref": "#/$defs/wave"},
-    "catalog_value_domain": {"$ref": "#/$defs/catalogValueDomain"},
-    "upstream_grammar_dependency": {"$ref": "#/$defs/upstreamDependency"},
+    "wave": { "$ref": "#/$defs/wave" },
+    "catalog_value_domain": { "$ref": "#/$defs/catalogValueDomain" },
+    "upstream_grammar_dependency": { "$ref": "#/$defs/upstreamDependency" },
     "execution_partition": {
       "type": "object",
       "additionalProperties": false,
@@ -74,38 +107,73 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"enum": ["non_catalog_d18_task_design", "non_catalog_t30_task_and_oracle_design", "f6_structural_oracle_implementation", "non_catalog_f4_f5_oracle_contract_work", "upstream_read_only_pin_monitoring"]}
+          "items": {
+            "enum": [
+              "non_catalog_d18_task_design",
+              "non_catalog_t30_task_and_oracle_design",
+              "f6_structural_oracle_implementation",
+              "non_catalog_f4_f5_oracle_contract_work",
+              "catalog_retrieval_adapter_contract_work",
+              "upstream_read_only_pin_monitoring"
+            ]
+          }
         },
         "forbidden_now": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"enum": ["catalog_domain_prompt_truth", "catalog_domain_oracle_truth", "catalog_domain_split_materialization", "t30_model_outputs_before_complete_seal", "tenant_value_payloads", "training"]}
+          "items": {
+            "enum": [
+              "catalog_domain_prompt_truth",
+              "catalog_domain_oracle_truth",
+              "catalog_domain_split_materialization",
+              "t30_model_outputs_before_complete_seal",
+              "tenant_value_payloads",
+              "training"
+            ]
+          }
         }
       }
     },
-    "maintenance": {"$ref": "#/$defs/maintenance"},
-    "gates": {"$ref": "#/$defs/gates"},
+    "maintenance": { "$ref": "#/$defs/maintenance" },
+    "maintenance_benchmark_evidence": {
+      "$ref": "#/$defs/maintenanceBenchmarkEvidence"
+    },
+    "gates": { "$ref": "#/$defs/gates" },
     "nonclaims": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"enum": ["no_upstream_pin", "no_upstream_implementation_pin", "no_catalog_domain_dataset", "no_tenant_dataset_authority", "no_model_output", "no_training_authority", "no_accuracy_claim", "nonpromotable"]}
+      "items": {
+        "enum": [
+          "no_upstream_pin",
+          "no_upstream_implementation_pin",
+          "no_retrieval_refresh",
+          "no_semantic_oracle_refresh",
+          "no_catalog_domain_dataset",
+          "no_tenant_dataset_authority",
+          "no_model_output",
+          "no_previous_adapter",
+          "no_training_authority",
+          "no_accuracy_claim",
+          "nonpromotable"
+        ]
+      }
     }
   },
   "$defs": {
-    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "familyCounts": {
       "type": "object",
       "additionalProperties": false,
       "required": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"],
       "properties": {
-        "F-1": {"type": "integer", "minimum": 0},
-        "F-2": {"type": "integer", "minimum": 0},
-        "F-3": {"type": "integer", "minimum": 0},
-        "F-4": {"type": "integer", "minimum": 0},
-        "F-5": {"type": "integer", "minimum": 0},
-        "F-6": {"type": "integer", "minimum": 0}
+        "F-1": { "type": "integer", "minimum": 0 },
+        "F-2": { "type": "integer", "minimum": 0 },
+        "F-3": { "type": "integer", "minimum": 0 },
+        "F-4": { "type": "integer", "minimum": 0 },
+        "F-5": { "type": "integer", "minimum": 0 },
+        "F-6": { "type": "integer", "minimum": 0 }
       }
     },
     "wave": {
@@ -114,78 +182,223 @@
       "required": ["diagnostic", "train", "dev", "final_test", "leakage"],
       "properties": {
         "diagnostic": {
-          "type": "object", "additionalProperties": false,
-          "required": ["id", "total", "family_counts", "materialized", "model_outputs_allowed", "use"],
-          "properties": {"id": {"const": "D18"}, "total": {"const": 18}, "family_counts": {"$ref": "#/$defs/familyCounts"}, "materialized": {"type": "integer", "minimum": 0, "maximum": 18}, "model_outputs_allowed": {"type": "boolean"}, "use": {"const": "failure_categories_only"}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "total",
+            "family_counts",
+            "materialized",
+            "model_outputs_allowed",
+            "use"
+          ],
+          "properties": {
+            "id": { "const": "D18" },
+            "total": { "const": 18 },
+            "family_counts": { "$ref": "#/$defs/familyCounts" },
+            "materialized": { "type": "integer", "minimum": 0, "maximum": 18 },
+            "model_outputs_allowed": { "type": "boolean" },
+            "use": { "const": "failure_categories_only" }
+          }
         },
         "train": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "required": ["total", "family_counts", "materialized", "conditional"],
-          "properties": {"total": {"const": 64}, "family_counts": {"$ref": "#/$defs/familyCounts"}, "materialized": {"type": "integer", "minimum": 0, "maximum": 64}, "conditional": {"const": true}}
+          "properties": {
+            "total": { "const": 64 },
+            "family_counts": { "$ref": "#/$defs/familyCounts" },
+            "materialized": { "type": "integer", "minimum": 0, "maximum": 64 },
+            "conditional": { "const": true }
+          }
         },
         "dev": {
-          "type": "object", "additionalProperties": false,
-          "required": ["total", "family_counts", "materialized", "checkpoint_selection_only"],
-          "properties": {"total": {"const": 16}, "family_counts": {"$ref": "#/$defs/familyCounts"}, "materialized": {"type": "integer", "minimum": 0, "maximum": 16}, "checkpoint_selection_only": {"const": true}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "family_counts",
+            "materialized",
+            "checkpoint_selection_only"
+          ],
+          "properties": {
+            "total": { "const": 16 },
+            "family_counts": { "$ref": "#/$defs/familyCounts" },
+            "materialized": { "type": "integer", "minimum": 0, "maximum": 16 },
+            "checkpoint_selection_only": { "const": true }
+          }
         },
         "final_test": {
-          "type": "object", "additionalProperties": false,
-          "required": ["id", "total", "family_counts", "materialized", "seal_status", "model_outputs_allowed", "checkpoint_selection_allowed"],
-          "properties": {"id": {"const": "T30"}, "total": {"const": 30}, "family_counts": {"$ref": "#/$defs/familyCounts"}, "materialized": {"type": "integer", "minimum": 0, "maximum": 30}, "seal_status": {"enum": ["not_sealed", "sealed_pre_output"]}, "model_outputs_allowed": {"type": "boolean"}, "checkpoint_selection_allowed": {"const": false}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "total",
+            "family_counts",
+            "materialized",
+            "seal_status",
+            "model_outputs_allowed",
+            "checkpoint_selection_allowed"
+          ],
+          "properties": {
+            "id": { "const": "T30" },
+            "total": { "const": 30 },
+            "family_counts": { "$ref": "#/$defs/familyCounts" },
+            "materialized": { "type": "integer", "minimum": 0, "maximum": 30 },
+            "seal_status": { "enum": ["not_sealed", "sealed_pre_output"] },
+            "model_outputs_allowed": { "type": "boolean" },
+            "checkpoint_selection_allowed": { "const": false }
+          }
         },
         "leakage": {
-          "type": "object", "additionalProperties": false,
-          "required": ["diagnostic_content_may_enter_other_splits", "train_dev_final_roots_disjoint", "minimum_train_roots", "maximum_derivations_per_train_root"],
-          "properties": {"diagnostic_content_may_enter_other_splits": {"const": false}, "train_dev_final_roots_disjoint": {"const": true}, "minimum_train_roots": {"minimum": 16, "type": "integer"}, "maximum_derivations_per_train_root": {"type": "integer", "minimum": 1, "maximum": 4}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "diagnostic_content_may_enter_other_splits",
+            "train_dev_final_roots_disjoint",
+            "minimum_train_roots",
+            "maximum_derivations_per_train_root"
+          ],
+          "properties": {
+            "diagnostic_content_may_enter_other_splits": { "const": false },
+            "train_dev_final_roots_disjoint": { "const": true },
+            "minimum_train_roots": { "minimum": 16, "type": "integer" },
+            "maximum_derivations_per_train_root": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          }
         }
       }
     },
     "catalogValueDomain": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["construct_id", "status", "canonical_surface_authority", "legacy_inline_materialized_values", "values_authority", "bounded_domain_source", "open_domain_source", "tiny_stable_domain_policy", "tenant_thresholds", "weights_may_contain_tenant_domain_values", "provisional_lexemes_authoritative", "coverage_reservation", "materialization_allowed", "oracle_truth_allowed"],
+      "required": [
+        "construct_id",
+        "status",
+        "canonical_surface_authority",
+        "legacy_inline_materialized_values",
+        "values_authority",
+        "bounded_domain_source",
+        "open_domain_source",
+        "tiny_stable_domain_policy",
+        "tenant_thresholds",
+        "weights_may_contain_tenant_domain_values",
+        "provisional_lexemes_authoritative",
+        "coverage_reservation",
+        "materialization_allowed",
+        "oracle_truth_allowed"
+      ],
       "properties": {
-        "construct_id": {"const": "catalog_value_domain"},
-        "status": {"enum": ["reserved_pending_upstream_pin", "pinned_refresh_pending", "ready_for_materialization"]},
-        "canonical_surface_authority": {"const": "upstream_grammar_at_pinned_revision"},
-        "legacy_inline_materialized_values": {"const": "forbidden_as_canonical"},
-        "values_authority": {"const": "toolchain_per_field_retrieval"},
-        "bounded_domain_source": {"const": "external_per_field_value_set"},
-        "open_domain_source": {"const": "live_index"},
-        "tiny_stable_domain_policy": {"const": "tenant_setting"},
-        "tenant_thresholds": {"const": "settings_lookup_only"},
-        "weights_may_contain_tenant_domain_values": {"const": false},
-        "provisional_lexemes_authoritative": {"const": false},
+        "construct_id": { "const": "catalog_value_domain" },
+        "status": {
+          "enum": [
+            "reserved_pending_upstream_pin",
+            "pinned_refresh_pending",
+            "ready_for_materialization"
+          ]
+        },
+        "canonical_surface_authority": {
+          "const": "upstream_grammar_at_pinned_revision"
+        },
+        "legacy_inline_materialized_values": {
+          "const": "forbidden_as_canonical"
+        },
+        "values_authority": { "const": "toolchain_per_field_retrieval" },
+        "bounded_domain_source": { "const": "external_per_field_value_set" },
+        "open_domain_source": { "const": "live_index" },
+        "tiny_stable_domain_policy": { "const": "tenant_setting" },
+        "tenant_thresholds": { "const": "settings_lookup_only" },
+        "weights_may_contain_tenant_domain_values": { "const": false },
+        "provisional_lexemes_authoritative": { "const": false },
         "coverage_reservation": {
-          "type": "object", "additionalProperties": false, "required": ["diagnostic", "final_test"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["diagnostic", "final_test"],
           "properties": {
-            "diagnostic": {"type": "object", "additionalProperties": false, "required": ["F-1", "F-6"], "properties": {"F-1": {"type": "integer", "minimum": 1}, "F-6": {"type": "integer", "minimum": 1}}},
-            "final_test": {"type": "object", "additionalProperties": false, "required": ["F-1", "F-6"], "properties": {"F-1": {"type": "integer", "minimum": 1}, "F-6": {"type": "integer", "minimum": 1}}}
+            "diagnostic": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["F-1", "F-6"],
+              "properties": {
+                "F-1": { "type": "integer", "minimum": 1 },
+                "F-6": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "final_test": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["F-1", "F-6"],
+              "properties": {
+                "F-1": { "type": "integer", "minimum": 1 },
+                "F-6": { "type": "integer", "minimum": 1 }
+              }
+            }
           }
         },
-        "materialization_allowed": {"type": "boolean"},
-        "oracle_truth_allowed": {"type": "boolean"}
+        "materialization_allowed": { "type": "boolean" },
+        "oracle_truth_allowed": { "type": "boolean" }
       }
     },
     "evidenceFile": {
-      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
-      "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/hash"}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "gitEvidenceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "blob_oid", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "blob_oid": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "sha256": { "$ref": "#/$defs/hash" }
+      }
     },
     "upstreamPin": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["revision", "tree", "language_version", "grammar", "validator", "compiler", "ir_contract", "retrieval_contract", "semantic_oracle", "tenant_threshold_setting_keys"],
+      "required": [
+        "revision",
+        "tree",
+        "language_version",
+        "implementation_manifest",
+        "grammar",
+        "validator",
+        "compiler",
+        "ir_contract",
+        "retrieval_contract",
+        "semantic_oracle",
+        "tenant_threshold_setting_keys"
+      ],
       "properties": {
-        "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "language_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
-        "grammar": {"$ref": "#/$defs/evidenceFile"},
-        "validator": {"$ref": "#/$defs/evidenceFile"},
-        "compiler": {"$ref": "#/$defs/evidenceFile"},
-        "ir_contract": {"$ref": "#/$defs/evidenceFile"},
-        "retrieval_contract": {"$ref": "#/$defs/evidenceFile"},
-        "semantic_oracle": {"$ref": "#/$defs/evidenceFile"},
-        "tenant_threshold_setting_keys": {"$ref": "#/$defs/evidenceFile"}
+        "revision": { "const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2" },
+        "tree": { "const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af" },
+        "language_version": { "const": "0.43" },
+        "implementation_manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "const": "manifests/catalog-maintenance-pin-v1.json" },
+            "sha256": {
+              "const": "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5"
+            }
+          }
+        },
+        "grammar": { "$ref": "#/$defs/gitEvidenceFile" },
+        "validator": { "$ref": "#/$defs/gitEvidenceFile" },
+        "compiler": { "$ref": "#/$defs/gitEvidenceFile" },
+        "ir_contract": { "$ref": "#/$defs/gitEvidenceFile" },
+        "retrieval_contract": { "$ref": "#/$defs/gitEvidenceFile" },
+        "semantic_oracle": { "$ref": "#/$defs/gitEvidenceFile" },
+        "tenant_threshold_setting_keys": { "$ref": "#/$defs/gitEvidenceFile" }
       }
     },
     "upstreamSurfacePin": {
@@ -193,16 +406,18 @@
       "additionalProperties": false,
       "required": ["revision", "tree", "language_version", "specification"],
       "properties": {
-        "revision": {"const": "1f7eaae9d803edc90f51ff492ea443f18570015e"},
-        "tree": {"const": "346ddce27270287c8a3781bced77bf75c5318c11"},
-        "language_version": {"const": "0.43"},
+        "revision": { "const": "1f7eaae9d803edc90f51ff492ea443f18570015e" },
+        "tree": { "const": "346ddce27270287c8a3781bced77bf75c5318c11" },
+        "language_version": { "const": "0.43" },
         "specification": {
           "type": "object",
           "additionalProperties": false,
           "required": ["path", "sha256"],
           "properties": {
-            "path": {"const": "docs/design/catalog-values/spec.md"},
-            "sha256": {"const": "sha256:34f26adb53809f1c0aed8e515564d3ed81e75f8023d125eb77ae51f8ab066678"}
+            "path": { "const": "docs/design/catalog-values/spec.md" },
+            "sha256": {
+              "const": "sha256:34f26adb53809f1c0aed8e515564d3ed81e75f8023d125eb77ae51f8ab066678"
+            }
           }
         }
       }
@@ -210,55 +425,232 @@
     "upstreamDependency": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "status", "planning_input", "pin", "required_evidence"],
+      "required": [
+        "repository",
+        "status",
+        "planning_input",
+        "pin",
+        "required_evidence"
+      ],
       "properties": {
-        "repository": {"const": "ares-matioska/metis"},
-        "status": {"enum": ["awaiting_upstream_pin", "surface_pinned_implementation_pending", "pinned"]},
-        "planning_input": {
-          "type": "object", "additionalProperties": false, "required": ["path", "commit"],
-          "properties": {"path": {"const": "orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md"}, "commit": {"const": "d6cf4066a334d2b8b3419c2d9c6574993ada8c2f"}}
+        "repository": { "const": "ares-matioska/metis" },
+        "status": {
+          "enum": [
+            "awaiting_upstream_pin",
+            "surface_pinned_implementation_pending",
+            "pinned"
+          ]
         },
-        "pin": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/upstreamSurfacePin"}, {"$ref": "#/$defs/upstreamPin"}]},
-        "required_evidence": {"const": ["revision", "tree", "language_version", "grammar", "validator", "compiler", "ir_contract", "retrieval_contract", "semantic_oracle", "tenant_threshold_setting_keys"]}
+        "planning_input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "commit"],
+          "properties": {
+            "path": {
+              "const": "orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md"
+            },
+            "commit": { "const": "d6cf4066a334d2b8b3419c2d9c6574993ada8c2f" }
+          }
+        },
+        "pin": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/upstreamSurfacePin" },
+            { "$ref": "#/$defs/upstreamPin" }
+          ]
+        },
+        "required_evidence": {
+          "const": [
+            "revision",
+            "tree",
+            "language_version",
+            "grammar",
+            "validator",
+            "compiler",
+            "ir_contract",
+            "retrieval_contract",
+            "semantic_oracle",
+            "tenant_threshold_setting_keys"
+          ]
+        }
       },
       "allOf": [
-        {"if": {"properties": {"status": {"const": "awaiting_upstream_pin"}}, "required": ["status"]}, "then": {"properties": {"pin": {"type": "null"}}}},
-        {"if": {"properties": {"status": {"const": "surface_pinned_implementation_pending"}}, "required": ["status"]}, "then": {"properties": {"pin": {"$ref": "#/$defs/upstreamSurfacePin"}}}},
-        {"if": {"properties": {"status": {"const": "pinned"}}, "required": ["status"]}, "then": {"properties": {"pin": {"$ref": "#/$defs/upstreamPin"}}}}
+        {
+          "if": {
+            "properties": { "status": { "const": "awaiting_upstream_pin" } },
+            "required": ["status"]
+          },
+          "then": { "properties": { "pin": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "surface_pinned_implementation_pending" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "pin": { "$ref": "#/$defs/upstreamSurfacePin" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "pinned" } },
+            "required": ["status"]
+          },
+          "then": { "properties": { "pin": { "$ref": "#/$defs/upstreamPin" } } }
+        }
       ]
     },
     "maintenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["order", "default_verdict", "training_open_condition", "delta_qlora", "full_successor_only_if"],
+      "required": [
+        "order",
+        "default_verdict",
+        "d18_decision",
+        "t30_confirmation",
+        "training_open_condition",
+        "delta_qlora",
+        "full_successor_only_if"
+      ],
       "properties": {
-        "order": {"const": ["pin_and_diff", "refresh_retrieval", "regenerate_oracles", "seal_maintenance_benchmark", "run_existing_behavior_baseline", "no_retrain_or_bounded_delta"]},
-        "default_verdict": {"const": "NO_RETRAIN"},
+        "order": {
+          "const": [
+            "pin_and_diff",
+            "refresh_retrieval",
+            "regenerate_oracles",
+            "seal_maintenance_benchmark",
+            "run_base_retrieval_behavior_baseline",
+            "no_initial_train_or_bounded_micro_qlora"
+          ]
+        },
+        "default_verdict": { "const": "NO_INITIAL_TRAIN" },
+        "d18_decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "no_initial_train_semantic_correct_minimum",
+            "per_family_semantic_correct_minimum",
+            "zero_critical_failures_required",
+            "zero_invented_symbols_required",
+            "zero_recurring_failure_patterns_required"
+          ],
+          "properties": {
+            "total": { "const": 18 },
+            "no_initial_train_semantic_correct_minimum": { "const": 17 },
+            "per_family_semantic_correct_minimum": { "const": 2 },
+            "zero_critical_failures_required": { "const": true },
+            "zero_invented_symbols_required": { "const": true },
+            "zero_recurring_failure_patterns_required": { "const": true }
+          }
+        },
+        "t30_confirmation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "local_confirm_semantic_correct_minimum",
+            "per_family_semantic_correct_minimum",
+            "training_feedback_allowed",
+            "claim_scope"
+          ],
+          "properties": {
+            "total": { "const": 30 },
+            "local_confirm_semantic_correct_minimum": { "const": 29 },
+            "per_family_semantic_correct_minimum": { "const": 4 },
+            "training_feedback_allowed": { "const": false },
+            "claim_scope": { "const": "observed_local_only" }
+          }
+        },
         "training_open_condition": {
-          "type": "object", "additionalProperties": false, "required": ["minimum_correctable_semantic_failures", "minimum_distinct_roots", "compatible_ast_ir_semantics_required", "separate_explicit_wave_required"],
-          "properties": {"minimum_correctable_semantic_failures": {"minimum": 3, "type": "integer"}, "minimum_distinct_roots": {"minimum": 2, "type": "integer"}, "compatible_ast_ir_semantics_required": {"const": true}, "separate_explicit_wave_required": {"const": true}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimum_correctable_semantic_failures",
+            "minimum_distinct_roots",
+            "compatible_ast_ir_semantics_required",
+            "separate_explicit_wave_required"
+          ],
+          "properties": {
+            "minimum_correctable_semantic_failures": {
+              "minimum": 3,
+              "type": "integer"
+            },
+            "minimum_distinct_roots": { "minimum": 2, "type": "integer" },
+            "compatible_ast_ir_semantics_required": { "const": true },
+            "separate_explicit_wave_required": { "const": true }
+          }
         },
         "delta_qlora": {
-          "type": "object", "additionalProperties": false, "required": ["mode", "checkpoint_selection", "final_test_feedback_allowed"],
-          "properties": {"mode": {"const": "bounded_delta_only"}, "checkpoint_selection": {"const": "dev_only"}, "final_test_feedback_allowed": {"const": false}}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "checkpoint_selection",
+            "final_test_feedback_allowed"
+          ],
+          "properties": {
+            "mode": { "const": "bounded_initial_micro_qlora" },
+            "checkpoint_selection": { "const": "dev_only" },
+            "final_test_feedback_allowed": { "const": false }
+          }
         },
-        "full_successor_only_if": {"const": "ast_ir_or_verified_semantic_contract_changed_or_delta_and_replay_fail"}
+        "full_successor_only_if": {
+          "const": "ast_ir_or_verified_semantic_contract_changed_or_micro_qlora_and_replay_fail"
+        }
+      }
+    },
+    "maintenanceBenchmarkEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roster", "pre_output_seal", "decision_report"],
+      "properties": {
+        "roster": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        },
+        "pre_output_seal": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        },
+        "decision_report": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/evidenceFile" }]
+        }
       }
     },
     "gates": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["surface_pin_complete", "upstream_pin_complete", "retrieval_contract_refreshed", "semantic_oracle_refreshed", "catalog_materialization_allowed", "t30_sealed_before_model_outputs", "model_evaluation_allowed", "training_allowed", "active_work"],
+      "required": [
+        "surface_pin_complete",
+        "upstream_pin_complete",
+        "retrieval_contract_refreshed",
+        "semantic_oracle_refreshed",
+        "catalog_materialization_allowed",
+        "t30_sealed_before_model_outputs",
+        "model_evaluation_allowed",
+        "training_allowed",
+        "active_work"
+      ],
       "properties": {
-        "surface_pin_complete": {"type": "boolean"},
-        "upstream_pin_complete": {"type": "boolean"},
-        "retrieval_contract_refreshed": {"type": "boolean"},
-        "semantic_oracle_refreshed": {"type": "boolean"},
-        "catalog_materialization_allowed": {"type": "boolean"},
-        "t30_sealed_before_model_outputs": {"type": "boolean"},
-        "model_evaluation_allowed": {"type": "boolean"},
-        "training_allowed": {"type": "boolean"},
-        "active_work": {"enum": ["non_catalog_planning_and_oracle_implementation", "pin_refresh", "benchmark_materialization", "maintenance_evaluation", "conditional_delta_training"]}
+        "surface_pin_complete": { "type": "boolean" },
+        "upstream_pin_complete": { "type": "boolean" },
+        "retrieval_contract_refreshed": { "type": "boolean" },
+        "semantic_oracle_refreshed": { "type": "boolean" },
+        "catalog_materialization_allowed": { "type": "boolean" },
+        "t30_sealed_before_model_outputs": { "type": "boolean" },
+        "model_evaluation_allowed": { "type": "boolean" },
+        "training_allowed": { "type": "boolean" },
+        "active_work": {
+          "enum": [
+            "non_catalog_planning_and_oracle_implementation",
+            "pin_refresh",
+            "retrieval_refresh",
+            "benchmark_materialization",
+            "maintenance_evaluation",
+            "conditional_delta_training"
+          ]
+        }
       }
     }
   }

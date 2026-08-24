@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-retrieval-receipt.schema.json",
+  "title": "Non-authoritative catalog retrieval response receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "query", "upstream", "tenant_input", "summary", "hashes", "policy", "nonclaims", "receipt_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"const": "validated_response_non_authoritative"},
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "tenant", "catalog", "field"],
+      "properties": {
+        "operation": {"enum": ["describe", "values"]},
+        "tenant": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "catalog": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+        "field": {"type": ["string", "null"], "minLength": 1, "maxLength": 256}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "describe"}}},
+          "then": {"properties": {"field": {"const": null}}}
+        },
+        {
+          "if": {"properties": {"operation": {"const": "values"}}},
+          "then": {"properties": {"catalog": {"type": "string"}, "field": {"type": "string"}}}
+        }
+      ]
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pin_id", "revision", "tree", "manifest_sha256", "verification"],
+      "properties": {
+        "pin_id": {"const": "catalog-domain-maintenance/2026-08-24-v1"},
+        "revision": {"const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"},
+        "tree": {"const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"},
+        "manifest_sha256": {"const": "sha256:f971eafb259326da27106e772b36488d73b7ff1ba5045f1b455f6fd7c167f4de"},
+        "verification": {"const": "manifest_contract_only"}
+      }
+    },
+    "tenant_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {"sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "size", "nature", "catalog_count", "field_count", "domain_count", "value_count"],
+      "properties": {
+        "kind": {"enum": ["describe", "none", "inline", "list", "enum", "open"]},
+        "size": {"type": ["integer", "null"], "minimum": 0, "maximum": 100000},
+        "nature": {"enum": ["reflected", "editorial", null]},
+        "catalog_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+        "field_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+        "domain_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+        "value_count": {"type": "integer", "minimum": 0, "maximum": 100000}
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_sha256", "response_sha256", "output_sha256", "output_bytes"],
+      "properties": {
+        "request_sha256": {"$ref": "#/$defs/hash"},
+        "response_sha256": {"$ref": "#/$defs/hash"},
+        "output_sha256": {"$ref": "#/$defs/hash"},
+        "output_bytes": {"type": "integer", "minimum": 1, "maximum": 16777216}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["response_schema", "values_redacted", "execution_verified", "retrieval_refresh_verified"],
+      "properties": {
+        "response_schema": {"const": 1},
+        "values_redacted": {"const": true},
+        "execution_verified": {"const": false},
+        "retrieval_refresh_verified": {"const": false}
+      }
+    },
+    "nonclaims": {
+      "const": ["no_execution_authority", "no_retrieval_refresh_claim", "no_semantic_truth", "no_training_authority", "no_accuracy_claim", "nonpromotable"]
+    },
+    "receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}
