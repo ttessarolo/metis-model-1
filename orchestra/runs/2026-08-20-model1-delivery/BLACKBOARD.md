@@ -2193,6 +2193,721 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
   `origin/codex/model1-local-99-foundation`. No payload or authority instance is
   committed. The next wave may now design/materialize external bundles, but
   only after its own explicit brief and with the real runner still fail-closed.
+- DONE — L62 status evidence is committed as `2d519d9`
+  (`docs: record L62 source revision checkpoint`) and pushed; HEAD and remote
+  coincide and the worktree is clean at L63 open.
+- FACT — L63 direct preflight corrects a delegated false negative: durable
+  CPython `3.13.3` arm64 exists at the resolved uv runtime and repo `.venv`
+  points to it; durable Node v22.22.3 exists at `~/.hermes/node/bin/node` with
+  exact registered SHA-256 `5d9d3872...f7cd5c`. Reconstructing the six package
+  plus five metadata directories from `.venv` yields dependency closure
+  `in=144 out=144 distinct=144 gaps=0`, `1,799,002` bytes, no symlinks and
+  exact registered digest `db649bc1...3f42`. No bundle or runner was executed.
+- OPEN — L63 real external materialization and replay is sealed in
+  `orchestra/briefs/2026-08-22-model1-l63-real-capsule-qualification.md`.
+  Tracked writes are brief/board/ledger only; payload writes are limited to the
+  ignored retained `artifacts/w3-production-v2/l63-source-5a5d817/` root.
+  Kimi K3 and Qwen reviews are mandatory both before and after the single bridge
+  invocation. Training, W1/W2 population, source-authority registration and
+  any accuracy claim remain STOP.
+- STOP — L63's first real-runtime canary, still without runner execution or
+  materialization, exposes two exact incompatibilities in the frozen capsule
+  launcher. Under the actual Node Seatbelt policy and environment, importing
+  the registered TSX loader first fails `EPERM` while creating its cache in the
+  ambient macOS temp root. Supplying a canary-only `TMPDIR` below process root
+  closes that write, then TSX/esbuild fails `spawn EPERM` because the accepted
+  policy denies all process creation. Current v2 can therefore not execute the
+  real TypeScript runner; no authority or capsule is created and L63 remains
+  fail-closed.
+- OPEN — L0 is routing the incompatibility to frontier plus Kimi/Qwen before a
+  product change. The preferred boundary must preserve no-detach/no-residual
+  guarantees; broadening Node fork/exec merely to satisfy TSX is not accepted
+  without a new executable trust design. A precompiled, hash-bound runner is a
+  candidate, not yet a decision.
+- FACT — L63 retained prototype establishes a second concrete option without
+  executing the W3 runner. A 48-line stdlib-only ESM loader uses the exact
+  Node v22.22.3 `node:module.stripTypeScriptTypes(mode=transform)` API and maps
+  registered relative `.js` specifiers to existing `.ts` files. Under the exact
+  frozen Node Seatbelt policy it imports `serialize.ts` with rc0/stderr empty,
+  then imports the pinned Git `metis-module.ts`, `compile.ts` and `serialize.ts`
+  over a mechanically derived Langium closure of `15` packages, `1,790` regular
+  files, `7,710,543` bytes and zero symlinks: rc0, stdout
+  `METIS_NATIVE_TS_OK`, stderr empty, temp roster empty. Fork remains denied and
+  no executable besides Node is introduced.
+- RISK — The prototype is feasibility evidence, not authority or semantic
+  parity. Adopting it requires a new loader hash/role, truthful replacement of
+  every TSX identity, exact runtime-module roster, Node flag/loader pin and a
+  five-role TSX-vs-native semantic parity wave before any production replay.
+  Kimi currently prefers deterministic precompiled JS; frontier is comparing
+  that design against the observed native-loader result and Qwen is still
+  reviewing. No L63 materialization proceeds during this decision.
+- FACT — L63 frontier closes the executable-design comparison on frozen bytes.
+  The pinned runner source closure is `29` TypeScript files, `909,608` bytes and
+  `77` import/export edges: all `48` relative edges resolve by exact
+  `.js -> .ts`, external imports are only `langium`, `langium/lsp`,
+  `vscode-languageserver` and `node:path`, and the only non-erasable construct
+  is one parameter property served by `stripTypeScriptTypes(mode=transform)`.
+  No enum, namespace, decorator, path alias, runtime JSON asset or unresolved
+  relative edge was found.
+- DONE — After receiving the real-graph canary, Kimi K3 and Qwen independently
+  revise their initial prebundle preference to the same verdict as L0/frontier:
+  adopt the 48-line stdlib-only native loader; retain precompiled JS only as a
+  fallback if semantic parity fails; reject any production fork/esbuild broker.
+  Review convergence is `in=3 out=3 distinct=3 gaps=0` across Kimi, Qwen and the
+  internal frontier review.
+- STOP — L63 remains closed for materialization for a second independent
+  reason: the exact qualified Node is `112,915,776` bytes but the current
+  `production-trusted-root` per-file cap is `8 MiB`. Copying the present capsule
+  into that retained root necessarily blocks even if execution succeeds. Full
+  Metis (`2,309` files) and full node_modules (`17,312` files, `22` symlinks)
+  also violate the retained capsule contract; only selective Git and package
+  closures may proceed.
+- OPEN — L64 is frozen in
+  `orchestra/briefs/2026-08-22-model1-l64-native-loader-runtime-root.md`.
+  L0 chooses a dedicated retained `production-runtime-root` for the exact Node
+  preimage rather than raising the trusted-content cap. The root is captured,
+  rehashed, sealed and double-snapshotted once per qualification; the ordinary
+  trusted root remains `8 MiB` per file. L64 is tests-first and payload-free;
+  L63 resumes only after native-vs-TSX `15/15` parity, safe gates, make-check and
+  independent frontier/Kimi/Qwen acceptance.
+- FACT — L64 tests-first starts RED `0/10`: the old bytes lack the exact v3
+  discriminator, loader identity/file, runtime-root order/caps, final policy and
+  v3 schemas while fixture v1 remains the required compatibility surface. The
+  writer then stops before product edits when the mechanical census finds one
+  missing authority validator path. L0 expands the roster once from 19 to 20
+  paths by adding `src/metis_model1/w3_oracles.py`; it constructs and validates
+  the production receipt identity and cannot truthfully retain `tsx_path`.
+- STOP — The first real native parity invocation blocks before producing any
+  result: the frozen 29-file regex closure omitted a multiline commented import
+  of `pipes-census.js` from `metis-validator.ts`. Native exits rc2 on the
+  missing roster byte. The loader, sealed Node root and sandbox reached the
+  module graph correctly; no execution receives credit. L0 retracts the
+  29-file/`7dc6...` roster as authority evidence and requires a registered
+  TypeScript-AST fixed-point census plus loader-observation equality.
+- FACT — This STOP does not regress the product gates already reached: the L64
+  focused contract is green, the fd-only Node runtime-root swap/roster attacks
+  are `3/3`, safe capsule/FD matrix `40/40`, qualifier `321/321`, bridge
+  `123/124` with only the deliberately stale final pin, `w3_oracles 29/29`,
+  builder `43/43` and contracts+worker `42/42`. Parity restarts from zero only
+  after the closure census is corrected.
+- FACT — The registered TypeScript-AST fixed-point census replaces the
+  retracted regex roster with `in=32 out=32 distinct=32 gaps=0`: `967,481`
+  bytes, maximum file `213,424`, `99` edges, relative resolution `66/66`, four
+  exact external specifications and roster SHA-256 `e8e586d0...`. The
+  manifest-derived package closure remains a conservative `1,790/1,790` files,
+  `7,710,543` bytes, 15 packages and zero symlinks; it is not misrepresented as
+  a runtime-observation equality target.
+- DONE — Native-versus-reference semantic parity was restarted from zero on the
+  corrected closure and passes `in=15 out=15 distinct=15 gaps=0`: all three
+  candidates and five ordered roles are normalized byte-for-byte, including
+  F-3 mutated diagnostic ranges, lines and characters. Native production uses
+  the exact deny-fork Seatbelt policy, captured one-file Node runtime root,
+  empty stderr/temp rosters and zero residual PIDs; the TSX reference is
+  reference-only and receives no production credit.
+- FACT — Loader observation is reported as containment, not false equality.
+  Runtime loads `30/32` conservative Metis source files; the two static-only
+  files are reached solely through erased `import type` edges. It observes 13
+  of 15 conservative package identities, and all `338` observed capsule file
+  URLs belong to the exact `1,827`-file, `8,921,621`-byte selective capsule;
+  observed outside/ambient files are `0`. Final format, hash/repin, broad gates,
+  hermetic `make check` and independent audits remain open before L64 acceptance.
+- OPEN — A broad read-only production-adapter run finds exactly two stale tests
+  that still require schema v2 or build a schema-v2 receipt without the new v3
+  runtime fields (`12` pass, `2` fail, `1` skip). L0 amends the writable roster
+  once more by adding only `tests/test_w3_production_adapter.py` as path `21`;
+  the tests must move to truthful v3 semantics, while product code must not
+  regress to satisfy obsolete expectations.
+- DONE — L64 freezes its exact 21-path implementation roster after the complete
+  hermetic gate returns exit `0`: foundation `28/28`, retained schemas `6/6`,
+  Ruff and format GREEN, and pytest `800 passed, 1 skipped` in `310.42 s`.
+  Final raw identities are loader `7d5e59de...f126`, runner
+  `772baa27...f5d`, qualifier `045e355b...2f43`, bridge
+  `eff3361b...da55`; bridge qualifier pin and loader/runner pins agree exactly.
+  Oracle policy `deb8f45c...40aa` and actual Node execution policy
+  `4f29bf5e...de51` are deliberately distinct and regression-bound.
+- FACT — The final corrected closure and parity receipts remain exact after the
+  freeze: source AST roster `32/32` and SHA-256 `e8e586d0...fe918`; package
+  roster `1,790/1,790` and `35a56f21...8bbb`; capsule `1,827` files,
+  `8,921,621` bytes, zero symlinks and `61ac4f62...4f56`; native/reference
+  parity `15/15` with comparison roster `f0520da9...1490`. Loader observations
+  are `338/338` contained, outside/ambient `0`, with the conservative/type-only
+  `30/32` source and `13/15` package distinction recorded explicitly.
+- STOP — L64 is implementation/test green only. Production materialization and
+  authority remain forbidden because `V3_PROJECT_SHA` still names the prior
+  `5a5d...` source checkpoint and all source authorities remain unset. Frozen
+  bytes now require independent frontier, Kimi and Qwen audits, followed by a
+  separate acyclic source-bundle repin before L63 can resume.
+- STOP — Independent L65 authority audit finds a production seam outside the
+  L64 roster: `src/metis_model1/w3_production_adapter.py` still constructs the
+  actual real-runner bundle with `schema_version: 2`, while the v3 identity,
+  manual validator and run schema require exact `3`. The only actual adapter
+  execution test remains explicit opt-in/skip, so `800/1` did not exercise this
+  contradiction. L64 is therefore `REWORK` pending completion of all frozen-byte
+  audits and a bounded tests-first port; no source repin or L63 resume may start.
+- STOP — The same audit finds a second independent L64 proof gap: the qualifier
+  retained-cleanup mutation matrix (`18/18`) and bridge child-cleanup matrix
+  (`7/7`) still call their validators with stale expected order
+  `(process, trusted)`. An unmutated valid v3 cleanup has three roots
+  `(process, runtime, trusted)` and is therefore rejected before any parametrized
+  mutation matters. All `25/25` named cases can false-green and must be repaired
+  with a positive control plus mutation-specific rejection before acceptance.
+- STOP — A canonical-rehash authority attack exposes schema/manual divergence:
+  replacing the loader hash consistently in `capsule.loader`, its roster row,
+  capsule manifest and authority manifest is accepted by the Draft 2020-12
+  production-authority schema, while qualifier and bridge correctly reject the
+  unregistered loader. The schema uses a generic capsule identity for loader
+  and runner instead of the exact frozen pins; L64 therefore needs exact schema
+  constants and schema/manual/bridge mutation agreement before acceptance.
+- STOP — The authority schema also leaves capsule file `role` as any nonempty
+  string. Fully recounted and rehashed authorities containing legacy
+  `role: "tsx"` or `role: "node"` are schema-valid `2/2`, although qualifier
+  and bridge reject them. The current raw-source assertion merely proves those
+  words are absent from schema text; it does not prove fail-closed residual-role
+  behavior. This independently violates L64's exact v3 role and schema/manual
+  agreement contract.
+- STOP — Exact closure/observation/parity evidence is not durable on the frozen
+  tree. Searches find `32/30`, `1,790/13`, `1,827/338` and their roster hashes
+  only in board/ledger prose, not in a canonical receipt, manifest, retained
+  roster or deterministic census tool; the only older retained prototype has a
+  different `1,953`-file capsule. Under the repository contract, DONE prose and
+  an ephemeral writer handoff cannot establish these denominators. Rework must
+  retain independently reproducible exact rosters/comparison receipts without
+  committing payload bytes before parity or containment can be accepted.
+- STOP — Independent runtime audit finds the v3 launcher identity impossible:
+  bridge still pins the old combined policy `cfd09f90...`, while the qualifier
+  recomputes and publishes `d4f6cb3c...` from the changed outer+Node templates.
+  All other launcher fields match, but one authority cannot satisfy both
+  validators (`in=1 matched=0 mismatched=1`). The bridge pin and a direct
+  recomputation regression must move together.
+- STOP — The same audit reproduces a same-UID transient-byte substitution across
+  the new native path. Loader/runner/modules and Node are ultimately reopened or
+  executed by pathname; retained fd checks prove inode identity, not byte
+  immutability. A `0444/0555` file can be chmod/replaced in place, executed with
+  altered bytes, then restored before the post-snapshot. Exact probes accept
+  transient module substitution `1/1`, changed-byte same-inode Node `1/1`, and
+  identify both qualifier/public pathname-exec surfaces `2/2`. L64 cannot claim
+  captured-preimage execution until this boundary is redesigned and attacked.
+- RISK — Runner bytes are hash-pinned but its canonical capsule location is not:
+  identical runner bytes at `alternate/runner.ts` are accepted by qualifier,
+  bridge and public verifier `3/3`, while receipts claim
+  `/.metis-oracle/runner.ts`. Add exact path pins and canonical-rehash tests.
+- STOP — Qwen's independent frozen-byte review exposes a direct v3 replay
+  impossibility, now confirmed by L0 source inspection. The qualifier seals and
+  snapshots the sole `production-runtime-root` Node file as `0555`, but bridge
+  `_snapshot_holder_tree` rejects every regular file not `0444` and also writes
+  `0444` into its roster row. Both qualified and blocked child remeasurement
+  route all three root kinds through that helper. A genuine v3 runtime root
+  therefore fails first on mode and would then fail on roster digest; current
+  tests either stub remeasurement or construct the runtime fixture through the
+  generic `0444` holder sealer. L64 cannot enable L63 until per-kind physical
+  mode/digest remeasurement has an exact positive real-shape regression.
+- FACT — Kimi's resumed independent audit returns REWORK and independently
+  confirms the stale combined launcher pin, the vacuous `18+7` cleanup
+  mutations, the non-durable closure/parity evidence, schema permissiveness for
+  loader drift and legacy roles, alternate runner location, and the pathname
+  same-UID boundary. Kimi recommends declassifying `ProductionW3Adapter`
+  instead of porting another in-process execution route around the external
+  qualifier+bridge authority.
+- STOP — Frontier architecture review finds no honest in-process fix for an
+  active same-UID writer on this macOS boundary: modes, retained inode FDs,
+  double snapshots and a same-UID copy remain transiently writable, while an
+  executable-fd route is unavailable/failed locally. Strong executed-preimage
+  evidence requires a separately authorized OS boundary (for example a
+  distinct-UID broker with non-caller-writable ancestry and authenticated
+  receipts). The bounded rework must fail-close/declassify production and keep
+  L63 stopped; it must not silently rename this into a proven preimage claim.
+- OPEN — One tests-first L66 rework must close the complete frozen-audit census
+  together: per-kind runtime-root remeasurement, launcher-policy recomputation,
+  exact three-root mutation controls, authority schema pins/role enum, canonical
+  runner path, legacy adapter declassification, and a deterministic metadata-only
+  closure/parity receipt tool. No product patch starts until Qwen's final census
+  and the architecture brief are frozen.
+- STOP — Qwen's final frozen-byte verdict is REWORK with two functional P0s:
+  the `0555` runtime root is impossible to remeasure through bridge's `0444`
+  helper, and the stale combined launcher-policy pin makes the v3 authority
+  unsatisfiable. Qwen also confirms the adapter-v2 seam, 25 false-green cases,
+  authority-schema under-pinning, prose-only denominators and the same-UID
+  pathname surface. Positive findings remain fail-closed source authority,
+  loader containment, separate runtime-root caps and process hygiene; none
+  overrides the blockers.
+- FACT — L66 architecture is frozen in
+  `orchestra/briefs/2026-08-22-model1-l66-native-proof-rework.md`: exact 21-path
+  writer roster, mandatory REDs, per-kind `0555/0444` remeasurement,
+  deterministic metadata-only evidence manifest, legacy adapter
+  declassification and production fail-closed until a distinct-UID/root broker
+  exists. L63, source repin, payload and training remain STOP.
+- FACT — L66 writer preflight is complete on exact HEAD `2d519d9`: full
+  brief/board/ledger/charter/roadmap read, writable `21/21` and off-limits roster
+  checked, inherited L64 diff preserved and diff-check clean. No product/schema
+  byte has been touched; the writer is now adding tests-only RED cases. The
+  protected-broker absence remains an explicit production pre-FS/pre-process
+  STOP, not a deferred hardening item.
+- FACT — First L66 tests-only RED is captured before any product/schema write:
+  exact combined-launcher recomputation fails `0/1`, bridge literal
+  `cfd09...f4d8` versus qualifier-derived `d4f6...9c97`. The first bridge test
+  slice stages `10` cases: policy `1`, runtime modes `2`, exact identity
+  schema/manual/bridge/public attacks `6`, and pre-FS/process production STOP
+  `1`. Remaining RED files are still being constructed; no GREEN credit yet.
+- FACT — L66 tests-only staging now spans `6` files and `59` nominal cases,
+  still with zero product/schema writes. Exact partial REDs: runtime-root `0/2`
+  (bridge helper has no kind), combined policy `0/1`, canonically rehashed
+  identity/schema attacks `0/6`, and bridge cleanup controls `0/7`. The first
+  qualifier cleanup invocation used host Python 3.11 and stopped on the known
+  3.13 requirement; it carries no denominator credit and is being rerun with
+  the pinned `.venv` interpreter before the adapter/STOP/evidence batch.
+- FACT — L66 exact RED capture is complete on pinned Python 3.13 with product
+  and schemas still untouched: runtime modes `0/2`, combined policy `0/1`,
+  qualifier+bridge cleanup `0/25`, six canonically rehashed identity/legacy
+  role attacks `0/6`, adapter/qualifier/bridge/public pre-boundary STOP `0/5`,
+  same-UID nonclaim `0/1`, durable receipt mutations `0/19`, deterministic
+  emit/verify `0/1`, metadata/nonclaims `0/1`, and three evidence bindings
+  `0/3`. Aggregate `in=64 out=0 distinct=64 gaps=0`; every first failure maps
+  to the frozen brief and no new scope/architecture STOP emerged. Product and
+  schema implementation may now begin.
+- FIX — First L66 product slice is implemented within the authorized roster:
+  bridge snapshots retained files with exact per-kind `0555/0444` modes,
+  combined launcher pin is `d4f6...`, runner path is canonical in qualifier/
+  bridge/public validation, authority capsule roles and loader/runner identities
+  are schema-pinned, and production qualifier/bridge/adapter/public entrypoints
+  stop before filesystem/process without broker authority while exposing the
+  same-UID nonclaim. Four modified Python product files compile cleanly. The
+  deterministic receipt tool/schema/manifest and their three report bindings
+  remain in progress; no claim is made from compile evidence.
+- FACT — The native census tool independently reconstructs from pinned Git
+  objects and registered tooling: source `32 files / 967481 bytes / 99 edges /
+  66 relative`, runtime fixed point `30/32` with only `preview-plan.ts` and
+  `executor/rows.ts` behind type-only edges, and packages `15 / 1790 files /
+  7710543 bytes / 0 symlink`. Historical 15-row actual parity hashes and the URL
+  trace were not retained; the writer correctly stopped rather than derive
+  equality from expected targets.
+- FACT — L0 amends L66 narrowly to authorize one bounded reference-only parity
+  reconstruction: three fresh rounds × five public-synthetic roles, pinned Git/
+  tooling/Node, native deny-fork versus separately labelled TSX comparator,
+  actual result/diagnostic hashes and URL trace, temp roots outside Git, zero
+  production/authority/dataset/training credit. Every other runner execution
+  remains STOP.
+- OPEN — The authorized parity run is not yet started (`0/15`), so there is no
+  mismatch/stderr/temp/PID evidence to report. The writer is completing the
+  temp-only Git-object capsule builder, final-policy native command, separately
+  labelled TSX comparator, trace/hash normalization and cleanup preflight first.
+  The census JS wraps tracing without changing the frozen loader pin. Execution
+  starts only after those controls are inspectable and stops on the first
+  mismatch.
+- FACT — Receipt harness syntax boundary is clean: new Python evidence tool
+  passes `py_compile` and the tracing/census loader passes Node `--check`.
+  Parity remains deliberately `0/15`; compile evidence receives no closure or
+  parity credit. Inherited off-roster L64 changes remain untouched.
+- FACT — L66 no-run dry preflight is GREEN and independently recomputes source
+  `32 / 967481 bytes / 99 AST edges`, package closure `15 / 1790 files /
+  7710543 bytes`, and tooling pins. Ruff for the new tool/tests is green.
+  Parity remains `0/15`; exact receipt schema is the last prerequisite before
+  the single authorized capture.
+- FACT — New native-evidence schema is Draft 2020-12 meta-valid and the tool is
+  schema-aware. It verifies exact denominators/order/hashes, source/package/
+  capsule cross-projections, actual result+diagnostic equality, input hashes and
+  temp roots outside Git. Python compile, Node check and Ruff remain green.
+  Capture is still `0/15` during the final document-only preflight; no runner
+  result is inferred from the schema.
+- FACT — Final no-run capture preflight is GREEN: pinned Git revision→tree and
+  blob OIDs verified, full tooling installation verified, reference comparator
+  fixed to `tsx@4.22.4` with explicit child/temp permission, and exact native
+  Seatbelt policy parse/exec canary returns stderr `0`. L0 authorizes the one
+  already-scoped `3×5` capture now, with immediate STOP on mismatch, native
+  stderr/temp, residual PID or outside/ambient trace.
+- STOP — The first authorized capture stopped before native preload and before
+  any row (`0/15`): an auxiliary tracing wrapper under `run-1-1/native` hit
+  Seatbelt `EPERM` while realpath walked an ungranted ancestor. Native stderr was
+  nonzero, no receipt was emitted, the capture root is empty and exact process/
+  temp census is zero. No parity result is credited and no retry is authorized
+  with that design.
+- FIX — L0 freezes the narrower trace design: the actual native loader writes
+  observation URLs only to an explicitly inherited reference-only FD; the
+  production environment proves that FD/variable absent. No auxiliary loader
+  pathname and no broad metadata/data policy widening are allowed. A focused
+  trace-FD canary plus zero production trace precedes the single retry.
+- FACT — The inherited-FD trace necessarily changes the native-loader bytes.
+  L0 therefore amends the exact L66 writable roster from `21` to `22` by adding
+  only `schemas/w3-run.schema.json` for the loader-hash cascade. Leaving its v3
+  const stale or silently calling the schema legacy would recreate the schema/
+  manual divergence; `oracle-result` and every other off-limits path remain
+  frozen.
+- FACT — Inherited-trace rework has its own tests-first RED `0/2` before the
+  loader edit. Both cases fail on the absent explicit trace-FD environment
+  contract; the canary does not spawn Node, so parity remains `0/15` and no
+  additional runner execution is consumed. Scope `22/22` is acknowledged with
+  only the w3-run loader pin newly writable.
+- FIX — Inherited trace-FD rework is GREEN `2/2`: the actual native loader emits
+  exactly the contained canary URL, stdout is `42`, stderr/temp are zero and
+  exact PID/PGID census is zero. Census JS is parser-only; production oracles
+  and qualifier omit both trace env and `pass_fds`. Loader/qualifier hashes and
+  bridge/schema pins are cascaded across the exact 22-path scope; bridge pin,
+  meta-schema, compile, lint and static `32/32` plus package `15/1790` gates are
+  green. L0 authorizes the one `3×5` retry now.
+- STOP — The trace-FD retry commits no row (`0/15`) and no receipt. Native
+  F1-author completed with stderr/temp/PID/PGID zero and contained trace, but the
+  harness incorrectly rejected the separately authorized TSX comparator temp
+  files as a production invariant. Temporary roots were fully removed and outer
+  capture root is empty. No parity credit and no immediate retry.
+- FIX — Receipt semantics now separate native and reference-comparator temp:
+  native stays exactly empty; TSX temp must be bounded, symlink-free, fully
+  enumerated/hashed, explicitly labelled reference-only, then deleted with an
+  independent zero-residual check. One final retry may occur only after a
+  dedicated tests-first RED→GREEN for this roster/cleanup; any later execution
+  STOP closes L66 parity as blocked.
+- FACT — Comparator-temp rework has its own pre-edit RED `0/2`; both cases fail
+  on the absent bounded snapshot API and the symlink attack cannot be processed.
+  No Node, runner or capture was launched. Tool edits may begin, but the final
+  parity retry remains unauthorized until both cases and cleanup proof are
+  GREEN.
+- FACT — Comparator-temp exact focused denominator is now `0/3`: snapshot,
+  cleanup and semantic API were absent. The separately authorized TSX canary
+  confirms expected nonempty temp with stderr/PGID zero. The implementation now
+  has recursive metadata-only rows, symlink/special rejection, caps
+  `64 dirs / 4096 files / 64 MiB`, per-file and roster hashes, race resnapshot,
+  deletion and residual-zero verification; schema distinguishes native temp
+  zero from reference-only comparator child/temp. Semantic verifier/focused
+  GREEN remains pending and no parity retry has started.
+- FIX — Comparator-temp contract is closed: RED `0/3` becomes focused GREEN
+  `6/6`, covering contained native trace/stderr0/temp0/PGID0, zero production
+  trace, bounded hashed temp roster and cleanup, symlink rejection, actual TSX
+  reference child/temp with residual0, and qualifier pin. Receipt schema is
+  Draft 2020-12 valid and records rows/counts/bytes/file+roster hashes plus
+  deleted counts/residual0; native and comparator nonclaims are exact. Tool/JS
+  compile, Ruff and static closure remain green. L0 authorizes the final `3×5`
+  attempt; any further execution STOP closes parity blocked with no fourth run.
+- STOP — Final authorized capture completes all `15` semantic/diagnostic
+  comparisons in process, with native `337` URLs each, stderr/temp/PID/PGID0,
+  TSX temp `30 files / 844603 bytes` inside caps and cleanup/process residual0.
+  Publication then fails closed because the registered historical observation
+  denominator is `338`, not `337`. No manifest exists, capture/temp roots are
+  empty and console-only equality receives zero durable credit. No fourth
+  attempt is permitted.
+- FIX — L66 now emits only a deterministic blocked evidence manifest: full
+  recomputable static source/package/capsule metadata and pins, parity
+  `status=blocked`, `available=false`, expected rows `15`, durable rows `0`, and
+  stable observation-denominator-drift reason. It must not persist console-only
+  hashes or relabel 337 as observed evidence. Two blocked emits and independent
+  static verify remain required. L66 maximum outcome is `PARTIAL / STOP`; L63
+  remains stopped.
+- FIX — Blocked receipt implementation is now structurally exact: capture API
+  is permanently closed; parity is `blocked/available=false`, expected `15`,
+  durable `0`, reason `observation-denominator-drift`, credit `none`. The builder
+  recomputes full `32` source, `1790` package and `1827` capsule metadata rows
+  plus pins, and excludes all console hashes/URL rosters. Schema is blocked-only
+  and future tests are static/synthetic so no Node/TSX/canary can run. Manifest
+  emission and independent verification are still pending.
+- STOP — First two static blocked-receipt emits fail before writing because the
+  package builder emits grouped package/rglob order while the verifier requires
+  global byte-path order. Output directories remain empty and no runner,
+  capture or TSX process occurs. This is a deterministic metadata ordering bug,
+  not a parity attempt; the writer is sorting all `1790` rows globally before
+  retrying the two static emits.
+- DONE — Blocked evidence receipt is durable and independently reproducible:
+  two fresh static emits are byte-identical (`735078` bytes, file SHA-256
+  `1efbde...65510`) and both pass `--verify`; internal manifest hash is
+  `7bad7d...7b052`. It retains source `32/967481/99/66`, packages
+  `15/1790/7710543` and capsule `1827/8922291`, while parity is exactly
+  `BLOCKED`, available false, expected 15, durable 0, credit none and durable
+  URLs 0. No console-only 337 roster/hash is present. Canonical metadata-only
+  copy is `manifests/w3-native-loader-evidence.json`; report/schema bindings and
+  broad static gates remain.
+- FIX — Exact evidence binding is now closed across schema and runtime: the
+  three production schemas bind the manifest `3/3`; qualifier/bridge compile;
+  schema/manual qualified+blocked/key-agreement/pin focused batch is `10/10`,
+  and authority/manual mutation batch is `19/19`, with no process execution.
+  Final qualifier SHA is currently
+  `b3c4a02c196c4c6b5cf547c208ee05ca970fd76040c827f9d5fbe18bfd21ca45`
+  and bridge pin matches. Static receipt reverification and broad gates remain;
+  wave outcome remains `PARTIAL / STOP`.
+- DONE — Post-binding static receipt gate is GREEN: canonical blocked manifest
+  passes independent `--verify`, contracts are `29/29`, and native-evidence
+  tests are `28/28`. These tests use only the static emitter and explicitly
+  synthetic fixtures; capture API remains closed and no runner/TSX/canary is
+  executed. Broader compile/lint/owned-suite gates follow.
+- FIX — Broad adapter/oracle static batch found seven stale tests that still
+  expected legacy identity/runner-v2 work after the new broker STOP. They now
+  assert the authorized invariant: registry, content/runtime measurement and
+  executor remain untouched before broker authority. Rerun of w3-oracles plus
+  production-adapter, excluding the opt-in real bridge, is `46/46` GREEN with
+  no runner execution. This closes test-contract drift, not a product-runtime
+  result.
+- DONE — L66 broad static gates are GREEN: foundation validation `29/29` with
+  evidence schema included, pilot contract checks GREEN with W5 correctly
+  BLOCKED, lint/format-check over `97` files, adapter/w3-oracles `46/46`, focused
+  runtime/schema/STOP `15/15`, receipt `28/28`, contracts `29/29`, canonical
+  manifest verify and `git diff --check`. `make check` is deliberately NOT run
+  because its runner/Node/TSX cases are forbidden after the final parity STOP;
+  it receives no implicit credit. Static closure is durable, parity remains
+  durable `0/15`, and L66 outcome remains `PARTIAL / STOP`.
+- FACT — L0 independently rechecks the frozen static surface instead of relying
+  on the writer handoff: exact collected roster is `90` (`contracts 29`, public
+  oracle STOP 1, bridge L66 10, native evidence 28, adapter STOP 2, qualifier
+  cleanup/STOP/nonclaim 20) and runs `90/90` GREEN on Python 3.13. Canonical
+  manifest `--verify` independently exits 0; file SHA is
+  `1efbde3a197a958c853af37f2b9236aa93ed78ede196d728cf1582437a665510`;
+  qualifier raw SHA matches writer `b3c4a02c...1ca45`; off-limits runner and
+  worker hashes remain exact L64 values `772baa27...ef5d` and
+  `1fc139fe...13e`. Post-run owned-process census is zero (only the census
+  shell/rg itself). This is static/pre-boundary evidence, not parity credit.
+- STOP — Frozen-audit inspection invalidates the stronger “process-free static
+  verify” wording above. `runtime/w3_native_evidence.py --emit/--verify` calls
+  `_build_blocked_document -> _ast_census -> _run`, which launches the pinned
+  Node binary to run `native_evidence_census.mjs`. It does not run the Metis
+  runner, TSX comparator or parity canary, but it contradicts the L66 contract
+  and tests claiming that future blocked-receipt verification cannot run Node.
+  The prior `--verify` green remains evidence of deterministic recomputation,
+  not evidence of a Node-free/static-only gate. L0 has opened a bounded
+  tests-first rework; parity stays closed and no fourth attempt is authorized.
+- FACT — L67 captures the exact tests-first RED without executing Node: the
+  new blocked emit/verify guard permits only Git object-reader commands and
+  intercepts the attempted command
+  `/Users/tommasotessarolo/.hermes/node/bin/node .../native_evidence_census.mjs`
+  before spawn. Exact selector is `0/1`; two additional pure-parser multiline
+  import cases are `0/2` on the absent API. A no-write prototype already
+  reproduces the registered source fixed point `32 files / 99 edges / 66`
+  relative resolutions with zero row mismatch, so the bounded process-free
+  rework is implementable without runner/TSX/canary or parity execution.
+- FACT — Kimi K3 independently returns `REWORK` on the pre-L67 frozen bytes:
+  it confirms the Node-in-verify blocker, requests mutation-specific rejection
+  assertions for the `18+7` cleanup cases, a durable same-UID substitution
+  canary instead of constants-only prose, and correction of the historical
+  receipt mutation count from `19` to `20`. It also notes a deferred policy
+  fixture mismatch in inherited L64 off-limits tests; production remains
+  unreachable behind the broker STOP and L67 does not silently expand scope.
+- FIX — L67 removes Node from blocked receipt emission and verification. A
+  bounded pure-Python TypeScript import census reads only pinned Git objects,
+  accepts the registered leading-static-import profile (including multiline
+  inline comments), resolves the fixed point and retains exact denominators
+  `32/99/66`. The guarded emit/verify test permits Git object-reader commands
+  only and is GREEN without spawning Node/TSX/runner/canary. Cleanup mutation
+  assertions now bind every case to its actual rejection reason and correct
+  three misleading case names; a tmp-only three-role same-UID replacement
+  canary proves held bytes differ from pathname bytes while preserving the
+  explicit nonclaim. Combined focused roster is `31/31` GREEN.
+- DONE — On formatted generator bytes, two fresh process-free blocked emits are
+  byte-identical at `735078` bytes; new file SHA-256 is
+  `a8f2464b189faf3740c5a0af39d7e018b76190b540c2115147b61babe58e5556`,
+  generator SHA-256 is
+  `bdcc216697f6ac9a19a8945dc62458b90262dc485a5eb9fee889b7057a5e43b2`,
+  and internal manifest hash is
+  `sha256:05b7435eb199c51d835a9619ebde2c72c9952774043ebfe2a055bb298506c2b2`.
+  Both fresh outputs verify; canonical evidence suite is `31/31` GREEN. The
+  manifest remains BLOCKED/false/expected15/durable0/credit-none and contains
+  no console parity rows.
+- FACT — Historical L66 bookkeeping is corrected without rewriting the prior
+  RED event: the durable-evidence mutation parameter roster contains `20`, not
+  `19`, distinct attacks. Its current evidence-file suite collects/runs
+  `31/31`, including all `20/20` attacks plus deterministic emit/verify,
+  nonclaims and static/synthetic boundary checks.
+- DONE — L67 frozen safe-only gate collects and runs `103/103`: evidence `31`,
+  contracts `29`, qualifier `23`, bridge `17`, public STOP `1`, adapter STOP
+  `2`. No Node/TSX/runner/canary is spawned; Git subprocesses are used only as
+  the explicit pinned-object reader and are asserted as the sole commands in
+  emit/verify. Py-compile/Ruff/format are `6/6`, Draft 2020-12 schemas are
+  `5/5` with manifest errors `0`, `git diff --check` is GREEN and final owned
+  process census is zero. Frozen hashes: qualifier
+  `e5fb9642d0c5367b923e31d3ee9a5c0e9ff4175df986b32630b039f4ccac1672`
+  with bridge pin exact; bridge
+  `5b8aa1a5d173d1f346553a77eff0caaf0086fcee7b9d875ef393d7bee9c8dfe6`.
+  Fresh internal/Kimi/Qwen read-only audit is still required; parity remains
+  durable `0/15` and outcome cannot exceed `PARTIAL / STOP`.
+
+- DONE — L67 final synchronized re-freeze supersedes the historical hashes in
+  the preceding L67 rows without rewriting them. The obsolete two-argument
+  `_ast_census(metis_root, node_path)` call in unreachable legacy assembly is
+  removed; every current census call uses the pure-Python one-argument API.
+  Two process-free fresh emits are byte-identical and the canonical receipt
+  verifies with file SHA-256
+  `c2b852d923fb06ece6ebaacd5b706597095f9c10cb2504150f1d17009e39bb9a`,
+  generator SHA-256
+  `35da08596227b87b33246f98f1073d040f66f2debd4c8afc2b109637fa19a715`
+  and internal manifest
+  `sha256:a84ec4511009102f1c2cc23604a4147606e34030809537d1528fd49032f331f6`.
+  Qualifier SHA-256 is
+  `248549cf7dceab4a878daa3fae58bc7f39237c9fbea72344849c8c86d5ec4e26`
+  with exact bridge pin; bridge SHA-256 is
+  `b7faa38eee48e250e5a6a07cfad7c68cbba5d60db6667a186e18e907f5552ee0`.
+  Receipt binding is exact `5/5` across qualifier, bridge and three schemas.
+  The final safe-only gate reruns `103/103`; CLI verify, py-compile/Ruff/format
+  `6/6`, schemas `5/5`, diff-check and owned-process census are GREEN. An
+  independent frontier re-audit runs `34/34` and returns
+  `ACCEPT STATIC-PARTIAL`, `P0=0 P1=0 P2=0`. Parity remains truthfully
+  `blocked/available=false/expected=15/durable=0/credit=none`; no Node, TSX,
+  runner, canary, `make check`, production promotion or L63 credit is claimed.
+- DONE — Independent review convergence on the synchronized freeze: the
+  frontier auditor returns `ACCEPT STATIC-PARTIAL` with `P0=0 P1=0 P2=0` after
+  `34/34`; Kimi K3 independently rehashes and traces the full requested static
+  surface and returns `ACCEPT STATIC-PARTIAL`, with no P0/P1 and only
+  non-blocking hygiene notes. The historical-board note in that report is
+  resolved by the append-only synchronized entry above. Qwen 3.8 Max is
+  registered in `.orchestra/teams.json` and was used alongside Kimi; its final
+  consistency adjudication returns `ACCEPT STATIC-PARTIAL`, `P0=0 P1=0`, and
+  classifies only the already-declared durable parity `0/15` as P2/promotion
+  debt. Qwen had no shell tool in its review runtime, so its result is explicitly
+  a semantic consistency adjudication of the independently collected evidence,
+  not a third file-hash audit. Final owned process census is zero.
+
+- FACT — The user ratified O-010 as a lightweight-first maintenance policy.
+  Five disjoint clean surfaces now encode `NO_RETRAIN -> DELTA_QLORA ->
+  FULL_SUCCESSOR`: every Metis revision is pinned and impact-measured; retrieval
+  plus the previous adapter is tried first; compatible residual drift receives
+  only bounded delta QLoRA with oracle-clean data, stable replay and dev-only
+  selection; prior benchmark, dataset and adapter identities remain immutable.
+  Evidence: `docs/02-dataset-and-provenance.md`,
+  `docs/03-evaluation-and-gates.md`, `docs/06-delivery-roadmap.md`,
+  `docs/10-open-decisions.md`, `manifests/decision-register.json`.
+- FACT — L68 preflight preserves exact HEAD
+  `2d519d90be9eae0c562a10becbe2bc7e9ac4bbb0` plus the complete inherited dirty
+  L66/L67 state; no product/runtime/schema/test byte was touched by the policy
+  update. The local Orchestra bible was read. Network lesson sync was not run
+  because this project's external-upload STOP takes precedence.
+- FACT — Internal Orchestra reconnaissance closes `in=3 out=3 distinct=3
+  gaps=0`: Luna recomputed scope/status and wrapper interfaces; Terra derived the
+  minimal O-010 policy surfaces; Daybreak Blue independently threat-modeled the
+  protected broker. L0 independently rechecked HEAD/status, the five-file diff,
+  JSON parsing and `git diff --check` before external dispatch.
+- FACT — Orchestra band preflight reports Qwen `22,661,610` measured weekly
+  tokens across `16` runs and Kimi `0` measured by the current log source;
+  neither team has a declared provider limit, so no quota percentage is
+  invented. Both project pins remain verified in `.orchestra/teams.json`.
+- OPEN — L68 is frozen in
+  `orchestra/briefs/2026-08-23-model1-l68-protected-execution-broker.md` as a
+  payload-free protected-broker architecture/tests wave. Phase A cannot create
+  an OS user, load `launchd`, run Node/Metis, register authority, materialize
+  payloads or train. Kimi and Qwen perform disjoint read-only master reviews on
+  the shared activity blackboard before any Phase A product writer opens.
+- FACT — L68 external Orchestra reviews are running concurrently through the
+  repository-pinned wrapper and shared activity `model1-l68-fast-closure`:
+  Kimi session `72558` owns governance/maintenance/fast-path/nonclaim review;
+  Qwen session `60975` owns broker trust-boundary/protocol/lifecycle review.
+  The internal `delivery_census_lead` frontier lane concurrently delegates and
+  rechecks bounded W1/W2 mechanical censuses. All three lanes are read-only;
+  product writes remain unopened until the two master reviews converge.
+- DONE — Internal delivery census closes `in=2 out=2 distinct=2 gaps=0`.
+  The frontier lead independently recomputed the Luna results: allocation is
+  `30/30` distinct tasks across six families, closure is `30/30` with
+  `201/201` sources but remains `computed_not_sealed` and one correlated
+  leakage group, and all `201/201` assets remain local-only with
+  `legal_review=not_performed`. W3 supports only F-1/F-2/F-3; F-4/F-5/F-6
+  remain unimplemented. Fastest honest order is L68 Phase A plus human rights
+  review, separately authorized Phase B, protected oracle receipts and W1 seal,
+  then the F-4/F-5/F-6 semantic wave and real W3 data. No promotion claim.
+- DONE — Kimi K3 master review closes `in=4 out=4 distinct=4 gaps=0`
+  read-only at external activity artifact
+  `artifacts/kimi-l68-maintenance-review-report.md`. It finds no O-010 STOP,
+  confirms the lightweight ladder and nonclaims, and warns that the dead legacy
+  adapter body must be replaced by receipt consumption rather than re-enabled.
+  L0 independently recomputed `30` tasks, six families times five, `201`
+  assets/sources, one leakage group, `legal_review=not_performed`, benchmark
+  total `600` and minimum `563` independent groups. Kimi resume id is
+  `session_27f2c29c-f04b-4370-a43f-73c9b65b5f96`.
+- STOP — The original L68 one-UID target is internally inconsistent: if the
+  broker and Node share one dedicated UID, DAC makes a broker-owned signing key
+  reachable to the child and Seatbelt becomes the only barrier, contradicting
+  the explicit key-unreachable stop rule. The defensible minimum is a non-root
+  broker UID holding key/ledger, a distinct non-root runner UID, and a minimal
+  root launcher/supervisor that accepts only the broker peer, selects only
+  root-owned configured releases, irreversibly drops groups/GID/UID before Node,
+  owns no signing API/key and returns on the original bound connection. L68
+  product writing remains stopped until Qwen completes and L0 amends the brief,
+  roster and exact denominator.
+- DONE — Qwen 3.8 Max closes the external broker review read-only at
+  in=4 out=4 distinct=4 gaps=0: 38 raw findings deduplicate to 33 distinct
+  findings (P0=8 P1=18 P2=7), with no already-executed STOP. L0 independently
+  rechecked the one-UID/key contradiction, the single consumer hit in the old
+  brief, the two-fresh-process loop and the schema constants 2/10/5. Evidence:
+  artifacts/qwen-l68-final-report.md in shared activity
+  model1-l68-fast-closure; Qwen session 60975.
+- FIX — The one-UID P0 and the other seven design P0s are absorbed in the
+  re-frozen L68 brief. The corrected boundary uses _metisbroker, a distinct
+  _metisrunner and a minimal root launcher with no signing/semantic API; every
+  executable byte is installed in root-owned immutable ancestry, caller digests
+  are claims only, the receipt signs all fields with full rosters, ledger
+  durability precedes side effects/delivery and consumers pin sequence plus
+  chain head. The writer roster is now exact 17 paths and the retired 48/48
+  proposal is replaced by 73/73 including 10 launcher-contract cases. Phase A
+  product writing is now open; Phase B remains separately privileged and
+  unauthorized.
+- DONE — Mechanical native-toolchain census closes in=6 out=6 distinct=6
+  gaps=0: no existing C/C++/Rust build surface, Apple clang 21.0.0 is locally
+  available, and Phase A may use syntax-only C validation while every compiled
+  launcher binary remains outside Git and without authority.
+- FACT — Corrected L68 pre-writer gate is green: decision-register JSON parses,
+  `git diff --check` exits zero, `make validate` reports `29` passes and
+  `0` errors across `155` files, and contract tests pass `29/29`. This is
+  static/policy evidence only and does not change parity or production credit.
+- FACT — Phase A writers are active concurrently with disjoint ownership on
+  shared activity `model1-l68-phase-a`: Qwen session `63191` owns protocol,
+  three schemas and exact `12` protocol tests; Kimi session `47821` owns the
+  declarative installer, two plist templates, normative security spec and exact
+  `6` installer tests. Neither lane may touch current production surfaces,
+  execute Node/Metis, create identities/services/keys or perform privileged work.
+- DONE — L0 launcher-source slice closes `10/10` Phase A contract cases:
+  fixed bounded binary frame, exact peer UID/GID, no JSON/semantic/signing/path/
+  argv/env/ancillary-FD surface, fixed installed paths, irreversible
+  groups->GID->UID drop order, non-stdio FD closure, Phase-B fail-closed
+  placeholder and clang syntax. Apple clang with
+  `-Wall -Wextra -Wpedantic -Werror -fsyntax-only` is clean; focused pytest is
+  `10 passed`, Ruff/format/diff-check green. No binary was produced and no
+  launcher, child, Node or privileged operation ran.
+- FIX — L68 ledger ordering is now exact: a durable global
+  `attempt_sequence` is reserved before any side effect; the contiguous
+  `receipt_sequence` and previous receipt head are assigned only after cleanup
+  proof and atomic publication under the same single-writer lease. Crash recovery
+  tombstones the attempt without allocating a receipt index, so consumers see no
+  gap; a durable receipt is replayed byte-for-byte and never re-signed.
+- FIX — Independent L0/Kimi-slice recheck keeps the installer declarative but
+  removes principal substitution: Phase A plans now accept exactly
+  `_metisbroker` and `_metisrunner`, not arbitrary distinct non-root names.
+  Expanded per-leaf Node/loader/worker ancestry remains a Phase B acceptance
+  obligation and cannot receive authority from the directory-level plan.
+- DONE — Qwen protocol writer closes roster `5/5` and focused denominator
+  `12/12`; L0 independently reruns pytest, three Draft 2020-12 schema checks,
+  compile, Ruff/format and diff-check. Shared-board corrections are present in
+  final bytes: separate attempt/receipt sequences, previous receipt head and
+  authority-bound launcher hash. L0's adversarial follow-up also rejects dot
+  roster segments and impossible `receipt_sequence > attempt_sequence`; both
+  project and standalone Ruff gates are green.
+- RISK — First independent Daybreak post-writer audit returns REWORK despite
+  nominal protocol/lifecycle/client `61/61`: it reproduces caller-policy
+  self-authorization, role/path substitution, ledger-leaf replacement with an
+  orphaned consume, cross-attempt terminal-receipt wrapping, bool-as-int drift,
+  a six-leaf completeness cap and consumer high-water reset after state-file
+  deletion. Nominal green is explicitly not accepted as closure.
+- FIX — L0 plus the lifecycle/client lanes close the original exploit family
+  structurally: policy is authority-installed, role/path/digest bindings are
+  exact, recovery cross-binds every attempt/receipt claim, bool integers are
+  strict, ledger inode identity is checked through the locked transaction and a
+  detected replacement poisons the broker instance. Lifecycle remains exactly
+  `43/43`; protocol plus lifecycle is `55/55`.
+- FIX — The second Daybreak P1 set is absorbed rather than waived: secure core
+  defaults require a root-owned non-writable parent and pre-created broker-owned
+  `0600` leaf; the explicit unprotected test mode has zero authority. The
+  installed roster is now an extensible complete sorted superset of the six
+  required role leaves, and release ancestry is domain-derived from release id
+  plus the full roster. Consumer anti-rollback CAS-anchor implementation is in
+  progress; Phase A remains REWORK until that lane and the repeated audit close.
+- DONE — Daybreak independently replays the hardened storage and full-roster
+  contracts and returns A=ACCEPT, B=ACCEPT for Phase-A design. Secure default
+  rejects an euid-owned parent and a missing leaf before executor; replacement
+  yields `LEDGER_REPLACED`, same-instance retry yields `LEDGER_POISONED`, calls
+  stay exactly one. Extensible rosters validate above six rows, stale/add/omit/
+  mutate/reorder/role-swap cases reject, and exact full pre/post is required.
+  Focused lifecycle remains `43/43`; real-world roster completeness is correctly
+  retained as Phase-B census evidence, not inferred from structure.
+- DONE — Consumer lane closes C structurally with an initialize-once canonical
+  anchor and `load_required` plus monotonic compare-and-swap before success.
+  Missing/deleted state, second initialization, stale CAS, instance/revision/
+  head rollback, bool integers and a barrier-forced two-consumer race are
+  covered inside the exact client `6/6`; public E2E remains exactly `2/2`.
+  Only `UnprotectedTestAnchorStore` exists in Phase A and its documentation and
+  signed receipt nonclaims grant zero authority.
+- FACT — L0 independently collects the exact Phase-A denominator
+  `12+43+6+2+10=73` and reruns `73/73`. Three broker schemas validate `3/3`,
+  contract tests pass `29/29`, foundation reports `29` passes/`0` errors,
+  Python compile, Ruff, format, clang syntax for both compile-time branches and
+  `git diff --check` are green. Final Daybreak anchor/exploit replay remains the
+  only Phase-A acceptance gate still running.
 
 ## Open
 
@@ -2235,3 +2950,919 @@ B/D evaluation, bounded QLoRA training and a truthful final promotion verdict.
 ## Outcome
 
 IN PROGRESS — delivery wave opened; no promotion verdict yet.
+
+- DONE — Final Daybreak C/exploit replay accepts L68 Phase A only as
+  `BROKER_DESIGN_ACCEPTED_PAYLOAD_FREE`: P0=0, P1=0, P2=0; exact focused
+  denominator `12+43+6+2+10=73/73`, original-exploit spot checks `7/7`, and
+  reviewer roster `in=17 out=17 distinct=17 gaps=0`. Schema, Python, Ruff,
+  format, clang and diff gates are green. No production, privilege, Node/Metis,
+  model/data or training credit follows.
+- RISK — `UnprotectedTestAnchorStore` remains intentionally process-local and
+  zero-authority: a fresh object can accept a manually restored old test file.
+  Signed synthetic nonclaims and hard-denied production verification prevent
+  Phase-A authority; a protected initialize-once CAS/anti-rollback store is an
+  explicit Phase-B acceptance obligation.
+- FACT — Read-only closure census reproduces tasks `30/30` across six families,
+  sources/assets `201/201` and `gaps=0`, but the slice is
+  `computed_not_sealed`, every asset is internal/local-only with legal review
+  not performed, task-specific oracles are unexecuted, and the corpus has only
+  one correlated leakage group versus the minimum 563 population-claim groups.
+- OPEN — Immediate unprivileged work is the W1/W2 evidence package: exact
+  30-task blocker map, 201-asset rights dossier, typed/oracle specifications and
+  F-4/F-5/F-6 evidence plan. Phase B OS installation, real W3 data/model work
+  and training each require their own explicit authorization.
+- FACT — L69 opens only the safe local evidence-package wave. Three internal
+  frontier-led read-only lanes own the 30-task blocker census, 201-asset
+  rights/provenance dossier and F-4/F-5/F-6 typed-oracle gap. Kimi K3 and Qwen
+  3.8 Max run concurrently as external masters on shared activity
+  `model1-l69-evidence-package`, each required to delegate, validate and report
+  arithmetic before L0 opens any tracked writer roster.
+- DONE — Internal read-only census converges on tasks `30/30`, assets
+  `201/201`, raw dependency categories `10`, executed task evidence `0/30`,
+  F-4/F-5/F-6 `0/15` tasks and `0/75` oracle cells. L0 rejects the first
+  F-4/F-5/F-6 report's ambiguous gaps arithmetic and accepts only the corrected
+  task/cell denominators; future protected role receipts are a target
+  `25=10+10+5`, not current evidence.
+- DONE — Kimi K3 frontier master delegates three units and validates blocker,
+  rights and gate inventories at `30/30`, `201/201` and `45/45`, then returns
+  `ACCEPT_PACKAGE_DESIGN`. Its dominant P0s remain external evidence debt:
+  protected receipts `0/30`, leakage group `1<563`, and legal review `0/201`.
+- FIX — Two disjoint lower-cost writers create immutable-input sidecars rather
+  than rewriting the stale allocation plan. L0 rejects nominal first greens:
+  W1 originally assigned runtime tags by row index, and W2 did not compare every
+  identity field. Corrected W1 derives exact per-task dependencies; corrected W2
+  binds both asset-register canonical hash and file-byte SHA-256. L0 reruns
+  focused `17/17`, schema `2/2`, compile, Ruff, format and diff gates green.
+- FACT — W1 blocker sidecar is exact `30/30`, raw dependency histogram `10/10`,
+  assets `201/201`, one correlated group, every task blocked and every evidence
+  reference empty. W2 rights dossier is exact `201/201`, reviewed/approved/
+  excluded `0/0/0`, pending `201`, with no license, rightsholder or evidence
+  invented. Neither sidecar grants a seal.
+- OPEN — Frontier-led seal-package lane is generating the four remaining
+  fail-closed manifests: zero-execution oracle roster, honest one-group leakage
+  assignment, six-family held-out map and an obligatorily unsealed benchmark
+  seal. Qwen F-4/F-5/F-6 external review remains active.
+- RISK — Qwen 3.8 Max inspected and delegated the F-4/F-5/F-6 surface, posting
+  grounded facts for the `15` blob identities and the current typed-oracle gap,
+  but its provider quota exhausted before either delegated artifact or a final
+  verdict landed. No Qwen acceptance credit is claimed; the partial journal and
+  session log remain durable in shared activity `model1-l69-evidence-package`.
+- FIX — L0 rejects the first seal handoff until all closure/asset distinct
+  denominators are recomputed, blocker and rights validators are transitively
+  enforced, Accuracy-99 is pinned to `600/563/O-003`, and the ambiguous group
+  counter is renamed. The hardened seal suite then passes `14/14`; leakage and
+  seal hashes are `05918e...5743` and `139694...28cf`.
+- DONE — L69 local evidence package is accepted only as **UNSEALED**. Six
+  schema/manifest pairs are bound into foundation and replayed semantically;
+  L0 reruns focused `61/61`, foundation `36` passes/`0` errors, Ruff, format,
+  compile and diff gates green. Current truth remains tasks `30/30`, assets
+  `201/201`, oracle cells `0/160`, F-4/F-5/F-6 cells `0/75`, legal review
+  `0/201`, leakage `1<563`, future protected-role target `0/25`, and
+  `seal_eligible=false`. No Node, privilege, model payload, training or
+  promotion credit follows.
+- OPEN — The immediate critical-path gate is separately authorized L68 Phase B
+  for protected OS principals, launcher, signing key and consumer CAS anchor,
+  followed by public-synthetic `3/3` candidates and `5/5` executions. Data/legal
+  review and any later training remain separate authorizations.
+- STOP — Read-only Phase-B preflight proves privileged execution is premature:
+  the host is clean/compatible, but the repository is not installable. The C
+  launcher still returns `ENOTSUP` and has no accept loop; the broker is
+  synthetic-only with no daemon/real signer; the client denies Ed25519 and has
+  only an unprotected test anchor; the installer is plan-only; no host-evidence
+  harness exists. Explicit privilege alone cannot cure missing product code.
+- FACT — Host preflight observes service identities `0/4`, planned install tree
+  `0/13`, ledger/key `0/2`, launchd services `0/2`, sockets `0/2`; SIP,
+  Gatekeeper, clang 21, SDK and sandbox-exec are available. Evidence preflight
+  freezes Phase-B targets at host predicates `0/28` (14 positive+negative),
+  fresh runs `0/2`, candidates per run `0/3`, roles per run `0/5` and physical
+  executions `0/10`. No sudo, binary build, Node/Metis or host mutation ran.
+- OPEN — L70 must first implement an unprivileged tests-first Phase-B package:
+  distinct protected-public-synthetic evidence mode, real launcher/daemon,
+  Ed25519 sign+verify, protected anchor CAS, operational installer/rollback and
+  normalized host-evidence report. Privileged authorization will be requested
+  only after those bytes and adversarial gates are accepted.
+- DONE — L70 frontier architect delegates one lower-cost dependency census,
+  validates Phase A `12+10+43+6+2=73/73`, and freezes a five-principal/
+  three-service boundary. `_metisanchor` owns only an append-only verified
+  receipt head; it cannot read the private key, broker ledger, payloads or run
+  Node. `protected-public-synthetic` is distinct from both synthetic and
+  production and carries exact no-production/no-semantic/W5 nonclaims.
+- FACT — Local uv cache contains a compatible `cryptography` wheel, so L70 may
+  pin and resolve it strictly offline. Any network fallback is a STOP. The new
+  local acceptance denominator is `12 crypto + 10 framing + 10 broker + 8
+  anchor + 10 installer/evidence = 50/50`, kept separate from Phase A `73/73`.
+- OPEN — L70.1 protocol/crypto frontier writer owns only protocol, Ed25519,
+  authority/receipt schemas, dependency lock and exact crypto tests. Native,
+  broker and anchor writers remain closed until the serial crypto seam passes.
+- DONE — L70.1 crypto is accepted after independent L0 replay: the lower-cost
+  KAT/schema census closes `in=7 out=7 distinct=7 gaps=0`; Phase-A protocol
+  `12/12` plus new Ed25519/KAT/mutation/key/mode cases `12/12` give
+  `in=24 out=24 distinct=24 gaps=0`. `cryptography==47.0.0` resolves, syncs and
+  imports strictly offline from the cached macOS wheel bound in `uv.lock`;
+  authority/receipt schemas are `2/2`, and Ruff, format, compile and diff gates
+  are green. Production verification remains explicitly unavailable and no
+  real key, host, privilege, Node/Metis or Phase-B evidence credit exists.
+- OPEN — L70.2 begins with disjoint frontier-led teams. Native owns only the C
+  launcher, fixed-target FD-3 shim, launcher plist and its new operational
+  `10/10`; broker performs a delegated read-only service/transport census
+  before its isolated writer mandate. Anchor remains closed until its own
+  delegated prewrite can run without displacing an active validation team.
+- DONE — L70.2 three-team delivery is locally replayed by L0: native closes
+  operational `10/10` plus prior static `10/10`; broker closes service `10/10`
+  plus protocol `12/12`, crypto `12/12` and public E2E `2/2`; anchor closes
+  exact `8/8` plus client/E2E compatibility `8/8`. Both launcher branches and
+  all three shim variants compile with `-Werror`; focused lint, format, plist,
+  schema, compile and diff gates are green. These are simulated local contracts,
+  not installed-service or Phase-B host evidence.
+- RISK — L0 adversarial integration review rejects a premature L70.2 seal:
+  anchor FD 3 does not yet validate exact AF_UNIX/stream/path or peer UID/GID;
+  the anchor plist lacks socket owner/group and its service logs share a state
+  path whose ownership is not yet reconciled. The legacy lifecycle denominator
+  remains honestly `42/43` because its planner still names the pre-shim broker
+  program. All are mandatory L70.3 integration debts.
+- STOP — Independent replay confirms a runnable-contract P0 across the nominally
+  disjoint native/broker lanes. The launcher fixes `node --import loader
+  runner.ts` and forwards the protected-broker request bytes, while the actual
+  runner requires the experimental-loader argv contract, roughly twenty fixed
+  identity flags and an oracle-request stdin shape. The real child would exit
+  before Metis execution. L70.3 writer scope must therefore include a fixed,
+  authority-bound payload adapter and launcher/runner argv compatibility plus
+  an execution-free real-contract test; planner/evidence work alone cannot earn
+  `PHASE_B_INSTALLABLE_UNEXECUTED`.
+- STOP — The same cross-lane replay finds two further false-evidence paths.
+  First, receipts bind distinct `worker` and `runner` roles although the current
+  native path executes only Node/loader/runner and service tests inject an
+  unobserved worker digest; L70.3 freezes `worker` as the measured broker-side
+  payload/result/publication adapter. Second, temp cleanup reopens a
+  runner-writable `runs/active` pathname after execution, allowing rename/swap
+  to forge `TEMP_ZERO`; the parent must be root-owned and the launcher must hold
+  and reverify the exact pre-fork leaf dirfd/inode.
+- RISK — Protected-anchor availability is not restart-safe yet. A response lost
+  after durable ADVANCE is returned as idempotent by the service but rejected by
+  the stale client cache, and a fresh genesis cache cannot recover an advanced
+  head. The ADVANCE-only boundary stays frozen: L70.3 must verify and replay the
+  complete retained public signed-receipt journal locally, prove its derived
+  head through exact idempotent ADVANCE, and fail closed on truncation, rollback,
+  mutation, gap or fork.
+- FACT — An anchor delegate ran the repository-wide `make check` outside the L70
+  mandate. Its `894 passed, 103 failed, 1 skipped` result receives zero gate
+  credit and does not authorize Node, production, installation or host claims;
+  L0 will not repeat that command while the active STOP remains.
+- OPEN — L70.3 frontier integration begins read-only with a delegated bounded
+  installer/evidence census. Writing stays closed until L0 accepts the exact
+  ten-case roster, disjoint ownership, dry-run/apply digest guard, transactional
+  journal/rollback, frozen bundle/runtime binding and separate future-host
+  denominators `28/2/3/5/10`.
+- OPEN — L70.3 correction wave is now split into disjoint frontier-owned native,
+  anchor and integration surfaces. Native repairs real runner argv, native ID
+  binding and dirfd temp census; anchor repairs listener/peer and retry/recovery;
+  integration owns the broker worker, installer/executor, bundle and evidence
+  harness after consuming the two published interfaces. Final bundle hashing is
+  serial and cannot precede both upstream L0 replays.
+- DONE — L70.3 protected-anchor correction is independently accepted:
+  `in=5 out=5 distinct=5 gaps=0`, focused anchor/client/public-E2E `16/16`,
+  and adversarial lost-response plus fresh-restart/journal replay `8/8`. The
+  service now binds the exact FD-3 Unix-stream path and caller `501/20`, the
+  launchd socket declares `501/20/0600`, and restart recovery derives and proves
+  the signed public-journal head while rejecting empty, torn, rollback, gap,
+  fork and mutation cases. This is local execution-free evidence only: host,
+  install, service and production credit remain `0`.
+- STOP — L0 and the independent native audit found three further install-time
+  false greens before freeze. The launcher passed a parameterized Seatbelt
+  profile through `-f` without parameter bindings; the two socket shims
+  directly executed ambient/non-importable Python source; and the generic
+  installer backend could mark every step complete with an empty command map.
+  L70.3 now requires a concrete hash-verified policy, two distinct shim
+  artifacts invoking the pinned Python/site-packages closure, and a complete
+  fixed command/postcondition roster before authority registration.
+- FACT — The stable installed release pathname is frozen independently of all
+  content hashes as
+  `/Library/Application Support/MetisModel1/releases/w3-public-synthetic-v1`.
+  Bundle, release-ancestry, semantic-policy and concrete-policy digests remain
+  distinct identities and never name that directory. The runs parent is
+  root:wheel `0711`; only its `active` leaf is runner-owned `0700`.
+- STOP — Host identity replay observed UID `501` as account
+  `tommasotessarolo`, primary GID `20` (`staff`), not the planner's fictional
+  OS account `caller`. The logical caller role must be separated from or bound
+  to the observed account name; no installable verdict may depend on an
+  impossible name/UID precondition.
+- RISK — Native adversarial replay found a root-side PID/PGID reuse window:
+  the launcher reaped its group leader and then killed/censused the released
+  numeric PGID, which could target an unrelated newly reused process group.
+  The leader identity must remain retained until a bounded Darwin group census
+  proves only the terminal leader remains; reaping is the last operation and
+  no subsequent numeric-PGID action is allowed.
+- STOP — The first pinned-site-packages layout exposed a wrong installed import
+  calculation in `w3_broker_client.py`: `parents[2]` resolves above
+  `site-packages`, so the anchor module could not load the sibling `runtime`
+  protocol under `python -I -B -m`. The client now needs a fixed package import
+  plus client/anchor/E2E replay before the two service entrypoints are runnable.
+- STOP — L70 integration found that a frozen pre-install bundle cannot honestly
+  contain `authority.release_identity.ancestry_root_sha256`: the protocol binds
+  that digest to the measured installed-code roster, including target `dev` and
+  `ino`, which do not exist before installation. Treating a source or staging
+  hash as runtime ancestry would be false evidence.
+- FIX — L0 ratifies two non-interchangeable identities. The frozen bundle and
+  install plan bind `release_content_roster_sha256`, computed over the canonical
+  expected installed projection without `dev`/`ino`. Only after installation
+  may the fixed backend measure the complete installed roster, verify its
+  content projection, derive `release_ancestry_hash`, construct the authority,
+  and register it as the final step. Runtime ancestry receives no not-run or
+  pre-install credit.
+- STOP — L0 replay of the first installed-import correction failed during
+  collection: console-script pytest exposes the editable `/src` package but
+  not the repository-root `runtime` namespace, so unconditional
+  `from runtime import w3_broker_protocol` raises `ModuleNotFoundError` before
+  the 6+8+2 client/anchor/E2E roster runs. The accepted cure is a fixed installed
+  import plus an explicitly source-tree-only fallback that can never walk above
+  an installed `site-packages`; both layouts require direct tests.
+- DONE — L70.3 native correction is independently accepted on frozen bytes:
+  launcher source `a992adb3dfaff865dd741e69a85835a6f25dc12da7bf320821cd24ccd8197cf7`
+  (`69509` bytes), shared shim source
+  `be43112ea26b46499a69051664fc23bba98801b576b6266ae0728876e7487c5c`
+  (`5363` bytes), and exact-ten test
+  `398c1e8e05734adc9753404fdf4bfb188b55bae327001641cf36bdb78c1a2e27`
+  (`50615` bytes). Writer stress is `60/60`; L0 and adversarial replay are
+  exact `20/20`, launcher clang A/B `2/2`, two shim variants `2/2`, with
+  `P0=0 P1=0 P2=0`.
+- FIX — The accepted cleanup retains the leader with `waitid(..., WNOWAIT)`,
+  uses bounded byte-validated `proc_listpids(PROC_PGRP_ONLY, ...)` census,
+  signals only while identity is retained, and reaps last with no subsequent
+  numeric PID/PGID operation. A non-established group takes a PID-only retained
+  path. The harness covers singleton, extra-member termination, `ECHILD`,
+  misaligned/full/zero census and post-reap reuse attempts. Native host credit
+  remains `0` until the separately authorized privileged wave.
+- STOP — L70 evidence adversarial replay constructed a wholly invented
+  `complete` host document that the first validator accepted. Predicate and
+  census hashes had no loaded path/size/kind preimages, receipts were neither
+  parsed nor signature/chain/cross-binding checked, and the same census hashes
+  could be reused across all ten claimed executions. The initial `not-run`
+  document also combined zero observations with `gaps=0`. Complete host credit
+  now requires loaded canonical evidence artifacts and independently recomputed
+  receipt, authority, run, role, execution and census bindings; not-run cannot
+  claim zero gaps.
+- STOP — The first frozen-bundle validator compared the declared Python and
+  Node source-census digest to a pin without recomputing that pin from the
+  census entries. Arbitrary stdlib or node-module entries could therefore keep
+  the published file/byte denominators and self-consistent outer rosters while
+  retaining an unrelated pinned scalar. The exact external roster preimage or
+  its canonical entries must be loaded and recomputed; counts and representative
+  artifact roles alone do not ground the runtime closure.
+- STOP — The first concrete backend still could not start the installed stack:
+  the anchor's mandatory installed config had no bundle role or writer, the
+  three plist log parents were not materialized with exact metadata, and the
+  authority roster collapsed the full executable/import closure to seven
+  selected leaves. The cure must build one postinstall authority candidate from
+  the complete measured closure, derive both service configs from that same
+  candidate, and keep services inactive/fail-closed until one authority-last
+  activation marker is published.
+- STOP — Macro-step journaling left an authority-last crash window. The backend
+  could create and fsync the active authority, then crash before `step-complete`
+  recorded its ownership receipt; recovery would correctly refuse destructive
+  withdrawal of the now-ambiguous leaf, leaving authority active after a failed
+  transaction. Irreversible micro-effects require durable ownership records;
+  authority must be prepared inactive and activation-intent journaled before an
+  exact final CAS/rename that recovery can identify and withdraw.
+- STOP — The current concrete executor cannot bootstrap a fresh host: the
+  transition journal opens an already-existing parent and leaf before entering
+  the plan, while `precreate-install-journal` is itself a later plan operation.
+  L70.3 needs an explicit no-clobber, inode-bound journal bootstrap whose first
+  durable transaction record precedes every other host effect.
+- STOP — The concrete backend still permits destructive preimage drift before
+  ownership exists: `/usr/bin/install -d` can remodel an existing directory and
+  `/usr/bin/install source target` can overwrite an existing leaf. The whole
+  managed target set must pass a root-to-leaf no-follow conflict preflight, and
+  fresh leaves must use exclusive/no-replace creation with exact postchecks.
+- STOP — Python and Node source censuses are recomputed but are not yet the same
+  byte-for-byte closure installed from `STAGED_INSTALL_TREE`; a genuine census
+  can accompany a mutated staged module. Every external-census row must map to
+  its exact staged-install and installed row, and the allowed closure must reject
+  extra paths even beneath the broad Python and release roots.
+- STOP — The exported recovery seam can return `already-complete` from the
+  journal alone. Only the fixed production entrypoint may emit host-attesting
+  status, after reconstructing the exact backend from the fixed frozen bundle
+  and remeasuring the active authority and complete installed postconditions.
+- DONE — L70 anchor activation is independently accepted on frozen bytes:
+  service `667c3e52856b446690c4c3231352e900e7821df8886bb1194b72884e991a9775`,
+  exact-eight test `7c3a79f956e27815cf758312a8809f150c0416c4b1f912b091fa9c16875b2641`,
+  and schema `8306667176ccec6ca089a7aa782f5e74b403fc5bf1818f4f21481c62891f61b7`.
+  Writer and L0 replay are anchor `8/8`, combined client/anchor/E2E `16/16`,
+  config fields `13/13 distinct=13 gaps=0`, with Ruff, format, compile and
+  Draft 2020-12 schema checks green. Missing, swapped, forged or registry-
+  unbound active authority fails before service construction; host credit is `0`.
+- STOP — `verify-no-extra-missing-or-symlink` currently verifies only declared
+  target rows, not the live directory contents. An undeclared `sitecustomize.py`
+  or `.pth` in a reused Python tree remains invisible and can execute because
+  isolated Python still imports `site`; every managed live closure therefore
+  needs an exact-set census that rejects extra, missing and symlink entries.
+- FIX — L0 keeps future updates compatible with O-010: project-module digests
+  belong to the frozen complete source/install roster, whose exact
+  `bundle_sha256` is supplied as explicit CLI consent, included in the plan and
+  recomputed from staging and live bytes. They are not duplicated as installer
+  source constants. Hard constants remain limited to toolchain/runtime and
+  dependency provenance; a legitimate new project bundle necessarily produces
+  a new digest and new operator consent, while same-plan substitution must fail.
+- STOP — The full authority roster correction exposed a runnable cross-lane
+  mismatch: the installer now emits more than the seven named role/policy rows,
+  but the installed broker's default `InstalledRosterProbe` still maps only
+  those seven. Its exact-set guard therefore raises `ROSTER_PATH_MAP_MISMATCH`
+  before the first real job. The root-owned broker config needs the complete
+  deterministic logical-to-absolute map and a non-role pre/post replay test.
+- STOP — Operation-level journal events have been introduced, but recovery on
+  the current cut still reconstructs only macro step starts/completions. A crash
+  after an identity, file, service or authority effect therefore cannot adopt
+  the exact postimage or roll it back. Recovery must consume operation intents
+  and receipts for each mutating class; authority activation additionally needs
+  exact CAS-intent reconciliation.
+- STOP — The post-install verifier currently validates only metadata for the
+  broker ledger and public receipt journal. Byte corruption or truncation with
+  unchanged ownership and mode can therefore preserve an `already-complete`
+  result while the next broker/public replay fails. Final attestation must parse
+  and cross-bind the ledger, receipt chain and anchor heads without repairing
+  them; stat-clean evidence is not semantic evidence.
+- STOP — Rollback itself is still one macro effect between `rollback-start` and
+  `rollback-complete`. A crash after unlink, bootout, archive, key move, rmdir or
+  identity deletion causes the next recovery to repeat a non-idempotent action
+  and can permanently end in `recovery-failed`. Rollback needs durable
+  operation-level intent/receipt/reconciliation or exact-state idempotency, with
+  crash-boundary tests for every mutating class.
+- STOP — No root-trusted Phase-B entrypoint exists yet. Invoking
+  `w3_broker_executor.py` through `sudo`, `python -m` or its `/usr/bin/env`
+  shebang executes repository-controlled Python imports before any plan, bundle,
+  interpreter or import-closure check. The privileged wave therefore needs a
+  minimal fixed native bootstrap and a two-stage root-owned/no-replace
+  installation boundary that verifies the consented bootstrap and staged
+  closure before an isolated fixed-argv CPython exec; repository poison,
+  `PATH`, `PYTHONPATH` and CWD must be non-authoritative.
+- STOP — A clean rollback is not currently retryable. Preflight demands absent
+  ledger, public journal, anchor log, public-key registry, anchor config and
+  authority candidate, while rollback deliberately retains the journals and
+  leaves several prepared files in place. Transaction two therefore fails even
+  without a crash. Retry must adopt only exact empty/genesis retained journals
+  and receipt-bind archive/version/cleanup of prepared registry, config and
+  candidate state; a fresh-retry replay is mandatory.
+- FIX — L0 chooses the minimal honest evidence boundary for the unprivileged
+  wave: the repository manifest stays `not-run`, and the fixed production
+  loader must categorically reject `complete` host evidence until a separately
+  authorized Phase-B wave supplies the obligation-specific 28-probe collector
+  and verifier. A fully grounded local fixture may exercise artifact, crypto,
+  roster and cleanup validation only through an explicitly unprotected,
+  non-attesting API; generic `passed=true` rows earn no host credit.
+- DONE — The fail-closed host-evidence package is accepted for the unprivileged
+  wave on frozen bytes: runtime
+  `493dfb400eeb418a3934b0c44b4d1da6fe7a33c6f8687c1a99b3aa039b97e026`,
+  schema `3f61b4e3ce31886b9b022949095bd508668b9c3b8ac0af7fcc1199a5aa81910a`,
+  manifest `2dc33068548241c622061fb3bfe376fdd8249d61238bc9a3be996409d3480cf1`
+  and exact-eight test
+  `9d7f5e4adeeff55207cd9ba657c056838fa3a9b0d5c694a675fca464be0f7769`.
+  Writer and L0 replay are `8/8`, collect `8/8`, skip `0`, schema/manifest
+  `1/1`, with Ruff, format, compile and diff checks green. L0 independently
+  recounts source status `not-run`, artifacts/predicates/runs `0/0/0`, all five
+  observed counters zero and `gaps=null`. Production `complete` is stable-denied;
+  the 139-artifact complete fixture is explicitly non-attesting, so host credit
+  remains `0`. Independent adversarial replay preserves all four hashes and
+  returns `P0=0 P1=0 P2=0`, with `in=4 out=4 distinct=4 gaps=0`.
+- FIX — Live macOS inspection confirms `/var -> private/var`; a component-wise
+  `O_NOFOLLOW` bootstrap cannot truthfully claim symlink-free ancestry through
+  `/var`. L0 therefore freezes the physical trust paths under
+  `/private/var/db/MetisModel1` for bootstrap, descriptor, staging and install
+  journal, with the untrusted source at
+  `/private/var/tmp/MetisModel1-w3-phase-b-source`. No alias exception is
+  permitted. The already frozen `/var/run` socket pathname is a separate
+  sockaddr contract and is not traversed by this staging resolver.
+- OPEN — The later privileged host gate still has one bounded P1: a SIGKILL
+  between publication-temp creation and link/unlink can leave the deterministic
+  broker-owned `.<attempt>-<request>.json.tmp`. Broker restart tombstones the
+  pending attempt but does not yet reconcile this publication substate. This
+  does not clobber a final output and does not block the pristine
+  installable-unexecuted package because production `complete` is hard-denied;
+  it does block the future
+  `ledger-chain-cleanup-publication-crash-replay` host predicate. The host wave
+  must reconcile the one ledger-bound temp under the single-writer lock and
+  fail closed on unknown temps before any attestation.
+- STOP — The first complete native Stage-0 cut creates the fixed closed-bundle
+  target with `O_EXCL` and deliberately retains it on copy failure, but has no
+  digest-bound partial ownership/recovery state and no accept-existing exact
+  path. A SIGKILL during the pre-journal copy therefore makes every retry fail,
+  while even a fully successful first invocation prevents a second invocation
+  from reaching the Python install journal's `already-complete` replay. L70
+  cannot seal the bootstrap until a native crash-boundary harness proves safe
+  partial recovery, exact-complete remeasurement and double invocation without
+  accepting unknown files, symlinks or mismatched descriptor state.
+- STOP — `PHASE_B_INSTALLABLE_UNEXECUTED` also requires provenance for the
+  native Stage-0 bytes, not a handwritten binary digest. The current manifest
+  contract names bootstrap source and binary size/hash but has no exact compiler
+  identity, SDK/deployment target, flags or build recipe, and no production
+  bootstrap byte has been materialized even temporarily. After the retry-safe C
+  source freezes, L0 must build it outside Git under a closed recipe at least
+  twice, prove byte-for-byte reproducibility, and cross-bind the measured binary
+  hash into the descriptor and frozen bundle. Syntax-clean source alone cannot
+  close the installable gate.
+- OPEN — The current Stage-0 main verifies only effective UID/GID zero before
+  the fixed Python exec. Real/saved IDs, supplementary groups and inherited
+  signal mask/dispositions are not normalized. Because the bootstrap is not
+  setuid this is not a non-root escalation, but inherited `SIGCHLD` or blocked
+  signals can alter subprocess wait/failure semantics and undeclared groups
+  violate the sterile-entry claim. Treat as P1 hardening until the frozen
+  source either resets and rechecks this process state with an inherited-state
+  harness or proves the state non-authoritative end to end.
+- STOP — Current rollback leaf handling still contains two pathname swap
+  windows. `_quarantine_seed` checks an ownership receipt and later reopens the
+  path for metadata mutation without re-binding its inode; the archive helper
+  validates/reads, closes, then unlinks by pathname. An exact-content replacement
+  can therefore be quarantined or deleted instead of the journal-owned preimage.
+  The installer gate remains unaccepted until both operations retain parent and
+  leaf descriptors, compare receipt/dev/ino and postnamed identity immediately
+  before mutation, use `unlinkat` on the held parent, fsync, and replay the swap
+  exploit in the exact-ten suite.
+- STOP — Launchd recovery currently treats any present target label as an
+  installer-owned completed bootstrap. The operation intent binds only a label
+  and `absent` precondition; a foreign bootstrap between the check and command
+  can make apply fail `PREEXISTS`, after which recovery adopts that job and
+  rollback may boot it out. Presence plus a measured plist pathname is not an
+  ownership receipt for the loaded job. Each service intent/reconciliation must
+  bind the exact plist/job semantics and a transaction-correlated root-owned
+  claim (or fail ambiguous without bootout), recheck absence immediately before
+  bootstrap, and replay the preloaded-label race before installer credit.
+- DONE — The native Stage-0 source is frozen and independently accepted at
+  SHA-256
+  `66e686da506dfb67c6652c7cbd5952095d9867a0230d99542f96a2cebe0f7a31`,
+  size `79144`. L0 and the adversarial auditor independently replay the
+  `22314`-byte harness
+  `1ac1d30abd004b895be3a2588e9d80d8d2bb2d9d397f3bf31a891e0c30f77c57`:
+  standard `9/9` twice plus ASan/UBSan `9/9`, with
+  `in=9 out=9 distinct=9 gaps=0`. The frozen C rejects and leaves untouched
+  stale/unknown candidate siblings, recovers only the digest-owned locked
+  candidate, publishes with exclusive rename, remeasures an existing fixed
+  target, survives the declared crash boundaries and double invocation, and
+  normalizes the tested inherited process state. Independent frozen-scope
+  verdict is `P0=0 P1=0 P2=0`; no binary was executed as Stage-0 and no host,
+  install or production credit follows.
+- OPEN — Clearing `environ` at C `main` cannot authenticate the dynamic loader
+  activity that precedes `main` for a custom Mach-O. The frozen install contract
+  must therefore require a trusted administrative invocation whose environment
+  is scrubbed before Stage-0 is execed (for example the exact protected
+  `sudo -> /usr/bin/env -i -> Stage-0` chain), while the C cleanup remains
+  defense in depth. This is an explicit host-boundary/nonclaim, not a C cure;
+  the manifest, brief and docs must bind it before bundle acceptance.
+- FIX — L0 performs the authorized bounded production-form build twice outside
+  Git and does not execute or install either Mach-O. The frozen source builds
+  byte-identically under the declared Apple clang/SDK/flags/environment recipe:
+  both outputs are arm64, size `54232`, contain no `LC_UUID`, compare equal and
+  hash
+  `ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447`.
+  Compiler, linker, SDK settings, resolved libSystem interface, CommonDigest
+  header and C-source hashes are unchanged before/after. This closes byte
+  reproducibility only; bundle/plan/descriptor cross-binding and independent
+  audit remain required, and the binaries earn no runtime or host credit.
+- STOP — The current release-specific provenance validator pins the toolchain
+  recipe but accepts arbitrary replacement Stage-0 source and binary sizes and
+  hashes when an attacker makes the two build hashes self-consistent and
+  recomputes `bundle_sha256`. An independent in-memory replay is accepted with
+  fake size `999`. The frozen schema and Python validator must pin the accepted
+  C source `66e686da…/79144` and Mach-O `ddd09fcf…/54232` (or one equivalent
+  immutable release-provenance digest) and reject the rehashed replacement
+  before manifest credit.
+- STOP — Launchd package identity is still underconstrained. The current reader
+  checks label, nonempty generic `ProgramArguments` and a package marker but
+  does not enforce each role's fixed executable, identity, socket ownership and
+  mode, logs, lifecycle policy or exact key set. Because artifact digests can be
+  recomputed, a re-frozen `/bin/sh` or wrong-socket plist can match its own
+  receipt. A single exact per-role semantic validator must run on staged bytes
+  before effects and on installed bytes before bootstrap/reconciliation, with
+  mutation replay; the own-success/crash recovery case remains part of the
+  same P0 gate.
+- STOP — The frozen bundle's raw dependency-wheel preimage denominator is
+  `in=3 out=0 distinct=0 gaps=3`. Existing offline uv/pip caches retain all
+  three pinned filenames/hashes and expanded archive trees, but not the raw
+  `.whl` bytes: cryptography 47.0.0 (`160ad728…`), cffi 2.0.0
+  (`45d5e886…`) and pycparser 3.0 (`b7274141…`). Declared lock sizes and cache
+  metadata are not same-FD measurements and expanded directories cannot prove
+  raw wheel hashes. L0 refuses a `materialized=false` claim reduction and the
+  active brief forbids network access, so no frozen manifest/descriptor may be
+  synthesized. A later explicit exact-three public fetch mandate must retrieve,
+  same-FD hash and close these preimages; no model/data payload is involved.
+- STOP — The resolved admin runbook currently authenticates only descriptor
+  header hashes, not the descriptor `FILE` roster against the frozen manifest.
+  An independent in-memory exploit supplies correct manifest/plan header hashes
+  but arbitrary fixed Python/executor FILE hashes and still obtains
+  `status=frozen`; Stage-0 would execute those root-selected bytes before the
+  Python executor can validate the bundle. Descriptor generation and validation
+  must use one exact projection of every manifest `source_roster` row plus only
+  canonical raw manifest/plan metadata, with derived modes, exact count/bytes
+  and explicit Python/executor cross-binding. Omission, extra, hash and mode
+  mutations must fail before any runbook can be frozen.
+- STOP — The first integration freeze closes bootstrap/recovery identity but
+  final and `already-complete` service verification regresses to substring-only
+  `state = running` plus `pid =`. A foreign job can replace an exactly loaded
+  label with different path/program/argv/package marker and still pass final
+  postconditions. All three services must be accepted from one structurally
+  parsed `launchctl print` that simultaneously matches the exact installed
+  semantic identity, package discriminator, `running` state and positive PID;
+  both initial-final and already-complete replacement replays are mandatory.
+- OPEN — The same frozen integration cut passes semantic tests but not the
+  repository lint/format gate: `ruff check .` reports `573` issues across six
+  new W3 files (`562` line-length plus bounded import/modernization/simplify
+  findings). L0 requires a mechanical targeted format/lint cure followed by
+  complete hash/test/audit replay; no lint-green claim is granted to the current
+  bytes.
+- FIX — Freeze `L70.4-INTEGRATION` removes `KeepAlive` from all `3/3` exact
+  launchd plists, preserving real socket-demand registration with
+  `RunAtLoad=false`. Registration is identity-only and may be waiting without a
+  PID before authority. After the authority CAS, exactly three journaled
+  `/bin/launchctl kickstart system/<label>` operations run without `-k`, recheck
+  the exact job identity and require bounded `running` plus positive-PID health.
+  Foreign identity, command failure, timeout, live and non-live crash recovery,
+  rollback and fresh retry are replayed by the frozen exact-ten suite.
+- FIX — The pinned CPython 3.13.3 subprocess proved that Darwin/CPython adds
+  `LC_CTYPE=C.UTF-8` and `__CF_USER_TEXT_ENCODING` after Stage-0's PATH-only
+  `execve`. The executor now accepts only that exact key set, binds the first of
+  three bounded hex CF fields to the effective UID, removes both runtime-added
+  keys and reasserts PATH-only before effects. Extra keys, wrong locale/UID and
+  malformed or oversized fields fail closed. The UID-501 proof is local only;
+  effective-root values remain a target-host probe with credit `0`.
+- FACT — Automatic launchd recovery is scoped to the fixed Stage-0/executor
+  sharing the inode-bound install-journal flock. A second independent root or
+  package manager mutating the same system-domain labels is outside the threat
+  and automatic-rollback claim; the administrator must exclude it or STOP
+  before privilege. This explicit nonclaim closes the earlier causal-ownership
+  overstatement without pretending that semantic equality proves causality.
+- DONE — L0 and two independent frontier auditors accept the frozen L70.4
+  code/contracts at installer
+  `a6727e405eaecf5c1f6e412011692e7551f2ed2a7a27c7d88682f3f1c256c6a1`
+  and executor
+  `039c77acd8f87a155df72e61acc176f787ad47a28f270f229a37d4c883e3fca6`:
+  adversarial verdict `P0=0 P1=0 P2=0`, integration claims
+  `in=10 out=10 distinct=10 gaps=0`, Local50 `50/50`, PhaseA `73/73`, evidence
+  `8/8`, schemas `13/13`, plist `3/3`, clang `6/6`, Python compile `65/65`, Ruff,
+  format and diff gates green. Native Stage-0 remains byte-identical at
+  `66e686da…/79144`; standard and Darwin-correct ASan/UBSan harnesses each replay
+  `in=9 out=9 distinct=9 gaps=0`. No privilege, service, Node/Metis, network,
+  production, model or training credit follows.
+- STOP — The overall installable bundle remains honestly blocked. Required raw
+  wheels are `in=3 out=0 distinct=0 gaps=3`, and production
+  manifest/plan/descriptor/admin-runbook are `in=4 out=0 distinct=0 gaps=4` and
+  intentionally absent. A later explicit network mandate may acquire only the
+  three public pinned wheel preimages, remeasure them and materialize those four
+  artifacts. The separately known host-wave atomic-publication temp risk remains
+  `P1=1` before host promotion; production-complete and install credit stay `0`.
+- FACT — The user now explicitly authorizes network access only for the three
+  public wheel preimages already fixed by `uv.lock`: cryptography 47.0.0
+  universal2 `160ad728…/7912214`, cffi 2.0.0 CPython313 arm64
+  `45d5e886…/181043`, and pycparser 3.0 any `b7274141…/48172`. The mandate does
+  not include an index, alternate artifacts, models, datasets, privilege,
+  services, training, upload, commit or push.
+- FACT — L71 preserves branch `codex/model1-local-99-foundation`, baseline
+  `2d519d90be9eae0c562a10becbe2bc7e9ac4bbb0` and the inherited dirty worktree.
+  One frontier writer exclusively owns the fixed wheel root and four new
+  production artifact leaves; L0 retains boards/brief and a read-only frontier
+  team concurrently recomputes the exact dependency path to the first W5
+  training run.
+- DONE — The exact-three public preimage lane is frozen at
+  `in=3 out=3 distinct=3 gaps=0`: cryptography `160ad728…/7912214`, cffi
+  `45d5e886…/181043`, pycparser `b7274141…/48172`. Writer, independent frontier
+  auditor and L0 each remeasured the exact files; ZIP integrity is `3/3`, no
+  temporary/extra wheel remains and focused installation `10/10`, schema
+  `1/1`, lint/format/diff gates are green. This closes raw wheel preimages only.
+- FIX — Stage-0's descriptor requires non-install source rows at `0444`, while
+  the three fetched wheels were `0600`. L0 finalized exactly those three inodes
+  to `0444`; inodes `254579415/254579512/254579622`, all sizes and all exact
+  SHA-256 values are unchanged pre/post. Future materialization must require
+  these modes and may not repair them implicitly.
+- STOP — Production artifacts remain `in=4 out=0 distinct=0 gaps=4`. The
+  installer exposes validation/planning/descriptor/runbook functions but no
+  canonical production source-tree/manifest materializer; the only builder is
+  the monkeypatched `_fixture_bundle()` test fixture. L0 refuses handcrafted
+  manifests or installable credit.
+- RISK — The registered CPython census is self-contradictory: pinned
+  `2059/50433457/46fe9f95…` includes 251 `.pyc`/`__pycache__` rows while
+  `validate_bundle_manifest()` rejects those paths. L0 independently recomputes
+  the normalized no-symlink/no-startup-bytecode closure as
+  `1808/44064036/b632ae57…`, excluding 251 bytecode files and eight symlinks.
+  Constants, schema and a real builder must change together before any bundle
+  can validate.
+- RISK — The canonical capsule role denominator is
+  `git-archive=32, tooling=1793, loader=1, runner=1`, but installer and schema
+  omit `git-archive`. L0 reproduces this contradiction against the registered
+  `1827/8922291/d72a8a4…` receipt; L71.1 may add only the missing exact role and
+  must retain rejection of every foreign role.
+- RISK — The frozen administrator document binds only the Stage-0 target under
+  `/private/var/db`; its two reproducible source binaries live in random
+  user-owned build roots absent from the runbook. The strict Stage-0 source
+  scanner would reject an unlisted binary added to the bundle root, so current
+  bytes are not yet a durable operator-installable preimage.
+- FACT — Live `assess-w5` remains contract-valid but exits `1` with five blocker
+  classes: groups `1/563`, W1/oracles unsealed, W3 synthetic-only, O-003 open
+  and A/B absent. W4/grid/store are closed and the eventual W5 compute is capped
+  at 700 optimizer steps / 18 hours; the strict data/evidence path, not GPU
+  time, dominates the schedule.
+- FIX — L71.1 opens one frontier materializer writer on four exclusive tracked
+  files and fixed ignored source-root children. Exact CPython/Node/Metis Git
+  object/Stage-0/wheel inputs are read-only; no privilege, services, keys,
+  Node/Metis execution, model/data payload, training, commit or push is granted.
+- FIX — L0 ratifies the separate durable Stage-0 source leaf
+  `/private/var/tmp/MetisModel1-w3-phase-b-bootstrap/w3-installer-bootstrap`,
+  mode `0555`, atomic no-clobber and publishable only after the two builds match
+  `ddd09fcf…/54232`. Bundle/template/runbook must bind source and privileged
+  target separately and require trusted copy plus target remeasurement; no file
+  is added to the bundle root exact set and no privileged action is authorized.
+- DONE — First L71.1 materializer slice is independently live-replayed by L0:
+  CPython closes `1808/1808`, normalized executables `49`; exact wheel install
+  file rows are cryptography `117`, cffi `30`, pycparser `13`; capsule closes
+  `1827/1827`, `8922291` bytes, `d72a8a4…` with roles
+  tooling/git-archive/loader/runner `1793/32/1/1`. Focused tests `8/8` and Ruff
+  are green. This is input construction credit only; artifact20/four outputs
+  remain open until the high-level transactional builder validates.
+- FIX — The independent adversarial lane reproduced two wheel path-tree
+  escapes before publication: a regular file accepted as an ancestor of
+  another member (`a` plus `a/b.py`) and case-folded parent aliases
+  (`Foo/a.py` plus `foo/b.py`). The materializer now rejects both, rejects raw
+  NUL-truncated ZIP names and applies the same component/type collision policy
+  across all wheel install partitions. L0 reruns the expanded focused suite at
+  `25/25`; high-level build, formatting and four-output publication remain
+  open and receive no artifact credit yet.
+- STOP — The user-requested Qwen rejoin was attempted through local Qwen Code
+  `0.21.12` as a bounded read-only L71 reviewer. The provider returned
+  `429 insufficient_quota` before any review, with reset reported for
+  `2026-08-28 13:28 UTC`; Qwen receives zero evidence credit. Kimi remains
+  quota-exhausted, so the live wave continues only with the three internal
+  frontier lanes and L0 replay.
+- FIX — Adversarial registry replay found three false-installable paths before
+  composer integration: duplicate families collapsed by a dictionary, role
+  denominator drift inherited from a private helper, and helper-generated
+  request/runtime identities foreign to the frozen capsule. The builder now
+  pins and self-hashes both three-candidate manifests, cross-binds their
+  semantic specs, owns an exact local five-role roster and reconstructs every
+  request plus all 15 runtime identity fields from fixed pins. The independent
+  reviewer replays those cures green; no real-run or W5 credit follows.
+- FIX — Native release construction is now source- and toolchain-bound rather
+  than merely repeatable: exact C bytes are copied no-clobber to held temporary
+  snapshots, compiler/linker/SDK inputs are remeasured, and both builds enforce
+  arm64, no LC_UUID, exact libSystem and no `/Users/` bytes without executing
+  outputs. L0 independently rebuilds launcher
+  `53976/bab27833…`, broker shim `34272/97fa87cc…` and anchor shim
+  `34272/ff4f3af8…`; each pair is byte-identical and both shims are distinct.
+- RISK — A no-clobber helper initially followed a symlinked parent, created an
+  out-of-scope leaf and only failed after the write. Component-wise held
+  `O_NOFOLLOW` directory descriptors and same-inode cleanup are now landed and
+  focused tests are expanding; composer-level transactional publication and
+  crash/adoption behavior remain open until the four outputs exist.
+- STOP — The first clean-room composer validates, but adversarial parent-swap
+  replay proves it re-resolves the staging pathname for each leaf: after the
+  owned root is renamed away, a foreign replacement at the same name receives
+  the next write before the final inode mismatch is noticed. Publication is
+  stopped until one held root directory descriptor owns every relative
+  `openat/O_NOFOLLOW` write and the mutation proves zero foreign leaf. The
+  current successful clean-room denominator is not yet publishable credit.
+- FIX — L71.1 replaces pathname publication with held-directory writers and an
+  immutable inode ledger. Parent-root, intermediate-component, descriptor-leak,
+  effect-before-ledger, post-rename-fsync, exact-copy child replacement,
+  pre-existing FIFO and incomplete-rollback attacks now fail closed. Canonical
+  Stage-0 and four tracked leaves are first written and fsynced in the private
+  workspace, then moved by atomic no-replace rename; a crash can expose only a
+  complete adoptable target. Synchronous cleanup now reports
+  `rollback incomplete` rather than hiding any owned residue or durability
+  failure, and it never removes a foreign replacement.
+- DONE — Frozen materializer cut
+  `579b432162904320eb01315208ee8815d5c600241ce543ed59b3cfde4835ab72`
+  closes focused installation/materialization tests `in=67 out=67 distinct=67
+  gaps=0`; Ruff, format, compile, Draft-2020-12 schema and `git diff --check`
+  are green. Independent adversarial verdict is `P0=0 P1=0 P2=0`. The explicit
+  precondition is exclusive-writer ownership; no defense is claimed against an
+  omniscient same-UID/root actor mutating inside an already bound random `0700`
+  workspace.
+- DONE — L0 publishes the authorized production preimages transactionally and
+  then replays the same transaction as exact adoption. The fixed source tree is
+  `in=7477 out=7477 distinct=7477 gaps=0`, `372424009` bytes, with partitions
+  artifacts/install/source-census/metadata/wheels `20/3817/3635/2/3`; Stage-0
+  is `54232/ddd09fcf...`. The four tracked outputs are
+  bundle/plan/descriptor/admin `4903172/16838/2137703/2217` bytes. First receipt
+  reports created `4+4+1`; second reports adopted `4+4+1`, all nine published
+  inodes remain identical, staging residue is zero, bundle digest is
+  `9bacb346...` and release-content roster digest is `68239ac5...`. This closes
+  only `PHASE_B_INSTALLABLE_UNEXECUTED`: no privilege, service, key, Node/Metis
+  execution, dataset, model training or promotion occurred.
+- FACT — A fresh `assess-w5 --json` remains contract-valid but blocked by the
+  same five classes: leakage groups `1/563`, W1/oracles not sealed, W3
+  synthetic-only, O-003 open and A/B absent. The checkpoint is already local
+  and W5 compute remains capped at 700 optimizer steps / 18 hours; evidence and
+  data readiness, not accelerator time, dominate the schedule.
+- OPEN — To expose useful learning before the strict Accuracy-99 population is
+  ready, L0 recommends a separately authorized `W5a_RESEARCH_ONLY` lane:
+  protected public-synthetic execution, F-1/F-2/F-3 authoring and materializing
+  at least 3000 oracle-clean provenance-bound examples, a frozen 30-task A/B
+  smoke baseline, then the existing local bounded MLX grid. Its adapter and
+  evidence are isolated, non-promotable and categorically `NON_99`; no upload or
+  production claim follows. This can shorten time-to-first-useful-adapter but
+  does not close or weaken any of the five strict W5 blockers. Privilege,
+  Node/Metis execution, dataset materialization and MLX training need an
+  explicit new mandate before this lane starts.
+- FACT — The user rejects the weeks-long W5a framing and directs L0 to close a
+  product-first plan with internal Orchestra only. Three independent read-only
+  lanes close `in=3 out=3 distinct=3 gaps=0`: product diagnosis, legacy-gate
+  compatibility and dataset/threshold arithmetic. No Kimi or Qwen result is
+  used in this wave.
+- FIX — O-011 supersedes the historical `>=3000` W5a recommendation for first
+  value. W5-XS now runs B12 first, permits `NO_TRAIN`, then conditionally runs
+  B24 before any data; only B below `22/24` plus at least three correctable B12
+  semantic failures can open the fixed `64 train + 16 dev = 80` dataset. One
+  rank-8 configuration, 100 steps, four hours, 8 GiB, 110 GB Metal, zero rework
+  and five working days are hard cumulative caps.
+- FIX — `manifests/w5-xs-plan.json` plus its strict schema form a tracked,
+  machine-readable O-011 contract. `assess-experiment` returns
+  `EXPERIMENT_PLAN_READY` only after that contract, its canonical-doc hash, W4
+  pin metadata, O-006 publication invariants and repository payload/secret
+  boundary validate. It always reports execution-authorized=false and
+  physical-checkpoint-verified=false; it does not call Metis or inspect weights.
+- FACT — The historical `validate-pilot`/`assess-w5` wire is restored exactly:
+  schema v1, lowercase JSON status, legacy text and the same five blockers in
+  the same order. Focused plan/contract/pipeline/qualification/seal tests close
+  `in=68 out=68 distinct=68 gaps=0`; foundation `36/0`, pilot contracts, Ruff,
+  format and diff checks are green.
+- RISK — The mandatory broad `make check` was executed and is not green in the
+  inherited concurrent W3/Metis state: `983 passed, 102 failed, 1 skipped`.
+  Failures are concentrated in Oracle/bridge/qualifier surfaces outside the
+  W5-XS writable roster, including live Metis HEAD `f5b54b8d...` versus pinned
+  `a2dde2b...` and protected-broker-state expectations. Metis HEAD, tracked diff
+  state and status digest are identical before/after the run; no broad-green
+  claim is made.
+- OPEN — Plan closure is not execution authority. The sole next product action
+  is one explicit W5-XS local-only mandate; before it, no Node/Metis inference,
+  roster generation, dataset materialization or QLoRA is authorized.
+- DONE — Post-cure Orchestra review closes `in=3 out=3 distinct=3 gaps=0` with
+  product, gate and dataset lanes all `VERIFICATO`; L0 reruns the canonical gate
+  and independently recomputes `3+9=12`, `4+4+4=12`, `8+8+8=24`,
+  `48+16=64`, `64+16=80` and `12*4=48`. W5-XS is plan-closed at
+  `EXPERIMENT_PLAN_READY`; the old W5a recommendation is superseded and the
+  Accuracy-99 promotion gate remains deliberately blocked.
+- FACT — The user authorizes immediate W5-XS execution and directs L0 to bring
+  Metis Model 1 home. L0 binds that mandate to the ratified local-only bounds:
+  checkpoint inference and unprivileged public-synthetic Node/Metis only,
+  generated writes under `artifacts/w5-xs`, at most 80 examples and at most one
+  rank-8/100-step QLoRA under 4h/110 GB Metal/8 GiB. Network/download,
+  privilege/services, live ARES/tenant/credentials, upload, promotion, commit
+  and push remain forbidden.
+- FACT — Fresh execution preflight rehashes the physical Qwen3.8 checkpoint:
+  config plus three weight shards close `in=3 out=3 distinct=3 gaps=0`, exact
+  revision `3e6447f0...` and `16054541349` weight bytes. Report:
+  `artifacts/w5-xs/2026-08-24-delivery/preflight/checkpoint-verification.json`.
+  Runtime pins, Node/runner/loader, tooling package/lock/node_modules and disk
+  headroom also match; no network or model download occurred.
+- FIX — L0 materializes an offline local clone under the authorized artifact
+  root at pinned Metis `a2dde2b1.../75473e26...` and copies the already-local
+  199 MB tooling dependency tree. `validate_pinned_metis` independently returns
+  the exact revision/tree/package/lock/node_modules identities. The live Metis
+  checkout remains untouched at its concurrent newer HEAD.
+- OPEN — XS0 now has only the thin one-load runner and exact frozen B12 roster
+  left before model output. No B12 output, dataset row or training step exists
+  at this point.
+- FIX — XS0 thin execution is artifact-local and fail-closed: one persistent
+  Qwen load with remote code disabled and process-level network denial; frozen
+  temperature 0/seed 17/thinking off/max 512; exact prompt hashes; raw output,
+  tokens, latency and Metal telemetry per attempt; direct unprivileged pinned
+  compiler envelopes; first-shot plus at most two diagnostic repair cycles; AST,
+  IR and F-2 byte-minimality scoring. It never calls the protected production
+  broker and exposes no hidden truth to the model.
+- DONE — B12 roster/oracle freeze closes `in=12 out=12 distinct=12 gaps=0`,
+  families `4/4/4`, origins `3+9`, parent/template groups `12`, honest leakage
+  components `2`. All 20 pre-output roles (F-1 target 4, F-2 before/after 8,
+  F-3 mutated/fixed 8) execute on the pinned compiler; all golden roles compile,
+  every F-2 IR delta is exact and every F-3 mutation produces real diagnostics.
+  Seal `80cd5e75...` binds roster `c162588b...`, checkpoint report `47ff40c2...`
+  and model_outputs_observed=false. Two rejected pre-freeze drafts are retained
+  as evidence; they received zero model output and zero scoring credit.
+- OPEN — XS1 baseline B12 inference is now the sole active action. Dataset and
+  training remain closed unless the frozen gate returns failure mining.
+- FACT — XS1 executes Qwen3.8 adapter-off on the sealed B12 in `267.92s` with
+  network sandbox-denied, peak Metal `21.215 GB`, max RSS `16.111 GiB`, no
+  residual process, no identity/write drift and only `51.30 MB` of run output.
+  First-shot equals post-repair because all twelve first outputs compile; no
+  compiler repair is consumed.
+- DONE — B12 evidence closes `in=12 out=12 distinct=12 gaps=0`, semantic
+  `10/12`: F-1 `2/4`, F-2 `4/4`, F-3 `4/4`. Report `c45c0948...`, manifest
+  `ccabfed2.../39 files`, telemetry `f66cede3...`; L0 independently recomputes
+  every file hash and both canonical seals. Critical failures and accepted
+  invented identifiers are zero.
+- RISK — F-1 author tasks `w5xs-f1-author-003/004` have exact expected IR but
+  add unrequested `meta template "POSTER"`, so AST differs and both are
+  correctly rejected as one recurring semantic/unrelated-change class across
+  two distinct parent/template groups. The observed cause is consistent with
+  the compact context describing POSTER syntax too broadly; that is diagnosis,
+  not permission to rewrite the already observed B12 or claim `NO_TRAIN`.
+- OPEN — B12 is below `11/12`; O-011 therefore requires a separately frozen B24
+  before any dataset. A green `22/24` B24 still closes `NO_TRAIN`; dataset and
+  QLoRA remain unauthorized by result until that gate is known.
+- STOP — L0 revokes the B12-v1 gate transition before B24: compact retrieval v1
+  stated broadly that endpoint metadata uses `meta template "POSTER"`, while the
+  hidden truth for the only two failed author tasks forbade that member. Qwen
+  followed visible context; both outputs have exact expected IR and differ only
+  by the instructed MetaDecl. Therefore `10/12` is harness-contradiction
+  evidence, not model failure, and receives zero `FAILURE_MINING_REQUIRED`
+  credit. The immutable run and its hashes remain retained for diagnosis.
+- FIX — B12-v2 changes only roster id and one general context sentence:
+  metadata is optional, added only when explicitly requested, and unrequested
+  members are forbidden. A canonical projection excluding roster/context is
+  byte-identical between v1 and v2; all twelve tasks, sources, hidden truths,
+  families, lineage and sampling remain unchanged. Roster-v2 hash is
+  `1459d1fa...`; it must receive a new pre-output oracle/prompt seal before rerun.
+- OPEN — Dataset, B24 and training stay closed while the corrected B12-v2 is
+  frozen and executed. A green v2 returns directly to `NO_TRAIN`.
+- DONE — Corrected B12-v2 is newly frozen before any v2 output at seal
+  `5b2c59f9...`, binding roster `1459d1fa...` and the unchanged checkpoint.
+  Pre-output roles again close `20/20`; a canonical comparison proves all 12
+  task ids/families/groups, hidden-source hashes and complete oracle truth are
+  byte-identical to v1. Only the twelve visible prompt hashes change through
+  context v2. Model_outputs_observed remains false.
+- OPEN — One and only one corrected B12 execution is authorized now. Another
+  prompt/gold contradiction stops technically; it does not permit iterative
+  prompt tuning.
+- DONE — The sole corrected B12-v2 run closes `in=12 out=12 distinct=12 gaps=0`
+  on adapter-off Qwen3.8: conservative gate score `11/12` (F-1 `3/4`, F-2
+  `4/4`, F-3 `4/4`), all first-shot, critical failures `0`, accepted invented
+  identifiers `0`, recurring failure categories `0`. Report seal
+  `d218de25...`, manifest `2b69aa80.../39 files`; project and pinned Metis
+  identities are invariant. The only retained miss, `w5xs-f1-author-003`, has
+  exact IR and differs only by equivalent inline versus block syntax, so no
+  post-hoc score is claimed.
+- DONE — Independent Orchestra review closes two bounded audits plus L0 replay:
+  manifest `39/39`, frozen+run Oracle envelopes `32/32`, reconstructed final
+  requests `12/12`, scores replayed `12/12`, prompt/truth leak `0`, and semantic
+  source audit `12/12`. Final verification seal is `061eff91...`; deterministic
+  verifier file SHA-256 is `96743670...`. Runtime closes in `278.99s`, peak
+  Metal `21.26 GB`, artifact bytes `895695406`, residual processes `0`.
+- STOP — O-011 returns `MODEL1_USABLE_LOCAL_NO_TRAIN`. B24, dataset
+  materialization and QLoRA are closed by success, not deferred work: examples
+  created `0`, adapters created `0`, training steps `0`. The delivered claim is
+  local-only, nonpromotable and non99; no network/download, privilege, live
+  ARES data, upload, promotion, commit or push occurred.
+- RISK — Final mandatory broad `make check` repeats the inherited concurrent
+  baseline exactly: `983 passed, 102 failed, 1 skipped`. Failures remain in W3
+  protected-broker/qualification contracts and the external live Metis checkout
+  mismatch (`f5b54b8d...` versus pinned `a2dde2b...`), outside W5-XS. Foundation,
+  pilot contracts, lint and format are green; no broad-green claim is made.
+- DONE — W5-XS delivery is closed at `MODEL1_LOCAL_DELIVERED`. The canonical
+  handoff is `artifacts/w5-xs/2026-08-24-delivery/DELIVERY.md`, backed by
+  `final-verification.json`, the immutable B12-v4 report/manifest and telemetry.
+- FACT — The user opens a new accuracy-planning wave and identifies
+  `/Users/tommasotessarolo/Developer/metis-tenant-play-prod` as an explicitly
+  read-only source. No write, checkout, generated file, runtime call, secret,
+  raw payload or live ARES access is permitted there or in any repository
+  outside `metis-model-1`; dataset derivation and MLX training remain separate
+  gates rather than being inferred from read authority.
+- DONE — Read-only tenant census closes `in=197 out=197 distinct=197 gaps=0` at
+  clean HEAD `456f11c6...`, tree `1d9ff5a2...`: 170 distinct endpoints, 144
+  variants, 556 takes, 15,243 lines and 590,637 Metis bytes. The roster includes
+  23 HOLD/NON_PROMOTE/incomplete endpoints and 10 test or AB-test endpoints that
+  require explicit classification; no runtime or payload was read.
+- FACT — Tenant tree `1d9ff5a2...` is byte-identical to
+  `examples/play-prod-v2` at both pinned Metis `a2dde2b1...` and the current
+  external Metis HEAD. Language remains 0.43, so this corpus introduces no
+  compiler/version migration into Model 1 and can be referenced through the
+  already pinned immutable subtree.
+- RISK — The 170 endpoints are one whole-program/subtree ancestry, not 170
+  independent leakage groups. They provide strong construct coverage but only
+  one tenant lineage and cannot support a population or Accuracy-99 claim.
+  Tenant-specific identifiers and mutable operational facts must stay in
+  retrieval/evaluation, not be memorized in adapter weights.
+- OPEN — The bounded accuracy path is D18 diagnostic (`3` per F-1...F-6),
+  synthetic/genericized `64 train + 16 dev`, and a pre-output frozen T30 (`5`
+  per family) held out from selection. D18 may guide only failure categories;
+  train/dev/T30 share no parent/template/identifier material. Training opens
+  only for at least three correctable semantic failures across two roots, and
+  the rank-8 adapter is retained only for `+3` net T30 successes, closure of at
+  least half the baseline failures, zero regression and zero veto.
+- STOP — Before any tenant-derived artifact or F-1...F-6 training is
+  materialized, local-only rights/sensitivity must be explicitly bound and the
+  currently unexecuted F-4 review, F-5 migration and F-6 AST/IR explanation
+  oracles must become executable and sealed. Read-only census is not dataset or
+  training authority.
+
+- FACT — External Metis (`ares-matioska`) is designing a catalog
+  value-representation change. Field value-domains move OUT of the inline
+  `values [ ... ]` form and are addressed per-field. The catalog file keeps the
+  SKELETON (field name, type, similarity profiles) plus a domain marker carrying
+  kind and size: a bounded set becomes `keyword enum(N)` with values stored in
+  an external per-catalog value-set the toolchain slices per-field; a
+  high-cardinality field becomes `keyword open` (the domain is the live index,
+  not a materialized list); tiny stable enums below a tenant-parametric
+  threshold stay inline. Threshold values are tenant settings, not hardcoded.
+- FACT — The change is a retrieval-contract and grammar-surface change, NOT a
+  weights change. It aligns with this board's standing invariant that
+  tenant-specific values stay in retrieval, not adapter weights: catalog
+  value-domains already belong to retrieval. The delivered adapter (B12-v4)
+  memorizes no catalog values and is not invalidated by this change.
+- DECISION — Absorb via the ratified grammar-change policy: update grammar pin,
+  retrieval indices and semantic oracle to the new surface; try the existing
+  adapter on the maintenance benchmark; choose NO_RETRAIN if gates stay green;
+  open only a bounded QLoRA delta if a compatible failure is demonstrated.
+  Retrieval authority for value-domains remains the toolchain over the checkout
+  (deterministic, offline, credential-free); the serve/secret path is only for
+  live open-domain runtime lookups, which authoring rarely needs.
+- OPEN — Accuracy-wave family/construct selection must plan the "catalog
+  value-domain" construct on the NEW surface (`enum(N)` / `open` marker plus a
+  per-field external value-set), not on the deprecated inline form. Do not
+  harden inline `values [ ... ]` as canonical in dataset, oracle or T30. The
+  exact surface tokens (`enum(N)` vs `values(N)`, `open`) and the parametric
+  threshold names are pending ratification in `ares-matioska` and will be pinned
+  there first; Model 1 pins follow that SHA. No Model 1 artifact or training is
+  gated by this note — it is a planning input for the next grammar pin.
