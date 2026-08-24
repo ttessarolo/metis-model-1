@@ -85,14 +85,22 @@ def _write_fsynced(path: Path, raw: bytes) -> None:
         os.fsync(stream.fileno())
 
 
-def _dataset_target(destination: str | os.PathLike[str]) -> Path:
+def _dataset_target(
+    destination: str | os.PathLike[str], *, allow_internal_staging: bool = False
+) -> Path:
     root = ARTIFACT_ROOT.absolute()
     root.mkdir(parents=True, exist_ok=True)
     if root.is_symlink() or not root.is_dir():
         raise ValueError("artifact root must be a regular directory")
     target = Path(destination).absolute()
     expected = root / "dataset"
-    if target.resolve(strict=False) != expected.resolve(strict=False):
+    target_resolved = target.resolve(strict=False)
+    if allow_internal_staging:
+        if target.parent.resolve(strict=False) != root.resolve(
+            strict=False
+        ) or not target.name.startswith(".dataset-staging-"):
+            raise ValueError("dataset staging path is outside the fixed artifact root")
+    elif target_resolved != expected.resolve(strict=False):
         raise ValueError("dataset destination is not the fixed ignored artifact path")
     cursor = target.parent
     while cursor != PROJECT_ROOT.parent:
@@ -286,6 +294,28 @@ def _call_with_external_domain_contract(source: str, *, snapshot: Any) -> dict[s
             }
         }
     return engine
+
+
+def _valid_mutated_rejection(result: Any, *, source_sha256: str) -> bool:
+    if not isinstance(result, dict) or result.get("status") != "invalid":
+        return False
+    if result.get("failure_code") == "catalog_domain_rejected":
+        return set(result) == {"status", "failure_code", "failure_hash"} and _is_hash(
+            result.get("failure_hash")
+        )
+    if result.get("failure_code") == "external_domain_inline_values_forbidden":
+        return (
+            set(result)
+            == {
+                "status",
+                "failure_code",
+                "source_sha256",
+                "engine_evidence_sha256",
+            }
+            and result.get("source_sha256") == source_sha256
+            and _is_hash(result.get("engine_evidence_sha256"))
+        )
+    return False
 
 
 def _prompt_input(row: dict[str, Any], *, diagnostic: str = "") -> tuple[dict[str, Any], str]:
@@ -521,6 +551,11 @@ def materialize(
         }
         receipt = {**receipt_body, "receipt_sha256": _hash(receipt_body)}
         write_json("receipt.json", receipt)
+        verification_errors = verify(stage, _allow_internal_staging=True)
+        if verification_errors:
+            raise ValueError(
+                "staged dataset verification failed: " + "; ".join(verification_errors)
+            )
         directory = os.open(stage, os.O_RDONLY)
         try:
             os.fsync(directory)
@@ -540,9 +575,11 @@ def materialize(
 
 def verify(
     destination: str | os.PathLike[str] = "artifacts/initial-local-qlora-v1/dataset",
+    *,
+    _allow_internal_staging: bool = False,
 ) -> list[str]:
     try:
-        target = _dataset_target(destination)
+        target = _dataset_target(destination, allow_internal_staging=_allow_internal_staging)
     except (OSError, ValueError) as error:
         return [str(error)]
     errors: list[str] = []
@@ -694,9 +731,10 @@ def verify(
             ) or (
                 phase == "mutated"
                 and expected_status == "fail"
-                and status == "invalid"
-                and result.get("failure_code") == "catalog_domain_rejected"
-                and _is_hash(result.get("failure_hash"))
+                and _valid_mutated_rejection(
+                    result,
+                    source_sha256=envelope.get("source_sha256"),
+                )
             )
             if not valid or not _is_hash(envelope.get("source_sha256")):
                 errors.append("oracle envelope roster/status is incomplete")
@@ -736,10 +774,9 @@ def verify(
                     }
                     if describe_receipt.get("receipt_sha256") != _hash(describe_body):
                         raise ValueError("describe receipt self-hash drift")
-                elif (
-                    not isinstance(result, dict)
-                    or result.get("status") != "invalid"
-                    or result.get("failure_code") != "catalog_domain_rejected"
+                elif not _valid_mutated_rejection(
+                    result,
+                    source_sha256=_hash(source),
                 ):
                     raise ValueError("mutated oracle evidence is not the registered rejection")
             diagnostic = (

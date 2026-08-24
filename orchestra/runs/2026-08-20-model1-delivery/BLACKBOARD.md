@@ -4496,3 +4496,13 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   diagnostic. Train and dev F-3 canaries now both pass, emit zero inline values,
   and the final dataset path remains absent; no model output or optimizer step
   has occurred, so republishing this corrected preimage is authorized.
+- FIX — Independent post-materialization replay caught a second pre-training
+  blocker: the producer emitted the new hash-only surface rejection while the
+  standalone verifier still admitted only the legacy parser rejection. L0
+  centralizes both exact registered rejection shapes, binds the surface result
+  to the mutated-source hash, requires hash-only evidence, and runs the complete
+  verifier on the staging directory before atomic publication. The reproducer
+  is now an end-to-end normalized-describe materialize/verify test plus an
+  explicit non-publication test for staged-verifier failure; the previously
+  generated dataset is not eligible for freeze and will be regenerated from the
+  republished preimage. No model output or optimizer step exists.

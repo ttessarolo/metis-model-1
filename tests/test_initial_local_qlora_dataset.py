@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from metis_model1 import initial_local_qlora_dataset as builder
 from metis_model1.catalog_retrieval_refresh import CatalogRetrievalRefreshError
 
@@ -47,8 +49,6 @@ def test_materialize_uses_fake_oracle_and_verifies(tmp_path, monkeypatch) -> Non
 
     def fake_describe(snapshot, source):
         calls.append(source)
-        if " keyword multi enum(" in source and " values [" in source:
-            raise CatalogRetrievalRefreshError("invalid legacy declaration")
         return _fake_success()
 
     monkeypatch.setattr(builder, "_describe_source_in_snapshot", fake_describe)
@@ -69,8 +69,40 @@ def test_materialize_uses_fake_oracle_and_verifies(tmp_path, monkeypatch) -> Non
     assert receipt["counts"] == builder.COUNTS
     assert len(calls) == 107  # F1/F2 fixed plus the F3 mutated and fixed checks.
     assert builder.verify(destination) == []
+    provenance = [
+        json.loads(line) for line in (destination / "provenance.jsonl").read_text().splitlines()
+    ]
+    mutated = [
+        envelope["result"]["result"]
+        for item in provenance
+        for envelope in item["oracle_envelopes"]
+        if envelope["phase"] == "mutated"
+    ]
+    assert {item["failure_code"] for item in mutated} == {"external_domain_inline_values_forbidden"}
+    assert not any("amber" in json.dumps(item) for item in mutated)
     assert (destination / "train.jsonl").read_text()
     assert (destination / "dev.jsonl").read_text()
+
+
+def test_materialize_does_not_publish_when_staged_verifier_fails(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(builder, "_describe_source_in_snapshot", lambda *_args: _fake_success())
+
+    class Snapshot:
+        def __enter__(self):
+            return object()
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(builder, "_pinned_snapshot", lambda *args: Snapshot())
+    monkeypatch.setattr(builder, "ARTIFACT_ROOT", tmp_path)
+    monkeypatch.setattr(builder, "verify", lambda *_args, **_kwargs: ["forced failure"])
+    destination = tmp_path / "dataset"
+    with pytest.raises(ValueError, match="staged dataset verification failed"):
+        builder.materialize(
+            metis_root=str(tmp_path / "pinned"), node_path="node", destination=destination
+        )
+    assert not destination.exists()
 
 
 def test_f2_is_one_replacement_and_f3_has_real_failure_diagnostic(monkeypatch, tmp_path) -> None:

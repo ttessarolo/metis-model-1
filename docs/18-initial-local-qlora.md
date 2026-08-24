@@ -71,6 +71,9 @@ Because the pinned describe projection deliberately redacts/normalizes value
 payloads, F-3 also applies the ratified surface invariant directly: a declaration
 that combines external `enum(N)` with inline `values [...]` is rejected even if
 the describe projection would otherwise erase the forbidden suffix.
+The complete staged roster, hashes, provenance envelopes, deterministic
+reconstruction and both registered F-3 rejection shapes are verified before the
+staging directory is atomically published as the fixed dataset path.
 
 ## One-run evaluation and training
 
