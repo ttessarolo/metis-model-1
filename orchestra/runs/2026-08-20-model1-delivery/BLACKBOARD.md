@@ -4299,3 +4299,15 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   binding, alternate-path rejection, existing-directory replay denial, exact
   schema hash `89b2873c...` and broad-work reintroduction rejection. L0 focused
   tests are `76/76`, Ruff/format/diff are green and foundation is `56/0`.
+- DONE — Final replacement freeze `a94ccea8...` (raw file `d9b0c4c8...`)
+  binds exact published preimage `6c6350a62003953f8b60f271f9da692ef43b772c`,
+  tree `93082730...`, bound inputs `27/27`, tasks `8/8`, checkpoint `3+12`,
+  runtime Python `3.12.10`/MLX `0.32.1`/MLX-VLM `0.6.15` and sole run directory
+  `artifacts/catalog-maintenance-probe-v1`. Counts are
+  `in=8 out=8 distinct=8 gaps=0`; model outputs and training authority are zero.
+- DONE — Independent final freeze audit returns P0=0/P1=0 with schema/self/raw,
+  remote preimage, prompt/truth/oracle `8/8`, Curated boundary and checkpoint
+  identity exact. Sealed-state focused tests are `76/76`, foundation `57/0`.
+- DECISION — The seal opens only this fixed-directory public-synthetic probe
+  evaluation. Broad D18/T30 output, tenant payload, dataset, training and
+  promotion remain false; run remains blocked until exact seal commit is remote.

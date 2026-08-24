@@ -57,12 +57,12 @@ wave and is not on the current critical path:
 - implement and verify the Model 1 adapter for the pinned offline
   `catalog:describe` / `catalog:values` contract.
 
-The only active work is now replacement of the probe seal for the pinned
+The only active work is now evaluation of the sealed probe for the pinned
 public-synthetic lineage:
 
 - catalog-domain prompt or expected-output truth;
 - catalog-domain oracle truth;
-- a replacement Git pre-output seal for the separate eight-case probe.
+- the exact Git-sealed separate eight-case probe evaluation.
 
 Catalog truth derived from prose alone remains forbidden. Tenant payloads and
 live-index values remain outside the dataset and outside this authorization.
@@ -72,9 +72,10 @@ maintenance diagnostic only: `8/8` semantic passes support `NO_RETRAIN` for
 this grammar change, while failures identify repair work and never
 auto-authorize training. The first freeze was revoked after the worker launcher
 resolved away its virtualenv and stopped before model load. The replacement
-seal must bind the virtualenv launcher, target, exact Python/MLX/MLX-VLM
-versions and the sole fixed ignored run directory before any retry. The broad
-D18/T30 wave remains unmaterialized and output-forbidden.
+freeze binds the virtualenv launcher, target, exact Python/MLX/MLX-VLM versions
+and the sole fixed ignored run directory. It records zero model outputs and
+grants one fail-closed evaluation of the sealed roster. The broad D18/T30 wave
+remains unmaterialized and output-forbidden.
 
 ## 3. Frozen wave arithmetic
 
@@ -130,10 +131,11 @@ unsynchronized enum, open and none. The fixed fixture manifest is
 raw digests and exact output summaries/hashes. This is sufficient to open the
 separate probe specification for this synthetic lineage; it is not tenant or
 production authority. The prior run stopped at Python import before model
-load, emitted no inference output and invalidated its freeze. The next state
-transition is a replacement Git pre-output seal binding the cured runtime and
-the single fixed evaluation directory. D18/T30 construction remains deferred
-and old benchmark and delivery evidence remain historical and unchanged.
+load, emitted no inference output and invalidated its freeze. The replacement
+Git pre-output seal now binds the cured runtime and single fixed evaluation
+directory. The next state transition is the one bounded evaluation of that
+sealed roster. D18/T30 construction remains deferred and old benchmark and
+delivery evidence remain historical and unchanged.
 
 ## 5. Model decision path
 
@@ -168,7 +170,8 @@ delta still fails the semantic or replay gates.
 This planning contract records an executable upstream implementation pin plus
 a locally replayed, value-redacted public-synthetic retrieval/oracle refresh.
 The separate probe is not a tenant dataset and has no statistical or
-promotional authority. Its replacement freeze is pending and model outputs
-remain zero. The broad D18/T30 benchmark remains unmaterialized. This is not
-tenant dataset authority, training authorization, an accuracy claim, external
-execution attestation, or a promotion verdict.
+promotional authority. Its replacement freeze records zero model outputs and
+permits the single fixed-directory evaluation; the broad D18/T30 benchmark
+remains unmaterialized. This is not tenant dataset authority, training
+authorization, an accuracy claim, external execution attestation, or a
+promotion verdict.
