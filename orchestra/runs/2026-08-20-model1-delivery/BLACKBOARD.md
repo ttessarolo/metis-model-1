@@ -4554,3 +4554,11 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   actual custom-kernel compile. Runtime/train/B12 are freeze-bound, so the
   failed cache-only run and prior freeze will be quarantined and a new published
   zero-output freeze created before baseline restarts.
+- FACT — L113 independently censuses the failed baseline surface as five empty
+  directories and zero regular files/symlinks/specials: candidate=0,
+  generation/report=0, model token/output=0, checkpoint=0, optimizer state=0.
+  L0 atomically moves that empty `run-v1` to
+  `/tmp/metis-model1-metal-cache-only.BPLvze/run-v1`; the stale freeze remains
+  recoverable from commit `e7c712e` but is removed from the cured preimage.
+  Dataset remains 7 files/466479 bytes; a published freeze-absent preimage is
+  required before regenerating the zero-output freeze.
