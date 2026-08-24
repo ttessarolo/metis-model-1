@@ -40,8 +40,8 @@ MAX_STDOUT_BYTES = 4 * 1024 * 1024
 MAX_STDERR_BYTES = 128 * 1024
 PROBE_TIMEOUT_SECONDS = 120
 MAX_CONTRACT_BYTES = 2 * 1024 * 1024
-SCHEMA_FILE_SHA256 = "sha256:f0680c89bad7d45c8a0464a5d659012e118997f38d46bb0c2e2498978d0514f1"
-MANIFEST_FILE_SHA256 = "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5"
+SCHEMA_FILE_SHA256 = "sha256:3a0d70e142f92cae42497ca62402fcffa72c5efd4a7a25f995a1d5434273c01a"
+MANIFEST_FILE_SHA256 = "sha256:04c8dff417b14bbc08bc291e8d6de0039a958d08f7f4ac8fc2e99a671fc902ea"
 
 EXPECTED_EVIDENCE_PATHS = {
     "specification": "docs/design/catalog-values/spec.md",
@@ -575,7 +575,7 @@ def verify_catalog_maintenance_pin(
         raise CatalogMaintenancePinError("Metis pinned tree differs from the catalog pin")
     _run_git(metis, "merge-base", "--is-ancestor", manifest["surface_revision"], revision)
 
-    def verify_remote_ref() -> None:
+    def verify_remote_contains_revision() -> str:
         remote = _run_git(
             None,
             "ls-remote",
@@ -583,10 +583,24 @@ def verify_catalog_maintenance_pin(
             manifest["remote_ref"],
         )
         rows = [line.split() for line in str(remote).splitlines() if line.strip()]
-        if rows != [[revision, manifest["remote_ref"]]]:
-            raise CatalogMaintenancePinError("live Metis remote ref differs from the catalog pin")
+        if (
+            len(rows) != 1
+            or len(rows[0]) != 2
+            or rows[0][1] != manifest["remote_ref"]
+            or len(rows[0][0]) != 40
+            or any(character not in "0123456789abcdef" for character in rows[0][0])
+        ):
+            raise CatalogMaintenancePinError("live Metis remote ref is not one commit")
+        remote_revision = rows[0][0]
+        try:
+            _run_git(metis, "merge-base", "--is-ancestor", revision, remote_revision)
+        except CatalogMaintenancePinError as error:
+            raise CatalogMaintenancePinError(
+                "live Metis remote ref does not contain the catalog pin"
+            ) from error
+        return remote_revision
 
-    verify_remote_ref()
+    remote_revision_before = verify_remote_contains_revision()
 
     verified_evidence: list[dict[str, str]] = []
     for item in manifest["evidence"]:
@@ -625,7 +639,9 @@ def verify_catalog_maintenance_pin(
         or _run_git(metis, "rev-parse", f"{revision}^{{tree}}") != manifest["tree"]
     ):
         raise CatalogMaintenancePinError("Metis pinned Git objects changed during verification")
-    verify_remote_ref()
+    remote_revision_after = verify_remote_contains_revision()
+    if remote_revision_after != remote_revision_before:
+        raise CatalogMaintenancePinError("live Metis remote ref changed during verification")
 
     return {
         "status": "verified_local_cooperative",
@@ -633,7 +649,8 @@ def verify_catalog_maintenance_pin(
         "pin_id": manifest["pin_id"],
         "revision": revision,
         "tree": manifest["tree"],
-        "remote_ref_verified": True,
+        "remote_ref_contains_revision_verified": True,
+        "remote_ref_revision": remote_revision_after,
         "evidence_in": len(manifest["evidence"]),
         "evidence_out": len(verified_evidence),
         "evidence_distinct": len({item["id"] for item in verified_evidence}),

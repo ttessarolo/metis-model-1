@@ -37,7 +37,7 @@
         "pin_id": {"const": "catalog-domain-maintenance/2026-08-24-v1"},
         "revision": {"const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"},
         "tree": {"const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"},
-        "manifest_sha256": {"const": "sha256:f971eafb259326da27106e772b36488d73b7ff1ba5045f1b455f6fd7c167f4de"},
+        "manifest_sha256": {"const": "sha256:0e3a4d9050f7ee9d6584fb284a0671f0e0eaf398597be29806943d7b6bffa987"},
         "verification": {"const": "manifest_contract_only"}
       }
     },

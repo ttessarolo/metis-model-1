@@ -114,6 +114,9 @@
               "f6_structural_oracle_implementation",
               "non_catalog_f4_f5_oracle_contract_work",
               "catalog_retrieval_adapter_contract_work",
+              "catalog_domain_prompt_truth",
+              "catalog_domain_oracle_truth",
+              "catalog_domain_split_materialization",
               "upstream_read_only_pin_monitoring"
             ]
           }
@@ -388,7 +391,7 @@
           "properties": {
             "path": { "const": "manifests/catalog-maintenance-pin-v1.json" },
             "sha256": {
-              "const": "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5"
+              "const": "sha256:04c8dff417b14bbc08bc291e8d6de0039a958d08f7f4ac8fc2e99a671fc902ea"
             }
           }
         },

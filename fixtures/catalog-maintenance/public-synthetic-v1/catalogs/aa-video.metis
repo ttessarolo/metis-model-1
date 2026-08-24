@@ -1,0 +1,18 @@
+metis 0.43
+catalog public.video {
+  driver opensearch
+  index "public_video"
+  id vid
+  fields {
+    vid            keyword
+    editorial_type keyword values ["Movie", "Series"]
+    genre          keyword enum(3)
+    labels         keyword multi enum(2)
+    title          keyword open
+    from_list      keyword values list.genres
+    details object {
+      poster keyword enum(2),
+      badge  keyword ordered multi
+    }
+  }
+}

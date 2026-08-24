@@ -4184,3 +4184,36 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   non-force to `codex/model1-local-99-foundation`; post-push `ls-remote` equals
   local HEAD exactly. The unrelated concurrent `fx` note block remains only as
   an unstaged worktree change and was not incorporated into this checkpoint.
+- FACT — `origin/main` advanced after the catalog pin to `fb286f0f`, while
+  `5e112f91` remains its verified ancestor. The former exact-tip check was
+  therefore operationally brittle: the pin verifier now requires the live ref
+  to contain the exact pinned revision and rejects a non-descendant or a ref
+  change during verification. The archived revision/tree/evidence roster stay
+  exactly `5e112f91`/`41c7a2b6`/`18`; no upstream file was changed.
+- DONE — Model 1 public-synthetic catalog refresh executes the exact archived
+  CLI under deny-write/deny-network with `in=8 out=8 distinct=8 gaps=0` across
+  describe, inline, list, editorial enum, reflected nested enum, unsynchronized
+  enum, open and none. The fixed fixture and tracked execution receipt contain
+  no catalog values; receipt `6d007c93...` binds the exact response/output
+  hashes and redacted summaries. Tenant payloads contribute zero examples.
+- DONE — Frontier adversarial replay first reproduced four re-sign/TOCTOU P1s,
+  then verifies their cures at P0=0/P1=0: exact query/golden/upstream binding,
+  raw schema pin, fixture copy plus pre/post hashes, and explicit
+  `no_external_execution_attestation`. Focused integrated replay is `84/84`.
+- DECISION — Retrieval and affected semantic-oracle refresh gates are now true
+  only for `public_synthetic_archive_snapshot_only`; catalog D18/T30 prompt,
+  oracle and materialization work is open. Model outputs, tenant values and
+  training remain forbidden until the complete 48-task Git pre-output seal and
+  later D18 decision.
+- OPEN — The critical path has moved to actual D18/T30 construction and its
+  pushed-Git pre-output verifier. Existing W1/B12 material does not receive
+  fresh-root credit merely by relabeling; the parallel census must identify
+  reusable authority or the minimum genuinely new task/oracle set.
+
+- FACT — L0 reran the repository-wide `make check` after integrating the
+  public-synthetic retrieval checkpoint: foundation `54/54`, focused
+  retrieval/adversarial `84/84`, lint and format are green; full pytest is
+  `1106 passed, 102 failed, 1 skipped`. The 102 failures remain confined to
+  the three pre-existing protected/live-dependent groups (`oracles=31`,
+  `w3_bridge_gate=25`, `w3_qualifier=46`); no catalog-refresh test regressed.
+  This is scoped checkpoint evidence, not a production-qualification claim.

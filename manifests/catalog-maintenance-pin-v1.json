@@ -45,7 +45,7 @@
   "policy": {
     "git_objects_only": true,
     "surface_ancestor_required": true,
-    "remote_ref_match_required": true,
+    "remote_ref_contains_revision_required": true,
     "tracked_worktree_excluded": true,
     "untracked_worktree_excluded": true,
     "archive_execution": true,

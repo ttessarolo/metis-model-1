@@ -1,0 +1,9 @@
+metis 0.43
+catalog public.people {
+  driver postgres
+  id pid
+  fields {
+    pid  keyword
+    name text
+  }
+}

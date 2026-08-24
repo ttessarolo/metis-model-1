@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "status": "verified_local_cooperative",
+  "authority_scope": "public_synthetic_archive_snapshot_only",
+  "fixture": {
+    "id": "catalog-retrieval/public-synthetic-v1",
+    "tenant_id": "model1-public-synthetic",
+    "manifest_sha256": "sha256:203ed68a1574c869910fc0b096cfa3a760a3e0b6857a9fb89d1902d582241bb2",
+    "files": [
+      {"path": "catalogs/aa-video.metis", "bytes": 430, "sha256": "sha256:a248ac46ff3a6bb2025db73aba44d3e6d12a03d2b0e8d38980d700afb78a13c5"},
+      {"path": "catalogs/bb-people.metis", "bytes": 110, "sha256": "sha256:99ec9eea3040ec1a0da12edff615cc64fd5b9c37cd5d99c9d9b306b4579f164a"},
+      {"path": "metis.toml", "bytes": 68, "sha256": "sha256:66b8c89ddcd2b86c26baa552c6eaa7201b94a50f89d5e9949cdd8ebfe3fbc56a"},
+      {"path": "values/aa-list.metis", "bytes": 58, "sha256": "sha256:6946887b44f9881e62430acb901549ce14e7e704104785ce233b3e64e889eafb"},
+      {"path": "values/bb-reflected.metis", "bytes": 112, "sha256": "sha256:beceb53fe9827c315ed5fddd850070494912e94526aeeab03b346b7a9c106e83"},
+      {"path": "values/cc-editorial.metis", "bytes": 65, "sha256": "sha256:0dc95385e21dc870cabaf7738fbf9fe146d823922f938c491dd5070bdd7bcb6a"}
+    ]
+  },
+  "upstream": {
+    "pin_id": "catalog-domain-maintenance/2026-08-24-v1",
+    "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+    "manifest_sha256": "sha256:0e3a4d9050f7ee9d6584fb284a0671f0e0eaf398597be29806943d7b6bffa987",
+    "verification": "archive_snapshot"
+  },
+  "execution": {
+    "command": "catalog-domain.ts",
+    "sandbox": "deny-write-deny-network",
+    "values_redacted": true
+  },
+  "queries": [
+    {
+      "id": "describe-all",
+      "query": {"operation": "describe", "catalog": null, "field": null},
+      "status": "pass",
+      "response_sha256": "sha256:dff927c982301ddea3e6836c149a794bd25e163a093091cdc6d7ca9cafb44bea",
+      "output_sha256": "sha256:ca8e3c0eecb302a7fc137ca3d61a258e2bab7e96f9a44347b47cfb2dc1f6d0f2",
+      "output_bytes": 2749,
+      "receipt_sha256": "sha256:fc168e64e6dbed89546a9992d64337f8ea66d0fde8dfa7d0a1a1d1799a4817c7",
+      "summary": {"kind": "describe", "size": null, "nature": null, "catalog_count": 2, "field_count": 11, "domain_count": 6, "value_count": 2}
+    },
+    {
+      "id": "values-inline",
+      "query": {"operation": "values", "catalog": "video", "field": "editorial_type"},
+      "status": "pass",
+      "response_sha256": "sha256:9988cff165280f54bceba00703c21b3d3ed63cec388f0bb12d78de38156a3817",
+      "output_sha256": "sha256:38538252113ad6a80707080cbe5e8562dede213e8ec838f9d833850265918bc5",
+      "output_bytes": 193,
+      "receipt_sha256": "sha256:8852b7eb9a7288d384411468735d79586a7b72e771781156bca4744e9d4ecbec",
+      "summary": {"kind": "inline", "size": 2, "nature": null, "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 2}
+    },
+    {
+      "id": "values-list",
+      "query": {"operation": "values", "catalog": "video", "field": "from_list"},
+      "status": "pass",
+      "response_sha256": "sha256:2681c1da0ef49acac4add46d3fccdec8238b424a9a857c15ce06df18e3843a13",
+      "output_sha256": "sha256:1217adb91b6636446c32127cce04562aa71c82515526b0a4744bd2c0086c3ee9",
+      "output_bytes": 247,
+      "receipt_sha256": "sha256:c78b0fe45f9d6775b2bb9bf09ca99f3ec65215c425b35f2faef77ffd287e235b",
+      "summary": {"kind": "list", "size": 2, "nature": null, "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 2}
+    },
+    {
+      "id": "values-enum-editorial",
+      "query": {"operation": "values", "catalog": "video", "field": "genre"},
+      "status": "pass",
+      "response_sha256": "sha256:0a559d6ea80c4136a38c87df4dcda9dac3fe8deaef009807224456682f212c43",
+      "output_sha256": "sha256:93b6bd90bf22eed50713f34e00669a8b9a24df6fc3b5dc24d116fd74499fb158",
+      "output_bytes": 195,
+      "receipt_sha256": "sha256:2f593758dba0a86dedb3daa4bd95f738d532b8fa9e08cbc334a45164ab72f202",
+      "summary": {"kind": "enum", "size": 1, "nature": "editorial", "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 1}
+    },
+    {
+      "id": "values-enum-reflected-nested",
+      "query": {"operation": "values", "catalog": "video", "field": "details.poster"},
+      "status": "pass",
+      "response_sha256": "sha256:276dd0f8ad7037e30dc82f8255c594c43a29ce3535d2dc5fef7d83a314e51981",
+      "output_sha256": "sha256:d29cc5d75a4fbf0fb0d3bd0e831849655b05d6fe20074fc8b91f91034bed3646",
+      "output_bytes": 209,
+      "receipt_sha256": "sha256:73d5a8c8f288c6cb2a41409d5cbde802db9a3e1f71d8694084d7719c76947fd3",
+      "summary": {"kind": "enum", "size": 2, "nature": "reflected", "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 2}
+    },
+    {
+      "id": "values-enum-unsynced",
+      "query": {"operation": "values", "catalog": "video", "field": "labels"},
+      "status": "pass",
+      "response_sha256": "sha256:4f0379967af5a2c0af2724754bd33abc94694d3a8278935e9ed3065eb2000808",
+      "output_sha256": "sha256:d2ff9f84d01c02aa9b1a711269508f14df25b7a8f5414838fbda651a7d127900",
+      "output_bytes": 244,
+      "receipt_sha256": "sha256:4aaff446c88923a0d38296d54095f303f1fb26f2e35972e43f5d9ddd0ee74583",
+      "summary": {"kind": "enum", "size": 2, "nature": null, "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 0}
+    },
+    {
+      "id": "values-open",
+      "query": {"operation": "values", "catalog": "video", "field": "title"},
+      "status": "pass",
+      "response_sha256": "sha256:98103e951a3e2753ce30c5b0d13f50e231cd02b8db060a25e5822340af7afe83",
+      "output_sha256": "sha256:63cae606c6e85fa9b2b24286390982d8d5fb35552d1401f296bc5f593678cc7d",
+      "output_bytes": 211,
+      "receipt_sha256": "sha256:5e00e46f2769661d22bc5db5a52a51d0d3dc2c706251ebc43ba050cd7c140317",
+      "summary": {"kind": "open", "size": null, "nature": null, "catalog_count": 1, "field_count": 1, "domain_count": 1, "value_count": 0}
+    },
+    {
+      "id": "values-none",
+      "query": {"operation": "values", "catalog": "video", "field": "vid"},
+      "status": "pass",
+      "response_sha256": "sha256:01641273a921fa1ef7bb8bec3e01ed95ed504da6878560d5bb85959e82857dc2",
+      "output_sha256": "sha256:edda3340967d73eb0f2ae9d1f4cdbc31fb1fe0fe7ad0577dfa4a10ba5273d241",
+      "output_bytes": 180,
+      "receipt_sha256": "sha256:16787deab41f9f88006fea2e4e4944241847f36932861727349c815dc719b9bd",
+      "summary": {"kind": "none", "size": null, "nature": null, "catalog_count": 1, "field_count": 1, "domain_count": 0, "value_count": 0}
+    }
+  ],
+  "counts": {"queries_in": 8, "queries_out": 8, "queries_distinct": 8, "queries_gaps": 0},
+  "policy": {
+    "archive_execution": true,
+    "network_denied": true,
+    "writes_denied": true,
+    "public_synthetic_only": true,
+    "golden_outputs_pinned": true,
+    "model_output_observed": false,
+    "training_authorized": false
+  },
+  "nonclaims": [
+    "not_same_uid_adversary_resistant",
+    "not_general_untrusted_code_sandbox",
+    "no_external_execution_attestation",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim",
+    "nonpromotable"
+  ],
+  "receipt_sha256": "sha256:6d007c933ffa9ec4c672b007538c6146b33b19e415174ef474dfc96f455f360d"
+}

@@ -1,6 +1,6 @@
 # Accuracy uplift: catalog-domain maintenance contract
 
-Status: **PIN REFRESH ACTIVE — executable implementation pinned; Model 1 refresh pending**.
+Status: **RETRIEVAL + ORACLE REFRESH COMPLETE — benchmark construction active**.
 
 This document narrows the current accuracy wave without stopping the work that
 does not depend on the incoming catalog grammar.  It is forward-looking: the
@@ -23,11 +23,11 @@ settings, not model constants.  External storage is one
 
 Metis revision `5e112f9148f40e7e792052e896c5a9efe8eaf0a2` (tree
 `41c7a2b6890fa42d8123bd93f6560d0b9bfae8af`) is the executable implementation
-pin. It is published on `origin/main` and binds grammar, validator, compiler/IR,
+pin. It is published in the ancestry of `origin/main` and binds grammar, validator, compiler/IR,
 resolver, synchronization, retrieval CLI, semantic tests, settings, package
 lock and Node runtime in `manifests/catalog-maintenance-pin-v1.json`. Model 1
-still does not materialize catalog-domain truth until its own retrieval receipt
-and affected semantic-oracle refresh are complete.
+materializes catalog-domain truth only from the pinned public-synthetic
+retrieval receipt and affected semantic-oracle goldens described below.
 
 Consequences:
 
@@ -40,7 +40,7 @@ Consequences:
 - the adapter-off B12-v4 behavior baseline is not invalidated by the planning
   note because no fine-tuned adapter or catalog-value dataset was produced.
 
-## 2. Work partition while Model 1 refresh is pending
+## 2. Work partition after the Model 1 refresh
 
 The wave remains active.  The following work may proceed now:
 
@@ -51,13 +51,14 @@ The wave remains active.  The following work may proceed now:
 - implement and verify the Model 1 adapter for the pinned offline
   `catalog:describe` / `catalog:values` contract.
 
-The following work waits for Model 1 retrieval and oracle refresh:
+The following work is now open only for the pinned public-synthetic lineage:
 
 - catalog-domain prompt or expected-output truth;
 - catalog-domain oracle truth;
 - materialization of catalog-domain D18, train, dev, or T30 slots;
-- any catalog truth derived from the specification without executable
-  grammar/retrieval/oracle evidence.
+
+Catalog truth derived from prose alone remains forbidden. Tenant payloads and
+live-index values remain outside the dataset and outside this authorization.
 
 No model output is observed for this accuracy wave until the complete T30,
 including the reserved catalog-domain slots, is sealed before output.  This is
@@ -100,16 +101,25 @@ the later revision and tree bound all of the following executable evidence:
 6. semantic oracle;
 7. tenant threshold setting keys.
 
-L0 verified the live remote ref, all `18/18` Git blobs, exact Node 22 and
+L0 verified that the live remote ref contains the exact pin, all `18/18` Git blobs, exact Node 22 and
 node_modules identities, and `5/5` typecheck/catalog probes from a Git archive
 under deny-write/deny-network sandboxing. This is a
 `verified_local_cooperative` result: it binds exact Git objects and bounded
 probes on the cooperative local host, but is not resistant to a concurrent
 hostile process running as the same user and is not a general untrusted-code
-sandbox. The next state transition is Model 1 retrieval refresh, followed by
-affected oracle truth, reserved-task materialization and the complete
-maintenance seal. Old benchmark and delivery evidence remain historical and
-unchanged.
+sandbox.
+
+The public-synthetic Model 1 refresh then executed `8/8` distinct retrieval
+queries from the exact Git archive under the same sandbox. Its value-redacted
+goldens cover describe, inline, list, editorial enum, reflected nested enum,
+unsynchronized enum, open and none. The fixed fixture manifest is
+`manifests/catalog-retrieval-public-synthetic-v1.json`; the observed receipt is
+`manifests/catalog-retrieval-execution-v1.json`. Both validate against pinned
+raw digests and exact output summaries/hashes. This is sufficient to open
+reserved-task materialization for this synthetic lineage; it is not tenant or
+production authority. The next state transition is D18/T30 construction and
+the complete maintenance seal. Old benchmark and delivery evidence remain
+historical and unchanged.
 
 ## 5. Model decision path
 
@@ -142,6 +152,8 @@ delta still fails the semantic or replay gates.
 
 ## 6. Current non-claims
 
-This planning contract records an executable upstream implementation pin. It is
-not yet a Model 1 retrieval/oracle refresh, dataset authorization, model
-evaluation, training authorization, accuracy claim, or promotion verdict.
+This planning contract records an executable upstream implementation pin plus
+a locally replayed, value-redacted public-synthetic retrieval/oracle refresh.
+No catalog-domain benchmark item has yet been materialized. This is not tenant
+dataset authority, model evaluation, training authorization, an accuracy claim,
+external execution attestation, or a promotion verdict.

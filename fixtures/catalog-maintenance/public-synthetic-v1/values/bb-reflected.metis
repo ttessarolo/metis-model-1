@@ -1,0 +1,5 @@
+metis 0.43
+values public.video {
+  genre reflected ["Drama", "News", "Sport"]
+  poster reflected ["hd", "sd"]
+}

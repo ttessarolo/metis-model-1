@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "plan_id": "accuracy-uplift/v1",
-  "status": "retrieval_refresh_active",
+  "status": "benchmark_construction_active",
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:d1c4cd1aca317b2e80bdf569209928193e614c9be887f7fc61e1052bdb50a3a1"
+    "sha256": "sha256:1228cee8db79579d884f022b1c0be229c855f0abdb92c0de4cf023859a71de75"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
@@ -93,7 +93,7 @@
   },
   "catalog_value_domain": {
     "construct_id": "catalog_value_domain",
-    "status": "pinned_refresh_pending",
+    "status": "ready_for_materialization",
     "canonical_surface_authority": "upstream_grammar_at_pinned_revision",
     "legacy_inline_materialized_values": "forbidden_as_canonical",
     "values_authority": "toolchain_per_field_retrieval",
@@ -107,8 +107,8 @@
       "diagnostic": { "F-1": 1, "F-6": 1 },
       "final_test": { "F-1": 1, "F-6": 1 }
     },
-    "materialization_allowed": false,
-    "oracle_truth_allowed": false
+    "materialization_allowed": true,
+    "oracle_truth_allowed": true
   },
   "upstream_grammar_dependency": {
     "repository": "ares-matioska/metis",
@@ -123,7 +123,7 @@
       "language_version": "0.43",
       "implementation_manifest": {
         "path": "manifests/catalog-maintenance-pin-v1.json",
-        "sha256": "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5"
+        "sha256": "sha256:04c8dff417b14bbc08bc291e8d6de0039a958d08f7f4ac8fc2e99a671fc902ea"
       },
       "grammar": {
         "path": "tooling/src/language/metis.langium",
@@ -181,12 +181,12 @@
       "f6_structural_oracle_implementation",
       "non_catalog_f4_f5_oracle_contract_work",
       "catalog_retrieval_adapter_contract_work",
-      "upstream_read_only_pin_monitoring"
-    ],
-    "forbidden_now": [
       "catalog_domain_prompt_truth",
       "catalog_domain_oracle_truth",
       "catalog_domain_split_materialization",
+      "upstream_read_only_pin_monitoring"
+    ],
+    "forbidden_now": [
       "t30_model_outputs_before_complete_seal",
       "tenant_value_payloads",
       "training"
@@ -238,17 +238,15 @@
   "gates": {
     "surface_pin_complete": true,
     "upstream_pin_complete": true,
-    "retrieval_contract_refreshed": false,
-    "semantic_oracle_refreshed": false,
-    "catalog_materialization_allowed": false,
+    "retrieval_contract_refreshed": true,
+    "semantic_oracle_refreshed": true,
+    "catalog_materialization_allowed": true,
     "t30_sealed_before_model_outputs": false,
     "model_evaluation_allowed": false,
     "training_allowed": false,
-    "active_work": "retrieval_refresh"
+    "active_work": "benchmark_materialization"
   },
   "nonclaims": [
-    "no_retrieval_refresh",
-    "no_semantic_oracle_refresh",
     "no_catalog_domain_dataset",
     "no_tenant_dataset_authority",
     "no_model_output",

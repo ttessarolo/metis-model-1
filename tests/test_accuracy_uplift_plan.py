@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import metis_model1.catalog_retrieval_refresh as refresh
 import metis_model1.contracts as contracts
 from metis_model1.contracts import load_json, repository_root, validate_instance
 
@@ -44,7 +45,7 @@ def _complete_upstream_pin() -> dict[str, Any]:
         "language_version": "0.43",
         "implementation_manifest": {
             "path": "manifests/catalog-maintenance-pin-v1.json",
-            "sha256": "sha256:1cec5b53f7dc21a9f0100cb4ff51f7beffca00d157e557ae4e7dff336dac05f5",
+            "sha256": "sha256:04c8dff417b14bbc08bc291e8d6de0039a958d08f7f4ac8fc2e99a671fc902ea",
         },
         "grammar": evidence,
         "validator": evidence,
@@ -63,17 +64,18 @@ def test_accuracy_uplift_plan_is_green_and_implementation_pinned() -> None:
     assert plan["upstream_grammar_dependency"]["status"] == "pinned"
     assert plan["gates"]["surface_pin_complete"] is True
     assert plan["gates"]["upstream_pin_complete"] is True
-    assert plan["gates"]["retrieval_contract_refreshed"] is False
-    assert plan["gates"]["semantic_oracle_refreshed"] is False
-    assert plan["status"] == "retrieval_refresh_active"
-    assert plan["gates"]["active_work"] == "retrieval_refresh"
-    assert plan["catalog_value_domain"]["materialization_allowed"] is False
+    assert plan["gates"]["retrieval_contract_refreshed"] is True
+    assert plan["gates"]["semantic_oracle_refreshed"] is True
+    assert plan["status"] == "benchmark_construction_active"
+    assert plan["gates"]["active_work"] == "benchmark_materialization"
+    assert plan["catalog_value_domain"]["materialization_allowed"] is True
     assert plan["gates"]["training_allowed"] is False
     assert plan["maintenance"]["default_verdict"] == "NO_INITIAL_TRAIN"
     assert plan["historical_evidence"]["fine_tuned_adapter_present"] is False
     assert plan["historical_evidence"]["semantic_score"] == "11/12"
     assert plan["historical_evidence"]["source_oracle_audit"] == "12/12"
     assert "catalog_retrieval_adapter_contract_work" in plan["execution_partition"]["allowed_now"]
+    assert "catalog_domain_split_materialization" in plan["execution_partition"]["allowed_now"]
     assert plan["maintenance_benchmark_evidence"] == {
         "roster": None,
         "pre_output_seal": None,
@@ -240,25 +242,18 @@ def test_semantic_gate_rejects_previous_adapter_wording(
     assert any("default_verdict" in error and "NO_INITIAL_TRAIN" in error for error in errors)
 
 
-def test_semantic_gate_rejects_implementation_or_refresh_laundering(
+def test_semantic_gate_rejects_refresh_claim_when_evidence_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _mutate_loaded_file(
-        monkeypatch,
-        "accuracy-uplift-plan.json",
-        lambda plan: plan["gates"].update(
-            {
-                "upstream_pin_complete": True,
-                "retrieval_contract_refreshed": True,
-                "semantic_oracle_refreshed": True,
-            }
-        ),
+    monkeypatch.setattr(
+        refresh,
+        "validate_catalog_retrieval_refresh_contract",
+        lambda _root: ["forged refresh evidence"],
     )
 
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
-    assert any("retrieval/oracle refresh verifier is not integrated" in error for error in errors)
-    assert "refreshed catalog-domain state is not ready for materialization" in errors
+    assert "catalog retrieval/oracle refresh: forged refresh evidence" in errors
 
 
 def test_semantic_gate_rejects_catalog_pin_evidence_laundering(
@@ -293,29 +288,49 @@ def test_semantic_gate_requires_ratified_maintenance_policy(
 
 
 @pytest.mark.parametrize(
-    "forbidden",
+    "required_allowed",
     [
         "catalog_domain_prompt_truth",
         "catalog_domain_oracle_truth",
         "catalog_domain_split_materialization",
+    ],
+)
+def test_refreshed_state_requires_every_catalog_construction_operation(
+    monkeypatch: pytest.MonkeyPatch,
+    required_allowed: str,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["execution_partition"]["allowed_now"].remove(required_allowed),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "refreshed execution partition omits catalog construction work" in errors
+
+
+@pytest.mark.parametrize(
+    "required_forbidden",
+    [
         "t30_model_outputs_before_complete_seal",
         "tenant_value_payloads",
         "training",
     ],
 )
-def test_pinned_pre_refresh_state_requires_every_forbidden_operation(
+def test_refreshed_state_retains_every_persistent_prohibition(
     monkeypatch: pytest.MonkeyPatch,
-    forbidden: str,
+    required_forbidden: str,
 ) -> None:
     _mutate_loaded_file(
         monkeypatch,
         "accuracy-uplift-plan.json",
-        lambda plan: plan["execution_partition"]["forbidden_now"].remove(forbidden),
+        lambda plan: plan["execution_partition"]["forbidden_now"].remove(required_forbidden),
     )
 
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
-    assert "pre-refresh execution partition omits a fail-closed prohibition" in errors
+    assert "refreshed execution partition omits persistent prohibitions" in errors
 
 
 def test_historical_score_is_distinct_from_source_oracle_audit_coverage() -> None:

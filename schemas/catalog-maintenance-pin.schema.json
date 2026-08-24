@@ -66,7 +66,7 @@
       "required": [
         "git_objects_only",
         "surface_ancestor_required",
-        "remote_ref_match_required",
+        "remote_ref_contains_revision_required",
         "tracked_worktree_excluded",
         "untracked_worktree_excluded",
         "archive_execution",
@@ -76,7 +76,7 @@
       "properties": {
         "git_objects_only": {"const": true},
         "surface_ancestor_required": {"const": true},
-        "remote_ref_match_required": {"const": true},
+        "remote_ref_contains_revision_required": {"const": true},
         "tracked_worktree_excluded": {"const": true},
         "untracked_worktree_excluded": {"const": true},
         "archive_execution": {"const": true},

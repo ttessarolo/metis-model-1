@@ -52,7 +52,7 @@ def test_catalog_maintenance_pin_contract_is_exact_and_payload_free() -> None:
         "nonpromotable",
     ]
     assert manifest_sha256(manifest) == (
-        "sha256:f971eafb259326da27106e772b36488d73b7ff1ba5045f1b455f6fd7c167f4de"
+        "sha256:0e3a4d9050f7ee9d6584fb284a0671f0e0eaf398597be29806943d7b6bffa987"
     )
 
 
@@ -83,7 +83,7 @@ def test_catalog_pin_rejects_probe_argv_drift(monkeypatch: pytest.MonkeyPatch) -
     assert "catalog pin probe argv drift for typecheck" in errors
 
 
-def test_live_pin_rejects_stale_live_remote(
+def test_live_pin_rejects_remote_that_does_not_contain_pin(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -95,7 +95,9 @@ def test_live_pin_rejects_stale_live_remote(
         if args[:2] == ("rev-parse", f"{manifest['revision']}^{{tree}}"):
             return manifest["tree"]
         if args[:2] == ("merge-base", "--is-ancestor"):
-            return ""
+            if args[2:] == (manifest["surface_revision"], manifest["revision"]):
+                return ""
+            raise CatalogMaintenancePinError("not an ancestor")
         if args[:2] == ("ls-remote", manifest["remote_url"]):
             assert _repository is None
             return "0" * 40 + "\t" + manifest["remote_ref"]
@@ -103,7 +105,7 @@ def test_live_pin_rejects_stale_live_remote(
 
     monkeypatch.setattr(pin_module, "_run_git", fake_git)
 
-    with pytest.raises(CatalogMaintenancePinError, match="live Metis remote ref differs"):
+    with pytest.raises(CatalogMaintenancePinError, match="does not contain the catalog pin"):
         verify_catalog_maintenance_pin(tmp_path, tmp_path / "node")
 
 

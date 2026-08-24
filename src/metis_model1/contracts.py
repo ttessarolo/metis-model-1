@@ -52,6 +52,10 @@ CONTRACT_PAIRS = (
         "schemas/catalog-maintenance-pin.schema.json",
         "manifests/catalog-maintenance-pin-v1.json",
     ),
+    (
+        "schemas/catalog-retrieval-execution-receipt.schema.json",
+        "manifests/catalog-retrieval-execution-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -94,6 +98,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/accuracy_maintenance.py",
     "src/metis_model1/catalog_maintenance_pin.py",
     "src/metis_model1/catalog_retrieval.py",
+    "src/metis_model1/catalog_retrieval_refresh.py",
     "src/metis_model1/maintenance_decision.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
@@ -122,7 +127,15 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/w1-held-out-family-map-v1.json",
     "manifests/w1-benchmark-seal-v1.json",
     "manifests/catalog-maintenance-pin-v1.json",
+    "manifests/catalog-retrieval-execution-v1.json",
+    "manifests/catalog-retrieval-public-synthetic-v1.json",
     "manifests/accuracy-uplift-plan.json",
+    "fixtures/catalog-maintenance/public-synthetic-v1/metis.toml",
+    "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis",
+    "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/bb-people.metis",
+    "fixtures/catalog-maintenance/public-synthetic-v1/values/aa-list.metis",
+    "fixtures/catalog-maintenance/public-synthetic-v1/values/bb-reflected.metis",
+    "fixtures/catalog-maintenance/public-synthetic-v1/values/cc-editorial.metis",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -177,6 +190,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/w1-benchmark-seal.schema.json",
     "schemas/accuracy-maintenance-roster.schema.json",
     "schemas/catalog-maintenance-pin.schema.json",
+    "schemas/catalog-retrieval-execution-receipt.schema.json",
     "schemas/catalog-retrieval-receipt.schema.json",
     "schemas/accuracy-uplift-plan.schema.json",
     "schemas/f5-migration-fixture.schema.json",
@@ -198,6 +212,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_accuracy_maintenance.py",
     "tests/test_catalog_maintenance_pin.py",
     "tests/test_catalog_retrieval.py",
+    "tests/test_catalog_retrieval_refresh.py",
     "tests/test_accuracy_uplift_plan.py",
     "tests/test_f5_migration.py",
     "tests/test_f6_human_review.py",
@@ -720,22 +735,25 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             and gates["retrieval_contract_refreshed"]
             and gates["semantic_oracle_refreshed"]
         )
-        if not refresh_ready and not pending_forbidden.issubset(
-            plan["execution_partition"]["forbidden_now"]
-        ):
-            errors.append("pre-refresh execution partition omits a fail-closed prohibition")
+        from metis_model1.catalog_retrieval_refresh import (
+            validate_catalog_retrieval_refresh_contract,
+        )
+
+        refresh_contract_errors = validate_catalog_retrieval_refresh_contract(root)
+        if gates["retrieval_contract_refreshed"] != gates["semantic_oracle_refreshed"]:
+            errors.append("retrieval and semantic-oracle refresh gates must move together")
         if (
             gates["retrieval_contract_refreshed"]
             or gates["semantic_oracle_refreshed"]
             or gates["catalog_materialization_allowed"]
-            or catalog["materialization_allowed"]
-            or catalog["oracle_truth_allowed"]
-            or catalog["status"] == "ready_for_materialization"
-        ):
-            errors.append(
-                "Model 1 retrieval/oracle refresh verifier is not integrated; "
-                "refresh and materialization remain fail-closed"
+        ) and refresh_contract_errors:
+            errors.extend(
+                f"catalog retrieval/oracle refresh: {error}" for error in refresh_contract_errors
             )
+        if not refresh_ready and not pending_forbidden.issubset(
+            plan["execution_partition"]["forbidden_now"]
+        ):
+            errors.append("pre-refresh execution partition omits a fail-closed prohibition")
         if pending and (
             gates["retrieval_contract_refreshed"] or gates["semantic_oracle_refreshed"]
         ):
@@ -759,6 +777,23 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             errors.append("catalog oracle truth opened before pin, retrieval and oracle refresh")
         if catalog["status"] == "ready_for_materialization" and not refresh_ready:
             errors.append("catalog-domain status claims readiness before all refresh gates")
+        if refresh_ready:
+            required_allowed = {
+                "catalog_domain_prompt_truth",
+                "catalog_domain_oracle_truth",
+                "catalog_domain_split_materialization",
+            }
+            if not required_allowed.issubset(plan["execution_partition"]["allowed_now"]):
+                errors.append("refreshed execution partition omits catalog construction work")
+            required_forbidden = {
+                "t30_model_outputs_before_complete_seal",
+                "tenant_value_payloads",
+                "training",
+            }
+            if not required_forbidden.issubset(plan["execution_partition"]["forbidden_now"]):
+                errors.append("refreshed execution partition omits persistent prohibitions")
+            if required_allowed.intersection(plan["execution_partition"]["forbidden_now"]):
+                errors.append("refreshed catalog construction remains contradictory")
 
         final_test = wave["final_test"]
         diagnostic = wave["diagnostic"]
@@ -855,6 +890,26 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             }
             if not required_nonclaims.issubset(plan["nonclaims"]):
                 errors.append("implementation-pinned plan omits required refresh nonclaims")
+        if pinned and refresh_ready:
+            if (
+                plan["status"] != "benchmark_construction_active"
+                or gates["active_work"] != "benchmark_materialization"
+            ):
+                errors.append("refreshed plan status or active-work state contains drift")
+            stale_nonclaims = {"no_retrieval_refresh", "no_semantic_oracle_refresh"}
+            if stale_nonclaims.intersection(plan["nonclaims"]):
+                errors.append("refreshed plan retains stale refresh nonclaims")
+            required_nonclaims = {
+                "no_catalog_domain_dataset",
+                "no_tenant_dataset_authority",
+                "no_model_output",
+                "no_previous_adapter",
+                "no_training_authority",
+                "no_accuracy_claim",
+                "nonpromotable",
+            }
+            if not required_nonclaims.issubset(plan["nonclaims"]):
+                errors.append("refreshed plan omits required construction nonclaims")
 
         maintenance = plan["maintenance"]
         if maintenance["default_verdict"] != "NO_INITIAL_TRAIN":
@@ -1669,6 +1724,18 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     else:
         report.passes.append("catalog-maintenance-pin-contract=18-evidence+5-probes-registered")
 
+    from metis_model1.catalog_retrieval_refresh import (
+        validate_catalog_retrieval_refresh_contract,
+    )
+
+    catalog_refresh_errors = validate_catalog_retrieval_refresh_contract(root)
+    if catalog_refresh_errors:
+        report.errors.extend(
+            f"catalog-retrieval-refresh: {error}" for error in catalog_refresh_errors
+        )
+    else:
+        report.passes.append("catalog-retrieval-refresh=public-synthetic/8-goldens/redacted")
+
     from metis_model1.maintenance_decision import (
         build_blocked_maintenance_contract,
         validate_maintenance_decision,
@@ -1686,7 +1753,7 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         report.errors.extend(accuracy_uplift_errors)
     else:
         report.passes.append(
-            "accuracy-uplift=D18/64+16/T30/catalog-implementation-pinned-refresh-pending"
+            "accuracy-uplift=D18/64+16/T30/catalog-refresh-complete-construction-active"
         )
 
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)

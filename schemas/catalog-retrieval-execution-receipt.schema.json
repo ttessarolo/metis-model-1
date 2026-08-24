@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-retrieval-execution-receipt.schema.json",
+  "title": "Public-synthetic catalog retrieval execution receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "authority_scope", "fixture", "upstream", "execution", "queries", "counts", "policy", "nonclaims", "receipt_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"const": "verified_local_cooperative"},
+    "authority_scope": {"const": "public_synthetic_archive_snapshot_only"},
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tenant_id", "manifest_sha256", "files"],
+      "properties": {
+        "id": {"const": "catalog-retrieval/public-synthetic-v1"},
+        "tenant_id": {"const": "model1-public-synthetic"},
+        "manifest_sha256": {"$ref": "#/$defs/hash"},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "bytes", "sha256"],
+            "properties": {
+              "path": {"type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!.*\\.\\.).+$"},
+              "bytes": {"type": "integer", "minimum": 1},
+              "sha256": {"$ref": "#/$defs/hash"}
+            }
+          }
+        }
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pin_id", "revision", "tree", "manifest_sha256", "verification"],
+      "properties": {
+        "pin_id": {"const": "catalog-domain-maintenance/2026-08-24-v1"},
+        "revision": {"const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"},
+        "tree": {"const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"},
+        "manifest_sha256": {"$ref": "#/$defs/hash"},
+        "verification": {"const": "archive_snapshot"}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "sandbox", "values_redacted"],
+      "properties": {
+        "command": {"const": "catalog-domain.ts"},
+        "sandbox": {"const": "deny-write-deny-network"},
+        "values_redacted": {"const": true}
+      }
+    },
+    "queries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "query", "status", "response_sha256", "output_sha256", "output_bytes", "receipt_sha256", "summary"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9-]{1,80}$"},
+          "query": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "catalog", "field"],
+            "properties": {
+              "operation": {"enum": ["describe", "values"]},
+              "catalog": {"type": ["string", "null"]},
+              "field": {"type": ["string", "null"]}
+            }
+          },
+          "status": {"const": "pass"},
+          "response_sha256": {"$ref": "#/$defs/hash"},
+          "output_sha256": {"$ref": "#/$defs/hash"},
+          "output_bytes": {"type": "integer", "minimum": 1},
+          "receipt_sha256": {"$ref": "#/$defs/hash"},
+          "summary": {"$ref": "#/$defs/summary"}
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queries_in", "queries_out", "queries_distinct", "queries_gaps"],
+      "properties": {
+        "queries_in": {"type": "integer", "minimum": 0},
+        "queries_out": {"type": "integer", "minimum": 0},
+        "queries_distinct": {"type": "integer", "minimum": 0},
+        "queries_gaps": {"type": "integer", "minimum": 0}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archive_execution", "network_denied", "writes_denied", "public_synthetic_only", "golden_outputs_pinned", "model_output_observed", "training_authorized"],
+      "properties": {
+        "archive_execution": {"const": true},
+        "network_denied": {"const": true},
+        "writes_denied": {"const": true},
+        "public_synthetic_only": {"const": true},
+        "golden_outputs_pinned": {"const": true},
+        "model_output_observed": {"const": false},
+        "training_authorized": {"const": false}
+      }
+    },
+    "nonclaims": {
+      "const": ["not_same_uid_adversary_resistant", "not_general_untrusted_code_sandbox", "no_external_execution_attestation", "no_model_output", "no_training_authority", "no_accuracy_claim", "nonpromotable"]
+    },
+    "receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "size", "nature", "catalog_count", "field_count", "domain_count", "value_count"],
+      "properties": {
+        "kind": {"enum": ["describe", "none", "inline", "list", "enum", "open"]},
+        "size": {"type": ["integer", "null"], "minimum": 0},
+        "nature": {"enum": ["reflected", "editorial", null]},
+        "catalog_count": {"type": "integer", "minimum": 0},
+        "field_count": {"type": "integer", "minimum": 0},
+        "domain_count": {"type": "integer", "minimum": 0},
+        "value_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

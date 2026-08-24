@@ -1,0 +1,5 @@
+[tenant]
+id = "model1-public-synthetic"
+
+[stdlib]
+language = "0.43"
