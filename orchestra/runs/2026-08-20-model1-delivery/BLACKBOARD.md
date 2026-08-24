@@ -4363,3 +4363,9 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   false. The next lawful transition is exact text preimage commit+non-force
   push, then a generated no-output freeze, independent audit, freeze commit+
   push, and only then the sole successor model invocation.
+- DONE — Successor freeze `ae74a600...` (raw `a1d44751...`) binds published
+  preimage `22d6f6f6667630ef78bf827ca469a827ddcb6c86`, tree `bc9d7819...`,
+  closure inputs `37/37`, tasks `in=8 out=8 distinct=8 gaps=0`, checkpoint
+  weights `3` + auxiliary `12`, fixed output absent, model outputs false and
+  training false. L91/L92/L93 plus L0 independently return P0=0/P1=0; run stays
+  blocked until this exact freeze is committed and published.
