@@ -4613,3 +4613,13 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   inherited Oracle/W3 protected-authority or historical-pin groups, with zero
   INITIAL_LOCAL_QLORA_V1 regression. Exact commit+push remains mandatory before
   freeze-v2 publication.
+- FACT — Freeze-v2 is generated from published preimage
+  `66e4defec937ea86f614ba65fa97b0aae323b687`, tree
+  `0a6e351dd24fd687f1b5a25f6ba4ee640ea3c909`: 14710 bytes, raw SHA-256
+  `987cede470760191f5eede1021be30054fd25cfb227760ae6e1769a86a9ac627`, self
+  `sha256:1b13c303269095f381480478ac09be1df38abf8e1c74a5e3519a11b8d5420069`.
+  L115 and L116 independently return GO on its exact 37-key roster, all 28
+  bound inputs, checkpoint/runtime/network identity, legacy bundle and
+  10-file/487448-byte/zero-checkpoint census. `run-v2`, staging, markers and
+  optimizer state remain absent; strict remote reopen remains required after
+  the exact freeze commit+push and before import.
