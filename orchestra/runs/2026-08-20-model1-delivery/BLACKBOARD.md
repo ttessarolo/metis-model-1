@@ -4523,3 +4523,9 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   one JSON line under 16 KiB, exact schema/value equality and 30-second timeout.
   Real direct-qualification and delegated-project canaries pass; direct
   `runtime-proof` from the project interpreter is rejected.
+- FIX — L110 adversarially proves that newline count alone still admitted
+  leading-newline or trailing-space proof bytes. Before freeze, L0 requires one
+  terminal newline, none in the payload, parses only the payload and then
+  compares stdout byte-for-byte with its canonical JSON serialization. Both
+  whitespace forgeries join the negative matrix; no runtime gate is weakened
+  and no model output or optimizer state exists.

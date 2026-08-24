@@ -394,12 +394,13 @@ def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK)
         completed.returncode != 0
         or completed.stderr
         or len(completed.stdout) > 16 * 1024
-        or completed.stdout.count(b"\n") != 1
+        or not completed.stdout.endswith(b"\n")
+        or b"\n" in completed.stdout[:-1]
     ):
         _fail("qualification runtime proof process failed closed")
     try:
         proof = json.loads(
-            completed.stdout,
+            completed.stdout[:-1],
             parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
         )
     except (UnicodeError, ValueError, json.JSONDecodeError) as exc:
@@ -412,6 +413,9 @@ def _check_runtime(pin_path: Path = RUNTIME_PIN, lock_path: Path = RUNTIME_LOCK)
     }
     if proof != expected:
         _fail("qualification runtime proof does not match the pinned contract")
+    canonical = (json.dumps(proof, allow_nan=False, sort_keys=True) + "\n").encode("utf-8")
+    if completed.stdout != canonical:
+        _fail("qualification runtime proof is not canonical JSON")
     return proof
 
 

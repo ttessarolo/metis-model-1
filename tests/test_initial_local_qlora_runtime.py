@@ -350,6 +350,8 @@ def test_project_coordinator_requires_exact_qualification_runtime_proof(monkeypa
     [
         (1, b"", b"failure"),
         (0, b"{}\n{}\n", b""),
+        (0, b"\n{}", b""),
+        (0, b"{}\n ", b""),
         (0, b"{}\n", b"unexpected"),
         (0, b"x" * (16 * 1024 + 1) + b"\n", b""),
     ],
