@@ -60,6 +60,10 @@ CONTRACT_PAIRS = (
         "schemas/catalog-maintenance-probe.schema.json",
         "manifests/catalog-maintenance-probe-v1.json",
     ),
+    (
+        "schemas/catalog-maintenance-probe-freeze.schema.json",
+        "manifests/catalog-maintenance-probe-freeze-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -135,6 +139,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/catalog-retrieval-execution-v1.json",
     "manifests/catalog-retrieval-public-synthetic-v1.json",
     "manifests/catalog-maintenance-probe-v1.json",
+    "manifests/catalog-maintenance-probe-freeze-v1.json",
     "manifests/accuracy-uplift-plan.json",
     "schemas/catalog-maintenance-probe.schema.json",
     "schemas/catalog-maintenance-probe-freeze.schema.json",
@@ -716,15 +721,77 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
                 errors.append(f"catalog maintenance probe {name} reference is missing")
             elif "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest() != reference["sha256"]:
                 errors.append(f"catalog maintenance probe {name} reference hash contains drift")
-        if probe["status"] != "spec_ready":
-            errors.append("catalog maintenance probe seal/evaluation authority is not wired")
-        if (
-            probe["pre_output_seal"] is not None
-            or probe["evaluation_receipt"] is not None
-            or probe["decision_report"] is not None
-            or probe["model_outputs_observed"] is not False
-        ):
-            errors.append("catalog maintenance probe is not in its fail-closed spec-ready state")
+        probe_status = probe["status"]
+        if probe_status == "spec_ready":
+            if (
+                probe["pre_output_seal"] is not None
+                or probe["evaluation_receipt"] is not None
+                or probe["decision_report"] is not None
+                or probe["model_outputs_observed"] is not False
+            ):
+                errors.append(
+                    "catalog maintenance probe is not in its fail-closed spec-ready state"
+                )
+            if (
+                plan["gates"]["catalog_probe_sealed_pre_output"]
+                or plan["gates"]["catalog_probe_evaluation_allowed"]
+            ):
+                errors.append("catalog probe seal/evaluation gate opened before its verifier")
+        elif probe_status == "sealed_pre_output":
+            seal_reference = probe["pre_output_seal"]
+            if not isinstance(seal_reference, dict):
+                errors.append("sealed catalog probe has no pre-output seal reference")
+            else:
+                seal_path = root / seal_reference["path"]
+                if not seal_path.is_file():
+                    errors.append("catalog probe pre-output seal is missing")
+                else:
+                    seal_raw = seal_path.read_bytes()
+                    if "sha256:" + hashlib.sha256(seal_raw).hexdigest() != seal_reference["sha256"]:
+                        errors.append("catalog probe pre-output seal raw hash contains drift")
+                    seal = load_json(seal_path)
+                    freeze_schema = load_json(
+                        root / "schemas/catalog-maintenance-probe-freeze.schema.json"
+                    )
+                    errors.extend(
+                        f"catalog probe pre-output seal schema: {error}"
+                        for error in validate_instance(seal, freeze_schema)
+                    )
+                    seal_body = {
+                        key: value for key, value in seal.items() if key != "freeze_sha256"
+                    }
+                    seal_canonical = json.dumps(
+                        seal_body,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    if (
+                        seal.get("freeze_sha256")
+                        != "sha256:" + hashlib.sha256(seal_canonical).hexdigest()
+                    ):
+                        errors.append("catalog probe pre-output seal self-hash contains drift")
+                    if (
+                        seal.get("status") != "frozen_before_model_output"
+                        or seal.get("model_outputs_observed") is not False
+                        or seal.get("training_authorized") is not False
+                        or seal.get("counts")
+                        != {"cases_in": 8, "cases_out": 8, "cases_distinct": 8, "gaps": 0}
+                    ):
+                        errors.append("catalog probe pre-output seal is not fail-closed at 8/8")
+            if (
+                probe["evaluation_receipt"] is not None
+                or probe["decision_report"] is not None
+                or probe["model_outputs_observed"] is not False
+            ):
+                errors.append("sealed catalog probe contains premature evaluation evidence")
+            if not (
+                plan["gates"]["catalog_probe_sealed_pre_output"]
+                and plan["gates"]["catalog_probe_evaluation_allowed"]
+            ):
+                errors.append("sealed catalog probe did not open its bounded evaluation gate")
+        else:
+            errors.append("catalog maintenance probe evaluated state is not yet wired")
         if probe["case_count"] != 8:
             errors.append("catalog maintenance probe case count is not 8")
         if (
@@ -732,12 +799,6 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             != "catalog_maintenance_probe_only"
         ):
             errors.append("catalog value-domain materialization scope is broader than the probe")
-        if (
-            plan["gates"]["catalog_probe_sealed_pre_output"]
-            or plan["gates"]["catalog_probe_evaluation_allowed"]
-        ):
-            errors.append("catalog probe seal/evaluation gate opened before its verifier")
-
         register = load_json(root / "manifests/decision-register.json")
         decisions = [item for item in register["open_decisions"] if item.get("id") == "O-010"]
         if (
@@ -924,16 +985,21 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
                 "catalog_domain_prompt_truth",
                 "catalog_domain_oracle_truth",
                 "catalog_probe_spec_and_oracle_truth",
-                "catalog_probe_pre_output_seal",
             }
+            required_allowed.add(
+                "catalog_probe_pre_output_seal"
+                if probe_status == "spec_ready"
+                else "catalog_probe_evaluation"
+            )
             if not required_allowed.issubset(plan["execution_partition"]["allowed_now"]):
                 errors.append("refreshed execution partition omits catalog construction work")
             required_forbidden = {
                 "t30_model_outputs_before_complete_seal",
                 "tenant_value_payloads",
                 "training",
-                "catalog_probe_model_outputs_before_probe_seal",
             }
+            if probe_status == "spec_ready":
+                required_forbidden.add("catalog_probe_model_outputs_before_probe_seal")
             if not required_forbidden.issubset(plan["execution_partition"]["forbidden_now"]):
                 errors.append("refreshed execution partition omits persistent prohibitions")
             if required_allowed.intersection(plan["execution_partition"]["forbidden_now"]):
@@ -1036,9 +1102,14 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
             if not required_nonclaims.issubset(plan["nonclaims"]):
                 errors.append("implementation-pinned plan omits required refresh nonclaims")
         if pinned and refresh_ready:
+            expected_active_work = (
+                "catalog_probe_pre_output_seal"
+                if probe_status == "spec_ready"
+                else "maintenance_evaluation"
+            )
             if (
                 plan["status"] != "benchmark_construction_active"
-                or gates["active_work"] != "catalog_probe_pre_output_seal"
+                or gates["active_work"] != expected_active_work
             ):
                 errors.append("refreshed plan status or active-work state contains drift")
             stale_nonclaims = {"no_retrieval_refresh", "no_semantic_oracle_refresh"}
@@ -1887,7 +1958,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             f"catalog-maintenance-probe: {error}" for error in catalog_probe_errors
         )
     else:
-        report.passes.append("catalog-maintenance-probe=8-cases/spec-ready/no-output")
+        probe_plan = load_json(root / "manifests/accuracy-uplift-plan.json")[
+            "catalog_maintenance_probe"
+        ]
+        report.passes.append(
+            f"catalog-maintenance-probe=8-cases/{probe_plan['status'].replace('_', '-')}/no-output"
+        )
 
     from metis_model1.maintenance_decision import (
         build_blocked_maintenance_contract,

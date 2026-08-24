@@ -119,6 +119,7 @@
               "catalog_domain_oracle_truth",
               "catalog_probe_spec_and_oracle_truth",
               "catalog_probe_pre_output_seal",
+              "catalog_probe_evaluation",
               "upstream_read_only_pin_monitoring"
             ]
           }

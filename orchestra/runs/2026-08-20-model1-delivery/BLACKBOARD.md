@@ -4265,3 +4265,13 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   and hashes a worker sandbox policy that denies network, every checkpoint
   write and every `.cache` read. Independent replay returns P0=0/P1=0; probe
   tests are `19/19`, checkpoint identity is `3+12`, and no model output exists.
+- DONE — The pre-output freeze is generated from exact published preimage
+  `cb146990d51b3681ae44e2edefe5fcdc909da882`, tree `b3da6115...`; canonical
+  seal `95d19cf8...`, raw file `df837230...`, bound inputs `27/27`, tasks
+  `8/8`, checkpoint `3+12`, gaps zero, model outputs false and training false.
+  Two independent audits plus L0 recomputation return P0=0/P1=0.
+- DECISION — The separate probe gate advances to `sealed_pre_output`; only its
+  bounded evaluation is allowed. Global D18/T30 evaluation and training gates
+  remain false. Focused sealed-state tests are `73/73` and foundation is
+  `57` passes with zero errors; inference still waits for this seal commit to
+  be published byte-for-byte.
