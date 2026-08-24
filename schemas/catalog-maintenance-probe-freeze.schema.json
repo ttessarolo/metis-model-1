@@ -45,20 +45,22 @@
         "kind": {"const": "enum"}, "size": {"const": 1}, "nature": {"const": "editorial"}, "value": {"const": "Curated"}, "receipt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
       }}
     }},
-    "checkpoint": {"type": "object", "additionalProperties": false, "required": ["path", "report_sha256", "config_sha256", "config_bytes", "weights", "auxiliary_files", "revision"], "properties": {
+    "checkpoint": {"type": "object", "additionalProperties": false, "required": ["path", "report_sha256", "config_sha256", "config_bytes", "weights", "auxiliary_files", "excluded_nonpayload_paths", "revision"], "properties": {
       "path": {"type": "string", "minLength": 1},
       "report_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
       "config_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
       "config_bytes": {"type": "integer", "minimum": 1},
       "weights": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/checkpoint_file"}},
       "auxiliary_files": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/checkpoint_file"}},
+      "excluded_nonpayload_paths": {"const": [".cache"]},
       "revision": {"const": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff"}
     }},
-    "runtime": {"type": "object", "additionalProperties": false, "required": ["probe_runner", "worker_script", "worker_python", "checkpoint_report"], "properties": {
+    "runtime": {"type": "object", "additionalProperties": false, "required": ["probe_runner", "worker_script", "worker_python", "checkpoint_report", "sandbox_policy_sha256"], "properties": {
       "probe_runner": {"$ref": "#/$defs/file_identity"},
       "worker_script": {"$ref": "#/$defs/file_identity"},
       "worker_python": {"$ref": "#/$defs/file_identity"},
-      "checkpoint_report": {"$ref": "#/$defs/file_identity"}
+      "checkpoint_report": {"$ref": "#/$defs/file_identity"},
+      "sandbox_policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
     }},
     "model": {"type": "object", "additionalProperties": false, "required": ["family", "adapter_enabled", "temperature", "seed", "max_tokens", "max_repair_cycles"], "properties": {
       "family": {"const": "Qwen3.8"}, "adapter_enabled": {"const": false}, "temperature": {"const": 0}, "seed": {"const": 17}, "max_tokens": {"const": 512}, "max_repair_cycles": {"const": 2}

@@ -59,7 +59,7 @@ RETRIEVAL_MANIFEST_SHA256 = (
 )
 RETRIEVAL_RECEIPT_SHA256 = "sha256:dd5a2b3046842dba35bffd06111882caafe52c66d80bd1f0d3b7c3a7d911ea5b"
 RETRIEVAL_SCHEMA_SHA256 = "sha256:22d90adf2ad28eaaf81285dccbd29058311573c1e8dd71bac4fd3c2edf0e8046"
-FREEZE_SCHEMA_SHA256 = "sha256:d8af2c05676baabba797db91599408ae0ddaf5cee75e71fcfc9b5dd8dbd5515b"
+FREEZE_SCHEMA_SHA256 = "sha256:f6d2f8c5827551cf70cf1c936bfd0f8a900aca41c00ef835900c4d4f9ee505b3"
 PROBE_MANIFEST_FILE_SHA256 = (
     "sha256:f9b53a7868e07155153052cd80e936e6c7dadea4a0afb71f3898f7aa00be4046"
 )
@@ -455,9 +455,17 @@ def _checkpoint_identity(model_path: Path, report_path: Path) -> dict[str, Any]:
         raise CatalogMaintenanceProbeError("checkpoint path is not a directory")
     if Path(str(report.get("checkpoint_path", ""))).resolve() != model:
         raise CatalogMaintenanceProbeError("checkpoint report does not bind model path")
-    entries = sorted(model.iterdir(), key=lambda item: item.name)
-    if not entries or any(entry.is_symlink() or not entry.is_file() for entry in entries):
-        raise CatalogMaintenanceProbeError("checkpoint must contain direct regular files only")
+    all_entries = sorted(model.iterdir(), key=lambda item: item.name)
+    if not all_entries or any(entry.is_symlink() for entry in all_entries):
+        raise CatalogMaintenanceProbeError("checkpoint contains a symlink or is empty")
+    directories = [entry for entry in all_entries if entry.is_dir()]
+    if [entry.name for entry in directories] != [".cache"]:
+        raise CatalogMaintenanceProbeError(
+            "checkpoint directories differ from the excluded download cache"
+        )
+    entries = [entry for entry in all_entries if entry.name != ".cache"]
+    if not entries or any(not entry.is_file() for entry in entries):
+        raise CatalogMaintenanceProbeError("checkpoint payload must be direct regular files")
     names = {entry.name for entry in entries}
     weights: list[dict[str, Any]] = []
     reported_weight_names: set[str] = set()
@@ -494,6 +502,7 @@ def _checkpoint_identity(model_path: Path, report_path: Path) -> dict[str, Any]:
         "config_bytes": config["bytes"],
         "weights": weights,
         "auxiliary_files": auxiliary_files,
+        "excluded_nonpayload_paths": [".cache"],
         "revision": CHECKPOINT_REVISION,
     }
 
@@ -502,11 +511,20 @@ def _require_checkpoint_metadata_unchanged(checkpoint: Mapping[str, Any]) -> Non
     """Detect any checkpoint mutation after the pre-run full hash and model load."""
 
     model = Path(str(checkpoint["path"])).resolve(strict=True)
+    excluded = checkpoint.get("excluded_nonpayload_paths")
+    if excluded != [".cache"]:
+        raise CatalogMaintenanceProbeError("checkpoint cache exclusion contract changed")
+    cache = model / ".cache"
+    if cache.is_symlink() or not cache.is_dir():
+        raise CatalogMaintenanceProbeError("checkpoint excluded cache path changed type")
     expected = {
         record["path"]: record
         for record in [*checkpoint["weights"], *checkpoint["auxiliary_files"]]
     }
-    entries = sorted(model.iterdir(), key=lambda item: item.name)
+    entries = sorted(
+        (entry for entry in model.iterdir() if entry.name != ".cache"),
+        key=lambda item: item.name,
+    )
     if {entry.name for entry in entries} != set(expected):
         raise CatalogMaintenanceProbeError("checkpoint file roster changed after verification")
     for entry in entries:
@@ -525,6 +543,20 @@ def _require_checkpoint_metadata_unchanged(checkpoint: Mapping[str, Any]) -> Non
             raise CatalogMaintenanceProbeError(
                 f"checkpoint changed after verification: {entry.name}"
             )
+
+
+def _worker_sandbox_policy(checkpoint_path: Path) -> str:
+    root = checkpoint_path.resolve(strict=True)
+    cache = root / ".cache"
+    return " ".join(
+        (
+            "(version 1)",
+            "(allow default)",
+            "(deny network*)",
+            f"(deny file-write* (subpath {json.dumps(str(root))}))",
+            f"(deny file-read* (subpath {json.dumps(str(cache))}))",
+        )
+    )
 
 
 def _describe_normalized(parsed: Mapping[str, Any]) -> dict[str, Any]:
@@ -793,11 +825,13 @@ def _freeze_body(args: argparse.Namespace) -> dict[str, Any]:
     pin_report = pin.verify_catalog_maintenance_pin(Path(args.metis_root), node_path)
     retrieval_manifest, retrieval_receipt, pin_manifest = _retrieval_contract()
     checkpoint = _checkpoint_identity(Path(args.model_path), Path(args.checkpoint_report))
+    sandbox_policy = _worker_sandbox_policy(Path(checkpoint["path"]))
     runtime = {
         "probe_runner": _runtime_identity(Path(__file__), "probe runner"),
         "worker_script": _runtime_identity(Path(args.worker_script), "worker script"),
         "worker_python": _runtime_identity(Path(args.worker_python), "worker Python"),
         "checkpoint_report": _runtime_identity(Path(args.checkpoint_report), "checkpoint report"),
+        "sandbox_policy_sha256": raw_hash(sandbox_policy.encode("utf-8")),
     }
     retrieval_value = _retrieval_curated(Path(args.metis_root), node_path)
     tasks: list[dict[str, Any]] = []
@@ -1005,11 +1039,13 @@ def run(args: argparse.Namespace) -> int:
     checkpoint = _checkpoint_identity(Path(args.model_path), Path(args.checkpoint_report))
     if checkpoint != freeze["checkpoint"]:
         raise CatalogMaintenanceProbeError("checkpoint identity changed after freeze")
+    sandbox_policy = _worker_sandbox_policy(Path(checkpoint["path"]))
     runtime = {
         "probe_runner": _runtime_identity(Path(__file__), "probe runner"),
         "worker_script": _runtime_identity(Path(args.worker_script), "worker script"),
         "worker_python": _runtime_identity(Path(args.worker_python), "worker Python"),
         "checkpoint_report": _runtime_identity(Path(args.checkpoint_report), "checkpoint report"),
+        "sandbox_policy_sha256": raw_hash(sandbox_policy.encode("utf-8")),
     }
     if runtime != freeze["runtime"]:
         raise CatalogMaintenanceProbeError("runtime identity changed after freeze")
@@ -1092,7 +1128,7 @@ def run(args: argparse.Namespace) -> int:
     command = [
         "/usr/bin/sandbox-exec",
         "-p",
-        "(version 1) (allow default) (deny network*)",
+        sandbox_policy,
         str(worker_python),
         str(worker_script),
         "--model-path",

@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from metis_model1.catalog_maintenance_probe import (
     CatalogMaintenanceProbeError,
     _extract_source,
     _safe_checkpoint_weight_name,
+    _worker_sandbox_policy,
     build_prompt,
     canonical_hash,
     gate_arithmetic,
     load_probe_contract,
     score_candidate,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_probe_manifest_and_cases_are_eight_distinct_sealed_inputs() -> None:
@@ -178,6 +183,14 @@ def test_source_extraction_accepts_plain_source_without_wrapper_text() -> None:
 def test_checkpoint_weight_paths_must_be_direct_children(value: str) -> None:
     with pytest.raises(CatalogMaintenanceProbeError, match="escapes the checkpoint"):
         _safe_checkpoint_weight_name(value)
+
+
+def test_worker_sandbox_denies_network_cache_reads_and_checkpoint_writes() -> None:
+    policy = _worker_sandbox_policy(ROOT / "artifacts/w4/2026-08-20-qualification/checkpoint")
+    assert "(deny network*)" in policy
+    assert "(deny file-write*" in policy
+    assert "(deny file-read*" in policy
+    assert 'checkpoint/.cache"' in policy
 
 
 def test_freeze_seal_tamper_is_detectable() -> None:

@@ -4257,3 +4257,11 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   (`tests/test_oracles.py=31`, `tests/test_w3_bridge_gate.py=25`,
   `tests/test_w3_qualifier.py=46`); probe/retrieval/plan tests do not regress.
   No repository-wide green or production-qualification claim is made.
+- STOP — First no-output freeze attempt fails closed before writing a seal or
+  starting the worker because the checkpoint contains Hugging Face download
+  metadata under `.cache/`, while the initial roster admitted direct files only.
+- FIX — The checkpoint contract now hashes the exact three shards plus all 12
+  direct auxiliary model files, declares only `.cache` as excluded nonpayload,
+  and hashes a worker sandbox policy that denies network, every checkpoint
+  write and every `.cache` read. Independent replay returns P0=0/P1=0; probe
+  tests are `19/19`, checkpoint identity is `3+12`, and no model output exists.
