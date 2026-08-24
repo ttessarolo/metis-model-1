@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-probe-evaluation.schema.json",
+  "title": "Redacted catalog maintenance probe evaluation receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "authority_scope", "execution", "roster", "counts", "veto_counts", "model", "policy", "nonclaims", "evaluation_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"const": "verified_local_cooperative"},
+    "authority_scope": {"const": "public_synthetic_probe_execution_only"},
+    "execution": {"$ref": "#/$defs/execution"},
+    "roster": {"$ref": "#/$defs/roster"},
+    "counts": {"$ref": "#/$defs/counts"},
+    "veto_counts": {"$ref": "#/$defs/vetoCounts"},
+    "model": {"type": "object", "additionalProperties": false, "required": ["family", "adapter_enabled", "temperature", "seed"], "properties": {"family": {"const": "Qwen3.8"}, "adapter_enabled": {"const": false}, "temperature": {"const": 0}, "seed": {"const": 17}}},
+    "policy": {"type": "object", "additionalProperties": false, "required": ["verdict", "failure_action", "training_authorized", "promotion_claim", "accuracy_claim"], "properties": {"verdict": {"const": "DIAGNOSE"}, "failure_action": {"const": "diagnostic_only"}, "training_authorized": {"const": false}, "promotion_claim": {"const": false}, "accuracy_claim": {"const": false}}},
+    "nonclaims": {"const": ["no_accuracy_claim", "no_promotion_claim", "no_training_authority", "no_tenant_dataset_authority", "no_independent_accuracy_denominator"]},
+    "evaluation_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "execution": {"type": "object", "additionalProperties": false, "required": ["head", "tree", "preimage_commit", "preimage_tree", "freeze_sha256", "freeze_raw_sha256", "report_sha256", "stderr_sha256", "run_dir"], "properties": {"head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "preimage_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "preimage_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "freeze_sha256": {"$ref": "#/$defs/hash"}, "freeze_raw_sha256": {"$ref": "#/$defs/hash"}, "report_sha256": {"$ref": "#/$defs/hash"}, "stderr_sha256": {"$ref": "#/$defs/hash"}, "run_dir": {"const": "artifacts/catalog-maintenance-probe-v1"}}},
+    "score": {"type": "object", "additionalProperties": false, "required": ["semantic_correct", "critical_failure", "invented_values", "legacy_inline", "retrieval_error", "skeleton_match"], "properties": {"semantic_correct": {"enum": [0, 1]}, "critical_failure": {"enum": [0, 1]}, "invented_values": {"enum": [0, 1]}, "legacy_inline": {"enum": [0, 1]}, "retrieval_error": {"enum": [0, 1]}, "skeleton_match": {"enum": [false, true]}}},
+    "case": {"type": "object", "additionalProperties": false, "required": ["case_id", "root_id", "attempts", "attempt_text_hashes_distinct", "attempts_file_sha256", "final_score", "failure_codes"], "properties": {"case_id": {"type": "string"}, "root_id": {"type": "string"}, "attempts": {"type": "integer", "minimum": 1, "maximum": 3}, "attempt_text_hashes_distinct": {"type": "integer", "minimum": 1, "maximum": 3}, "attempts_file_sha256": {"$ref": "#/$defs/hash"}, "final_score": {"$ref": "#/$defs/score"}, "failure_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}}},
+    "roster": {"type": "object", "additionalProperties": false, "required": ["cases_in", "cases_out", "cases_distinct", "gaps", "cases"], "properties": {"cases_in": {"const": 8}, "cases_out": {"const": 8}, "cases_distinct": {"const": 8}, "gaps": {"const": 0}, "cases": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"$ref": "#/$defs/case"}}}},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["cases_in", "cases_out", "cases_distinct", "gaps", "semantic_correct", "critical_failure", "invented_values", "legacy_inline", "retrieval_error", "skeleton_match"], "properties": {"cases_in": {"const": 8}, "cases_out": {"const": 8}, "cases_distinct": {"const": 8}, "gaps": {"const": 0}, "semantic_correct": {"const": 2}, "critical_failure": {"const": 6}, "invented_values": {"const": 0}, "legacy_inline": {"const": 0}, "retrieval_error": {"const": 6}, "skeleton_match": {"const": 2}}},
+    "vetoCounts": {"type": "object", "additionalProperties": false, "required": ["critical_failure", "invented_values", "legacy_inline", "retrieval_error"], "properties": {"critical_failure": {"const": 6}, "invented_values": {"const": 0}, "legacy_inline": {"const": 0}, "retrieval_error": {"const": 6}}}
+  }
+}

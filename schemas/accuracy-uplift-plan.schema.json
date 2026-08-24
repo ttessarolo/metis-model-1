@@ -31,7 +31,8 @@
         "pin_refresh_active",
         "retrieval_refresh_active",
         "benchmark_construction_active",
-        "benchmark_sealed"
+        "benchmark_sealed",
+        "maintenance_diagnosed"
       ]
     },
     "decision_ref": { "const": "O-010" },
@@ -135,7 +136,8 @@
               "t30_model_outputs_before_complete_seal",
               "tenant_value_payloads",
               "training",
-              "catalog_probe_model_outputs_before_probe_seal"
+              "catalog_probe_model_outputs_before_probe_seal",
+              "catalog_probe_additional_model_outputs"
             ]
           }
         }
@@ -162,6 +164,7 @@
           "no_catalog_domain_dataset",
           "no_tenant_dataset_authority",
           "no_model_output",
+          "no_broad_model_output",
           "no_previous_adapter",
           "no_training_authority",
           "no_accuracy_claim",
@@ -719,6 +722,7 @@
             "benchmark_materialization",
             "catalog_probe_pre_output_seal",
             "maintenance_evaluation",
+            "catalog_probe_diagnosis_complete",
             "conditional_delta_training"
           ]
         }

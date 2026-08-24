@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-probe-decision.schema.json",
+  "title": "Redacted catalog maintenance probe decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "authority_scope", "evaluation_receipt_sha256", "freeze_sha256", "execution_head", "execution_tree", "result", "delta_qlora", "training_authorized", "auto_qlora_authorized", "promotion_claim", "accuracy_claim", "nonclaims", "decision_sha256"],
+  "properties": {
+    "schema_version": {"const": 1}, "status": {"const": "DIAGNOSE"}, "authority_scope": {"const": "public_synthetic_probe_execution_only"},
+    "evaluation_receipt_sha256": {"$ref": "#/$defs/hash"}, "freeze_sha256": {"$ref": "#/$defs/hash"}, "execution_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "execution_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "result": {"type": "object", "additionalProperties": false, "required": ["cases", "semantic_correct", "critical_failure", "invented_values", "legacy_inline", "retrieval_error"], "properties": {"cases": {"const": 8}, "semantic_correct": {"const": 2}, "critical_failure": {"const": 6}, "invented_values": {"const": 0}, "legacy_inline": {"const": 0}, "retrieval_error": {"const": 6}}},
+    "delta_qlora": {"type": "object", "additionalProperties": false, "required": ["eligible", "compatible_failures", "distinct_roots", "reason"], "properties": {"eligible": {"const": false}, "compatible_failures": {"const": 0}, "distinct_roots": {"const": 0}, "reason": {"const": "all observed failures are critical or retrieval failures"}}},
+    "training_authorized": {"const": false}, "auto_qlora_authorized": {"const": false}, "promotion_claim": {"const": false}, "accuracy_claim": {"const": false},
+    "nonclaims": {"const": ["no_accuracy_claim", "no_promotion_claim", "no_training_authority", "no_tenant_dataset_authority", "no_independent_accuracy_denominator"]},
+    "decision_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+}

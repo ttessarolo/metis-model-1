@@ -1,11 +1,10 @@
 # Accuracy uplift: catalog-domain maintenance contract
 
-Status: **RETRIEVAL + ORACLE REFRESH COMPLETE — benchmark construction active**.
+Status: **MAINTENANCE PROBE COMPLETE — DIAGNOSE 2/8 — TRAINING CLOSED**.
 
-This document narrows the current accuracy wave without stopping the work that
-does not depend on the incoming catalog grammar.  It is forward-looking: the
-historical 0.43 benchmark, W1 sidecars, and the delivered B12-v4 evidence remain
-immutable.
+This document records the completed bounded catalog-grammar maintenance probe.
+The historical 0.43 benchmark, W1 sidecars, and delivered B12-v4 evidence
+remain immutable.
 
 ## 1. Boundary being changed
 
@@ -57,25 +56,23 @@ wave and is not on the current critical path:
 - implement and verify the Model 1 adapter for the pinned offline
   `catalog:describe` / `catalog:values` contract.
 
-The only active work is now evaluation of the sealed probe for the pinned
-public-synthetic lineage:
-
-- catalog-domain prompt or expected-output truth;
-- catalog-domain oracle truth;
-- the exact Git-sealed separate eight-case probe evaluation.
+No further model output or training work is active in this wave. The pinned
+public-synthetic catalog truth, oracle and exact Git-sealed eight-case probe
+have all completed.
 
 Catalog truth derived from prose alone remains forbidden. Tenant payloads and
 live-index values remain outside the dataset and outside this authorization.
 
-The eight-case probe is non-statistical and non-promotional. Its result is a
-maintenance diagnostic only: `8/8` semantic passes support `NO_RETRAIN` for
-this grammar change, while failures identify repair work and never
-auto-authorize training. The first freeze was revoked after the worker launcher
-resolved away its virtualenv and stopped before model load. The replacement
-freeze binds the virtualenv launcher, target, exact Python/MLX/MLX-VLM versions
-and the sole fixed ignored run directory. It records zero model outputs and
-grants one fail-closed evaluation of the sealed roster. The broad D18/T30 wave
-remains unmaterialized and output-forbidden.
+The eight-case probe is non-statistical and non-promotional. It completed at
+`2/8`, so the outcome is `DIAGNOSE`, not `NO_RETRAIN`. The two first-attempt
+passes are `edit-invalid-open-inline` and `repair-unsynchronized-enum`. Five
+authoring cases emitted incomplete pseudo-grammar without the `metis 0.43`
+header; `edit-inline4-to-enum4` emitted `enum(4)` without the required
+`keyword`. All six failures repeated the same text across three attempts.
+Independent replay found no harness, retrieval or partial-run failure. The
+redacted receipt and decision bind the ignored raw artifacts without tracking
+model text. Training, promotion and accuracy claims remain false, and the broad
+D18/T30 wave remains unmaterialized and output-forbidden.
 
 ## 3. Frozen wave arithmetic
 
@@ -130,12 +127,13 @@ unsynchronized enum, open and none. The fixed fixture manifest is
 `manifests/catalog-retrieval-execution-v1.json`. Both validate against pinned
 raw digests and exact output summaries/hashes. This is sufficient to open the
 separate probe specification for this synthetic lineage; it is not tenant or
-production authority. The prior run stopped at Python import before model
-load, emitted no inference output and invalidated its freeze. The replacement
-Git pre-output seal now binds the cured runtime and single fixed evaluation
-directory. The next state transition is the one bounded evaluation of that
-sealed roster. D18/T30 construction remains deferred and old benchmark and
-delivery evidence remain historical and unchanged.
+production authority. An initial attempt stopped at Python import before model
+load and emitted no inference output. The replacement Git pre-output seal bound
+the cured runtime and single fixed evaluation directory; the completed run is
+recorded by `manifests/catalog-maintenance-probe-evaluation-v1.json` and
+`manifests/catalog-maintenance-probe-decision-v1.json`. D18/T30 construction
+remains deferred and old benchmark and delivery evidence remain historical and
+unchanged.
 
 ## 5. Model decision path
 
@@ -155,6 +153,12 @@ The ratified O-010 order is mandatory:
    still requires its own explicit authorization and the preregistered
    three-failures/two-roots condition.
 
+The observed outcome fails the `NO_RETRAIN` gate. All six failures are critical
+parse/extraction failures, so compatible failures and compatible roots are both
+zero under the preregistered policy. `delta_qlora_eligible=false` and
+`training_authorized=false`; a new explicit wave must first decide whether to
+change the prompt/retrieval surface or authorize a separately gated delta.
+
 The broad D18/T30 tasks, truth, oracle/retrieval receipts, provenance and
 genealogy remain unmaterialized and cannot produce model output in this
 maintenance wave. Counters and status flags alone never constitute a seal.
@@ -170,8 +174,8 @@ delta still fails the semantic or replay gates.
 This planning contract records an executable upstream implementation pin plus
 a locally replayed, value-redacted public-synthetic retrieval/oracle refresh.
 The separate probe is not a tenant dataset and has no statistical or
-promotional authority. Its replacement freeze records zero model outputs and
-permits the single fixed-directory evaluation; the broad D18/T30 benchmark
-remains unmaterialized. This is not tenant dataset authority, training
-authorization, an accuracy claim, external execution attestation, or a
-promotion verdict.
+promotional authority. Model output was observed only for its fixed eight-case
+diagnostic; no additional probe output is authorized and the broad D18/T30
+benchmark remains unmaterialized. This is not tenant dataset authority,
+training authorization, an overall accuracy claim, external execution
+attestation, or a promotion verdict.

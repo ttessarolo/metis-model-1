@@ -4311,3 +4311,36 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - DECISION — The seal opens only this fixed-directory public-synthetic probe
   evaluation. Broad D18/T30 output, tenant payload, dataset, training and
   promotion remain false; run remains blocked until exact seal commit is remote.
+- DONE — The single sealed Qwen3.8 adapter-off run completes
+  `in=8 out=8 distinct=8 gaps=0`, report `82edcd28...`, stderr zero bytes. Gate
+  arithmetic independently recomputes `semantic_correct=2`,
+  `critical_failure=6`, `retrieval_error=6`, `invented_values=0`,
+  `legacy_inline=0`; verdict is `DIAGNOSE`, never `NO_RETRAIN`, and training is
+  false. There is no technical partial or second run.
+- FACT — The two first-attempt passes are `edit-invalid-open-inline` and
+  `repair-unsynchronized-enum`. Five authoring failures omit the `metis 0.43`
+  header and emit pseudo-grammar; the enum edit omits `keyword`. All six failed
+  cases repeat one identical text across three attempts. Independent semantic
+  audit finds no retrieval outage or harness false negative; the raw
+  `retrieval_error=6` counter represents five extraction failures and one
+  compiler/oracle rejection.
+- DONE — Tracked redacted evaluation `f23922fa...` (raw `8b712853...`) and
+  decision `eab5a409...` (raw `eaf04ab5...`) bind the freeze, execution
+  HEAD/tree, exact ten-file ignored artifact roster, eight attempt-file hashes,
+  per-case scores and counts without storing prompt or model text. Rehashed
+  roster/count/decision laundering and any extra run output fail closed.
+- DECISION — The plan advances to `maintenance_diagnosed`: probe output is
+  recorded, additional probe output is forbidden, D18/T30 stay materialized0,
+  compatible failures/roots are `0/0`, delta QLoRA is not eligible, and
+  training/promotion/accuracy remain false. The bounded grammar-maintenance
+  wave is closed; any prompt/retrieval cure or delta-retune requires a new
+  explicit wave decision.
+- RISK — Repository-wide `make check` after the evaluated-state integration is
+  foundation `59/0`, pilot/lint/format green and pytest
+  `1138 passed, 102 failed, 1 skipped` in `407.77s`. The 102 remain the exact
+  inherited protected groups (`oracles=31`, `w3_bridge_gate=25`,
+  `w3_qualifier=46`); the new evidence/plan/probe tests are green. The final
+  exact-tree census cure then passes focused `84/84` and foundation `59/0`.
+- FACT — No fine-tuned adapter exists: the observed run used the external
+  ~16.05 GB Qwen3.8 base checkpoint with adapter disabled. There is therefore
+  no Model 1 fine-tuning payload to upload to S3 in this closed wave.

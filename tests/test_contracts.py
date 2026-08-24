@@ -39,8 +39,13 @@ def test_repository_foundation_is_valid() -> None:
     assert "contract=manifests/w1-leakage-group-assignment-v1.json" in report.passes
     assert "contract=manifests/w1-held-out-family-map-v1.json" in report.passes
     assert "contract=manifests/w1-benchmark-seal-v1.json" in report.passes
+    assert "contract=manifests/catalog-maintenance-probe-evaluation-v1.json" in report.passes
+    assert "contract=manifests/catalog-maintenance-probe-decision-v1.json" in report.passes
     assert "catalog-retrieval-refresh=public-synthetic/8-goldens/redacted" in report.passes
-    assert "catalog-maintenance-probe=8-cases/sealed-pre-output/no-output" in report.passes
+    assert (
+        "catalog-maintenance-probe=8-cases/evaluated/diagnose-2-of-8/output-observed"
+        in report.passes
+    )
     assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave

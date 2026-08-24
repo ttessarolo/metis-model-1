@@ -66,40 +66,37 @@ def test_accuracy_uplift_plan_is_green_and_implementation_pinned() -> None:
     assert plan["gates"]["upstream_pin_complete"] is True
     assert plan["gates"]["retrieval_contract_refreshed"] is True
     assert plan["gates"]["semantic_oracle_refreshed"] is True
-    assert plan["status"] == "benchmark_construction_active"
-    assert plan["gates"]["active_work"] == "maintenance_evaluation"
+    assert plan["status"] == "maintenance_diagnosed"
+    assert plan["gates"]["active_work"] == "catalog_probe_diagnosis_complete"
     assert plan["catalog_value_domain"]["materialization_allowed"] is True
     assert plan["catalog_value_domain"]["materialization_scope"] == "catalog_maintenance_probe_only"
-    assert plan["catalog_maintenance_probe"]["status"] == "sealed_pre_output"
+    assert plan["catalog_maintenance_probe"]["status"] == "evaluated"
     assert plan["catalog_maintenance_probe"]["case_count"] == 8
     assert plan["catalog_maintenance_probe"]["pre_output_seal"] == {
         "path": "manifests/catalog-maintenance-probe-freeze-v1.json",
         "sha256": "sha256:d9b0c4c815cfaf61c4e1c35f8060e63696fefee75157f4a7ebf306606f7afe75",
     }
-    assert plan["catalog_maintenance_probe"]["evaluation_receipt"] is None
-    assert plan["catalog_maintenance_probe"]["decision_report"] is None
-    assert plan["catalog_maintenance_probe"]["model_outputs_observed"] is False
+    assert plan["catalog_maintenance_probe"]["evaluation_receipt"] == {
+        "path": "manifests/catalog-maintenance-probe-evaluation-v1.json",
+        "sha256": "sha256:8b712853400c4b06e702250a937ef93f8fcfaeb7d108055a014d5dd9d8389038",
+    }
+    assert plan["catalog_maintenance_probe"]["decision_report"] == {
+        "path": "manifests/catalog-maintenance-probe-decision-v1.json",
+        "sha256": "sha256:eaf04ab592fb5b66703acc1276b8c7e64a1405f168b6bbfa15f9c1d88029f12c",
+    }
+    assert plan["catalog_maintenance_probe"]["model_outputs_observed"] is True
     assert plan["gates"]["catalog_probe_sealed_pre_output"] is True
-    assert plan["gates"]["catalog_probe_evaluation_allowed"] is True
+    assert plan["gates"]["catalog_probe_evaluation_allowed"] is False
     assert plan["gates"]["training_allowed"] is False
     assert plan["maintenance"]["default_verdict"] == "NO_INITIAL_TRAIN"
     assert plan["historical_evidence"]["fine_tuned_adapter_present"] is False
     assert plan["historical_evidence"]["semantic_score"] == "11/12"
     assert plan["historical_evidence"]["source_oracle_audit"] == "12/12"
     assert "catalog_domain_split_materialization" not in plan["execution_partition"]["allowed_now"]
-    assert "catalog_probe_spec_and_oracle_truth" in plan["execution_partition"]["allowed_now"]
-    assert plan["execution_partition"]["allowed_now"] == [
-        "catalog_domain_prompt_truth",
-        "catalog_domain_oracle_truth",
-        "catalog_probe_spec_and_oracle_truth",
-        "catalog_probe_evaluation",
-        "upstream_read_only_pin_monitoring",
-    ]
-    assert "catalog_probe_pre_output_seal" not in plan["execution_partition"]["allowed_now"]
-    assert (
-        "catalog_probe_model_outputs_before_probe_seal"
-        not in plan["execution_partition"]["forbidden_now"]
-    )
+    assert plan["execution_partition"]["allowed_now"] == ["upstream_read_only_pin_monitoring"]
+    assert "catalog_probe_additional_model_outputs" in plan["execution_partition"]["forbidden_now"]
+    assert "no_broad_model_output" in plan["nonclaims"]
+    assert "no_model_output" not in plan["nonclaims"]
     assert plan["maintenance_benchmark_evidence"] == {
         "roster": None,
         "pre_output_seal": None,
@@ -172,7 +169,7 @@ def test_semantic_gate_rejects_training_authority_laundering(
     assert "accuracy-uplift planning contract cannot authorize training" in errors
 
 
-def test_semantic_gate_rejects_sealed_probe_without_git_seal(
+def test_semantic_gate_rejects_evaluated_probe_without_git_seal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _mutate_loaded_file(
@@ -183,7 +180,21 @@ def test_semantic_gate_rejects_sealed_probe_without_git_seal(
 
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
 
-    assert "sealed catalog probe has no pre-output seal reference" in errors
+    assert "evaluated catalog probe has no pre-output seal reference" in errors
+
+
+def test_semantic_gate_rejects_a_second_probe_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["gates"].update({"catalog_probe_evaluation_allowed": True}),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "evaluated catalog probe still permits another model run" in errors
 
 
 def test_semantic_gate_rejects_probe_reference_hash_drift(
@@ -344,10 +355,7 @@ def test_semantic_gate_requires_ratified_maintenance_policy(
 @pytest.mark.parametrize(
     "required_allowed",
     [
-        "catalog_domain_prompt_truth",
-        "catalog_domain_oracle_truth",
-        "catalog_probe_spec_and_oracle_truth",
-        "catalog_probe_evaluation",
+        "upstream_read_only_pin_monitoring",
     ],
 )
 def test_refreshed_state_requires_every_catalog_construction_operation(
@@ -357,7 +365,16 @@ def test_refreshed_state_requires_every_catalog_construction_operation(
     _mutate_loaded_file(
         monkeypatch,
         "accuracy-uplift-plan.json",
-        lambda plan: plan["execution_partition"]["allowed_now"].remove(required_allowed),
+        lambda plan: plan["execution_partition"].update(
+            {
+                "allowed_now": [
+                    item
+                    for item in plan["execution_partition"]["allowed_now"]
+                    if item != required_allowed
+                ]
+                + ["catalog_probe_evaluation"]
+            }
+        ),
     )
 
     errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
@@ -381,12 +398,27 @@ def test_refreshed_state_rejects_postponed_broad_work_in_active_partition(
     assert "postponed broad accuracy work remains in the active partition" in errors
 
 
+def test_evaluated_state_rejects_completed_probe_work_in_active_partition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mutate_loaded_file(
+        monkeypatch,
+        "accuracy-uplift-plan.json",
+        lambda plan: plan["execution_partition"]["allowed_now"].append("catalog_probe_evaluation"),
+    )
+
+    errors = contracts.validate_accuracy_uplift_plan_contract(ROOT)
+
+    assert "evaluated catalog probe leaves completed work active" in errors
+
+
 @pytest.mark.parametrize(
     "required_forbidden",
     [
         "t30_model_outputs_before_complete_seal",
         "tenant_value_payloads",
         "training",
+        "catalog_probe_additional_model_outputs",
     ],
 )
 def test_refreshed_state_retains_every_persistent_prohibition(

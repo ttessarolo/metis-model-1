@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "plan_id": "accuracy-uplift/v1",
-  "status": "benchmark_construction_active",
+  "status": "maintenance_diagnosed",
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:d9cb9d1968b066ccc28872a5a2827e83a599ed13ab62ac8049bf35a36b3f33cf"
+    "sha256": "sha256:8a6039e0635d6353a7e280af7ecea1b6dfdab866faacff996d67ae26a80c7ddb"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
@@ -177,16 +177,13 @@
   },
   "execution_partition": {
     "allowed_now": [
-      "catalog_domain_prompt_truth",
-      "catalog_domain_oracle_truth",
-      "catalog_probe_spec_and_oracle_truth",
-      "catalog_probe_evaluation",
       "upstream_read_only_pin_monitoring"
     ],
     "forbidden_now": [
       "t30_model_outputs_before_complete_seal",
       "tenant_value_payloads",
-      "training"
+      "training",
+      "catalog_probe_additional_model_outputs"
     ]
   },
   "maintenance": {
@@ -233,7 +230,7 @@
     "decision_report": null
   },
   "catalog_maintenance_probe": {
-    "status": "sealed_pre_output",
+    "status": "evaluated",
     "authority_scope": "public_synthetic_only",
     "manifest": {
       "path": "manifests/catalog-maintenance-probe-v1.json",
@@ -263,9 +260,15 @@
       "path": "manifests/catalog-maintenance-probe-freeze-v1.json",
       "sha256": "sha256:d9b0c4c815cfaf61c4e1c35f8060e63696fefee75157f4a7ebf306606f7afe75"
     },
-    "evaluation_receipt": null,
-    "decision_report": null,
-    "model_outputs_observed": false
+    "evaluation_receipt": {
+      "path": "manifests/catalog-maintenance-probe-evaluation-v1.json",
+      "sha256": "sha256:8b712853400c4b06e702250a937ef93f8fcfaeb7d108055a014d5dd9d8389038"
+    },
+    "decision_report": {
+      "path": "manifests/catalog-maintenance-probe-decision-v1.json",
+      "sha256": "sha256:eaf04ab592fb5b66703acc1276b8c7e64a1405f168b6bbfa15f9c1d88029f12c"
+    },
+    "model_outputs_observed": true
   },
   "gates": {
     "surface_pin_complete": true,
@@ -274,16 +277,16 @@
     "semantic_oracle_refreshed": true,
     "catalog_materialization_allowed": true,
     "catalog_probe_sealed_pre_output": true,
-    "catalog_probe_evaluation_allowed": true,
+    "catalog_probe_evaluation_allowed": false,
     "t30_sealed_before_model_outputs": false,
     "model_evaluation_allowed": false,
     "training_allowed": false,
-    "active_work": "maintenance_evaluation"
+    "active_work": "catalog_probe_diagnosis_complete"
   },
   "nonclaims": [
     "no_catalog_domain_dataset",
     "no_tenant_dataset_authority",
-    "no_model_output",
+    "no_broad_model_output",
     "no_previous_adapter",
     "no_training_authority",
     "no_accuracy_claim",
