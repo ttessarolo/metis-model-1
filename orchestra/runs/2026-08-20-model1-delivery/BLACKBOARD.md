@@ -4014,3 +4014,37 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   exists in 22 HEAD files, but it remains public machine-specific provenance.
   L0 accepts the audited complete roster rather than breaking sealed hashes with
   an unplanned redaction.
+- DONE — The audited 142-file delivery checkpoint is committed as
+  `14295a069c5dc341948427b13bbd64ecae36dfab` (`feat: checkpoint Model 1
+  delivery and accuracy gates`) and pushed non-force to
+  `origin/codex/model1-local-99-foundation`. A fresh `git ls-remote` returns the
+  same full SHA and the local worktree is aligned with the remote branch.
+- FACT — L74 completion census separates the already delivered local milestone
+  from the optional production program. `MODEL1_USABLE_LOCAL_NO_TRAIN` remains
+  `11/12`, critical/invented/recurring failures `0/0/0`, with dataset, adapter
+  and training steps all `0` by the ratified NO_TRAIN outcome. Therefore there
+  is currently no fine-tuned payload to back up. Catalog-domain maintenance
+  still needs one executable upstream pin followed by retrieval/oracle refresh,
+  D18 `0/18`, T30 `0/30` and the existing-adapter baseline; retraining remains
+  conditional on the ratified semantic-failure trigger.
+- FACT — If a rank-8 QLoRA adapter is eventually produced, its current plan
+  estimates approximately `233,581,693` bytes; a full resumable adapter plus
+  optimizer state is approximately `935,483,304` bytes. The reusable package is
+  adapter, tokenizer/runtime configuration, evaluation receipts, immutable
+  manifest and SHA-256 checksums, plus optional resumable state. Base Qwen
+  weights are not duplicated: their model ID, revision and hash are recorded and
+  the payload is fetched again from its authoritative source.
+- DECISION — The off-site contract uses the S3 protocol. The practical default
+  provider is Backblaze B2 S3-compatible storage, with version history and
+  Object Lock; AWS S3 is the conservative substitute when an existing AWS
+  account, IAM boundary or organization policy makes it operationally simpler.
+  No bucket, credential, cloud resource or upload is created in this wave. The
+  future immutable prefix is
+  `metis-model1/<candidate-or-run-id>/` containing `manifest.json`,
+  `checksums.sha256`, `adapter/`, `tokenizer-config/`, `eval-receipts/`,
+  `runtime-lock/` and optional `optional-state/`.
+- OPEN — Provision the selected B2/AWS account and private bucket, choose region
+  and retention duration, enable versioning/Object Lock, create least-privilege
+  credentials outside Git, and perform upload plus clean-room restore/hash
+  verification only when a real adapter or resumable checkpoint exists and a
+  dedicated external-upload mandate is active.
