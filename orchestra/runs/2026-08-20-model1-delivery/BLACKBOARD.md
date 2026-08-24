@@ -4369,3 +4369,21 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   weights `3` + auxiliary `12`, fixed output absent, model outputs false and
   training false. L91/L92/L93 plus L0 independently return P0=0/P1=0; run stays
   blocked until this exact freeze is committed and published.
+- DONE — Published freeze commit `8f02588e4754e7db3b74fe87843beae0c0c9e813`
+  is consumed exactly once. The successor closes
+  `in=8 out=8 distinct=8 gaps=0`, semantic/skeleton `4/8`, with critical,
+  invented-value, legacy-inline and retrieval vetoes all zero. All three edit
+  cases plus the repair pass; the four author cases fail exact skeleton match.
+- FACT — Independent post-run diagnosis finds the same sole final delta in all
+  four author cases: the valid described candidate and frozen gold differ only
+  in an unspecified field-identity choice. Every requested final
+  enum/open/inline/nested domain form is present. This is recorded as an
+  underdetermined oracle fixture, not as a retroactive pass.
+- DONE — Redacted evaluation self-hash is `4de4e1f9...` (raw `009f2c6d...`),
+  decision self-hash `e0dd1852...` (raw `2709ded7...`), report raw
+  `6ae6e97d...`, stderr zero bytes. Receipt-only verification, foundation and
+  focused evidence/contracts are green; no model or oracle text is tracked.
+- DECISION — Terminal verdict remains `DIAGNOSE 4/8`; no rescore, retry or
+  `NO_RETRAIN_PROMPT_CURE` relabel is allowed. Training, automatic QLoRA,
+  promotion, global accuracy and another model run remain false; a future
+  oracle-corrected evaluation requires a separately authorized fresh wave.

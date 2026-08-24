@@ -47,7 +47,10 @@ def test_repository_foundation_is_valid() -> None:
         "catalog-maintenance-probe=8-cases/evaluated/diagnose-2-of-8/output-observed"
         in report.passes
     )
-    assert "catalog-maintenance-successor=8-cases/static/no-training" in report.passes
+    assert any(
+        item.startswith("catalog-maintenance-successor=8-cases/") and item.endswith("/no-training")
+        for item in report.passes
+    )
     assert any(item.startswith("catalog-maintenance-successor-evidence=") for item in report.passes)
     assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
     assert "W1" not in report.open_by_wave

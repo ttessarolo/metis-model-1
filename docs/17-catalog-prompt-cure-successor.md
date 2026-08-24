@@ -1,6 +1,6 @@
 # Catalog prompt-cure successor wave
 
-Status: **AUTHORIZED STATIC PREIMAGE — NO FREEZE, RUN, OR MODEL OUTPUT YET**.
+Status: **TERMINAL — `DIAGNOSE 4/8`; ONE-SHOT RUN CONSUMED**.
 
 This is a new, bounded maintenance wave. It follows the immutable catalog
 maintenance probe v1, whose single sealed run is consumed and terminal at
@@ -163,7 +163,29 @@ uv run pytest -q tests/test_catalog_maintenance_successor_evidence.py tests/test
 make check
 ```
 
-The single-run command remains blocked until the static implementation and
-revalidated retrieval inputs are committed and published, then the generated
-freeze is independently audited, committed, and published. Running it earlier,
-or substituting a v1 run artifact, is outside this authorization.
+The single-run command was blocked until the static implementation and
+revalidated retrieval inputs were committed and published, then the generated
+freeze was independently audited, committed, and published. Those prerequisites
+were satisfied before the sole invocation; substituting a v1 artifact remains
+outside this authorization.
+
+## 7. Terminal result
+
+The exact published freeze was consumed once at execution commit
+`8f02588e4754e7db3b74fe87843beae0c0c9e813`. The tracked redacted evaluation
+and decision record `in=8 out=8 distinct=8 gaps=0`, `semantic_correct=4`,
+`skeleton_match=4`, and zero critical, invented-value, legacy-inline, or
+retrieval-error vetoes. All three edit cases and the repair case pass; all four
+author cases fail exact skeleton equality. The terminal verdict is `DIAGNOSE`.
+
+Post-run diagnosis does not alter that score. In each failed final author
+candidate, the requested enum/open/inline/nested construct is present and the
+pinned describe operation succeeded, but the candidate and frozen oracle differ
+only in an unspecified field-identity choice. This is evidence of an
+underdetermined authoring fixture and a future oracle-contract cure; it is not
+permission to relabel the consumed run, rerun it, or claim
+`NO_RETRAIN_PROMPT_CURE`.
+
+Training, automatic QLoRA, promotion, global accuracy, and another model run
+remain unauthorized. Any later oracle correction and evaluation must be a new,
+explicitly mandated wave with a fresh namespace and pre-output seal.

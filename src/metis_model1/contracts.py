@@ -2270,7 +2270,16 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             f"catalog-maintenance-successor: {error}" for error in catalog_successor_errors
         )
     else:
-        report.passes.append("catalog-maintenance-successor=8-cases/static/no-training")
+        successor_decision_path = root / "manifests/catalog-maintenance-successor-decision-v1.json"
+        if successor_decision_path.is_file():
+            successor_decision = load_json(successor_decision_path)
+            report.passes.append(
+                "catalog-maintenance-successor=8-cases/terminal-"
+                f"{str(successor_decision['status']).lower()}-"
+                f"{successor_decision['result']['semantic_correct']}-of-8/no-training"
+            )
+        else:
+            report.passes.append("catalog-maintenance-successor=8-cases/static/no-training")
 
     catalog_successor_evidence_errors = validate_catalog_maintenance_successor_evidence_contract(
         root
