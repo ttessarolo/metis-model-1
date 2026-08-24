@@ -7,6 +7,7 @@ import pytest
 from metis_model1.catalog_maintenance_probe import (
     CatalogMaintenanceProbeError,
     _extract_source,
+    _python_runtime_identity,
     _safe_checkpoint_weight_name,
     _worker_sandbox_policy,
     build_prompt,
@@ -191,6 +192,15 @@ def test_worker_sandbox_denies_network_cache_reads_and_checkpoint_writes() -> No
     assert "(deny file-write*" in policy
     assert "(deny file-read*" in policy
     assert 'checkpoint/.cache"' in policy
+
+
+def test_worker_python_identity_preserves_qualification_virtualenv() -> None:
+    identity = _python_runtime_identity(ROOT / "qualification/.venv/bin/python")
+    assert identity["invocation_path"].endswith("qualification/.venv/bin/python")
+    assert identity["sys_prefix"].endswith("qualification/.venv")
+    assert identity["python_version"] == "3.12.10"
+    assert identity["mlx"] == "0.32.1"
+    assert identity["mlx_vlm"] == "0.6.15"
 
 
 def test_freeze_seal_tamper_is_detectable() -> None:

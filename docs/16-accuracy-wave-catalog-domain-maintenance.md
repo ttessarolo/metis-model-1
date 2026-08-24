@@ -57,12 +57,12 @@ wave and is not on the current critical path:
 - implement and verify the Model 1 adapter for the pinned offline
   `catalog:describe` / `catalog:values` contract.
 
-The only active work is now the sealed probe evaluation for the pinned
+The only active work is now replacement of the probe seal for the pinned
 public-synthetic lineage:
 
 - catalog-domain prompt or expected-output truth;
 - catalog-domain oracle truth;
-- one execution of the separate eight-case catalog-maintenance probe.
+- a replacement Git pre-output seal for the separate eight-case probe.
 
 Catalog truth derived from prose alone remains forbidden. Tenant payloads and
 live-index values remain outside the dataset and outside this authorization.
@@ -70,11 +70,11 @@ live-index values remain outside the dataset and outside this authorization.
 The eight-case probe is non-statistical and non-promotional. Its result is a
 maintenance diagnostic only: `8/8` semantic passes support `NO_RETRAIN` for
 this grammar change, while failures identify repair work and never
-auto-authorize training. The separate probe manifest, schema, retrieval
-references and case files are now bound by the tracked pre-output freeze
-`manifests/catalog-maintenance-probe-freeze-v1.json`; only the fail-closed
-runner may observe probe output. The broad D18/T30 wave remains unmaterialized
-and output-forbidden.
+auto-authorize training. The first freeze was revoked after the worker launcher
+resolved away its virtualenv and stopped before model load. A replacement seal
+must bind the virtualenv launcher, target and exact Python/MLX/MLX-VLM versions
+before any retry. The broad D18/T30 wave remains unmaterialized and
+output-forbidden.
 
 ## 3. Frozen wave arithmetic
 
@@ -129,10 +129,11 @@ unsynchronized enum, open and none. The fixed fixture manifest is
 `manifests/catalog-retrieval-execution-v1.json`. Both validate against pinned
 raw digests and exact output summaries/hashes. This is sufficient to open the
 separate probe specification for this synthetic lineage; it is not tenant or
-production authority. The Git pre-output seal is now materialized with model
-outputs false. The next state transition is the single bounded probe run.
-D18/T30 construction remains deferred and old benchmark and delivery evidence
-remain historical and unchanged.
+production authority. The prior run stopped at Python import before model
+load, emitted no inference output and invalidated its freeze. The next state
+transition is a replacement Git pre-output seal. D18/T30 construction remains
+deferred and old benchmark and delivery evidence remain historical and
+unchanged.
 
 ## 5. Model decision path
 
@@ -166,8 +167,8 @@ delta still fails the semantic or replay gates.
 
 This planning contract records an executable upstream implementation pin plus
 a locally replayed, value-redacted public-synthetic retrieval/oracle refresh.
-The separate sealed probe is not a tenant dataset and has no statistical or
-promotional authority. Its freeze records zero model outputs and grants only
-the one bounded evaluation path. The broad D18/T30 benchmark remains
-unmaterialized. This is not tenant dataset authority, training authorization,
-an accuracy claim, external execution attestation, or a promotion verdict.
+The separate probe is not a tenant dataset and has no statistical or
+promotional authority. Its replacement freeze is pending and model outputs
+remain zero. The broad D18/T30 benchmark remains unmaterialized. This is not
+tenant dataset authority, training authorization, an accuracy claim, external
+execution attestation, or a promotion verdict.

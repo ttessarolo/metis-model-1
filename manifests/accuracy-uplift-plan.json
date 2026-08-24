@@ -5,7 +5,7 @@
   "decision_ref": "O-010",
   "canonical_spec": {
     "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
-    "sha256": "sha256:78a78bc92ae6c7f109cd4b398f82945c35d52d5f8b4c7b7eb820aa69d682ff56"
+    "sha256": "sha256:cbb353de91fc4025d31d62e13531fbff91c2eefaa12b608cac8fc0077ac90407"
   },
   "historical_evidence": {
     "baseline_id": "B12-v4",
@@ -185,13 +185,14 @@
       "catalog_domain_prompt_truth",
       "catalog_domain_oracle_truth",
       "catalog_probe_spec_and_oracle_truth",
-      "catalog_probe_evaluation",
+      "catalog_probe_pre_output_seal",
       "upstream_read_only_pin_monitoring"
     ],
     "forbidden_now": [
       "t30_model_outputs_before_complete_seal",
       "tenant_value_payloads",
-      "training"
+      "training",
+      "catalog_probe_model_outputs_before_probe_seal"
     ]
   },
   "maintenance": {
@@ -238,7 +239,7 @@
     "decision_report": null
   },
   "catalog_maintenance_probe": {
-    "status": "sealed_pre_output",
+    "status": "spec_ready",
     "authority_scope": "public_synthetic_only",
     "manifest": {
       "path": "manifests/catalog-maintenance-probe-v1.json",
@@ -264,10 +265,7 @@
       "promotion_claim": false,
       "accuracy_claim": false
     },
-    "pre_output_seal": {
-      "path": "manifests/catalog-maintenance-probe-freeze-v1.json",
-      "sha256": "sha256:df8372308028836a0987c5d22ab78fb52e38ee0287009ab3a67f79b9677ee48d"
-    },
+    "pre_output_seal": null,
     "evaluation_receipt": null,
     "decision_report": null,
     "model_outputs_observed": false
@@ -278,12 +276,12 @@
     "retrieval_contract_refreshed": true,
     "semantic_oracle_refreshed": true,
     "catalog_materialization_allowed": true,
-    "catalog_probe_sealed_pre_output": true,
-    "catalog_probe_evaluation_allowed": true,
+    "catalog_probe_sealed_pre_output": false,
+    "catalog_probe_evaluation_allowed": false,
     "t30_sealed_before_model_outputs": false,
     "model_evaluation_allowed": false,
     "training_allowed": false,
-    "active_work": "maintenance_evaluation"
+    "active_work": "catalog_probe_pre_output_seal"
   },
   "nonclaims": [
     "no_catalog_domain_dataset",

@@ -60,10 +60,6 @@ CONTRACT_PAIRS = (
         "schemas/catalog-maintenance-probe.schema.json",
         "manifests/catalog-maintenance-probe-v1.json",
     ),
-    (
-        "schemas/catalog-maintenance-probe-freeze.schema.json",
-        "manifests/catalog-maintenance-probe-freeze-v1.json",
-    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -139,7 +135,6 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/catalog-retrieval-execution-v1.json",
     "manifests/catalog-retrieval-public-synthetic-v1.json",
     "manifests/catalog-maintenance-probe-v1.json",
-    "manifests/catalog-maintenance-probe-freeze-v1.json",
     "manifests/accuracy-uplift-plan.json",
     "schemas/catalog-maintenance-probe.schema.json",
     "schemas/catalog-maintenance-probe-freeze.schema.json",

@@ -4275,3 +4275,13 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   remain false. Focused sealed-state tests are `73/73` and foundation is
   `57` passes with zero errors; inference still waits for this seal commit to
   be published byte-for-byte.
+- STOP — The first run attempt exits before model load: resolving
+  `qualification/.venv/bin/python` to its global target discards the virtualenv,
+  and the worker raises `ModuleNotFoundError: mlx_vlm`. The retained artifact is
+  one 457-byte stderr log; tasks, generations, report and model outputs are zero.
+  This is a technical runner failure, not a model score.
+- FIX — The prior seal is revoked. The runtime identity now preserves and binds
+  the virtualenv launcher symlink, target binary/stat, `sys.prefix`, Python
+  `3.12.10`, MLX `0.32.1` and MLX-VLM `0.6.15`; the sandbox command uses the
+  launcher path. Focused spec-state tests are `74/74`, foundation `56/0`, and a
+  replacement freeze is required before any retry.

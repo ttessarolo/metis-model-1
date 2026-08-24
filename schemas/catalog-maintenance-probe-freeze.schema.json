@@ -58,7 +58,7 @@
     "runtime": {"type": "object", "additionalProperties": false, "required": ["probe_runner", "worker_script", "worker_python", "checkpoint_report", "sandbox_policy_sha256"], "properties": {
       "probe_runner": {"$ref": "#/$defs/file_identity"},
       "worker_script": {"$ref": "#/$defs/file_identity"},
-      "worker_python": {"$ref": "#/$defs/file_identity"},
+      "worker_python": {"$ref": "#/$defs/python_runtime"},
       "checkpoint_report": {"$ref": "#/$defs/file_identity"},
       "sandbox_policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
     }},
@@ -75,6 +75,25 @@
     "freeze_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
   },
   "$defs": {
+    "python_runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["invocation_path", "invocation_link_target", "invocation_device", "invocation_inode", "invocation_mtime_ns", "invocation_ctime_ns", "target_path", "target_bytes", "target_sha256", "python_version", "sys_prefix", "mlx", "mlx_vlm"],
+      "properties": {
+        "invocation_path": {"type": "string", "minLength": 1},
+        "invocation_link_target": {"type": ["string", "null"]},
+        "invocation_device": {"type": "integer", "minimum": 0},
+        "invocation_inode": {"type": "integer", "minimum": 0},
+        "invocation_mtime_ns": {"type": "integer", "minimum": 0},
+        "invocation_ctime_ns": {"type": "integer", "minimum": 0},
+        "target_path": {"type": "string", "minLength": 1},
+        "target_bytes": {"type": "integer", "minimum": 1},
+        "target_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "python_version": {"const": "3.12.10"},
+        "sys_prefix": {"type": "string", "minLength": 1},
+        "mlx": {"const": "0.32.1"},
+        "mlx_vlm": {"const": "0.6.15"}
+      }
+    },
     "checkpoint_file": {
       "type": "object", "additionalProperties": false,
       "required": ["path", "bytes", "sha256", "device", "inode", "mtime_ns", "ctime_ns"],

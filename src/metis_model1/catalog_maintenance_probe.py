@@ -59,7 +59,7 @@ RETRIEVAL_MANIFEST_SHA256 = (
 )
 RETRIEVAL_RECEIPT_SHA256 = "sha256:dd5a2b3046842dba35bffd06111882caafe52c66d80bd1f0d3b7c3a7d911ea5b"
 RETRIEVAL_SCHEMA_SHA256 = "sha256:22d90adf2ad28eaaf81285dccbd29058311573c1e8dd71bac4fd3c2edf0e8046"
-FREEZE_SCHEMA_SHA256 = "sha256:f6d2f8c5827551cf70cf1c936bfd0f8a900aca41c00ef835900c4d4f9ee505b3"
+FREEZE_SCHEMA_SHA256 = "sha256:3072cb821a30390f6a2610fb86de2aa44ca37898a7aeea23d9583b4ba07b5647"
 PROBE_MANIFEST_FILE_SHA256 = (
     "sha256:f9b53a7868e07155153052cd80e936e6c7dadea4a0afb71f3898f7aa00be4046"
 )
@@ -369,6 +369,62 @@ def _runtime_identity(path: Path, label: str) -> dict[str, Any]:
     resolved = path.resolve(strict=True)
     size, digest = _file_hash(resolved, label, 16 * 1024**3)
     return {"path": str(resolved), "bytes": size, "sha256": digest}
+
+
+def _python_runtime_identity(path: Path) -> dict[str, Any]:
+    """Bind the venv launcher without resolving away its environment semantics."""
+
+    invocation = path if path.is_absolute() else (PROJECT_ROOT / path)
+    invocation = invocation.absolute()
+    before = invocation.lstat()
+    if not (invocation.is_symlink() or invocation.is_file()):
+        raise CatalogMaintenanceProbeError("worker Python launcher is not a file or symlink")
+    target = invocation.resolve(strict=True)
+    target_size, target_digest = _file_hash(target, "worker Python target", 1024**3)
+    script = (
+        "import importlib.metadata as m,json,sys;"
+        "print(json.dumps({'python_version':sys.version.split()[0],"
+        "'sys_prefix':sys.prefix,'mlx':m.version('mlx'),"
+        "'mlx_vlm':m.version('mlx-vlm')},sort_keys=True))"
+    )
+    try:
+        completed = subprocess.run(
+            [str(invocation), "-I", "-c", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        )
+        metadata = json.loads(completed.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise CatalogMaintenanceProbeError("worker Python environment is unavailable") from error
+    if completed.returncode != 0 or not isinstance(metadata, dict):
+        raise CatalogMaintenanceProbeError("worker Python environment probe failed")
+    expected = {"python_version": "3.12.10", "mlx": "0.32.1", "mlx_vlm": "0.6.15"}
+    if any(metadata.get(key) != value for key, value in expected.items()):
+        raise CatalogMaintenanceProbeError("worker Python package versions contain drift")
+    prefix = Path(str(metadata.get("sys_prefix", ""))).resolve(strict=True)
+    if prefix != (PROJECT_ROOT / "qualification/.venv").resolve(strict=True):
+        raise CatalogMaintenanceProbeError("worker Python is not the qualification virtualenv")
+    after = invocation.lstat()
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if tuple(getattr(before, field) for field in fields) != tuple(
+        getattr(after, field) for field in fields
+    ):
+        raise CatalogMaintenanceProbeError("worker Python launcher changed while identified")
+    return {
+        "invocation_path": str(invocation),
+        "invocation_link_target": os.readlink(invocation) if invocation.is_symlink() else None,
+        "invocation_device": after.st_dev,
+        "invocation_inode": after.st_ino,
+        "invocation_mtime_ns": after.st_mtime_ns,
+        "invocation_ctime_ns": after.st_ctime_ns,
+        "target_path": str(target),
+        "target_bytes": target_size,
+        "target_sha256": target_digest,
+        **metadata,
+    }
 
 
 def _node_argument(value: Path | None) -> Path:
@@ -829,7 +885,7 @@ def _freeze_body(args: argparse.Namespace) -> dict[str, Any]:
     runtime = {
         "probe_runner": _runtime_identity(Path(__file__), "probe runner"),
         "worker_script": _runtime_identity(Path(args.worker_script), "worker script"),
-        "worker_python": _runtime_identity(Path(args.worker_python), "worker Python"),
+        "worker_python": _python_runtime_identity(Path(args.worker_python)),
         "checkpoint_report": _runtime_identity(Path(args.checkpoint_report), "checkpoint report"),
         "sandbox_policy_sha256": raw_hash(sandbox_policy.encode("utf-8")),
     }
@@ -1043,7 +1099,7 @@ def run(args: argparse.Namespace) -> int:
     runtime = {
         "probe_runner": _runtime_identity(Path(__file__), "probe runner"),
         "worker_script": _runtime_identity(Path(args.worker_script), "worker script"),
-        "worker_python": _runtime_identity(Path(args.worker_python), "worker Python"),
+        "worker_python": _python_runtime_identity(Path(args.worker_python)),
         "checkpoint_report": _runtime_identity(Path(args.checkpoint_report), "checkpoint report"),
         "sandbox_policy_sha256": raw_hash(sandbox_policy.encode("utf-8")),
     }
@@ -1113,7 +1169,6 @@ def run(args: argparse.Namespace) -> int:
     if not ignored or not output_dir.is_relative_to(PROJECT_ROOT / "artifacts"):
         raise CatalogMaintenanceProbeError("run output must be under ignored artifacts")
     output_dir.mkdir(parents=True)
-    worker_python = Path(args.worker_python).resolve(strict=True)
     worker_script = Path(args.worker_script).resolve(strict=True)
     env = {
         "PATH": "/usr/bin:/bin",
@@ -1129,7 +1184,7 @@ def run(args: argparse.Namespace) -> int:
         "/usr/bin/sandbox-exec",
         "-p",
         sandbox_policy,
-        str(worker_python),
+        runtime["worker_python"]["invocation_path"],
         str(worker_script),
         "--model-path",
         str(checkpoint["path"]),
