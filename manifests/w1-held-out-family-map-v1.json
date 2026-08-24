@@ -1,0 +1,112 @@
+{
+  "counts": {
+    "allocated_tasks": 30,
+    "families_distinct": 6,
+    "families_in": 6,
+    "families_out": 6,
+    "gaps": 0,
+    "target_frozen_tasks": 600
+  },
+  "families": [
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f1-01",
+        "slice-0001/f1-02",
+        "slice-0001/f1-03",
+        "slice-0001/f1-04",
+        "slice-0001/f1-05"
+      ],
+      "criticality": "high",
+      "family": "F-1",
+      "held_out_rule": "Hold out complete intent, template and property families.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 100
+    },
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f2-01",
+        "slice-0001/f2-02",
+        "slice-0001/f2-03",
+        "slice-0001/f2-04",
+        "slice-0001/f2-05"
+      ],
+      "criticality": "critical",
+      "family": "F-2",
+      "held_out_rule": "Keep the source template and its dependency closure outside training.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 110
+    },
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f3-01",
+        "slice-0001/f3-02",
+        "slice-0001/f3-03",
+        "slice-0001/f3-04",
+        "slice-0001/f3-05"
+      ],
+      "criticality": "critical",
+      "family": "F-3",
+      "held_out_rule": "Keep every mutation_parent and all its mutations in one split.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 110
+    },
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f4-01",
+        "slice-0001/f4-02",
+        "slice-0001/f4-03",
+        "slice-0001/f4-04",
+        "slice-0001/f4-05"
+      ],
+      "criticality": "critical",
+      "family": "F-4",
+      "held_out_rule": "Do not share golden, IR or wire ancestors across splits.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 110
+    },
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f5-01",
+        "slice-0001/f5-02",
+        "slice-0001/f5-03",
+        "slice-0001/f5-04",
+        "slice-0001/f5-05"
+      ],
+      "criticality": "high",
+      "family": "F-5",
+      "held_out_rule": "Keep a language epoch and every migration derivative in one split.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 90
+    },
+    {
+      "allocated_task_count": 5,
+      "allocated_task_ids": [
+        "slice-0001/f6-01",
+        "slice-0001/f6-02",
+        "slice-0001/f6-03",
+        "slice-0001/f6-04",
+        "slice-0001/f6-05"
+      ],
+      "criticality": "medium_high",
+      "family": "F-6",
+      "held_out_rule": "Do not duplicate a normalized AST or IR signature across splits.",
+      "status": "allocation_only_not_sealed",
+      "target_frozen_task_count": 80
+    }
+  ],
+  "input_pins": {
+    "accuracy_target": "sha256:aafaae18e2aaaeebb9428ce5b8b01161df8f401dc5aac46235b71a81d70585b1",
+    "benchmark_plan": "sha256:823546482e8bc698dd54192f42817a94ab8c0fadb4350100b2f8d9ec4624fee1",
+    "blocker_map": "sha256:de6924d31de844e25cd09bb4a056104be62fbdbd04e7b9349867e174b1361919"
+  },
+  "manifest_hash": "sha256:fc587457e9cbebd373ac7592876e86b1218915009e0def4d6cab567883c54e29",
+  "manifest_id": "w1/held-out-family-map-v1",
+  "schema_version": 1,
+  "source_revision": "a2dde2b191f6b78c2003d74875560da782470968",
+  "status": "allocation_only_not_sealed"
+}

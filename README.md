@@ -35,6 +35,14 @@ Il compilatore è necessario, ma non sufficiente: un risultato che compila può
 comunque implementare la semantica sbagliata. Per questo il piano separa sempre
 il gate `compile-clean` dai controlli di diff semantico e parità.
 
+Per un futuro aggiornamento della grammatica, il default ratificato è il
+percorso minimo: aggiornare pin, retrieval e oracle, provare l'adapter esistente
+sul benchmark di manutenzione e scegliere `NO_RETRAIN` se i gate restano verdi.
+Solo un fallimento compatibile apre un piccolo delta QLoRA; un successore pieno
+richiede una rottura AST/IR/semantica o il fallimento dimostrato del percorso
+leggero. Dataset, benchmark e adapter precedenti restano immutabili e
+rollbackabili.
+
 ## Base tecnica
 
 Le decisioni iniziali del progetto sono:
@@ -93,6 +101,11 @@ La valutazione confronta quattro configurazioni:
 Il confronto decisivo è **D contro B**: stessa Qwen3.8, stesso contesto e stessi
 strumenti, con e senza adapter Metis.
 
+Il primo gate di prodotto è però B da sola. Se base+contesto+compiler loop
+soddisfa il bisogno pratico, l'esito corretto è `NO_TRAIN` e l'adapter non viene
+creato. Il tuning si apre soltanto per failure semantiche ripetibili e deve poi
+dimostrare un vantaggio D−B.
+
 ## Stato del progetto
 
 Il repository contiene la baseline progettuale, la foundation W0 eseguibile, la
@@ -108,16 +121,33 @@ frontier indipendenti dopo attacchi a identità, genealogia, schema e replay. No
 register, adapter Oracle e identità Oracle sono intenzionalmente non registrate,
 le receipt reali sono `0/15` e F-4/F-5/F-6 restano aperte.
 
-Il gate locale non scarica modelli e non tocca l'ambiente Conda globale:
+Il broker protetto ha raggiunto `PHASE_B_INSTALLABLE_UNEXECUTED`: il pacchetto
+è materializzato, ma non sono stati installati utenti o servizi privilegiati e
+non è stata prodotta evidenza host o di produzione. Il pacchetto W1/W2 rende
+invece
+riproducibili i blocchi correnti: task `30/30`, asset `201/201`, celle Oracle
+`0/160`, review diritti `0/201` e un solo gruppo di leakage rispetto al minimo
+`563`. Il relativo seal è quindi intenzionalmente `unsealed_evidence_only`.
+
+I gate locali non privilegiati non scaricano modelli e non toccano l'ambiente
+Conda globale:
 
 ```bash
 make setup
-make check
+make validate
+make lint
+make format-check
 uv run metis-model1 validate-pilot
-uv run metis-model1 assess-w5  # attualmente exit 1: W5 bloccato
+uv run metis-model1 assess-experiment  # exit 0: piano pronto; serve mandato W5-XS
+uv run metis-model1 assess-w5          # exit 1: promotion Accuracy-99 bloccata
 ```
 
-`make check` passa alla suite Oracle il runtime Node qualificato locale; versione
+`EXPERIMENT_PLAN_READY` non autorizza inferenza, dataset o optimizer: dichiara
+solo che il protocollo baseline-first può ricevere una wave esecutiva. Il gate W5
+storico conserva integralmente i cinque blocker della promotion Accuracy-99.
+
+`make check` include anche le suite che usano il runtime Node qualificato e va
+eseguito soltanto in una wave che lo autorizza. Versione
 e SHA-256 del binario vengono comunque verificati fail-closed dal bridge. Su un
 altro host già qualificato, indicare esplicitamente il binario equivalente con
 `make check PINNED_NODE=/percorso/assoluto/node`. Le invocazioni dirette del
@@ -133,16 +163,15 @@ Lo stato tecnico sintetico resta:
 INFERENCE AND BOUNDED TRAINING QUALIFIED / SEMANTIC UPLIFT UNTESTED
 ```
 
-La roadmap procede attraverso:
+La roadmap di primo valore procede attraverso:
 
-1. congelamento del benchmark;
-2. census del corpus e provenance graph;
-3. dataset builder con oracle Metis;
-4. qualification Qwen3.8 su MLX-VLM;
-5. pilot QLoRA;
-6. valutazione adversarial e contamination audit;
-7. candidate Model 1 e verdetto di promozione;
-8. packaging e integrazione locale con rollback.
+1. 12 task di baseline B e possibile `NO_TRAIN`;
+2. solo se necessario, B su 24 task accoppiati e poi `64 train + 16 dev`
+   failure-driven se B resta sotto soglia;
+3. un solo micro-QLoRA rank 8 fino a 100 step;
+4. confronto B/D e chiusura entro cinque giorni della wave esecutiva.
+
+La certificazione Accuracy-99 resta una corsia successiva e separata.
 
 ## Documentazione
 
@@ -162,6 +191,9 @@ sono:
 - [registro delle decisioni aperte](docs/10-open-decisions.md);
 - [stima di fattibilità e rischi](docs/11-feasibility-and-risks.md).
 - [piano esecutivo Accuracy-99](docs/12-accuracy-99-execution-plan.md).
+- [broker di esecuzione protetto](docs/13-protected-execution-broker.md).
+- [pacchetto di evidenza e seal W1/W2](docs/14-w1-w2-evidence-package.md).
+- [esperimento first-value W5-XS](docs/15-first-value-experiment.md).
 - [report tecnico W4](orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).
 
 I documenti distinguono esplicitamente fra stato **VERIFICATO**, **DECISO**,
@@ -182,10 +214,10 @@ fusione o distribuzione esterna richiede una decisione e una review separate.
 
 ## Prossimo milestone
 
-Il checkpoint tecnico è qualificato, ma il corpus tracciato non può finanziare
-il claim: 199 file `.metis`, al massimo due radici genealogiche difendibili,
-contro 563 gruppi richiesti. La prossima milestone è quindi autorizzare e
-costruire fonti nuove o indipendenti, registrare l'adapter W3 produttivo e le
-specifiche semantiche, ottenere le receipt reali della smoke slice, completare
-F-4/F-5/F-6, materializzare W3 reale, eseguire A/B e ratificare O-003. Solo
-allora si autorizza il pilot W5 misurato D contro B.
+Il piano è chiuso su W5-XS. La prossima milestone è una singola wave local-only
+che costruisce il thin runner/roster ed esegue la baseline B; può terminare in
+uno o due giorni con
+`MODEL1_USABLE_LOCAL_NO_TRAIN`. Soltanto failure ripetibili aprono il piccolo
+dataset e il micro-QLoRA, con hard stop a cinque giorni. Phase B privilegiata,
+563 gruppi, F-4/F-5/F-6 e O-003 restano fuori dal percorso critico del primo
+valore e servono esclusivamente a una futura promotion Accuracy-99.

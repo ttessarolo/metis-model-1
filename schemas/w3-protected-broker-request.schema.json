@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-protected-broker-request.schema.json",
+  "title": "W3 protected execution broker request v1",
+  "description": "Caller request for the W3 protected execution broker. Carries only fixed identifiers, claimed digests, a canonical payload and the client nonce. Never carries executable paths, argv, environment values or ancillary FDs. Caller digests are named claims, never authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "authority_id",
+    "claimed_authority_sha256",
+    "claimed_release_sha256",
+    "claimed_policy_sha256",
+    "client_nonce",
+    "payload",
+    "payload_sha256",
+    "request_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "w3-protected-broker-request" },
+    "authority_id": { "const": "w3-protected-broker-authority-v1" },
+    "claimed_authority_sha256": { "$ref": "#/$defs/hash" },
+    "claimed_release_sha256": { "$ref": "#/$defs/hash" },
+    "claimed_policy_sha256": { "$ref": "#/$defs/hash" },
+    "client_nonce": { "$ref": "#/$defs/nonce" },
+    "payload": { "$ref": "#/$defs/payload" },
+    "payload_sha256": { "$ref": "#/$defs/hash" },
+    "request_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task", "inputs"],
+      "properties": {
+        "task": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "inputs": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "not": {
+              "enum": [
+                "ancillary",
+                "argv",
+                "args",
+                "binary",
+                "chdir",
+                "cmd",
+                "command",
+                "cwd",
+                "env",
+                "environment",
+                "exec",
+                "executable",
+                "fd",
+                "fds",
+                "fork",
+                "path",
+                "paths",
+                "socket",
+                "spawn"
+              ]
+            }
+          },
+          "additionalProperties": { "$ref": "#/$defs/hash" }
+        }
+      }
+    }
+  }
+}

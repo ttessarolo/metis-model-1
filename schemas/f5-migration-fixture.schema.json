@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/f5-migration-fixture.schema.json",
+  "title": "Metis Model 1 F-5 public-synthetic migration fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fixture_id", "family", "classification", "model_outputs_observed", "toolchain", "legacy_source", "base_source", "golden", "fixture_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "fixture_id": {"type": "string", "pattern": "^f5/public-synthetic/[a-z0-9][a-z0-9._-]{0,80}$"},
+    "family": {"const": "F-5"},
+    "classification": {"const": "public_synthetic"},
+    "model_outputs_observed": {"const": false},
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "tree", "language_version", "migrator_path", "migrator_sha256", "migration_check_sha256"],
+      "properties": {
+        "revision": {"const": "a2dde2b191f6b78c2003d74875560da782470968"},
+        "tree": {"const": "75473e26deff4084a0eb077a4c3e27d52dc07998"},
+        "language_version": {"const": "0.43"},
+        "migrator_path": {"const": "tooling/src/migrate/cli.ts"},
+        "migrator_sha256": {"const": "sha256:564217eddf0aa417b39fa6eb11302469fbf5c2cd4e10b221716a40b27418373b"},
+        "migration_check_sha256": {"const": "sha256:6e93340b949df8b0e42cdee92b338d5cd19ca82cf34e74f0b089356f8f41bfa5"}
+      }
+    },
+    "legacy_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tree_sha256", "endpoint_id"],
+      "properties": {
+        "tree_sha256": {"$ref": "#/$defs/hash"},
+        "endpoint_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}
+      }
+    },
+    "base_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tree_sha256"],
+      "properties": {"tree_sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "golden": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "expected_endpoint"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.metis$"},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "expected_endpoint": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"}
+      }
+    },
+    "fixture_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

@@ -167,11 +167,13 @@ for expected in request["executions"]:
         "runtime_sha256": digest(request["runtime_identity"]),
         "runtime_identity": request["runtime_identity"],
         "runner_sha256": request["evidence_pins"]["runner_sha256"],
+        "loader_sha256": request["evidence_pins"]["loader_sha256"],
         "tooling_package_sha256": request["evidence_pins"]["tooling_package_sha256"],
         "tooling_lock_sha256": request["evidence_pins"]["tooling_lock_sha256"],
         "node_modules_sha256": request["evidence_pins"]["node_modules_sha256"],
         "node_binary_sha256": request["evidence_pins"]["node_binary_sha256"],
-        "sandbox_policy_sha256": request["evidence_pins"]["sandbox_policy_sha256"],
+        "oracle_policy_sha256": request["evidence_pins"]["oracle_policy_sha256"],
+        "execution_policy_sha256": request["evidence_pins"]["execution_policy_sha256"],
         "metis_status_sha256": request["evidence_pins"]["metis_status_sha256"],
         "metis_status": "fixture-clean",
     }
@@ -346,11 +348,13 @@ def _fixture(tmp_path: Path, mode: str = "good") -> dict[str, object]:
     assert registry["manifest_sha256"] == _manifest_hash(registry)
     evidence_pins = {
         "runner_sha256": _file_hash(source / "runtime/metis_oracle/runner.ts"),
+        "loader_sha256": _hash("fixture-native-loader"),
         "tooling_package_sha256": _hash("fixture-tooling-package"),
         "tooling_lock_sha256": _hash("fixture-tooling-lock"),
         "node_modules_sha256": _hash("fixture-node-modules"),
         "node_binary_sha256": _hash("fixture-node"),
-        "sandbox_policy_sha256": _hash("fixture-policy"),
+        "oracle_policy_sha256": _hash("fixture-policy"),
+        "execution_policy_sha256": _hash("fixture-policy"),
         "metis_status_sha256": _hash("fixture-clean"),
     }
     snapshot = (
@@ -360,7 +364,9 @@ def _fixture(tmp_path: Path, mode: str = "good") -> dict[str, object]:
     runtime_identity = {
         "node": "v22.22.3",
         "node_path": "node://v22.22.3",
-        "tsx_path": f"{snapshot}/tooling/node_modules/tsx/dist/loader.mjs",
+        "loader_path": f"{snapshot}/.metis-oracle/native_ts_loader.mjs",
+        "loader_sha256": evidence_pins["loader_sha256"],
+        "loader_flags": ["--disable-warning=ExperimentalWarning", "--experimental-loader"],
         "runner_path": f"{snapshot}/.metis-oracle/runner.ts",
         "snapshot_revision": "a2dde2b191f6b78c2003d74875560da782470968",
         "snapshot_tree": "75473e26deff4084a0eb077a4c3e27d52dc07998",
@@ -369,8 +375,9 @@ def _fixture(tmp_path: Path, mode: str = "good") -> dict[str, object]:
         "node_modules_sha256": evidence_pins["node_modules_sha256"],
         "node_binary_sha256": evidence_pins["node_binary_sha256"],
         "sandbox_exec_path": "sandbox-exec:///usr/bin/sandbox-exec",
-        "sandbox_policy_version": "2",
-        "sandbox_policy_sha256": evidence_pins["sandbox_policy_sha256"],
+        "oracle_policy_version": "2",
+        "oracle_policy_sha256": evidence_pins["oracle_policy_sha256"],
+        "execution_policy_sha256": evidence_pins["execution_policy_sha256"],
     }
     body = {
         "schema_version": 1,
@@ -892,11 +899,11 @@ def test_missing_cli_arguments_emit_canonical_blocked_report() -> None:
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["--mode", "production-capsule-v2", "--timeout-seconds", "not-a-number"],
-        ["--mode=production-capsule-v2", "--mode"],
+        ["--mode", "production-capsule-v3", "--timeout-seconds", "not-a-number"],
+        ["--mode=production-capsule-v3", "--mode"],
     ],
 )
-def test_explicit_v2_malformed_cli_always_emits_canonical_v2_blocked(
+def test_explicit_v3_malformed_cli_always_emits_canonical_v3_blocked(
     arguments: list[str],
 ) -> None:
     completed = subprocess.run(
@@ -907,8 +914,8 @@ def test_explicit_v2_malformed_cli_always_emits_canonical_v2_blocked(
     assert completed.returncode == 2
     assert completed.stderr == b""
     report = json.loads(completed.stdout)
-    assert report == QUALIFIER._blocked_v2(report["reason"])
-    assert report["qualification_kind"] == "production-capsule-v2"
+    assert report == QUALIFIER._blocked_v3(report["reason"])
+    assert report["qualification_kind"] == "production-capsule-v3"
     assert report["status"] == "blocked"
     assert completed.stdout == _canonical(report) + b"\n"
 
@@ -920,10 +927,10 @@ def test_cli_abbreviations_are_not_valid_production_mode_selectors(
 ) -> None:
     missing_authority = tmp_path / "missing-authority.json"
     arguments = [
-        f"{abbreviation}=production-capsule-v2" if abbreviation == "--m" else abbreviation,
+        f"{abbreviation}=production-capsule-v3" if abbreviation == "--m" else abbreviation,
     ]
     if abbreviation == "--mo":
-        arguments.append("production-capsule-v2")
+        arguments.append("production-capsule-v3")
     arguments.extend(
         [
             "--authority",
@@ -958,7 +965,7 @@ def test_cli_abbreviations_are_not_valid_production_mode_selectors(
     assert completed.stdout == _canonical(report) + b"\n"
 
 
-V2_MUTATION_MATRIX = {
+V3_MUTATION_MATRIX = {
     "A-authority-kimi": (
         "authority-digest",
         "authority-id",
@@ -1047,7 +1054,7 @@ V2_MUTATION_MATRIX = {
 
 def _descriptor(kind: str) -> dict:
     if kind == "dependency":
-        sizes = [1] * 143 + [QUALIFIER.V2_DEPENDENCY_BYTES - 143]
+        sizes = [1] * 143 + [QUALIFIER.V3_DEPENDENCY_BYTES - 143]
         files = [
             {
                 "path": f"pkg/file-{index:03}.py",
@@ -1059,13 +1066,13 @@ def _descriptor(kind: str) -> dict:
             for index, size in enumerate(sizes)
         ]
         body = {
-            "schema_version": 2,
-            "bundle_id": "pytest-dependency-v2",
+            "schema_version": 3,
+            "bundle_id": "pytest-dependency-v3",
             "kind": "dependency",
-            "python": dict(QUALIFIER.V2_PYTHON),
-            "counts": {"files": 144, "bytes": QUALIFIER.V2_DEPENDENCY_BYTES},
+            "python": dict(QUALIFIER.V3_PYTHON),
+            "counts": {"files": 144, "bytes": QUALIFIER.V3_DEPENDENCY_BYTES},
             "files": files,
-            "roster_sha256": QUALIFIER.V2_DEPENDENCY_ROSTER_SHA256,
+            "roster_sha256": QUALIFIER.V3_DEPENDENCY_ROSTER_SHA256,
         }
     else:
         files = [
@@ -1092,8 +1099,8 @@ def _descriptor(kind: str) -> dict:
             },
         ]
         body = {
-            "schema_version": 2,
-            "bundle_id": "pytest-source-v2",
+            "schema_version": 3,
+            "bundle_id": "pytest-source-v3",
             "kind": "source",
             "counts": {"files": 3, "bytes": 30},
             "files": files,
@@ -1105,51 +1112,43 @@ def _descriptor(kind: str) -> dict:
 def _capsule_descriptor(monkeypatch: pytest.MonkeyPatch) -> dict:
     files = [
         {
-            "path": "bin/node",
-            "size": 4,
-            "mode": 0o555,
-            "sha256": "sha256:" + "a" * 64,
-            "role": "node",
-        },
-        {
             "path": ".metis-oracle/runner.ts",
             "size": 6,
             "mode": 0o444,
-            "sha256": "sha256:" + "b" * 64,
+            "sha256": "sha256:" + "a" * 64,
             "role": "runner",
         },
         {
-            "path": "tooling/node_modules/tsx/dist/loader.mjs",
+            "path": ".metis-oracle/native_ts_loader.mjs",
             "size": 3,
             "mode": 0o444,
-            "sha256": "sha256:" + "c" * 64,
-            "role": "tsx",
+            "sha256": "sha256:" + "b" * 64,
+            "role": "loader",
         },
     ]
-    monkeypatch.setattr(QUALIFIER, "V2_NODE_BINARY_SHA256", files[0]["sha256"])
-    monkeypatch.setattr(QUALIFIER, "V2_RUNNER_SHA256", files[1]["sha256"])
+    monkeypatch.setattr(QUALIFIER, "V3_RUNNER_SHA256", files[0]["sha256"])
+    monkeypatch.setattr(QUALIFIER, "V3_LOADER_SHA256", files[1]["sha256"])
     body = {
-        "schema_version": 2,
-        "capsule_id": "pytest-capsule-v2",
+        "schema_version": 3,
+        "capsule_id": "pytest-capsule-v3",
         "revision": QUALIFIER.PINNED_METIS_REVISION,
         "tree": QUALIFIER.PINNED_METIS_TREE,
         "language_version": "0.43",
-        "node": {key: files[0][key] for key in ("path", "sha256", "mode")},
-        "runner": {key: files[1][key] for key in ("path", "sha256", "mode")},
-        "tsx": {key: files[2][key] for key in ("path", "sha256", "mode")},
+        "runner": {key: files[0][key] for key in ("path", "sha256", "mode")},
+        "loader": {key: files[1][key] for key in ("path", "sha256", "mode")},
         "tooling": {
             "package_sha256": "sha256:f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80",  # noqa: E501
             "lock_sha256": "sha256:fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb",  # noqa: E501
             "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463",  # noqa: E501
         },
-        "counts": {"files": 3, "bytes": 13},
+        "counts": {"files": 2, "bytes": 9},
         "files": files,
         "roster_sha256": QUALIFIER.canonical_hash(files),
     }
     return {**body, "manifest_sha256": QUALIFIER.canonical_hash(body)}
 
 
-def test_v2_mutation_matrix_is_exact_and_has_no_cosmetic_duplicates() -> None:
+def test_v3_mutation_matrix_is_exact_and_has_no_cosmetic_duplicates() -> None:
     expected = {
         "A-authority-kimi": 11,
         "B-dependency-closure": 12,
@@ -1158,10 +1157,10 @@ def test_v2_mutation_matrix_is_exact_and_has_no_cosmetic_duplicates() -> None:
         "E-request-envelope-artifact": 16,
         "F-replay-v1": 8,
     }
-    assert {group: len(cases) for group, cases in V2_MUTATION_MATRIX.items()} == expected
-    flattened = [case for cases in V2_MUTATION_MATRIX.values() for case in cases]
+    assert {group: len(cases) for group, cases in V3_MUTATION_MATRIX.items()} == expected
+    flattened = [case for cases in V3_MUTATION_MATRIX.values() for case in cases]
     assert len(flattened) == len(set(flattened)) == 71
-    assert len(V2_EXECUTABLE_MUTATIONS) == len(set(V2_EXECUTABLE_MUTATIONS)) == 71
+    assert len(V3_EXECUTABLE_MUTATIONS) == len(set(V3_EXECUTABLE_MUTATIONS)) == 71
 
 
 def _registered_node() -> Path:
@@ -1173,7 +1172,7 @@ def _registered_node() -> Path:
     return node
 
 
-def _v2_live_probe(
+def _v3_live_probe(
     tmp_path: Path,
     worker_source: str,
 ) -> tuple[list[str], dict[str, str], Path]:
@@ -1192,7 +1191,7 @@ def _v2_live_probe(
     denied_read = tmp_path / "denied-read"
     denied_read.write_text("denied", encoding="utf-8")
     denied_write = tmp_path / "denied-write"
-    launcher = QUALIFIER._launcher_identity_v2()
+    launcher = QUALIFIER._launcher_identity_v3()
     python_root = Path(launcher["python_executable"]).parent.parent.resolve(strict=True)
     environment = {
         "LANG": "C",
@@ -1212,7 +1211,7 @@ def _v2_live_probe(
     command = [
         launcher["sandbox_exec_path"],
         "-p",
-        QUALIFIER.V2_OUTER_SANDBOX_POLICY_TEMPLATE,
+        QUALIFIER.V3_OUTER_SANDBOX_POLICY_TEMPLATE,
         "-D",
         f"PROCESS_ROOT={process_root}",
         "-D",
@@ -1228,15 +1227,15 @@ def _v2_live_probe(
         "-S",
         "-B",
         "-c",
-        QUALIFIER._V2_CHILD_BOOTSTRAP,
+        QUALIFIER._V3_CHILD_BOOTSTRAP,
     ]
     return command, environment, process_root
 
 
-def test_v2_live_pure_worker_denies_fork_posix_spawn_and_unregistered_exec(
+def test_v3_live_pure_worker_denies_fork_posix_spawn_and_unregistered_exec(
     tmp_path: Path,
 ) -> None:
-    command, environment, process_root = _v2_live_probe(
+    command, environment, process_root = _v3_live_probe(
         tmp_path,
         """
 import errno
@@ -1280,8 +1279,10 @@ with open(os.environ["W3_PROBE_RESULT_PATH"], "w", encoding="ascii") as handle:
 
 def _tmp_node_capsule(tmp_path: Path) -> tuple[Path, Path, Path]:
     capsule = tmp_path / "capsule"
-    node = capsule / "bin/node"
+    runtime_root = tmp_path / "runtime"
+    node = runtime_root / "bin/node"
     process_root = tmp_path / "node-process"
+    capsule.mkdir()
     node.parent.mkdir(parents=True)
     process_root.mkdir(mode=0o700)
     shutil.copy2(_registered_node(), node)
@@ -1298,17 +1299,23 @@ def _node_policy_command(
     policy: str | None = None,
 ) -> list[str]:
     ancestors = QUALIFIER._capsule_ancestor_definitions(capsule)
+    runtime_root = node.parents[1]
+    runtime_ancestors = QUALIFIER._runtime_ancestor_definitions(runtime_root)
     ancestor_arguments = [
-        argument for name, value in ancestors.items() for argument in ("-D", f"{name}={value}")
+        argument
+        for name, value in {**ancestors, **runtime_ancestors}.items()
+        for argument in ("-D", f"{name}={value}")
     ]
     return [
         str(QUALIFIER.SANDBOX_EXEC_PATH),
         "-p",
-        policy or QUALIFIER.V2_NODE_SANDBOX_POLICY_TEMPLATE,
+        policy or QUALIFIER.V3_NODE_SANDBOX_POLICY_TEMPLATE,
         "-D",
         f"PROCESS_ROOT={process_root}",
         "-D",
         f"NODE_EXECUTABLE={node}",
+        "-D",
+        f"RUNTIME_ROOT={runtime_root}",
         "-D",
         f"CAPSULE_ROOT={capsule}",
         *ancestor_arguments,
@@ -1329,7 +1336,7 @@ def _assert_pid_absent(pid: int) -> None:
     pytest.fail(f"process {pid} survived supervised cleanup")
 
 
-def test_v2_live_registered_node_is_exact_supervised_session_leader(tmp_path: Path) -> None:
+def test_v3_live_registered_node_is_exact_supervised_session_leader(tmp_path: Path) -> None:
     capsule, node, process_root = _tmp_node_capsule(tmp_path)
     command = _node_policy_command(
         capsule,
@@ -1354,7 +1361,7 @@ def test_v2_live_registered_node_is_exact_supervised_session_leader(tmp_path: Pa
 
 
 @pytest.mark.parametrize("detached", [False, True])
-def test_v2_live_node_cannot_spawn_unregistered_or_detached_registered_child(
+def test_v3_live_node_cannot_spawn_unregistered_or_detached_registered_child(
     tmp_path: Path, detached: bool
 ) -> None:
     capsule, node, process_root = _tmp_node_capsule(tmp_path)
@@ -1394,13 +1401,13 @@ def test_v2_live_node_cannot_spawn_unregistered_or_detached_registered_child(
     assert not marker.exists()
 
 
-def test_v2_exact_root_bootstrap_exception_is_necessary_and_root_only(
+def test_v3_exact_root_bootstrap_exception_is_necessary_and_root_only(
     tmp_path: Path,
 ) -> None:
     capsule, node, process_root = _tmp_node_capsule(tmp_path)
     sibling = capsule.parent / "sibling-secret"
     sibling.write_text("denied")
-    metadata_only = QUALIFIER.V2_NODE_SANDBOX_POLICY_TEMPLATE.replace(
+    metadata_only = QUALIFIER.V3_NODE_SANDBOX_POLICY_TEMPLATE.replace(
         '(allow file-read-data (literal "/"))\n', "", 1
     )
     necessity = subprocess.run(
@@ -1441,9 +1448,9 @@ def test_v2_exact_root_bootstrap_exception_is_necessary_and_root_only(
     assert completed.stdout == completed.stderr == b""
 
 
-def test_v2_capsule_ancestor_depth_and_parameter_drift_fail_closed(tmp_path: Path) -> None:
+def test_v3_capsule_ancestor_depth_and_parameter_drift_fail_closed(tmp_path: Path) -> None:
     deep = tmp_path
-    for index in range(QUALIFIER.V2_CAPSULE_ANCESTOR_SLOTS + 1):
+    for index in range(QUALIFIER.V3_CAPSULE_ANCESTOR_SLOTS + 1):
         deep = deep / f"d{index:02d}"
     deep.mkdir(parents=True)
     with pytest.raises(QUALIFIER.QualificationBlocked, match="slot cap"):
@@ -1457,7 +1464,7 @@ def test_v2_capsule_ancestor_depth_and_parameter_drift_fail_closed(tmp_path: Pat
         QUALIFIER._validate_capsule_ancestor_definitions(capsule.resolve(), definitions)
 
 
-def test_v2_live_outer_timeout_reaps_exact_node_session(tmp_path: Path) -> None:
+def test_v3_live_outer_timeout_reaps_exact_node_session(tmp_path: Path) -> None:
     capsule, node, process_root = _tmp_node_capsule(tmp_path)
     pid_path = process_root / "node.pid"
     script = (
@@ -1487,7 +1494,7 @@ def test_v2_live_outer_timeout_reaps_exact_node_session(tmp_path: Path) -> None:
             QUALIFIER._kill_and_reap_process_group(process)
 
 
-def test_v2_inner_timeout_kills_exact_registered_node_pid(tmp_path: Path) -> None:
+def test_v3_inner_timeout_kills_exact_registered_node_pid(tmp_path: Path) -> None:
     import metis_model1.oracles as oracles
 
     capsule, node, process_root = _tmp_node_capsule(tmp_path)
@@ -1508,6 +1515,7 @@ def test_v2_inner_timeout_kills_exact_registered_node_pid(tmp_path: Path) -> Non
             stderr_path=process_root / "inner-stderr",
             timeout=4.0,
             node_executable=node,
+            runtime_root=node.parents[1],
             capsule_root=capsule,
             process_root=process_root,
         )
@@ -1579,6 +1587,7 @@ def test_public_capsule_boundary_denies_child_process_and_leaves_no_residual(
         stderr_path=process_root / "child-stderr",
         timeout=5,
         node_executable=node,
+        runtime_root=node.parents[1],
         capsule_root=capsule,
         process_root=process_root,
     )
@@ -1613,17 +1622,18 @@ def test_public_capsule_supervisor_rejects_unregistered_cwd_and_stream_paths(
                 request_bytes=b"",
                 timeout=5,
                 node_executable=node,
+                runtime_root=node.parents[1],
                 capsule_root=capsule,
                 process_root=process_root,
                 **arguments,
             )
 
 
-def test_v2_authority_binds_worker_and_policy_bytes(
+def test_v3_authority_binds_worker_and_policy_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     for mutation, message in (("worker", "worker bytes"), ("policy", "launcher identity")):
-        authority = _authority_v2(monkeypatch)
+        authority = _authority_v3(monkeypatch)
         if mutation == "worker":
             authority["project"]["worker"]["sha256"] = "sha256:" + "0" * 64
         else:
@@ -1635,7 +1645,7 @@ def test_v2_authority_binds_worker_and_policy_bytes(
         path = tmp_path / f"authority-{mutation}.json"
         path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
         with pytest.raises(QUALIFIER.QualificationBlocked, match=message):
-            QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+            QUALIFIER._load_authority_v3(path, authority["manifest_sha256"])
 
 
 @pytest.mark.parametrize(
@@ -1711,7 +1721,11 @@ def test_capsule_descriptor_mutations_fail_closed(
     if mutation in {"revision", "tree"}:
         descriptor[mutation] = "0" * 40
     elif mutation == "node":
-        descriptor["node"]["sha256"] = "sha256:" + "0" * 64
+        descriptor["node"] = {
+            "path": "bin/node",
+            "sha256": "sha256:" + "0" * 64,
+            "mode": 0o555,
+        }
     elif mutation == "runner":
         descriptor["runner"]["mode"] = 0o555
     elif mutation == "tooling":
@@ -1719,7 +1733,7 @@ def test_capsule_descriptor_mutations_fail_closed(
     elif mutation == "roster":
         descriptor["roster_sha256"] = "sha256:" + "0" * 64
     elif mutation == "count":
-        descriptor["counts"]["files"] = 2
+        descriptor["counts"]["files"] = 1
     elif mutation == "bytes":
         descriptor["counts"]["bytes"] = 12
     elif mutation == "path":
@@ -1736,46 +1750,58 @@ def test_capsule_descriptor_mutations_fail_closed(
         QUALIFIER._validate_capsule_descriptor(descriptor)
 
 
-def _authority_v2(monkeypatch: pytest.MonkeyPatch) -> dict:
+def _authority_v3(monkeypatch: pytest.MonkeyPatch) -> dict:
     source = _descriptor("source")
     dependency = _descriptor("dependency")
     capsule = _capsule_descriptor(monkeypatch)
     body = {
-        "schema_version": 2,
-        "authority_id": QUALIFIER.V2_AUTHORITY_ID,
+        "schema_version": 3,
+        "authority_id": QUALIFIER.V3_AUTHORITY_ID,
         "status": "independently_ratified",
         "ratification": {
             "verdict": "RATIFIABLE",
             "scope": ["F-1", "F-2", "F-3"],
             "independent": True,
-            "kimi_report_sha256": QUALIFIER.V2_KIMI_REPORT_SHA256,
+            "kimi_report_sha256": QUALIFIER.V3_KIMI_REPORT_SHA256,
         },
         "project": {
-            "revision": QUALIFIER.V2_PROJECT_SHA,
+            "revision": QUALIFIER.V3_PROJECT_SHA,
             "candidate_manifest": {
                 "path": "manifests/candidates.json",
-                "manifest_sha256": QUALIFIER.V2_CANDIDATE_MANIFEST_SHA256,
+                "manifest_sha256": QUALIFIER.V3_CANDIDATE_MANIFEST_SHA256,
             },
             "semantic_registry": {
                 "path": "manifests/registry.json",
-                "manifest_sha256": QUALIFIER.V2_SEMANTIC_REGISTRY_SHA256,
+                "manifest_sha256": QUALIFIER.V3_SEMANTIC_REGISTRY_SHA256,
             },
-            "launcher": QUALIFIER._launcher_identity_v2(),
+            "launcher": QUALIFIER._launcher_identity_v3(),
             "worker": {
                 "path": "runtime/w3_production_worker.py",
                 "sha256": "sha256:" + "1" * 64,
-                "protocol": QUALIFIER.V2_PROTOCOL,
+                "protocol": QUALIFIER.V3_PROTOCOL,
             },
         },
         "source_bundle": source,
         "dependency_bundle": dependency,
         "capsule": capsule,
+        "runtime": {
+            "schema_version": 3,
+            "node": {
+                "path": "bin/node",
+                "size": QUALIFIER.V3_NODE_BINARY_BYTES,
+                "source_mode": 0o755,
+                "mode": 0o555,
+                "sha256": QUALIFIER.V3_NODE_BINARY_SHA256,
+            },
+            "loader_flags": list(QUALIFIER.V3_LOADER_FLAGS),
+        },
         "expected": {
             "candidates": 3,
             "executions": 5,
             "roles": dict(QUALIFIER.EXPECTED_ROLE_COUNTS),
         },
-        "non_claims": list(QUALIFIER.V2_NON_CLAIMS),
+        "native_evidence": dict(QUALIFIER.V3_NATIVE_EVIDENCE),
+        "non_claims": list(QUALIFIER.V3_NON_CLAIMS),
     }
     return {**body, "manifest_sha256": QUALIFIER.canonical_hash(body)}
 
@@ -1799,7 +1825,7 @@ def _authority_v2(monkeypatch: pytest.MonkeyPatch) -> dict:
 def test_authority_and_kimi_mutations_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     expected = authority["manifest_sha256"]
     if mutation == "authority-digest":
         expected = "sha256:" + "0" * 64
@@ -1830,13 +1856,13 @@ def test_authority_and_kimi_mutations_fail_closed(
     path = tmp_path / "authority.json"
     path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._load_authority_v2(path, expected)
+        QUALIFIER._load_authority_v3(path, expected)
 
 
-def test_v2_authority_rejects_integer_ratification_independent_after_rehash(
+def test_v3_authority_rejects_integer_ratification_independent_after_rehash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     authority["ratification"]["independent"] = 1
     body = {key: value for key, value in authority.items() if key != "manifest_sha256"}
     authority["manifest_sha256"] = QUALIFIER.canonical_hash(body)
@@ -1844,39 +1870,39 @@ def test_v2_authority_rejects_integer_ratification_independent_after_rehash(
     path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="Kimi ratification"):
-        QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+        QUALIFIER._load_authority_v3(path, authority["manifest_sha256"])
 
 
-def test_v2_authority_rejects_former_handoff_revision_after_canonical_rehash(
+def test_v3_authority_rejects_former_handoff_revision_after_canonical_rehash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setitem(
-        QUALIFIER.V2_PYTHON,
+        QUALIFIER.V3_PYTHON,
         "version",
         f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     )
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     authority["project"]["revision"] = FORMER_HANDOFF_REVISION
     body = {key: value for key, value in authority.items() if key != "manifest_sha256"}
     authority["manifest_sha256"] = QUALIFIER.canonical_hash(body)
     path = tmp_path / "former-revision-authority.json"
     path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
     with pytest.raises(QUALIFIER.QualificationBlocked, match="project revision"):
-        QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+        QUALIFIER._load_authority_v3(path, authority["manifest_sha256"])
 
 
-def test_v2_report_requires_source_checkpoint_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_v3_report_requires_source_checkpoint_revision(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        QUALIFIER.V2_PYTHON,
+        QUALIFIER.V3_PYTHON,
         "version",
         f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     )
-    report = _v2_report()
+    report = _v3_report()
     report["project_revision"] = FORMER_HANDOFF_REVISION
     body = {key: value for key, value in report.items() if key != "manifest_sha256"}
     report["manifest_sha256"] = QUALIFIER.canonical_hash(body)
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._validate_report_v2(report, report["launcher"])
+        QUALIFIER._validate_report_v3(report, report["launcher"])
 
 
 def test_source_checkpoint_revision_is_exact_in_qualification_schema() -> None:
@@ -1893,12 +1919,12 @@ def test_source_checkpoint_revision_is_exact_in_qualification_schema() -> None:
     "noncanonical_path",
     ["runtime//w3_production_worker.py", "runtime/./w3_production_worker.py"],
 )
-def test_v2_authority_rejects_consistently_rehashed_noncanonical_worker_path(
+def test_v3_authority_rejects_consistently_rehashed_noncanonical_worker_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     noncanonical_path: str,
 ) -> None:
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     canonical_path = authority["project"]["worker"]["path"]
     authority["project"]["worker"]["path"] = noncanonical_path
     source = authority["source_bundle"]
@@ -1913,13 +1939,13 @@ def test_v2_authority_rejects_consistently_rehashed_noncanonical_worker_path(
     path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="safe relative POSIX path"):
-        QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+        QUALIFIER._load_authority_v3(path, authority["manifest_sha256"])
 
 
-def test_v2_authority_rejects_boolean_role_count_after_canonical_rehash(
+def test_v3_authority_rejects_boolean_role_count_after_canonical_rehash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     authority["expected"]["roles"]["author"] = True
     body = {key: value for key, value in authority.items() if key != "manifest_sha256"}
     authority["manifest_sha256"] = QUALIFIER.canonical_hash(body)
@@ -1927,14 +1953,14 @@ def test_v2_authority_rejects_boolean_role_count_after_canonical_rehash(
     path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="exact integer 1"):
-        QUALIFIER._load_authority_v2(path, authority["manifest_sha256"])
+        QUALIFIER._load_authority_v3(path, authority["manifest_sha256"])
 
 
 @pytest.mark.parametrize(
     "field",
     ["authority", "source", "dependency", "capsule", "artifact", "run"],
 )
-def test_v2_rejects_symlink_in_every_external_input_parent(
+def test_v3_rejects_symlink_in_every_external_input_parent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
@@ -1943,7 +1969,7 @@ def test_v2_rejects_symlink_in_every_external_input_parent(
     real_parent.mkdir()
     target = real_parent / ("authority.json" if field == "authority" else "root")
     if field == "authority":
-        authority = _authority_v2(monkeypatch)
+        authority = _authority_v3(monkeypatch)
         target.write_bytes(QUALIFIER.canonical_json_bytes(authority))
     elif field not in {"artifact", "run"}:
         target.mkdir()
@@ -1953,7 +1979,7 @@ def test_v2_rejects_symlink_in_every_external_input_parent(
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="ancestry contains a symlink"):
         if field == "authority":
-            QUALIFIER._load_authority_v2(supplied, authority["manifest_sha256"])
+            QUALIFIER._load_authority_v3(supplied, authority["manifest_sha256"])
         elif field in {"source", "dependency", "capsule"}:
             QUALIFIER._resolve_external_root(supplied, f"{field} bundle root")
         else:
@@ -1966,12 +1992,12 @@ def test_v2_rejects_symlink_in_every_external_input_parent(
 
 
 @pytest.mark.parametrize("field", ["artifact", "run"])
-def test_v2_missing_output_root_parent_swap_writes_nothing_outside(
+def test_v3_missing_output_root_parent_swap_writes_nothing_outside(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
 ) -> None:
-    authority = _authority_v2(monkeypatch)
+    authority = _authority_v3(monkeypatch)
     authority_path = tmp_path / "authority-root-race.json"
     authority_path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
     roots: dict[str, Path] = {}
@@ -2008,7 +2034,7 @@ def test_v2_missing_output_root_parent_swap_writes_nothing_outside(
             swapped = True
         original_mkdir(name, mode, dir_fd=dir_fd)
 
-    monkeypatch.setattr(QUALIFIER, "_load_authority_v2", lambda *_: authority)
+    monkeypatch.setattr(QUALIFIER, "_load_authority_v3", lambda *_: authority)
     monkeypatch.setattr(
         QUALIFIER,
         "_verify_external_tree",
@@ -2018,12 +2044,13 @@ def test_v2_missing_output_root_parent_swap_writes_nothing_outside(
     monkeypatch.setattr(QUALIFIER.os, "mkdir", racing_mkdir)
     try:
         with pytest.raises(QUALIFIER.QualificationBlocked, match="pathname was replaced"):
-            QUALIFIER._qualify_v2_impl(
+            QUALIFIER._qualify_v3_impl(
                 authority_path=authority_path,
                 authority_sha256=authority["manifest_sha256"],
                 source_bundle_root=roots["source"],
                 dependency_bundle_root=roots["dependency"],
                 capsule_root=roots["capsule"],
+                node_path=Path(sys.executable).resolve(),
                 artifact_root=artifact,
                 run_root=run,
                 run_nonce="8" * 64,
@@ -2087,7 +2114,7 @@ def _publisher_fixture(
     finally:
         output.close()
     body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "executions": [{"artifact_path": path} for path in paths],
     }
     return artifact, process, {**body, "manifest_sha256": QUALIFIER.canonical_hash(body)}
@@ -2297,7 +2324,7 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
         os.fchmod(root.descriptor, 0o555)
         root.mode = 0o555
         if case == "verify-preimage-child":
-            function = QUALIFIER._verify_materialized_tree_preimage_v2
+            function = QUALIFIER._verify_materialized_tree_preimage_v3
             needle = "child = os.open(name, _DIRECTORY_OPEN_FLAGS"
             target_needle = "visit(child"
             descriptor = {"files": [], "manifest_sha256": "sha256:" + "1" * 64}
@@ -2362,7 +2389,7 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
             )
     elif case == "materialize-preimage-namespace":
         root = anchored()
-        function = QUALIFIER._materialize_tree_preimage_v2
+        function = QUALIFIER._materialize_tree_preimage_v3
         needle = "namespace = _open_child_directory("
         target_needle = "target = _open_child_directory("
         descriptor = {"files": [], "manifest_sha256": "sha256:" + "2" * 64}
@@ -2384,7 +2411,7 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
         if case == "verify-tree-target":
             (namespace_path / f"source-{digest[7:]}").mkdir(mode=0o555)
         namespace_path.chmod(0o555)
-        function = QUALIFIER._verify_tree_preimage_at_v2
+        function = QUALIFIER._verify_tree_preimage_at_v3
         needle = (
             "namespace = _open_child_directory("
             if case == "verify-tree-namespace"
@@ -2393,7 +2420,7 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
         target_needle = (
             "target = _open_child_directory("
             if case == "verify-tree-namespace"
-            else "_verify_materialized_tree_preimage_v2("
+            else "_verify_materialized_tree_preimage_v3("
         )
         descriptor = {"files": [], "manifest_sha256": digest}
 
@@ -2409,7 +2436,7 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
     elif case == "seal-preimage-namespace":
         root = anchored()
         (root.path / "preimages").mkdir(mode=0o700)
-        function = QUALIFIER._seal_preimage_namespace_v2
+        function = QUALIFIER._seal_preimage_namespace_v3
         needle = "namespace = _open_child_directory("
         target_needle = "os.fchmod(namespace.descriptor"
 
@@ -2448,15 +2475,15 @@ def test_qualifier_fd_transfer_low_level_roster_is_baseexception_safe(
 QUALIFIER_FD_TRANSFER_HIGH_LEVEL_CASES = (
     "run-worker-process",
     "run-worker-output",
-    "run-worker-v2-output",
+    "run-worker-v3-output",
     "run-capsule-namespace",
     "qualify-artifact",
     "qualify-output",
     "qualify-bundles",
     "qualify-bundle",
-    "v2-root-success",
-    "v2-output-create",
-    "v2-output-read",
+    "v3-root-success",
+    "v3-output-create",
+    "v3-output-read",
 )
 
 
@@ -2509,25 +2536,25 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
                 1.0,
                 registry,
             )
-    elif case == "run-worker-v2-output":
-        artifact = anchored(tmp_path / "v2-worker-artifact", "v2 worker artifact")
-        process = anchored(tmp_path / "v2-worker-process", "v2 worker process")
+    elif case == "run-worker-v3-output":
+        artifact = anchored(tmp_path / "v3-worker-artifact", "v3 worker artifact")
+        process = anchored(tmp_path / "v3-worker-process", "v3 worker process")
         resources.extend([])
         output = QUALIFIER._open_child_directory(
             process,
             "output",
-            "v2 worker output fixture",
+            "v3 worker output fixture",
             mode=0o700,
             create=True,
         )
         output.close()
-        source = tmp_path / "v2-worker-source"
-        dependency = tmp_path / "v2-worker-dependency"
+        source = tmp_path / "v3-worker-source"
+        dependency = tmp_path / "v3-worker-dependency"
         source.mkdir(mode=0o700)
         dependency.mkdir(mode=0o700)
-        authority = tmp_path / "v2-worker-authority.json"
+        authority = tmp_path / "v3-worker-authority.json"
         authority.write_bytes(b"{}")
-        function = QUALIFIER._run_worker_v2
+        function = QUALIFIER._run_worker_v3
         needle = "output = _open_child_directory("
         target_needle = "output_root = output.path"
 
@@ -2544,6 +2571,8 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
             )
     elif case == "run-capsule-namespace":
         process = anchored(tmp_path / "capsule-process", "capsule process")
+        runtime = anchored(tmp_path / "capsule-runtime", "capsule runtime")
+        node = runtime.path / "bin/node"
         capsule = tmp_path / "capsule"
         (capsule / "tooling").mkdir(parents=True)
         placeholder = capsule / "placeholder"
@@ -2551,14 +2580,15 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
         monkeypatch.setattr(QUALIFIER, "_source_file", lambda *_args, **_kwargs: placeholder)
         monkeypatch.setattr(
             QUALIFIER,
-            "_v2_runtime_authority",
+            "_v3_runtime_authority",
             lambda _authority: {
                 "runtime_identity": {
                     "node_path": "bin/node",
-                    "tsx_path": "tooling/loader.mjs",
+                    "loader_path": "tooling/loader.mjs",
                     "runner_path": "runner.mjs",
-                    "sandbox_policy_version": "v1",
-                    "sandbox_policy_sha256": "sha256:" + "9" * 64,
+                    "oracle_policy_version": "v1",
+                    "oracle_policy_sha256": "sha256:" + "9" * 64,
+                    "execution_policy_sha256": "sha256:" + "8" * 64,
                 }
             },
         )
@@ -2571,21 +2601,22 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
         authority = {
             "capsule": {
                 "node": {"path": "bin/node", "sha256": "sha256:" + "1" * 64},
-                "tsx": {"path": "tooling/loader.mjs", "sha256": "sha256:" + "2" * 64},
+                "loader": {"path": "tooling/loader.mjs", "sha256": "sha256:" + "2" * 64},
                 "runner": {"path": "runner.mjs", "sha256": "sha256:" + "3" * 64},
                 "tooling": {
                     "node_modules_sha256": "sha256:" + "4" * 64,
                     "package_sha256": "sha256:" + "5" * 64,
                     "lock_sha256": "sha256:" + "6" * 64,
                 },
-            }
+            },
+            "runtime": {"node": {"sha256": "sha256:" + "7" * 64}},
         }
         execution = {
             "candidate_id": "candidate",
             "role": "F1",
             "request": {"request_id": "request"},
         }
-        function = QUALIFIER._run_capsule_node_v2
+        function = QUALIFIER._run_capsule_node_v3
         needle = "namespace = _open_child_directory("
         target_needle = "invocation = _open_child_directory("
 
@@ -2593,6 +2624,8 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
             return function(
                 execution=execution,
                 capsule=capsule,
+                node=node,
+                runtime_root=runtime,
                 process_root=process,
                 run_nonce="7" * 64,
                 timeout_seconds=1.0,
@@ -2699,18 +2732,18 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
                 timeout_seconds=1.0,
             )
     else:
-        authority = _authority_v2(monkeypatch)
-        authority_path = tmp_path / "fd-v2-authority.json"
+        authority = _authority_v3(monkeypatch)
+        authority_path = tmp_path / "fd-v3-authority.json"
         authority_path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
         roots: dict[str, Path] = {}
         for name in ("source", "dependency", "capsule"):
-            roots[name] = tmp_path / f"fd-v2-{name}"
+            roots[name] = tmp_path / f"fd-v3-{name}"
             roots[name].mkdir(mode=0o700)
-        artifact_parent = tmp_path / "fd-v2-artifact-parent"
-        run_parent = tmp_path / "fd-v2-run-parent"
+        artifact_parent = tmp_path / "fd-v3-artifact-parent"
+        run_parent = tmp_path / "fd-v3-run-parent"
         artifact_parent.mkdir(mode=0o700)
         run_parent.mkdir(mode=0o700)
-        monkeypatch.setattr(QUALIFIER, "_load_authority_v2", lambda *_args: authority)
+        monkeypatch.setattr(QUALIFIER, "_load_authority_v3", lambda *_args: authority)
         monkeypatch.setattr(
             QUALIFIER,
             "_verify_external_tree",
@@ -2719,25 +2752,25 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
         monkeypatch.setattr(QUALIFIER, "_load_gate_inputs", lambda *_args: ({}, {}, []))
         monkeypatch.setattr(
             QUALIFIER,
-            "_materialize_tree_preimage_v2",
+            "_materialize_tree_preimage_v3",
             lambda trusted, **_kwargs: trusted.path,
         )
-        monkeypatch.setattr(QUALIFIER, "_seal_preimage_namespace_v2", lambda root: root.path)
-        monkeypatch.setattr(QUALIFIER, "_run_capsule_roster_v2", lambda **_kwargs: [])
-        monkeypatch.setattr(QUALIFIER, "_run_worker_v2", lambda **_kwargs: b"{}")
-        function = QUALIFIER._qualify_v2_impl
+        monkeypatch.setattr(QUALIFIER, "_seal_preimage_namespace_v3", lambda root: root.path)
+        monkeypatch.setattr(QUALIFIER, "_run_capsule_roster_v3", lambda **_kwargs: [])
+        monkeypatch.setattr(QUALIFIER, "_run_worker_v3", lambda **_kwargs: b"{}")
+        function = QUALIFIER._qualify_v3_impl
         mapping = {
-            "v2-root-success": (
+            "v3-root-success": (
                 "run_handle = _open_or_create_secure_root",
                 "if artifact_handle is None or run_handle is None:",
             ),
-            "v2-output-create": (
+            "v3-output-create": (
                 "output = _open_child_directory(",
                 "output.assert_path_identity()",
             ),
-            "v2-output-read": (
+            "v3-output-read": (
                 "output_root = _open_child_directory(",
-                "_verify_worker_output_v2(",
+                "_verify_worker_output_v3(",
             ),
         }
         needle, target_needle = mapping[case]
@@ -2749,6 +2782,7 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
                 source_bundle_root=roots["source"],
                 dependency_bundle_root=roots["dependency"],
                 capsule_root=roots["capsule"],
+                node_path=_registered_node(),
                 artifact_root=artifact_parent / "artifact",
                 run_root=run_parent / "run",
                 run_nonce="8" * 64,
@@ -2787,7 +2821,7 @@ def test_qualifier_fd_transfer_high_level_roster_is_baseexception_safe(
         "random-observe",
         "registry-dup-transfer",
         "publication-pair",
-        "v2-root-pair",
+        "v3-root-pair",
     ],
 )
 def test_qualifier_sequential_fd_acquisitions_are_baseexception_safe(
@@ -2893,7 +2927,7 @@ def test_qualifier_sequential_fd_acquisitions_are_baseexception_safe(
             QUALIFIER._publish_qualification(artifact, process, report)
 
     else:
-        authority = _authority_v2(monkeypatch)
+        authority = _authority_v3(monkeypatch)
         authority_path = tmp_path / "fd-census-authority.json"
         authority_path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
         roots: dict[str, Path] = {}
@@ -2904,7 +2938,7 @@ def test_qualifier_sequential_fd_acquisitions_are_baseexception_safe(
         run_parent = tmp_path / "fd-census-run-parent"
         artifact_parent.mkdir(mode=0o700)
         run_parent.mkdir(mode=0o700)
-        monkeypatch.setattr(QUALIFIER, "_load_authority_v2", lambda *_: authority)
+        monkeypatch.setattr(QUALIFIER, "_load_authority_v3", lambda *_: authority)
         monkeypatch.setattr(
             QUALIFIER,
             "_verify_external_tree",
@@ -2924,12 +2958,13 @@ def test_qualifier_sequential_fd_acquisitions_are_baseexception_safe(
         monkeypatch.setattr(QUALIFIER, "_open_or_create_secure_root", interrupt_run_root)
 
         def invoke() -> None:
-            QUALIFIER._qualify_v2_impl(
+            QUALIFIER._qualify_v3_impl(
                 authority_path=authority_path,
                 authority_sha256=authority["manifest_sha256"],
                 source_bundle_root=roots["source"],
                 dependency_bundle_root=roots["dependency"],
                 capsule_root=roots["capsule"],
+                node_path=Path(sys.executable).resolve(),
                 artifact_root=artifact_parent / "artifact",
                 run_root=run_parent / "run",
                 run_nonce="9" * 64,
@@ -2962,13 +2997,13 @@ def test_materialized_preimage_keyboard_interrupt_keeps_fd_delta_zero(
     }
     monkeypatch.setattr(
         QUALIFIER,
-        "_verify_materialized_tree_preimage_v2",
+        "_verify_materialized_tree_preimage_v3",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
     )
     before = _qualifier_open_fd_snapshot()
     try:
         with pytest.raises(KeyboardInterrupt):
-            QUALIFIER._materialize_tree_preimage_v2(
+            QUALIFIER._materialize_tree_preimage_v3(
                 trusted,
                 kind="source",
                 descriptor=descriptor,
@@ -3218,7 +3253,7 @@ def test_publish_structural_success_branches_reassert_target_identity(
         artifact.close()
 
 
-@pytest.mark.parametrize("schema_version", [1, 2])
+@pytest.mark.parametrize("schema_version", [1, 3])
 def test_shared_publish_parent_swap_writes_nothing_outside(
     tmp_path: Path,
     schema_version: int,
@@ -3529,19 +3564,19 @@ def test_v1_public_finalizer_never_enters_name_based_remove_race(
     assert outside_sentinel.read_bytes() == b"outside-preserve-exact"
 
 
-def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
+def test_v3_public_finalizer_retains_both_roots_without_name_based_cleanup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    authority = _authority_v2(monkeypatch)
-    authority_path = tmp_path / "cleanup-v2-authority.json"
+    authority = _authority_v3(monkeypatch)
+    authority_path = tmp_path / "cleanup-v3-authority.json"
     authority_path.write_bytes(QUALIFIER.canonical_json_bytes(authority))
     roots: dict[str, Path] = {}
     for name in ("source", "dependency", "capsule"):
-        roots[name] = tmp_path / f"cleanup-v2-{name}"
+        roots[name] = tmp_path / f"cleanup-v3-{name}"
         roots[name].mkdir(mode=0o700)
-    artifact = tmp_path / "cleanup-v2-artifact"
-    run = tmp_path / "cleanup-v2-run"
-    monkeypatch.setattr(QUALIFIER, "_load_authority_v2", lambda *_: authority)
+    artifact = tmp_path / "cleanup-v3-artifact"
+    run = tmp_path / "cleanup-v3-run"
+    monkeypatch.setattr(QUALIFIER, "_load_authority_v3", lambda *_: authority)
     monkeypatch.setattr(
         QUALIFIER,
         "_verify_external_tree",
@@ -3550,13 +3585,13 @@ def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
     monkeypatch.setattr(QUALIFIER, "_load_gate_inputs", lambda *_: ({}, {}, []))
     monkeypatch.setattr(
         QUALIFIER,
-        "_materialize_tree_preimage_v2",
+        "_materialize_tree_preimage_v3",
         lambda _trusted, *, kind, **_kwargs: roots[kind],
     )
-    monkeypatch.setattr(QUALIFIER, "_seal_preimage_namespace_v2", lambda *_: None)
-    monkeypatch.setattr(QUALIFIER, "_run_capsule_roster_v2", lambda **_: [])
+    monkeypatch.setattr(QUALIFIER, "_seal_preimage_namespace_v3", lambda *_: None)
+    monkeypatch.setattr(QUALIFIER, "_run_capsule_roster_v3", lambda **_: [])
 
-    def fake_worker_v2(**kwargs: object) -> bytes:
+    def fake_worker_v3(**kwargs: object) -> bytes:
         process_root = kwargs["process_root"]
         for name in ("stdout.json", "stderr.txt"):
             descriptor = os.open(
@@ -3570,10 +3605,10 @@ def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
             os.close(descriptor)
         return b"{}"
 
-    monkeypatch.setattr(QUALIFIER, "_run_worker_v2", fake_worker_v2)
+    monkeypatch.setattr(QUALIFIER, "_run_worker_v3", fake_worker_v3)
     monkeypatch.setattr(
         QUALIFIER,
-        "_verify_worker_output_v2",
+        "_verify_worker_output_v3",
         lambda *_: (
             {
                 "counts": {"candidates": 3, "executions": 5, "distinct": 5, "gaps": 0},
@@ -3584,8 +3619,8 @@ def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
             b'{"normalized":true}',
         ),
     )
-    monkeypatch.setattr(QUALIFIER, "_verify_tree_preimage_at_v2", lambda *_, **__: None)
-    monkeypatch.setattr(QUALIFIER, "_validate_report_v2", lambda *_: None)
+    monkeypatch.setattr(QUALIFIER, "_verify_tree_preimage_at_v3", lambda *_, **__: None)
+    monkeypatch.setattr(QUALIFIER, "_validate_report_v3", lambda *_: None)
     monkeypatch.setattr(QUALIFIER, "_publish_qualification", lambda *_: None)
     cleanup_calls = 0
     state = _install_stat_to_remove_cleanup_race(QUALIFIER, monkeypatch)
@@ -3597,12 +3632,13 @@ def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
         return racing_remove(handle)
 
     monkeypatch.setattr(QUALIFIER, "_remove_owned_directory", counted_remove)
-    report = QUALIFIER._qualify_v2_impl(
+    report = QUALIFIER._qualify_v3_impl(
         authority_path=authority_path,
         authority_sha256=authority["manifest_sha256"],
         source_bundle_root=roots["source"],
         dependency_bundle_root=roots["dependency"],
         capsule_root=roots["capsule"],
+        node_path=_registered_node(),
         artifact_root=artifact,
         run_root=run,
         run_nonce="8" * 64,
@@ -3612,6 +3648,7 @@ def test_v2_public_finalizer_retains_both_roots_without_name_based_cleanup(
     assert state["attacked"] is False
     assert [root["kind"] for root in report["cleanup"]["retained_roots"]] == [
         "production-process-root",
+        "production-runtime-root",
         "production-trusted-root",
     ]
 
@@ -3629,7 +3666,7 @@ def _materialize_dependency_bundle(
         path.chmod(record["mode"])
         record["sha256"] = QUALIFIER._bytes_hash(raw)
     roster = QUALIFIER._dependency_roster_digest(root, descriptor["files"])
-    monkeypatch.setattr(QUALIFIER, "V2_DEPENDENCY_ROSTER_SHA256", roster)
+    monkeypatch.setattr(QUALIFIER, "V3_DEPENDENCY_ROSTER_SHA256", roster)
     descriptor["roster_sha256"] = roster
     body = {key: value for key, value in descriptor.items() if key != "manifest_sha256"}
     descriptor["manifest_sha256"] = QUALIFIER.canonical_hash(body)
@@ -3716,9 +3753,9 @@ def _unmeasurable_retained_root_fixture(
 
 def _blocked_qualification_fixture(*, production: bool, roots: list[dict]) -> dict:
     report = {
-        "schema_version": 2 if production else 1,
+        "schema_version": 3 if production else 1,
         "qualification_id": (
-            QUALIFIER.V2_QUALIFICATION_ID if production else QUALIFIER.QUALIFICATION_ID
+            QUALIFIER.V3_QUALIFICATION_ID if production else QUALIFIER.QUALIFICATION_ID
         ),
         "status": "blocked",
         "claim": "no_qualification_claim",
@@ -3731,7 +3768,8 @@ def _blocked_qualification_fixture(*, production: bool, roots: list[dict]) -> di
         },
     }
     if production:
-        report["qualification_kind"] = "production-capsule-v2"
+        report["qualification_kind"] = "production-capsule-v3"
+        report["native_evidence"] = dict(QUALIFIER.V3_NATIVE_EVIDENCE)
     return report
 
 
@@ -3763,7 +3801,7 @@ def _blocked_qualification_fixture(*, production: bool, roots: list[dict]) -> di
             ],
         ),
     ],
-    ids=("v1-publication-without-worker", "v2-trusted-without-process"),
+    ids=("v1-publication-without-worker", "v3-trusted-without-process"),
 )
 def test_blocked_qualification_rehashed_cleanup_prefixes_fail_schema_and_manual(
     production: bool, roots: list[dict]
@@ -3775,7 +3813,7 @@ def test_blocked_qualification_rehashed_cleanup_prefixes_fail_schema_and_manual(
         QUALIFIER._validate_blocked_report(report, production=production)
 
 
-@pytest.mark.parametrize("production", [False, True], ids=("v1", "v2"))
+@pytest.mark.parametrize("production", [False, True], ids=("v1", "v3"))
 @pytest.mark.parametrize("state", ["sealed", "unmeasurable"])
 def test_blocked_qualification_allows_only_ordered_prefixes_in_both_root_states(
     production: bool, state: str
@@ -3792,11 +3830,20 @@ def test_blocked_qualification_allows_only_ordered_prefixes_in_both_root_states(
     if production:
         definitions.append(
             (
+                "production-runtime-root",
+                "runtime",
+                "run-root",
+                ".w3-runtime-allowed",
+                "4",
+            )
+        )
+        definitions.append(
+            (
                 "production-trusted-root",
                 "trusted",
                 "run-root",
                 ".w3-trusted-allowed",
-                "4",
+                "5",
             )
         )
     definitions.append(
@@ -3805,7 +3852,7 @@ def test_blocked_qualification_allows_only_ordered_prefixes_in_both_root_states(
             "qualification-publication-partial",
             "artifact-root",
             "qualifications/partial-allowed",
-            "5",
+            "6",
         )
     )
     roots = [
@@ -3826,7 +3873,7 @@ def test_blocked_qualification_allows_only_ordered_prefixes_in_both_root_states(
         QUALIFIER._validate_blocked_report(report, production=production)
 
 
-def _v2_report() -> dict:
+def _v3_report() -> dict:
     roles = (
         ("candidate-f1", "F-1", "author"),
         ("candidate-f2", "F-2", "before"),
@@ -3835,23 +3882,23 @@ def _v2_report() -> dict:
         ("candidate-f3", "F-3", "fixed"),
     )
     body = {
-        "schema_version": 2,
-        "qualification_id": QUALIFIER.V2_QUALIFICATION_ID,
-        "qualification_kind": "production-capsule-v2",
+        "schema_version": 3,
+        "qualification_id": QUALIFIER.V3_QUALIFICATION_ID,
+        "qualification_kind": "production-capsule-v3",
         "status": "qualified",
-        "claim": QUALIFIER.V2_CLAIM,
+        "claim": QUALIFIER.V3_CLAIM,
         "authority_manifest_sha256": "sha256:" + "1" * 64,
-        "ratification_evidence_sha256": QUALIFIER.V2_KIMI_REPORT_SHA256,
-        "project_revision": QUALIFIER.V2_PROJECT_SHA,
+        "ratification_evidence_sha256": QUALIFIER.V3_KIMI_REPORT_SHA256,
+        "project_revision": QUALIFIER.V3_PROJECT_SHA,
         "source_bundle_manifest_sha256": "sha256:" + "2" * 64,
         "dependency_bundle_manifest_sha256": "sha256:" + "3" * 64,
-        "dependency_roster_sha256": QUALIFIER.V2_DEPENDENCY_ROSTER_SHA256,
+        "dependency_roster_sha256": QUALIFIER.V3_DEPENDENCY_ROSTER_SHA256,
         "capsule_manifest_sha256": "sha256:" + "4" * 64,
-        "candidate_manifest_sha256": QUALIFIER.V2_CANDIDATE_MANIFEST_SHA256,
-        "semantic_registry_sha256": QUALIFIER.V2_SEMANTIC_REGISTRY_SHA256,
+        "candidate_manifest_sha256": QUALIFIER.V3_CANDIDATE_MANIFEST_SHA256,
+        "semantic_registry_sha256": QUALIFIER.V3_SEMANTIC_REGISTRY_SHA256,
         "worker_input_sha256": "sha256:" + "5" * 64,
         "worker_output_sha256": "sha256:" + "6" * 64,
-        "launcher": QUALIFIER._launcher_identity_v2(),
+        "launcher": QUALIFIER._launcher_identity_v3(),
         "counts": {"candidates": 3, "executions": 5, "distinct": 5, "gaps": 0},
         "roles": dict(QUALIFIER.EXPECTED_ROLE_COUNTS),
         "executions": [
@@ -3868,7 +3915,8 @@ def _v2_report() -> dict:
             }
             for candidate, family, role in roles
         ],
-        "non_claims": list(QUALIFIER.V2_NON_CLAIMS),
+        "native_evidence": dict(QUALIFIER.V3_NATIVE_EVIDENCE),
+        "non_claims": list(QUALIFIER.V3_NON_CLAIMS),
         "cleanup": {
             "status": "cleanup_deferred",
             "gc_policy": QUALIFIER.GC_POLICY,
@@ -3878,7 +3926,10 @@ def _v2_report() -> dict:
                     "production-process-root", "process", "run-root", ".w3-production-a", "c"
                 ),
                 _retained_root_fixture(
-                    "production-trusted-root", "trusted", "run-root", ".w3-trusted-b", "d"
+                    "production-runtime-root", "runtime", "run-root", ".w3-runtime-c", "d"
+                ),
+                _retained_root_fixture(
+                    "production-trusted-root", "trusted", "run-root", ".w3-trusted-b", "e"
                 ),
             ],
         },
@@ -3886,9 +3937,9 @@ def _v2_report() -> dict:
     return {**body, "manifest_sha256": QUALIFIER.canonical_hash(body)}
 
 
-def test_v2_report_is_schema_valid_and_keeps_claims_separate() -> None:
-    report = _v2_report()
-    QUALIFIER._validate_report_v2(report, report["launcher"])
+def test_v3_report_is_schema_valid_and_keeps_claims_separate() -> None:
+    report = _v3_report()
+    QUALIFIER._validate_report_v3(report, report["launcher"])
     schema = json.loads(QUALIFICATION_SCHEMA.read_text())
     assert list(Draft202012Validator(schema).iter_errors(report)) == []
     assert "no_w1_15_of_15_claim" in report["non_claims"]
@@ -3896,8 +3947,8 @@ def test_v2_report_is_schema_valid_and_keeps_claims_separate() -> None:
 
 
 @pytest.mark.parametrize(("files", "valid"), [(512, True), (513, False)])
-def test_v2_process_root_schema_and_manual_caps_agree(files: int, valid: bool) -> None:
-    report = _v2_report()
+def test_v3_process_root_schema_and_manual_caps_agree(files: int, valid: bool) -> None:
+    report = _v3_report()
     root = report["cleanup"]["retained_roots"][0]
     root["counts"]["files"] = files
     root["root_id"] = _hash({key: value for key, value in root.items() if key != "root_id"})
@@ -3906,19 +3957,19 @@ def test_v2_process_root_schema_and_manual_caps_agree(files: int, valid: bool) -
     schema_errors = list(Draft202012Validator(schema).iter_errors(report))
     if valid:
         assert schema_errors == []
-        QUALIFIER._validate_report_v2(report, report["launcher"])
+        QUALIFIER._validate_report_v3(report, report["launcher"])
     else:
         assert schema_errors
         with pytest.raises(QUALIFIER.QualificationBlocked, match="counts exceed"):
-            QUALIFIER._validate_report_v2(report, report["launcher"])
+            QUALIFIER._validate_report_v3(report, report["launcher"])
 
 
 @pytest.mark.parametrize(
     "attack",
     ["kind", "logical-root", "anchor", "state", "order", "trusted-over-cap"],
 )
-def test_v2_qualified_cleanup_schema_and_manual_semantics_agree(attack: str) -> None:
-    report = _v2_report()
+def test_v3_qualified_cleanup_schema_and_manual_semantics_agree(attack: str) -> None:
+    report = _v3_report()
     roots = report["cleanup"]["retained_roots"]
     if attack == "kind":
         roots[0]["kind"] = "production-trusted-root"
@@ -3947,7 +3998,7 @@ def test_v2_qualified_cleanup_schema_and_manual_semantics_agree(attack: str) -> 
     schema = json.loads(QUALIFICATION_SCHEMA.read_text())
     assert list(Draft202012Validator(schema).iter_errors(report))
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._validate_report_v2(report, report["launcher"])
+        QUALIFIER._validate_report_v3(report, report["launcher"])
 
 
 def test_v1_worker_cleanup_schema_and_manual_caps_identity_and_state_agree(
@@ -4001,31 +4052,43 @@ def test_v1_worker_cleanup_schema_and_manual_caps_identity_and_state_agree(
             QUALIFIER._validate_report(changed, changed["launcher"])
 
 
-@pytest.mark.parametrize(
-    "attack",
-    [
-        "unmeasurable-qualified",
-        "snapshot-drift",
-        "physical-snapshot-split",
-        "bool-count",
-        "files-cap",
-        "directories-cap",
-        "bytes-cap",
-        "malformed-hash",
-        "duplicate-root-id",
-        "duplicate-kind",
-        "wrong-order",
-        "missing-root",
-        "kind-swap",
-        "anchor-swap",
-        "locator-traversal",
-        "status-drift",
-        "policy-drift",
-        "delete-attempt-bool",
-    ],
+V3_CLEANUP_MUTATION_CASES = (
+    ("unmeasurable-qualified", "retained root state is invalid"),
+    ("snapshot-drift", "retained root digest is invalid"),
+    ("physical-snapshot-split", "retained root digest is invalid"),
+    ("bool-count", "retained root counts are invalid"),
+    ("files-cap", "retained root counts exceed their cap"),
+    ("directories-cap", "retained root counts exceed their cap"),
+    ("bytes-cap", "retained root counts exceed their cap"),
+    ("malformed-hash", "retained root digest is invalid"),
+    ("root-id-drift", "retained root id is invalid"),
+    ("duplicate-kind-order", "qualified retained root order is invalid"),
+    ("wrong-order", "qualified retained root order is invalid"),
+    ("missing-root", "qualified retained root order is invalid"),
+    ("kind-order-swap", "qualified retained root order is invalid"),
+    ("anchor-swap", "retained root kind binding is invalid"),
+    ("locator-traversal", "safe relative POSIX path"),
+    ("status-drift", "retained cleanup contract is invalid"),
+    ("policy-drift", "retained cleanup contract is invalid"),
+    ("delete-attempt-bool", "retained cleanup contract is invalid"),
 )
-def test_v2_retained_cleanup_mutation_contract_fails_closed(attack: str) -> None:
-    cleanup = deepcopy(_v2_report()["cleanup"])
+
+
+@pytest.mark.parametrize(("attack", "message"), V3_CLEANUP_MUTATION_CASES)
+def test_v3_retained_cleanup_mutation_contract_fails_closed(attack: str, message: str) -> None:
+    assert (
+        len(V3_CLEANUP_MUTATION_CASES) == len({case[0] for case in V3_CLEANUP_MUTATION_CASES}) == 18
+    )
+    cleanup = deepcopy(_v3_report()["cleanup"])
+    QUALIFIER._validate_cleanup(
+        deepcopy(cleanup),
+        qualified=True,
+        expected_kinds=(
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+        ),
+    )
     roots = cleanup["retained_roots"]
     if attack == "unmeasurable-qualified":
         body = {
@@ -4052,16 +4115,15 @@ def test_v2_retained_cleanup_mutation_contract_fails_closed(attack: str) -> None
         roots[0]["counts"]["bytes"] = 128 * 1024 * 1024 + 1
     elif attack == "malformed-hash":
         roots[0]["normalized_roster_sha256"] = "sha256:ABC"
-    elif attack == "duplicate-root-id":
+    elif attack == "root-id-drift":
         roots[1]["root_id"] = roots[0]["root_id"]
-    elif attack == "duplicate-kind":
+    elif attack == "duplicate-kind-order":
         roots[1]["kind"] = "production-process-root"
-        roots[1]["logical_root"] = "process"
     elif attack == "wrong-order":
         roots.reverse()
     elif attack == "missing-root":
         roots.pop()
-    elif attack == "kind-swap":
+    elif attack == "kind-order-swap":
         roots[0]["kind"] = "production-trusted-root"
     elif attack == "anchor-swap":
         roots[0]["anchor"] = "artifact-root"
@@ -4073,15 +4135,81 @@ def test_v2_retained_cleanup_mutation_contract_fails_closed(attack: str) -> None
         cleanup["gc_policy"] = "automatic"
     else:
         cleanup["delete_attempts"] = False
-    if attack not in {"malformed-hash", "duplicate-root-id", "unmeasurable-qualified"}:
+    if attack != "root-id-drift":
         for root in roots:
             root["root_id"] = _hash({key: value for key, value in root.items() if key != "root_id"})
-    with pytest.raises(QUALIFIER.QualificationBlocked):
+    with pytest.raises(QUALIFIER.QualificationBlocked, match=message):
         QUALIFIER._validate_cleanup(
             cleanup,
             qualified=True,
-            expected_kinds=("production-process-root", "production-trusted-root"),
+            expected_kinds=(
+                "production-process-root",
+                "production-runtime-root",
+                "production-trusted-root",
+            ),
         )
+
+
+def test_l66_qualifier_production_stops_before_launcher_filesystem_or_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("qualifier crossed the protected-broker STOP")
+
+    monkeypatch.setattr(QUALIFIER, "_require_launcher_flags", forbidden)
+    monkeypatch.setattr(QUALIFIER, "_qualify_v3_impl", forbidden)
+    monkeypatch.setattr(QUALIFIER.subprocess, "Popen", forbidden)
+    with pytest.raises(QUALIFIER.QualificationBlocked, match="protected execution broker"):
+        QUALIFIER.qualify_v3(
+            authority_path="absent-authority",
+            authority_sha256="sha256:" + "0" * 64,
+            source_bundle_root="absent-source",
+            dependency_bundle_root="absent-dependency",
+            capsule_root="absent-capsule",
+            node_path="absent-node",
+            artifact_root="absent-artifact",
+            run_root="absent-run-root",
+            run_nonce="l66-missing-protected-broker",
+        )
+    assert observed == []
+
+
+def test_l66_same_uid_pathname_execution_remains_an_explicit_nonclaim() -> None:
+    assert QUALIFIER.EXECUTED_PREIMAGE_AUTHORITY is False
+    assert BRIDGE.EXECUTED_PREIMAGE_AUTHORITY is False
+    assert "executed_preimage_authority=false" in QUALIFIER.V3_NON_CLAIMS
+    assert "executed_preimage_authority=false" in BRIDGE.NON_CLAIMS
+
+
+@pytest.mark.parametrize("role", ["module", "node", "runner"])
+def test_l67_same_uid_path_replacement_is_reference_only_vulnerability_evidence(
+    tmp_path: Path, role: str
+) -> None:
+    target = tmp_path / role
+    displaced = tmp_path / f"{role}.held-preimage"
+    measured = f"measured-{role}".encode()
+    replacement = f"replacement-{role}".encode()
+    target.write_bytes(measured)
+    descriptor = os.open(target, os.O_RDONLY | os.O_CLOEXEC)
+    try:
+        held_identity = os.fstat(descriptor)
+        target.rename(displaced)
+        target.write_bytes(replacement)
+        pathname_identity = target.lstat()
+        assert (held_identity.st_dev, held_identity.st_ino) != (
+            pathname_identity.st_dev,
+            pathname_identity.st_ino,
+        )
+        assert os.pread(descriptor, len(measured), 0) == measured
+        assert target.read_bytes() == replacement
+        assert QUALIFIER.EXECUTED_PREIMAGE_AUTHORITY is False
+        assert BRIDGE.EXECUTED_PREIMAGE_AUTHORITY is False
+    finally:
+        os.close(descriptor)
 
 
 @pytest.mark.parametrize("attack", ["symlink", "fifo", "socket", "device", "hardlink"])
@@ -4377,8 +4505,8 @@ def test_retained_precreation_failure_does_not_claim_an_observed_root(
 
 
 @pytest.mark.parametrize("mutation", ["claim", "count", "role", "nonce", "manifest", "nonclaim"])
-def test_v2_report_claim_and_replay_mutations_fail_closed(mutation: str) -> None:
-    report = _v2_report()
+def test_v3_report_claim_and_replay_mutations_fail_closed(mutation: str) -> None:
+    report = _v3_report()
     if mutation == "claim":
         report["claim"] = "semantic_accuracy_99"
     elif mutation == "count":
@@ -4392,7 +4520,7 @@ def test_v2_report_claim_and_replay_mutations_fail_closed(mutation: str) -> None
     else:
         report["non_claims"].remove("no_semantic_accuracy_claim")
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._validate_report_v2(report, report["launcher"])
+        QUALIFIER._validate_report_v3(report, report["launcher"])
 
 
 def _materialize_capsule_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, dict]:
@@ -4407,10 +4535,10 @@ def _materialize_capsule_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         target.chmod(record["mode"])
         record["sha256"] = QUALIFIER._bytes_hash(raw)
         by_role[record["role"]] = record
-    for role in ("node", "runner", "tsx"):
+    for role in ("runner", "loader"):
         descriptor[role] = {key: by_role[role][key] for key in ("path", "sha256", "mode")}
-    monkeypatch.setattr(QUALIFIER, "V2_NODE_BINARY_SHA256", descriptor["node"]["sha256"])
-    monkeypatch.setattr(QUALIFIER, "V2_RUNNER_SHA256", descriptor["runner"]["sha256"])
+    monkeypatch.setattr(QUALIFIER, "V3_RUNNER_SHA256", descriptor["runner"]["sha256"])
+    monkeypatch.setattr(QUALIFIER, "V3_LOADER_SHA256", descriptor["loader"]["sha256"])
     descriptor["roster_sha256"] = QUALIFIER.canonical_hash(descriptor["files"])
     body = {key: item for key, item in descriptor.items() if key != "manifest_sha256"}
     descriptor["manifest_sha256"] = QUALIFIER.canonical_hash(body)
@@ -4434,7 +4562,7 @@ def _execute_capsule_tree_attack(
         root, descriptor, manifest_name="capsule.json", label="runtime capsule"
     )
     assert verified == root
-    assert len(contents) == 3
+    assert len(contents) == 2
     root.chmod(0o755)
     target = root / descriptor["files"][0]["path"]
     target.parent.chmod(0o755)
@@ -4465,7 +4593,7 @@ def _matrix_worker_request() -> dict:
         ("candidate-f3", "F-3", "fixed", "ok"),
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": WORKER.PROTOCOL,
         "authority_manifest_sha256": "sha256:" + "1" * 64,
         "source_bundle_manifest_sha256": "sha256:" + "2" * 64,
@@ -4516,7 +4644,7 @@ def _execute_worker_request_mutation(case: str) -> None:
         ("roles", "author", "exact integer 1"),
     ],
 )
-def test_v2_worker_output_rejects_rehashed_boolean_count_claims(
+def test_v3_worker_output_rejects_rehashed_boolean_count_claims(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
@@ -4526,12 +4654,12 @@ def test_v2_worker_output_rejects_rehashed_boolean_count_claims(
     request = _matrix_worker_request()
     for row in request["executions"]:
         body = {
-            "schema_version": 2,
-            "protocol": "metis-runtime-capsule-v2",
+            "schema_version": 3,
+            "protocol": "metis-runtime-capsule-v3",
             "execution_id": f"{row['candidate_id']}.{row['role']}",
             "request_sha256": QUALIFIER.canonical_hash(row["request"]),
             "capsule_manifest_sha256": request["capsule_manifest_sha256"],
-            "execution_policy": dict(QUALIFIER.V2_CAPSULE_EXECUTION_POLICY),
+            "execution_policy": dict(QUALIFIER.V3_CAPSULE_EXECUTION_POLICY),
             "oracle_envelope": {"result": {"status": row["expected_status"]}},
         }
         row["capsule_envelope"] = {
@@ -4566,12 +4694,12 @@ def test_v2_worker_output_rejects_rehashed_boolean_count_claims(
         normalized = {name: item for name, item in envelope.items() if name != "run_nonce"}
         return normalized, envelope["oracle_envelope"]["result"]
 
-    monkeypatch.setattr(QUALIFIER, "_verify_capsule_envelope_v2", accept_capsule)
+    monkeypatch.setattr(QUALIFIER, "_verify_capsule_envelope_v3", accept_capsule)
     monkeypatch.setattr(QUALIFIER, "_verify_semantics", lambda *_: None)
     output_handle = QUALIFIER._open_or_create_secure_root(output, "test production output")
     try:
         with pytest.raises(QUALIFIER.QualificationBlocked, match=message):
-            QUALIFIER._verify_worker_output_v2(
+            QUALIFIER._verify_worker_output_v3(
                 QUALIFIER.canonical_json_bytes(worker_output),
                 output_handle,
                 request,
@@ -4588,12 +4716,12 @@ def _matrix_capsule_envelope() -> tuple[dict, dict, dict]:
     authority = {"capsule": {"manifest_sha256": "sha256:" + "4" * 64}}
     oracle = {"schema_version": 1, "result": {"status": "ok"}, "evidence": {}}
     body = {
-        "schema_version": 2,
-        "protocol": "metis-runtime-capsule-v2",
+        "schema_version": 3,
+        "protocol": "metis-runtime-capsule-v3",
         "execution_id": "candidate-f1.author",
         "request_sha256": QUALIFIER.canonical_hash(request),
         "capsule_manifest_sha256": authority["capsule"]["manifest_sha256"],
-        "execution_policy": dict(QUALIFIER.V2_CAPSULE_EXECUTION_POLICY),
+        "execution_policy": dict(QUALIFIER.V3_CAPSULE_EXECUTION_POLICY),
         "oracle_envelope": oracle,
     }
     return (
@@ -4617,7 +4745,7 @@ def _execute_envelope_mutation(case: str, monkeypatch: pytest.MonkeyPatch) -> No
     else:
         envelope["manifest_sha256"] = "sha256:" + "0" * 64
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._verify_capsule_envelope_v2(
+        QUALIFIER._verify_capsule_envelope_v3(
             envelope,
             request=request,
             run_nonce="7" * 64,
@@ -4638,7 +4766,7 @@ def test_capsule_envelope_binds_exact_process_policy_and_ancestor_slots(
     envelope["manifest_sha256"] = QUALIFIER.canonical_hash(body)
 
     with pytest.raises(QUALIFIER.QualificationBlocked, match="request and capsule"):
-        QUALIFIER._verify_capsule_envelope_v2(
+        QUALIFIER._verify_capsule_envelope_v3(
             envelope,
             request=request,
             run_nonce="7" * 64,
@@ -4691,30 +4819,28 @@ def _fake_capsule_node_authority(
     tmp_path: Path, runner_source: str
 ) -> tuple[Path, Path, dict, dict, Path]:
     capsule = tmp_path / "fake-node-capsule"
-    node = capsule / "bin/node"
-    loader = capsule / "tooling/loader.mjs"
-    runner = capsule / "runner.mjs"
+    runtime_root = tmp_path / "fake-node-runtime"
+    node = runtime_root / "bin/node"
+    loader = capsule / ".metis-oracle/native_ts_loader.mjs"
+    runner = capsule / ".metis-oracle/runner.ts"
     process_root = tmp_path / "fake-node-process"
     node.parent.mkdir(parents=True)
     loader.parent.mkdir(parents=True)
+    (capsule / "tooling").mkdir(parents=True)
+    runtime_root.chmod(0o700)
     process_root.mkdir(mode=0o700)
     shutil.copy2(_registered_node(), node)
     node.chmod(0o555)
     loader.write_text("export {};", encoding="utf-8")
     runner.write_text(runner_source, encoding="utf-8")
     capsule_descriptor = {
-        "node": {
-            "path": "bin/node",
-            "sha256": QUALIFIER._bytes_hash(node.read_bytes()),
-            "mode": 0o555,
-        },
-        "tsx": {
-            "path": "tooling/loader.mjs",
+        "loader": {
+            "path": ".metis-oracle/native_ts_loader.mjs",
             "sha256": QUALIFIER._bytes_hash(loader.read_bytes()),
             "mode": 0o444,
         },
         "runner": {
-            "path": "runner.mjs",
+            "path": ".metis-oracle/runner.ts",
             "sha256": QUALIFIER._bytes_hash(runner.read_bytes()),
             "mode": 0o444,
         },
@@ -4725,7 +4851,18 @@ def _fake_capsule_node_authority(
         },
         "manifest_sha256": "sha256:" + "4" * 64,
     }
-    authority = {"capsule": capsule_descriptor}
+    authority = {
+        "capsule": capsule_descriptor,
+        "runtime": {
+            "node": {
+                "path": "bin/node",
+                "size": node.stat().st_size,
+                "source_mode": 0o755,
+                "mode": 0o555,
+                "sha256": QUALIFIER._bytes_hash(node.read_bytes()),
+            }
+        },
+    }
     execution = {
         "candidate_id": "candidate-f1",
         "family": "F-1",
@@ -4736,10 +4873,39 @@ def _fake_capsule_node_authority(
     return capsule, process_root, authority, execution, node
 
 
-def test_v2_live_fake_capsule_runner_executes_with_exact_ancestor_metadata(
+def _run_fake_capsule_node_v3(
+    *,
+    execution: dict,
+    capsule: Path,
+    node: Path,
+    process_root: object,
+    run_nonce: str,
+    timeout_seconds: float,
+    authority: dict,
+) -> dict:
+    runtime_root = QUALIFIER._open_or_create_secure_root(
+        node.parents[1],
+        "test runtime root",
+    )
+    try:
+        return QUALIFIER._run_capsule_node_v3(
+            execution=execution,
+            capsule=capsule,
+            node=node,
+            runtime_root=runtime_root,
+            process_root=process_root,
+            run_nonce=run_nonce,
+            timeout_seconds=timeout_seconds,
+            authority=authority,
+        )
+    finally:
+        runtime_root.close()
+
+
+def test_v3_live_fake_capsule_runner_executes_with_exact_ancestor_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    capsule, process_root, authority, execution, _ = _fake_capsule_node_authority(
+    capsule, process_root, authority, execution, node = _fake_capsule_node_authority(
         tmp_path, "process.stdout.write(JSON.stringify({fixture:true}));"
     )
     observed = {}
@@ -4748,15 +4914,16 @@ def test_v2_live_fake_capsule_runner_executes_with_exact_ancestor_metadata(
         observed.update(kwargs)
         return {"verified": True}
 
-    monkeypatch.setattr(QUALIFIER, "_capsule_envelope_from_result_v2", accept)
+    monkeypatch.setattr(QUALIFIER, "_capsule_envelope_from_result_v3", accept)
     process_handle = QUALIFIER._open_or_create_secure_root(
         process_root,
         "test process root",
     )
     try:
-        result = QUALIFIER._run_capsule_node_v2(
+        result = _run_fake_capsule_node_v3(
             execution=execution,
             capsule=capsule,
+            node=node,
             process_root=process_handle,
             run_nonce="7" * 64,
             timeout_seconds=5.0,
@@ -4768,15 +4935,15 @@ def test_v2_live_fake_capsule_runner_executes_with_exact_ancestor_metadata(
     assert observed["result"] == {"fixture": True}
 
 
-def test_v2_capsule_node_success_retains_invocation_without_cleanup_call(
+def test_v3_capsule_node_success_retains_invocation_without_cleanup_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    capsule, process_root, authority, execution, _ = _fake_capsule_node_authority(
+    capsule, process_root, authority, execution, node = _fake_capsule_node_authority(
         tmp_path, "process.stdout.write(JSON.stringify({fixture:true}));"
     )
     monkeypatch.setattr(
         QUALIFIER,
-        "_capsule_envelope_from_result_v2",
+        "_capsule_envelope_from_result_v3",
         lambda **_kwargs: {"verified": True},
     )
     cleanup_calls = 0
@@ -4792,9 +4959,10 @@ def test_v2_capsule_node_success_retains_invocation_without_cleanup_call(
         "test process root",
     )
     try:
-        result = QUALIFIER._run_capsule_node_v2(
+        result = _run_fake_capsule_node_v3(
             execution=execution,
             capsule=capsule,
+            node=node,
             process_root=process_handle,
             run_nonce="7" * 64,
             timeout_seconds=5.0,
@@ -4808,10 +4976,10 @@ def test_v2_capsule_node_success_retains_invocation_without_cleanup_call(
     assert sorted(path.name for path in invocation.iterdir()) == ["stderr.txt", "stdout.json"]
 
 
-def test_v2_node_invocation_creation_parent_swap_writes_nothing_outside(
+def test_v3_node_invocation_creation_parent_swap_writes_nothing_outside(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    capsule, initial_process, authority, execution, _ = _fake_capsule_node_authority(
+    capsule, initial_process, authority, execution, node = _fake_capsule_node_authority(
         tmp_path, "process.stdout.write(JSON.stringify({fixture:true}));"
     )
     process_parent = tmp_path / "node-invocation-parent"
@@ -4844,9 +5012,10 @@ def test_v2_node_invocation_creation_parent_swap_writes_nothing_outside(
     monkeypatch.setattr(QUALIFIER.os, "mkdir", racing_mkdir)
     try:
         with pytest.raises(QUALIFIER.QualificationBlocked, match="pathname was replaced"):
-            QUALIFIER._run_capsule_node_v2(
+            _run_fake_capsule_node_v3(
                 execution=execution,
                 capsule=capsule,
+                node=node,
                 process_root=process_handle,
                 run_nonce="7" * 64,
                 timeout_seconds=5.0,
@@ -4862,10 +5031,10 @@ def test_v2_node_invocation_creation_parent_swap_writes_nothing_outside(
             displaced.rename(process_parent)
 
 
-def test_v2_node_stream_parent_swap_keeps_outside_sentinel_untouched(
+def test_v3_node_stream_parent_swap_keeps_outside_sentinel_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    capsule, initial_process, authority, execution, _ = _fake_capsule_node_authority(
+    capsule, initial_process, authority, execution, node = _fake_capsule_node_authority(
         tmp_path, "process.stdout.write(JSON.stringify({fixture:true}));"
     )
     process_parent = tmp_path / "node-stream-parent"
@@ -4911,9 +5080,10 @@ def test_v2_node_stream_parent_swap_keeps_outside_sentinel_untouched(
     monkeypatch.setattr(QUALIFIER, "_read_regular_at", racing_read)
     try:
         with pytest.raises(QUALIFIER.QualificationBlocked, match="pathname was replaced"):
-            QUALIFIER._run_capsule_node_v2(
+            _run_fake_capsule_node_v3(
                 execution=execution,
                 capsule=capsule,
+                node=node,
                 process_root=process_handle,
                 run_nonce="7" * 64,
                 timeout_seconds=5.0,
@@ -4930,7 +5100,7 @@ def test_v2_node_stream_parent_swap_keeps_outside_sentinel_untouched(
             displaced.rename(process_parent)
 
 
-def test_v2_capsule_executes_measured_preimage_during_external_runner_swap_restore(
+def test_v3_capsule_executes_measured_preimage_during_external_runner_swap_restore(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     original = (
@@ -4939,18 +5109,21 @@ def test_v2_capsule_executes_measured_preimage_during_external_runner_swap_resto
         "catch(error){writeDenied=error.code==='EPERM'||error.code==='EACCES'};"
         "process.stdout.write(JSON.stringify({fixture:'original',writeDenied}));"
     )
-    capsule, process_root, authority, execution, _ = _fake_capsule_node_authority(
+    capsule, process_root, authority, execution, node = _fake_capsule_node_authority(
         tmp_path, original
     )
-    loader = capsule / authority["capsule"]["tsx"]["path"]
+    loader = capsule / authority["capsule"]["loader"]["path"]
     runner = capsule / authority["capsule"]["runner"]["path"]
+    tooling_file = capsule / "tooling/package.json"
+    tooling_file.write_text("{}", encoding="utf-8")
+    tooling_file.chmod(0o444)
     loader.chmod(0o444)
     runner.chmod(0o444)
     records = []
     roles = {
-        authority["capsule"]["node"]["path"]: "node",
-        authority["capsule"]["tsx"]["path"]: "tsx",
+        authority["capsule"]["loader"]["path"]: "loader",
         authority["capsule"]["runner"]["path"]: "runner",
+        "tooling/package.json": "tooling",
     }
     for name, role in roles.items():
         path = capsule / name
@@ -4994,7 +5167,7 @@ def test_v2_capsule_executes_measured_preimage_during_external_runner_swap_resto
         trusted_root,
         "test trusted root",
     )
-    preimage = QUALIFIER._materialize_tree_preimage_v2(
+    preimage = QUALIFIER._materialize_tree_preimage_v3(
         trusted_handle,
         kind="capsule",
         descriptor=descriptor,
@@ -5002,7 +5175,7 @@ def test_v2_capsule_executes_measured_preimage_during_external_runner_swap_resto
         manifest_name="capsule.json",
         label="runtime capsule",
     )
-    QUALIFIER._seal_preimage_namespace_v2(trusted_handle)
+    QUALIFIER._seal_preimage_namespace_v3(trusted_handle)
     trusted_handle.close()
 
     capsule.chmod(0o755)
@@ -5019,15 +5192,16 @@ def test_v2_capsule_executes_measured_preimage_during_external_runner_swap_resto
         observed.update(kwargs)
         return {"verified": True}
 
-    monkeypatch.setattr(QUALIFIER, "_capsule_envelope_from_result_v2", accept)
+    monkeypatch.setattr(QUALIFIER, "_capsule_envelope_from_result_v3", accept)
     process_handle = QUALIFIER._open_or_create_secure_root(
         process_root,
         "test process root",
     )
     try:
-        result = QUALIFIER._run_capsule_node_v2(
+        result = _run_fake_capsule_node_v3(
             execution=execution,
             capsule=preimage,
+            node=node,
             process_root=process_handle,
             run_nonce="7" * 64,
             timeout_seconds=5.0,
@@ -5080,16 +5254,19 @@ def _execute_node_supervisor_failure(
         monkeypatch.setattr(QUALIFIER, "MAX_WORKER_STDERR_BYTES", 1024)
         source = prefix + "fs.writeSync(2,Buffer.alloc(4096));setInterval(()=>{},1000);"
         message = "stderr exceeded"
-    capsule, process_root, authority, execution, _ = _fake_capsule_node_authority(tmp_path, source)
+    capsule, process_root, authority, execution, node = _fake_capsule_node_authority(
+        tmp_path, source
+    )
     process_handle = QUALIFIER._open_or_create_secure_root(
         process_root,
         "test process root",
     )
     try:
         with pytest.raises(QUALIFIER.QualificationBlocked, match=message):
-            QUALIFIER._run_capsule_node_v2(
+            _run_fake_capsule_node_v3(
                 execution=execution,
                 capsule=capsule,
+                node=node,
                 process_root=process_handle,
                 run_nonce="7" * 64,
                 timeout_seconds=10.0,
@@ -5110,7 +5287,9 @@ def test_capsule_node_keyboard_interrupt_unconditionally_reaps_process_group(
         f"fs.writeFileSync({json.dumps(str(pid_path))},String(process.pid));"
         "fs.writeSync(1,Buffer.alloc(4096));setInterval(()=>{},1000);"
     )
-    capsule, process_root, authority, execution, _ = _fake_capsule_node_authority(tmp_path, source)
+    capsule, process_root, authority, execution, node = _fake_capsule_node_authority(
+        tmp_path, source
+    )
     process_handle = QUALIFIER._open_or_create_secure_root(
         process_root,
         "interrupt process root",
@@ -5129,9 +5308,10 @@ def test_capsule_node_keyboard_interrupt_unconditionally_reaps_process_group(
     monkeypatch.setattr(QUALIFIER.os, "fstat", interrupt_after_node_start)
     try:
         with pytest.raises(KeyboardInterrupt):
-            QUALIFIER._run_capsule_node_v2(
+            _run_fake_capsule_node_v3(
                 execution=execution,
                 capsule=capsule,
+                node=node,
                 process_root=process_handle,
                 run_nonce="7" * 64,
                 timeout_seconds=10.0,
@@ -5256,7 +5436,7 @@ def test_production_worker_keyboard_interrupt_unconditionally_reaps_process_grou
     spawned = _interrupting_sleep_factory(monkeypatch)
     monkeypatch.setattr(
         QUALIFIER,
-        "_launcher_identity_v2",
+        "_launcher_identity_v3",
         lambda: {
             "sandbox_exec_path": "/usr/bin/sandbox-exec",
             "python_executable": str(Path(sys.executable).resolve(strict=True)),
@@ -5264,7 +5444,7 @@ def test_production_worker_keyboard_interrupt_unconditionally_reaps_process_grou
     )
     try:
         with pytest.raises(KeyboardInterrupt):
-            QUALIFIER._run_worker_v2(
+            QUALIFIER._run_worker_v3(
                 source_bundle=source,
                 dependency_bundle=dependency,
                 worker_relative="worker.py",
@@ -5354,6 +5534,7 @@ def _matrix_bridge_state(
     arguments = {
         "qualifier_path": qualifier,
         "qualifier_sha256": qualifier_sha256,
+        "node_path": Path(sys.executable).resolve(),
         "authority_path": authority_path,
         "authority_sha256": authority["manifest_sha256"],
         "source_bundle_root": roots["source"],
@@ -5442,11 +5623,11 @@ def _execute_mutation_case(
         return
     if group == "D-process-policy":
         if case == "exec-unregistered":
-            test_v2_live_node_cannot_spawn_unregistered_or_detached_registered_child(
+            test_v3_live_node_cannot_spawn_unregistered_or_detached_registered_child(
                 tmp_path, False
             )
         elif case == "registered-node-direct-supervised-no-fork":
-            test_v2_live_registered_node_is_exact_supervised_session_leader(tmp_path)
+            test_v3_live_registered_node_is_exact_supervised_session_leader(tmp_path)
         elif case in {"timeout", "stdout-cap", "stderr-cap"}:
             _execute_node_supervisor_failure(tmp_path, monkeypatch, case)
         else:
@@ -5463,16 +5644,143 @@ def _execute_mutation_case(
     _execute_replay_case(tmp_path, monkeypatch, case)
 
 
-V2_EXECUTABLE_MUTATIONS = tuple(
-    (group, case) for group, cases in V2_MUTATION_MATRIX.items() for case in cases
+V3_EXECUTABLE_MUTATIONS = tuple(
+    (group, case) for group, cases in V3_MUTATION_MATRIX.items() for case in cases
 )
 
 
-@pytest.mark.parametrize(("group", "case"), V2_EXECUTABLE_MUTATIONS)
-def test_v2_executable_mutation_matrix_case(
+@pytest.mark.parametrize(("group", "case"), V3_EXECUTABLE_MUTATIONS)
+def test_v3_executable_mutation_matrix_case(
     group: str,
     case: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _execute_mutation_case(group, case, tmp_path, monkeypatch)
+
+
+# L64 tests-first architecture contract. These assertions intentionally land
+# before the production implementation so v3/native loader cannot receive compatibility
+# credit while the new retained-root boundary is absent.
+def test_l64_production_discriminator_is_exact_v3() -> None:
+    assert QUALIFIER.V3_SCHEMA_VERSION == 3
+    assert QUALIFIER.V3_PROTOCOL == "w3-production-capsule-worker-v3"
+    assert QUALIFIER.V3_QUALIFICATION_ID == "w3-f1-f3-production-capsule-qualification-v3"
+    assert QUALIFIER.V3_AUTHORITY_ID == "w3-f1-f3-production-capsule-authority-v3"
+
+
+def test_l64_runtime_identity_replaces_loader_atomically() -> None:
+    assert "loader_path" in QUALIFIER.RUNTIME_IDENTITY_KEYS
+    assert "loader_sha256" in QUALIFIER.RUNTIME_IDENTITY_KEYS
+    assert "loader_flags" in QUALIFIER.RUNTIME_IDENTITY_KEYS
+    assert "tsx_path" not in QUALIFIER.RUNTIME_IDENTITY_KEYS
+
+
+def test_l64_runtime_root_caps_and_order_are_exact() -> None:
+    assert QUALIFIER.RETAINED_ROOT_CAPS["production-runtime-root"] == (
+        8,
+        8,
+        128 * 1024 * 1024,
+        128 * 1024 * 1024,
+    )
+    assert QUALIFIER.QUALIFIED_V3_RETAINED_KINDS == (
+        "production-process-root",
+        "production-runtime-root",
+        "production-trusted-root",
+    )
+
+
+def test_l64_blocked_prefixes_include_runtime_before_trusted() -> None:
+    assert QUALIFIER.BLOCKED_V3_RETAINED_PREFIXES == (
+        (),
+        ("production-process-root",),
+        ("production-process-root", "production-runtime-root"),
+        (
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+        ),
+        (
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+            "qualification-publication-partial-root",
+        ),
+    )
+
+
+def test_l64_native_loader_is_tracked_stdlib_only() -> None:
+    loader = PROJECT_ROOT / "runtime/metis_oracle/native_ts_loader.mjs"
+    source = loader.read_text(encoding="utf-8")
+    assert "stripTypeScriptTypes" in source
+    assert "node:module" in source
+    assert "node:fs" in source
+    assert "node:url" in source
+    assert "tsx" not in source.lower()
+    assert "esbuild" not in source.lower()
+    assert "child_process" not in source
+
+
+def test_l64_final_node_policy_binds_runtime_and_denies_fork() -> None:
+    policy = QUALIFIER.V3_NODE_SANDBOX_POLICY_TEMPLATE
+    assert '(literal (param "NODE_EXECUTABLE"))' in policy
+    assert '(subpath (param "RUNTIME_ROOT"))' in policy
+    assert '(subpath (param "CAPSULE_ROOT"))' in policy
+    assert "(deny process-fork)" in policy
+    assert "(deny network*)" in policy
+    assert '(allow file-write* (subpath (param "PROCESS_ROOT")))' in policy
+
+
+def test_l64_production_schemas_have_no_tsx_identity() -> None:
+    schema_paths = (
+        PROJECT_ROOT / "schemas/oracle-result.schema.json",
+        PROJECT_ROOT / "schemas/w3-run.schema.json",
+        PROJECT_ROOT / "schemas/w3-production-authority.schema.json",
+        PROJECT_ROOT / "schemas/w3-qualification.schema.json",
+        PROJECT_ROOT / "schemas/w3-bridge-replay.schema.json",
+    )
+    for path in schema_paths:
+        source = path.read_text(encoding="utf-8")
+        assert '"tsx"' not in source
+        assert "tsx_path" not in source
+
+
+def test_l64_authority_schema_requires_loader_and_v3() -> None:
+    schema = json.loads((PROJECT_ROOT / "schemas/w3-production-authority.schema.json").read_text())
+    assert schema["properties"]["schema_version"]["const"] == 3
+    assert schema["properties"]["authority_id"]["const"].endswith("-v3")
+    capsule = schema["$defs"]["capsule"]
+    assert "loader" in capsule["required"]
+    assert "node" not in capsule["required"]
+    assert "tsx" not in capsule["required"]
+
+
+def test_l64_runner_arguments_are_loader_truthful() -> None:
+    source = (PROJECT_ROOT / "runtime/metis_oracle/runner.ts").read_text()
+    assert "--loader-path" in source
+    assert "--runtime-loader-path" in source
+    assert "--loader-sha256" in source
+    assert "--runtime-loader-flags" in source
+    assert "--tsx-path" not in source
+    assert "--runtime-tsx-path" not in source
+
+
+def test_l64_runtime_identity_distinguishes_oracle_from_executed_policy() -> None:
+    authority, _report, _artifacts = _bridge_authority_and_artifacts()
+    runtime = QUALIFIER._v3_runtime_authority(authority)["runtime_identity"]
+    measured_policy = QUALIFIER._validated_capsule_execution_policy_v3()
+    assert runtime["oracle_policy_sha256"] == (
+        "sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"
+    )
+    assert runtime["execution_policy_sha256"] == measured_policy["sandbox_policy_sha256"]
+    assert runtime["oracle_policy_sha256"] != runtime["execution_policy_sha256"]
+    runner = (PROJECT_ROOT / "runtime/metis_oracle/runner.ts").read_text()
+    assert "--oracle-policy-sha256" in runner
+    assert "--execution-policy-sha256" in runner
+    assert "--sandbox-policy-sha256" not in runner
+
+
+def test_l64_fixture_v1_protocol_remains_available() -> None:
+    assert QUALIFIER.PROTOCOL == "w3-clean-process-v1"
+    source = (PROJECT_ROOT / "runtime/w3_qualifier.py").read_text()
+    assert 'choices=("fixture-v1", "production-capsule-v3")' in source

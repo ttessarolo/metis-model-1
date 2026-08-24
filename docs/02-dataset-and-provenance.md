@@ -194,6 +194,12 @@ Ordine obbligatorio:
 Il generatore non deve leggere il benchmark frozen per “migliorare la copertura”:
 una lacuna scoperta nel benchmark viene registrata per il ciclo successivo.
 
+Per un aggiornamento Metis, gli esempi nuovi o migrati dichiarano il nuovo
+commit e gli oracle target. Il replay del precedente adapter può usare soltanto
+gruppi già autorizzati per train, dev o internal test e non può condividere
+antenati con il maintenance benchmark. Benchmark, split, provenance e manifest
+della candidate precedente restano immutabili.
+
 ## 7. Split anti-leakage
 
 Lo split casuale per file è vietato. La concentrazione di 176 property e il riuso
@@ -227,18 +233,22 @@ un punto di partenza, non un vincolo superiore alla copertura. Il frozen benchma
 Il numero di esempi non è una metrica di qualità. Per rendere però eseguibile il
 piano:
 
+- W5-XS first-value: 12 task diagnostici; soltanto se B fallisce, 24 task di
+  valutazione accoppiata, 64 esempi train e 16 dev accepted-by-oracle, con cap
+  assoluto e fisso di 80;
 - benchmark frozen v1: esattamente 600 task preregistrati, con denominatori
   pubblicati per famiglia e difficoltà e almeno 563 gruppi di leakage realmente
   distinti per sostenere il claim Wilson al 99%;
-- pilot training: 3.000-8.000 esempi accettati dagli oracle;
+- pilot di promotion Accuracy-99: 3.000-8.000 esempi accettati dagli oracle;
 - candidate v1: 10.000-25.000 esempi soltanto se il pilot dimostra valore e la
   crescita aggiunge gruppi/trasformazioni, non duplicati cosmetici;
 - preference pairs: aggiunta successiva, se l'errore dominante è la scelta fra
   output validi ma non canonici.
 
-I volumi di training e candidate restano **PROPOSTI**. Il denominatore benchmark
-è invece preregistrato; coverage matrix e gruppi di leakage unici prevalgono
-sempre sul conteggio grezzo.
+Il volume W5-XS è ratificato come cap di ricerca, non come garanzia di qualità.
+I volumi di promotion e candidate restano **PROPOSTI**. Il denominatore
+benchmark è invece preregistrato; coverage matrix e gruppi di leakage unici
+prevalgono sempre sul conteggio grezzo.
 
 ## 9. Quality gate del dataset
 

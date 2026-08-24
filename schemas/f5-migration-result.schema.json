@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/f5-migration-result.schema.json",
+  "title": "Metis Model 1 F-5 migration result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fixture_id", "family", "run_nonce", "status", "runner_checks_passed", "evidence_class", "promotion_eligible", "authority_gap", "toolchain", "fixture_sha256", "command_sha256", "execution_identity", "artifacts", "observed", "failure_reasons", "result_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "fixture_id": {"type": "string", "pattern": "^f5/public-synthetic/[a-z0-9][a-z0-9._-]{0,80}$"},
+    "family": {"const": "F-5"},
+    "run_nonce": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["runner_checks_passed", "blocked"]},
+    "runner_checks_passed": {"type": "boolean"},
+    "evidence_class": {"const": "local_runner_observation"},
+    "promotion_eligible": {"const": false},
+    "authority_gap": {"const": "protected_execution_receipt_missing"},
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "tree", "language_version", "migrator_path", "migrator_sha256", "migration_check_sha256"],
+      "properties": {
+        "revision": {"const": "a2dde2b191f6b78c2003d74875560da782470968"},
+        "tree": {"const": "75473e26deff4084a0eb077a4c3e27d52dc07998"},
+        "language_version": {"const": "0.43"},
+        "migrator_path": {"const": "tooling/src/migrate/cli.ts"},
+        "migrator_sha256": {"const": "sha256:564217eddf0aa417b39fa6eb11302469fbf5c2cd4e10b221716a40b27418373b"},
+        "migration_check_sha256": {"const": "sha256:6e93340b949df8b0e42cdee92b338d5cd19ca82cf34e74f0b089356f8f41bfa5"}
+      }
+    },
+    "fixture_sha256": {"$ref": "#/$defs/hash"},
+    "command_sha256": {"$ref": "#/$defs/hash"},
+    "execution_identity": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["revision", "tree", "node_version", "node_binary_sha256", "tooling_package_sha256", "tooling_lock_sha256", "node_modules_sha256", "migrator_sha256", "migration_check_sha256"],
+          "properties": {
+            "revision": {"const": "a2dde2b191f6b78c2003d74875560da782470968"},
+            "tree": {"const": "75473e26deff4084a0eb077a4c3e27d52dc07998"},
+            "node_version": {"const": "v22.22.3"},
+            "node_binary_sha256": {"const": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"},
+            "tooling_package_sha256": {"const": "sha256:f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80"},
+            "tooling_lock_sha256": {"const": "sha256:fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb"},
+            "node_modules_sha256": {"const": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"},
+            "migrator_sha256": {"const": "sha256:564217eddf0aa417b39fa6eb11302469fbf5c2cd4e10b221716a40b27418373b"},
+            "migration_check_sha256": {"const": "sha256:6e93340b949df8b0e42cdee92b338d5cd19ca82cf34e74f0b089356f8f41bfa5"}
+          }
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golden_source_sha256", "migrated_source_sha256", "report_sha256", "output_roster_sha256"],
+      "properties": {
+        "golden_source_sha256": {"$ref": "#/$defs/hash"},
+        "migrated_source_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]},
+        "report_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]},
+        "output_roster_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/hash"}]}
+      }
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_exit_code", "report_summary_count", "migrated_recompiled", "migrated_total", "parity_ok", "parity_diverge", "ir_parity_ok_count", "diagnostics_seen", "non_promote_seen", "stdout_sha256", "stderr_sha256"],
+      "properties": {
+        "process_exit_code": {"type": ["integer", "null"]},
+        "report_summary_count": {"type": "integer", "minimum": 0},
+        "migrated_recompiled": {"type": "integer", "minimum": 0},
+        "migrated_total": {"type": "integer", "minimum": 0},
+        "parity_ok": {"type": "integer", "minimum": 0},
+        "parity_diverge": {"type": "integer", "minimum": 0},
+        "ir_parity_ok_count": {"type": "integer", "minimum": 0},
+        "diagnostics_seen": {"type": "boolean"},
+        "non_promote_seen": {"type": "boolean"},
+        "stdout_sha256": {"$ref": "#/$defs/hash"},
+        "stderr_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "failure_reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["fixture_invalid", "source_hash_mismatch", "base_hash_mismatch", "golden_hash_mismatch", "golden_not_043", "golden_endpoint_mismatch", "runner_error", "runner_timeout", "toolchain_mismatch", "checkout_changed", "output_not_fresh", "output_roster_mismatch", "migrated_source_mismatch", "process_failed", "migrated_not_1_of_1", "diagnostics_present", "parity_not_1_ok_0_diverge", "missing_ir_parity_ok", "non_promote_present"]}
+    },
+    "result_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

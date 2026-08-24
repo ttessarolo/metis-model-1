@@ -18,7 +18,12 @@ from metis_model1.closure import (
     build_manifest,
     validate_manifest,
 )
-from metis_model1.contracts import load_json, repository_root, validate_foundation
+from metis_model1.contracts import (
+    load_json,
+    repository_root,
+    validate_foundation,
+    validate_w5_xs_plan_contract,
+)
 from metis_model1.dataset import (
     build_split_manifest,
     dataset_manifest,
@@ -170,12 +175,12 @@ def _open_decisions(root: Path) -> dict[str, list[str]]:
     return {"blocking": sorted(blocking), "nonblocking": sorted(nonblocking)}
 
 
-def _readiness(
+def _accuracy99_promotion_readiness(
     root: Path,
     closure: Mapping[str, Any] | None,
     open_decisions: Mapping[str, list[str]],
 ) -> tuple[bool, list[str]]:
-    """Return current W5 readiness, intentionally conservative and explicit."""
+    """Return strict Accuracy-99 promotion readiness without research shortcuts."""
 
     accuracy_target = _load(root / "manifests/accuracy-target.json")
     minimum_groups = accuracy_target.get("minimum_distinct_leakage_groups")
@@ -204,6 +209,52 @@ def _readiness(
         blockers.append("open decisions blocking W5: " + ",".join(open_decisions["blocking"]))
     blockers.append("A/B baseline is absent")
     return not blockers, blockers
+
+
+_EXPERIMENT_NONCLAIMS = (
+    "no_physical_checkpoint_verification",
+    "no_inference_authority",
+    "no_dataset_authority",
+    "no_training_authority",
+    "no_semantic_uplift_evidence",
+    "nonpromotable",
+    "non99",
+)
+
+
+def assess_experiment_plan(root: Path | None = None) -> dict[str, Any]:
+    """Assess only the tracked W5-XS plan; never inspect or execute model payloads."""
+
+    root = (root or repository_root()).resolve()
+    try:
+        blockers = validate_w5_xs_plan_contract(root)
+    except Exception as error:  # noqa: BLE001 - the command must fail closed
+        blockers = [f"W5-XS plan validation failed: {_error_text(error)}"]
+    ready = not blockers
+    return {
+        "schema_version": 1,
+        "status": "EXPERIMENT_PLAN_READY" if ready else "EXPERIMENT_PLAN_BLOCKED",
+        "ready": ready,
+        "planned_next_stage": "REQUEST_W5_XS_EXECUTION_MANDATE",
+        "first_stage_after_execution_mandate": "XS0_THIN_RUNNER_AND_B12_ROSTER",
+        "execution_authorized": False,
+        "physical_checkpoint_verified": False,
+        "blockers": list(blockers),
+        "nonclaims": list(_EXPERIMENT_NONCLAIMS),
+    }
+
+
+def render_experiment_plan_text(report: Mapping[str, Any]) -> str:
+    """Render the plan-only W5-XS gate without implying execution authority."""
+
+    lines = [
+        f"EXPERIMENT plan={'READY' if report['ready'] else 'BLOCKED'} "
+        f"next={report['planned_next_stage']}",
+        "EXECUTION authorized=false physical_checkpoint_verified=false",
+    ]
+    lines.extend(f"PLAN_BLOCKER {blocker}" for blocker in report["blockers"])
+    lines.extend(f"NONCLAIM {nonclaim}" for nonclaim in report["nonclaims"])
+    return "\n".join(lines)
 
 
 def validate_pilot(
@@ -241,19 +292,21 @@ def validate_pilot(
     contract_valid = all(check["valid"] for check in checks.values())
     try:
         open_decisions = _open_decisions(root)
-        ready, blockers = _readiness(root, closure, open_decisions)
+        promotion_ready, promotion_blockers = _accuracy99_promotion_readiness(
+            root, closure, open_decisions
+        )
     except Exception as error:  # noqa: BLE001 - readiness must fail closed
         open_decisions = {"blocking": ["decision-register-unreadable"], "nonblocking": []}
-        ready = False
-        blockers = [f"readiness contract invalid: {_error_text(error)}"]
+        promotion_ready = False
+        promotion_blockers = [f"readiness contract invalid: {_error_text(error)}"]
     return {
         "schema_version": 1,
         "status": "valid" if contract_valid else "invalid",
         "contract_valid": contract_valid,
         "w5_readiness": {
-            "ready": ready,
-            "status": "ready" if ready else "blocked",
-            "blockers": blockers,
+            "ready": promotion_ready,
+            "status": "ready" if promotion_ready else "blocked",
+            "blockers": promotion_blockers,
         },
         "checks": checks,
         "denominators": {

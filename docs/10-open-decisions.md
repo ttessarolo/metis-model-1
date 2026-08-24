@@ -16,7 +16,8 @@ then reflected here and in the relevant decision document.
 | O-007 | OPEN | Multi-task or task-specific adapters | W7 | W7 |
 | O-008 | OPEN | CLI/editor/agent integration surface | W8 | W8 |
 | O-009 | OPEN | Distribution beyond local-only | W8 | External distribution only |
-| O-010 | OPEN | Drift threshold requiring a new adapter | W9 | W9 |
+| O-010 | RATIFIED | Lightweight-first maintenance path for Metis changes | W7 promotion | — |
+| O-011 | RATIFIED | Baseline-first experiment separated from Accuracy-99 promotion | W5-XS | — |
 
 ## Immediate ratification packet
 
@@ -68,3 +69,23 @@ seed, then three finalist seeds selected on dev semantic evidence only. The cap
 is 700 optimizer steps, 18 hours and 32 GiB of published checkpoints; 110 GB
 peak Metal is a hard stop. This closes the grid decision, but does not bypass
 O-003 or the W1/W3 benchmark and dataset gates.
+
+O-010 ratifies a lightweight-first maintenance path before the first promotion.
+Every Metis revision is pinned and impact-measured. The existing adapter is
+tested first with refreshed retrieval and current compiler/oracle feedback; a
+green result is `NO_RETRAIN`. If only that gate fails while AST/IR and verified
+semantics remain compatible, the maximum intervention is `DELTA_QLORA` from the
+previous version, using oracle-accepted delta examples plus a provenance-clean
+replay set and dev-only selection. `FULL_SUCCESSOR` is required only for an
+AST/IR or semantic-contract change, or when the lightweight path still fails
+semantic or replay gates. Previous benchmarks, datasets and adapters remain
+immutable and available for historical attribution and rollback.
+
+O-011 ratifies two non-interchangeable readiness gates.
+`EXPERIMENT_PLAN_READY` certifies only the machine-readable W5-XS plan and
+explicitly is not baseline, training authority, semantic-uplift evidence,
+promotion or a 99% claim.
+`ACCURACY99_PROMOTION_READY` retains the complete strict gate, including O-003,
+600/563, W1/W3 closure and A/B evidence. A green B baseline may close the local
+product as `NO_TRAIN`; only repeatable semantic failures can open a bounded
+micro-dataset and one rank-8 experiment.

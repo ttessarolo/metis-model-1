@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib.util
 import inspect
 import json
@@ -18,6 +19,8 @@ from types import SimpleNamespace
 
 import pytest
 from jsonschema import Draft202012Validator
+
+import metis_model1.oracles as public_oracles
 
 PROJECT_ROOT = Path(__file__).parents[1]
 GATE_PATH = PROJECT_ROOT / "runtime/w3_bridge_gate.py"
@@ -73,7 +76,7 @@ def _authority(launcher: dict) -> dict:
     ]
     source = _finish_manifest(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "bundle_id": "source-fixture",
             "kind": "source",
             "counts": {"files": len(source_files), "bytes": 3},
@@ -93,7 +96,7 @@ def _authority(launcher: dict) -> dict:
     ]
     dependency = _finish_manifest(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "bundle_id": "dependency-fixture",
             "kind": "dependency",
             "python": deepcopy(GATE.DEPENDENCY_PYTHON),
@@ -104,18 +107,11 @@ def _authority(launcher: dict) -> dict:
     )
     capsule_files = [
         _file(
-            "bin/node",
-            size=1,
-            mode=0o555,
-            sha256=GATE.PINNED_NODE_SHA256,
-            role="node",
-        ),
-        _file(
-            "tooling/node_modules/tsx/dist/loader.mjs",
+            ".metis-oracle/native_ts_loader.mjs",
             size=1,
             mode=0o444,
-            sha256="sha256:" + "4" * 64,
-            role="tsx",
+            sha256=GATE.PINNED_LOADER_SHA256,
+            role="loader",
         ),
         _file(
             ".metis-oracle/runner.ts",
@@ -127,19 +123,14 @@ def _authority(launcher: dict) -> dict:
     ]
     capsule = _finish_manifest(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "capsule_id": "capsule-fixture",
             "revision": GATE.PINNED_METIS_REVISION,
             "tree": GATE.PINNED_METIS_TREE,
             "language_version": "0.43",
-            "node": {
-                "path": "bin/node",
-                "sha256": GATE.PINNED_NODE_SHA256,
-                "mode": 0o555,
-            },
-            "tsx": {
-                "path": "tooling/node_modules/tsx/dist/loader.mjs",
-                "sha256": "sha256:" + "4" * 64,
+            "loader": {
+                "path": ".metis-oracle/native_ts_loader.mjs",
+                "sha256": GATE.PINNED_LOADER_SHA256,
                 "mode": 0o444,
             },
             "runner": {
@@ -148,13 +139,13 @@ def _authority(launcher: dict) -> dict:
                 "mode": 0o444,
             },
             "tooling": deepcopy(GATE.PINNED_TOOLING),
-            "counts": {"files": 3, "bytes": 3},
+            "counts": {"files": 2, "bytes": 2},
             "files": capsule_files,
             "roster_sha256": GATE.canonical_hash(capsule_files),
         }
     )
     body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "authority_id": GATE.AUTHORITY_ID,
         "status": "independently_ratified",
         "ratification": {
@@ -177,13 +168,25 @@ def _authority(launcher: dict) -> dict:
             "worker": {
                 "path": "runtime/w3_production_worker.py",
                 "sha256": worker_sha,
-                "protocol": "w3-production-capsule-worker-v2",
+                "protocol": "w3-production-capsule-worker-v3",
             },
         },
         "source_bundle": source,
         "dependency_bundle": dependency,
         "capsule": capsule,
+        "runtime": {
+            "schema_version": 3,
+            "node": {
+                "path": "bin/node",
+                "size": GATE.PINNED_NODE_BYTES,
+                "source_mode": 0o755,
+                "mode": 0o555,
+                "sha256": GATE.PINNED_NODE_SHA256,
+            },
+            "loader_flags": list(GATE.PINNED_LOADER_FLAGS),
+        },
         "expected": {"candidates": 3, "executions": 5, "roles": GATE.ONE_RUN_ROLES},
+        "native_evidence": dict(GATE.NATIVE_EVIDENCE),
         "non_claims": list(GATE.NON_CLAIMS),
     }
     return _finish_manifest(body)
@@ -217,13 +220,14 @@ def _oracle_artifact(
         "runtime_sha256": GATE.canonical_hash(runtime["runtime_identity"]),
         "runtime_identity": runtime["runtime_identity"],
         **runtime["evidence_pins"],
+        "metis_status_sha256": GATE.canonical_hash(""),
         "metis_status": "",
     }
     oracle = {"schema_version": 1, "result": result, "evidence": evidence}
     evidence["envelope_sha256"] = GATE.canonical_hash(oracle)
     body = {
-        "schema_version": 2,
-        "protocol": "metis-runtime-capsule-v2",
+        "schema_version": 3,
+        "protocol": "metis-runtime-capsule-v3",
         "execution_id": f"{candidate}.{role}",
         "request_sha256": request_sha256,
         "capsule_manifest_sha256": authority["capsule"]["manifest_sha256"],
@@ -282,9 +286,9 @@ def _qualification(authority: dict) -> tuple[dict, dict[str, bytes]]:
         return {**root_body, "root_id": GATE.canonical_hash(root_body)}
 
     body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "qualification_id": GATE.QUALIFICATION_ID,
-        "qualification_kind": "production-capsule-v2",
+        "qualification_kind": "production-capsule-v3",
         "status": "qualified",
         "claim": "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim",
         "authority_manifest_sha256": authority["manifest_sha256"],
@@ -302,6 +306,7 @@ def _qualification(authority: dict) -> tuple[dict, dict[str, bytes]]:
         "counts": {"candidates": 3, "executions": 5, "distinct": 5, "gaps": 0},
         "roles": deepcopy(GATE.ONE_RUN_ROLES),
         "executions": executions,
+        "native_evidence": dict(GATE.NATIVE_EVIDENCE),
         "non_claims": list(GATE.NON_CLAIMS),
         "cleanup": {
             "status": "cleanup_deferred",
@@ -315,10 +320,16 @@ def _qualification(authority: dict) -> tuple[dict, dict[str, bytes]]:
                     "c",
                 ),
                 retained_root(
+                    "production-runtime-root",
+                    "runtime",
+                    ".w3-runtime-" + "b" * 24,
+                    "d",
+                ),
+                retained_root(
                     "production-trusted-root",
                     "trusted",
-                    ".w3-trusted-" + "b" * 24,
-                    "d",
+                    ".w3-trusted-" + "c" * 24,
+                    "e",
                 ),
             ],
         },
@@ -379,12 +390,13 @@ def _blocked_replay_fixture(
     *, cleanup: dict | None = None, observed_runs: list[dict] | None = None
 ) -> dict:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "replay_id": GATE.REPLAY_ID,
         "status": "blocked",
         "claim": "no_replay_claim",
         "reason": "injected blocked replay",
         "observed_runs": [] if observed_runs is None else observed_runs,
+        "native_evidence": dict(GATE.NATIVE_EVIDENCE),
         "cleanup": GATE._empty_cleanup() if cleanup is None else cleanup,
     }
 
@@ -444,18 +456,25 @@ def test_blocked_replay_allows_only_top_and_child_prefixes_in_both_root_states(
             "4",
         ),
         (
+            "production-runtime-root",
+            "runtime",
+            "run-root",
+            ".w3-runtime-allowed",
+            "5",
+        ),
+        (
             "production-trusted-root",
             "trusted",
             "run-root",
             ".w3-trusted-allowed",
-            "5",
+            "6",
         ),
         (
             "qualification-publication-partial-root",
             "qualification-publication-partial",
             "artifact-root",
             "qualifications/partial-allowed",
-            "6",
+            "7",
         ),
     )
     child_roots = [
@@ -474,7 +493,7 @@ def test_blocked_replay_allows_only_top_and_child_prefixes_in_both_root_states(
         logical_root="replay-holder",
         anchor="replay-artifact-root",
         locator=".w3-bridge-allowed",
-        digest_character="7",
+        digest_character="8",
         state=state,
     )
     schema = json.loads(SCHEMA_PATH.read_text())
@@ -550,6 +569,9 @@ def replay_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, 
     for name in ("source", "dependency", "capsule"):
         roots[name] = tmp_path / name
         roots[name].mkdir()
+    node = tmp_path / "node"
+    node.write_bytes(b"node")
+    node.chmod(0o755)
     return {
         "qualifier_path": qualifier,
         "qualifier_sha256": qualifier_sha256,
@@ -558,6 +580,7 @@ def replay_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, 
         "source_bundle_root": roots["source"],
         "dependency_bundle_root": roots["dependency"],
         "capsule_root": roots["capsule"],
+        "node_path": node,
         "artifact_root": tmp_path / "artifacts",
         "authority_value": authority_value,
     }
@@ -848,6 +871,7 @@ def test_bridge_fd_transfer_exhaustive_roster_is_baseexception_safe(
                 source_bundle=Path(replay_inputs["source_bundle_root"]),
                 dependency_bundle=Path(replay_inputs["dependency_bundle_root"]),
                 capsule=Path(replay_inputs["capsule_root"]),
+                node=Path(replay_inputs["node_path"]),
                 artifact_root=artifact,
                 run_root=run,
                 nonce="e" * 64,
@@ -1486,21 +1510,35 @@ def test_replay_rejects_a_copied_physical_descriptor_across_runs(
         GATE.run_replay_gate(**_gate_arguments(replay_inputs))
 
 
-@pytest.mark.parametrize(
-    "attack",
-    [
-        "unmeasurable-qualified",
-        "snapshot-drift",
-        "bool-count",
-        "over-cap",
-        "wrong-order",
-        "anchor-swap",
-        "traversal",
-    ],
+BRIDGE_CLEANUP_MUTATION_CASES = (
+    ("unmeasurable-qualified", "retained root state is invalid"),
+    ("snapshot-drift", "sealed retained root is invalid"),
+    ("bool-count", "sealed retained root is invalid"),
+    ("over-cap", "retained root counts exceed their cap"),
+    ("wrong-order", "qualified retained root order is invalid"),
+    ("anchor-swap", "retained root kind binding is invalid"),
+    ("traversal", "safe relative path"),
 )
-def test_bridge_child_cleanup_mutations_fail_closed(attack: str) -> None:
+
+
+@pytest.mark.parametrize(("attack", "message"), BRIDGE_CLEANUP_MUTATION_CASES)
+def test_bridge_child_cleanup_mutations_fail_closed(attack: str, message: str) -> None:
+    assert (
+        len(BRIDGE_CLEANUP_MUTATION_CASES)
+        == len({case[0] for case in BRIDGE_CLEANUP_MUTATION_CASES})
+        == 7
+    )
     authority = _authority({key: f"fixture-{key}" for key in GATE.LAUNCHER_KEYS})
     cleanup = deepcopy(_qualification(authority)[0]["cleanup"])
+    GATE._validate_cleanup(
+        deepcopy(cleanup),
+        qualified=True,
+        expected_kinds=(
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+        ),
+    )
     roots = cleanup["retained_roots"]
     if attack == "unmeasurable-qualified":
         body = {
@@ -1530,11 +1568,15 @@ def test_bridge_child_cleanup_mutations_fail_closed(attack: str) -> None:
             root["root_id"] = GATE.canonical_hash(
                 {key: value for key, value in root.items() if key != "root_id"}
             )
-    with pytest.raises(GATE.BridgeGateBlocked):
+    with pytest.raises(GATE.BridgeGateBlocked, match=message):
         GATE._validate_cleanup(
             cleanup,
             qualified=True,
-            expected_kinds=("production-process-root", "production-trusted-root"),
+            expected_kinds=(
+                "production-process-root",
+                "production-runtime-root",
+                "production-trusted-root",
+            ),
         )
 
 
@@ -1549,7 +1591,7 @@ def test_stale_consistently_rehashed_qualification_missing_cleanup_is_rejected()
     with pytest.raises(GATE.BridgeGateBlocked, match="fields drifted"):
         GATE._validate_qualification(stale, authority, authority["manifest_sha256"])
     with pytest.raises(QUALIFIER.QualificationBlocked):
-        QUALIFIER._validate_report_v2(stale, stale["launcher"])
+        QUALIFIER._validate_report_v3(stale, stale["launcher"])
 
 
 def test_bridge_authority_rejects_former_handoff_revision_after_canonical_rehash(
@@ -1632,11 +1674,11 @@ def test_all_six_report_variants_have_schema_manual_and_bridge_key_agreement() -
         ),
         (
             qualification_schema["$defs"]["productionQualified"],
-            QUALIFIER.QUALIFIED_V2_REPORT_KEYS,
+            QUALIFIER.QUALIFIED_V3_REPORT_KEYS,
         ),
         (
             qualification_schema["$defs"]["productionBlocked"],
-            QUALIFIER.BLOCKED_V2_REPORT_KEYS,
+            QUALIFIER.BLOCKED_V3_REPORT_KEYS,
         ),
         (
             bridge_schema["$defs"]["qualified"],
@@ -1652,7 +1694,7 @@ def test_all_six_report_variants_have_schema_manual_and_bridge_key_agreement() -
         assert schema_variant["additionalProperties"] is False
         assert set(schema_variant["required"]) == set(manual_keys)
         assert set(schema_variant["properties"]) == set(manual_keys)
-    assert QUALIFIER.QUALIFIED_V2_REPORT_KEYS == GATE.QUALIFIED_CHILD_REPORT_KEYS
+    assert QUALIFIER.QUALIFIED_V3_REPORT_KEYS == GATE.QUALIFIED_CHILD_REPORT_KEYS
 
 
 @pytest.mark.parametrize("status", ["blocked", "no-report"])
@@ -1862,8 +1904,10 @@ def _materialize_reported_child_root(
         finally:
             os.close(descriptor)
         GATE._seal_holder_tree(child.descriptor)
+        if kind == "production-runtime-root":
+            os.chmod("entry", 0o555, dir_fd=child.descriptor, follow_symlinks=False)
         child.mode = 0o555
-        roster, counts = GATE._snapshot_holder_tree(child.descriptor)
+        roster, counts = GATE._snapshot_holder_tree(child.descriptor, kind=kind)
         digest = GATE.bytes_hash(roster)
         body = {
             "state": "sealed",
@@ -1888,10 +1932,19 @@ def _materialize_reported_child_root(
     [
         ("production-process-root", 8 * 1024 * 1024, True),
         ("production-process-root", 8 * 1024 * 1024 + 1, False),
+        ("production-runtime-root", 128 * 1024 * 1024, True),
+        ("production-runtime-root", 128 * 1024 * 1024 + 1, False),
         ("production-trusted-root", 8 * 1024 * 1024, True),
         ("production-trusted-root", 8 * 1024 * 1024 + 1, False),
     ],
-    ids=("process-boundary", "process-over", "trusted-boundary", "trusted-over"),
+    ids=(
+        "process-boundary",
+        "process-over",
+        "runtime-boundary",
+        "runtime-over",
+        "trusted-boundary",
+        "trusted-over",
+    ),
 )
 def test_child_retained_root_remeasurement_enforces_per_file_cap(
     tmp_path: Path, target_kind: str, file_size: int, valid: bool
@@ -1909,16 +1962,26 @@ def test_child_retained_root_remeasurement_enforces_per_file_cap(
             ),
             _materialize_reported_child_root(
                 run_root,
+                kind="production-runtime-root",
+                logical_root="runtime",
+                locator=".w3-runtime-" + "b" * 24,
+                file_size=file_size if target_kind == "production-runtime-root" else 2,
+            ),
+            _materialize_reported_child_root(
+                run_root,
                 kind="production-trusted-root",
                 logical_root="trusted",
-                locator=".w3-trusted-" + "b" * 24,
+                locator=".w3-trusted-" + "c" * 24,
                 file_size=file_size if target_kind == "production-trusted-root" else 2,
             ),
         ]
         if valid:
             GATE._remeasure_child_retained_roots(run_root, cleanup)
         else:
-            with pytest.raises(GATE.BridgeGateBlocked, match="file or aggregate exceeds"):
+            with pytest.raises(
+                GATE.BridgeGateBlocked,
+                match="file or aggregate exceeds|counts exceed",
+            ):
                 GATE._remeasure_child_retained_roots(run_root, cleanup)
     finally:
         run_root.close()
@@ -1940,9 +2003,15 @@ def test_child_retained_root_locator_and_physical_roster_are_remeasured(
             ),
             _materialize_reported_child_root(
                 run_root,
+                kind="production-runtime-root",
+                logical_root="runtime",
+                locator=".w3-runtime-" + "b" * 24,
+            ),
+            _materialize_reported_child_root(
+                run_root,
                 kind="production-trusted-root",
                 logical_root="trusted",
-                locator=".w3-trusted-" + "b" * 24,
+                locator=".w3-trusted-" + "c" * 24,
             ),
         ]
         GATE._remeasure_child_retained_roots(run_root, cleanup)
@@ -1968,12 +2037,13 @@ def _run_once_blocked_fixture(
     cleanup: dict,
 ) -> None:
     report = {
-        "schema_version": 2,
+        "schema_version": 3,
         "qualification_id": GATE.QUALIFICATION_ID,
-        "qualification_kind": "production-capsule-v2",
+        "qualification_kind": "production-capsule-v3",
         "status": "blocked",
         "claim": "no_qualification_claim",
         "reason": "injected blocked child",
+        "native_evidence": dict(GATE.NATIVE_EVIDENCE),
         "cleanup": cleanup,
     }
     monkeypatch.setattr(
@@ -2000,6 +2070,7 @@ def _run_once_blocked_fixture(
             source_bundle=tmp_path / "source",
             dependency_bundle=tmp_path / "dependency",
             capsule=tmp_path / "capsule",
+            node=tmp_path / "node",
             artifact_root=artifact_root,
             run_root=run_root,
             nonce="0" * 64,
@@ -2032,6 +2103,7 @@ def test_run_once_blocked_child_remeasures_sealed_roots_before_recording_cleanup
 ) -> None:
     process_locator = ".w3-production-" + "a" * 24
     trusted_locator = ".w3-trusted-" + "b" * 24
+    runtime_locator = ".w3-runtime-" + "d" * 24
     publication_locator = "qualifications/" + "c" * 64
     physical = (
         tmp_path / "run" / process_locator
@@ -2078,11 +2150,19 @@ def test_run_once_blocked_child_remeasures_sealed_roots_before_recording_cleanup
                 state="unmeasurable",
             ),
             _blocked_retained_root_fixture(
+                kind="production-runtime-root",
+                logical_root="runtime",
+                anchor="run-root",
+                locator=runtime_locator,
+                digest_character="2",
+                state="unmeasurable",
+            ),
+            _blocked_retained_root_fixture(
                 kind="production-trusted-root",
                 logical_root="trusted",
                 anchor="run-root",
                 locator=trusted_locator,
-                digest_character="2",
+                digest_character="3",
                 state="unmeasurable",
             ),
             forged,
@@ -2136,6 +2216,7 @@ def test_run_once_cross_binds_published_report_and_artifacts(
             source_bundle=Path(replay_inputs["source_bundle_root"]),
             dependency_bundle=Path(replay_inputs["dependency_bundle_root"]),
             capsule=Path(replay_inputs["capsule_root"]),
+            node=Path(replay_inputs["node_path"]),
             artifact_root=artifact_handle,
             run_root=run_handle,
             nonce="0" * 64,
@@ -2225,6 +2306,7 @@ def test_run_once_publication_parent_swap_reads_fd_tree_and_fails_closed(
                 source_bundle=Path(replay_inputs["source_bundle_root"]),
                 dependency_bundle=Path(replay_inputs["dependency_bundle_root"]),
                 capsule=Path(replay_inputs["capsule_root"]),
+                node=Path(replay_inputs["node_path"]),
                 artifact_root=artifact_handle,
                 run_root=run_handle,
                 nonce="0" * 64,
@@ -2308,6 +2390,7 @@ def test_run_once_reasserts_publication_identity_after_fd_snapshot(
                 source_bundle=Path(replay_inputs["source_bundle_root"]),
                 dependency_bundle=Path(replay_inputs["dependency_bundle_root"]),
                 capsule=Path(replay_inputs["capsule_root"]),
+                node=Path(replay_inputs["node_path"]),
                 artifact_root=artifact_handle,
                 run_root=run_handle,
                 nonce="0" * 64,
@@ -2446,6 +2529,7 @@ def test_forged_qualifier_and_empty_authority_are_blocked_before_execution(
             source_bundle_root=roots[0],
             dependency_bundle_root=roots[1],
             capsule_root=roots[2],
+            node_path=Path(sys.executable).resolve(),
             artifact_root=tmp_path / "artifacts",
         )
     assert called is False
@@ -2470,6 +2554,7 @@ def test_one_byte_qualifier_drift_fails_even_with_matching_caller_digest(tmp_pat
             source_bundle_root=roots[0],
             dependency_bundle_root=roots[1],
             capsule_root=roots[2],
+            node_path=Path(sys.executable).resolve(),
             artifact_root=tmp_path / "artifacts",
         )
 
@@ -2906,15 +2991,28 @@ def test_bridge_rejects_unexpected_or_duplicate_child_registration(mutation: str
 
 
 def test_bridge_bootstrap_and_execution_policy_pins_match_qualifier_bytes() -> None:
-    assert GATE.QUALIFIER_BOOTSTRAP_SHA256 == QUALIFIER.V2_QUALIFIER_BOOTSTRAP_SHA256
+    assert GATE.QUALIFIER_BOOTSTRAP_SHA256 == QUALIFIER.V3_QUALIFIER_BOOTSTRAP_SHA256
     assert (
         GATE.PINNED_CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"]
-        == QUALIFIER.V2_NODE_SANDBOX_POLICY_TEMPLATE_SHA256
+        == QUALIFIER.V3_NODE_SANDBOX_POLICY_TEMPLATE_SHA256
     )
     assert (
         GATE.PINNED_CAPSULE_EXECUTION_POLICY["capsule_ancestor_slots"]
-        == QUALIFIER.V2_CAPSULE_ANCESTOR_SLOTS
+        == QUALIFIER.V3_CAPSULE_ANCESTOR_SLOTS
     )
+
+
+def test_l66_combined_launcher_policy_pin_is_recomputed_from_exact_templates() -> None:
+    expected = (
+        "sha256:"
+        + hashlib.sha256(
+            QUALIFIER.V3_OUTER_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
+            + b"\0"
+            + QUALIFIER.V3_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
+        ).hexdigest()
+    )
+    assert expected == QUALIFIER.V3_OUTER_SANDBOX_POLICY_TEMPLATE_SHA256
+    assert expected == GATE.PINNED_LAUNCHER_POLICY_SHA256
 
 
 @pytest.mark.parametrize(
@@ -3007,3 +3105,142 @@ def test_replay_blocked_report_is_schema_valid() -> None:
     blocked = GATE._blocked("typed failure")
     schema = json.loads(SCHEMA_PATH.read_text())
     assert list(Draft202012Validator(schema).iter_errors(blocked)) == []
+
+
+@pytest.mark.parametrize("node_mode", [0o555, 0o444], ids=["registered-0555", "wrong-0444"])
+def test_l66_runtime_root_snapshot_mode_contract(tmp_path: Path, node_mode: int) -> None:
+    root = tmp_path / f"runtime-{node_mode:o}"
+    node_parent = root / "bin"
+    node_parent.mkdir(parents=True)
+    node = node_parent / "node"
+    node.write_bytes(b"registered-node-preimage")
+    node.chmod(node_mode)
+    node_parent.chmod(0o555)
+    root.chmod(0o555)
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        if node_mode == 0o444:
+            with pytest.raises(QUALIFIER.QualificationBlocked):
+                QUALIFIER._snapshot_retained_tree(descriptor, "production-runtime-root")
+            with pytest.raises(GATE.BridgeGateBlocked):
+                GATE._snapshot_holder_tree(
+                    descriptor,
+                    kind="production-runtime-root",
+                    caps=QUALIFIER.RETAINED_ROOT_CAPS["production-runtime-root"],
+                )
+        else:
+            qualifier_roster, qualifier_counts = QUALIFIER._snapshot_retained_tree(
+                descriptor, "production-runtime-root"
+            )
+            bridge_roster, bridge_counts = GATE._snapshot_holder_tree(
+                descriptor,
+                kind="production-runtime-root",
+                caps=QUALIFIER.RETAINED_ROOT_CAPS["production-runtime-root"],
+            )
+            assert (
+                bridge_counts
+                == qualifier_counts
+                == {
+                    "files": 1,
+                    "directories": 2,
+                    "bytes": len(b"registered-node-preimage"),
+                }
+            )
+            assert bridge_roster == qualifier_roster
+            assert (
+                hashlib.sha256(bridge_roster).digest() == hashlib.sha256(qualifier_roster).digest()
+            )
+    finally:
+        os.close(descriptor)
+        node_parent.chmod(0o755)
+        root.chmod(0o755)
+
+
+def _l66_rehashed_capsule_attack(attack: str) -> dict:
+    authority = _authority({key: f"fixture-{key}" for key in GATE.LAUNCHER_KEYS})
+    capsule = deepcopy(authority["capsule"])
+    if attack in {"loader-sha", "runner-sha"}:
+        identity_name = attack.removesuffix("-sha")
+        identity = capsule[identity_name]
+        changed_hash = "sha256:" + ("e" if identity_name == "loader" else "f") * 64
+        identity["sha256"] = changed_hash
+        next(row for row in capsule["files"] if row["role"] == identity_name)["sha256"] = (
+            changed_hash
+        )
+    elif attack in {"loader-path", "runner-path"}:
+        identity_name = attack.removesuffix("-path")
+        identity = capsule[identity_name]
+        old_path = identity["path"]
+        suffix = "mjs" if identity_name == "loader" else "ts"
+        identity["path"] = f"alternate/{identity_name}.{suffix}"
+        next(row for row in capsule["files"] if row["path"] == old_path)["path"] = identity["path"]
+    elif attack in {"role-tsx", "role-node"}:
+        capsule["files"][0]["role"] = attack.removeprefix("role-")
+    else:  # pragma: no cover - the parameter roster below is closed.
+        raise AssertionError(f"unregistered attack {attack}")
+    capsule["counts"] = {
+        "files": len(capsule["files"]),
+        "bytes": sum(row["size"] for row in capsule["files"]),
+    }
+    capsule["roster_sha256"] = GATE.canonical_hash(capsule["files"])
+    capsule["manifest_sha256"] = GATE.canonical_hash(
+        {key: value for key, value in capsule.items() if key != "manifest_sha256"}
+    )
+    return capsule
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "loader-sha",
+        "loader-path",
+        "runner-sha",
+        "runner-path",
+        "role-tsx",
+        "role-node",
+    ],
+)
+def test_l66_capsule_identity_attacks_fail_schema_manual_bridge_and_public(attack: str) -> None:
+    capsule = _l66_rehashed_capsule_attack(attack)
+    root_schema = json.loads(
+        (PROJECT_ROOT / "schemas/w3-production-authority.schema.json").read_text(encoding="utf-8")
+    )
+    capsule_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": root_schema["$defs"],
+        "$ref": "#/$defs/capsule",
+    }
+    assert list(Draft202012Validator(capsule_schema).iter_errors(capsule))
+    with pytest.raises(QUALIFIER.QualificationBlocked):
+        QUALIFIER._validate_capsule_descriptor(capsule)
+    with pytest.raises(GATE.BridgeGateBlocked):
+        GATE._validate_capsule(capsule)
+    with pytest.raises(public_oracles.OracleError):
+        public_oracles.validate_runtime_capsule_descriptor(capsule)
+
+
+def test_l66_bridge_production_stops_before_path_or_process_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("bridge crossed the protected-broker STOP")
+
+    monkeypatch.setattr(GATE, "_strict_canonical_path", forbidden)
+    monkeypatch.setattr(GATE.subprocess, "Popen", forbidden)
+    with pytest.raises(GATE.BridgeGateBlocked, match="protected execution broker"):
+        GATE.run_replay_gate(
+            qualifier_path="absent-qualifier",
+            qualifier_sha256="sha256:" + "0" * 64,
+            authority_path="absent-authority",
+            authority_sha256="sha256:" + "1" * 64,
+            source_bundle_root="absent-source",
+            dependency_bundle_root="absent-dependency",
+            capsule_root="absent-capsule",
+            node_path="absent-node",
+            artifact_root="absent-artifact",
+        )
+    assert observed == []

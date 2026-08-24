@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "F6 human blind-review pre-output policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "status", "truth_author_id", "model_operator_id", "rubric_sha256", "reviewers", "model_outputs_observed", "policy_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "policy_id": {"const": "f6-human-review-policy/v1"},
+    "status": {"const": "sealed_pre_output"},
+    "truth_author_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "model_operator_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "rubric_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "reviewers": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["reviewer_id", "public_key"], "properties": {"reviewer_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"}, "public_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+    "model_outputs_observed": {"const": false},
+    "policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

@@ -119,7 +119,9 @@ function unsupportedEntries(value: unknown, prefix = '$'): string[] {
 type RuntimeIdentity = {
     node: string;
     node_path: string;
-    tsx_path: string;
+    loader_path: string;
+    loader_sha256: string;
+    loader_flags: string[];
     runner_path: string;
     snapshot_revision: string;
     snapshot_tree: string;
@@ -128,8 +130,9 @@ type RuntimeIdentity = {
     node_modules_sha256: string;
     node_binary_sha256: string;
     sandbox_exec_path: string;
-    sandbox_policy_version: string;
-    sandbox_policy_sha256: string;
+    oracle_policy_version: string;
+    oracle_policy_sha256: string;
+    execution_policy_sha256: string;
 };
 
 function argument(argv: string[], name: string): string {
@@ -138,15 +141,18 @@ function argument(argv: string[], name: string): string {
     return argv[index + 1];
 }
 
-function parseIdentity(root: string, revision: string, tree: string, packageSha: string, lockSha: string, modulesSha: string, runnerSha: string, nodeBinarySha: string, sandboxPolicyVersion: string, sandboxPolicySha: string): void {
+function parseIdentity(root: string, revision: string, tree: string, packageSha: string, lockSha: string, modulesSha: string, runnerSha: string, loaderSha: string, loaderFlags: string[], nodeBinarySha: string, oraclePolicyVersion: string, oraclePolicySha: string, executionPolicySha: string): void {
     const identity = JSON.parse(readFileSync(path.join(root, '.metis-oracle-identity.json'), 'utf8')) as Record<string, unknown>;
     if (identity.revision !== revision || identity.tree !== tree
         || identity.package_sha256 !== packageSha || identity.lock_sha256 !== lockSha
         || identity.node_modules_sha256 !== modulesSha || identity.runner_sha256 !== runnerSha
+        || identity.loader_sha256 !== loaderSha
+        || canonical(identity.loader_flags) !== canonical(loaderFlags)
         || identity.node_binary_sha256 !== nodeBinarySha
         || identity.sandbox_exec_path !== 'sandbox-exec:///usr/bin/sandbox-exec'
-        || identity.sandbox_policy_version !== sandboxPolicyVersion
-        || identity.sandbox_policy_sha256 !== sandboxPolicySha) {
+        || identity.oracle_policy_version !== oraclePolicyVersion
+        || identity.oracle_policy_sha256 !== oraclePolicySha
+        || identity.execution_policy_sha256 !== executionPolicySha) {
         throw new Error('isolated Metis snapshot identity does not match its validated pins');
     }
 }
@@ -204,27 +210,46 @@ async function main(): Promise<void> {
     const lockSha = argument(argv, '--tooling-lock-sha256');
     const modulesSha = argument(argv, '--node-modules-sha256');
     const runnerSha = argument(argv, '--runner-sha256');
+    const loaderSha = argument(argv, '--loader-sha256');
     const nodeBinarySha = argument(argv, '--node-binary-sha256');
-    const sandboxPolicyVersion = argument(argv, '--sandbox-policy-version');
-    const sandboxPolicySha = argument(argv, '--sandbox-policy-sha256');
+    const oraclePolicyVersion = argument(argv, '--oracle-policy-version');
+    const oraclePolicySha = argument(argv, '--oracle-policy-sha256');
+    const executionPolicySha = argument(argv, '--execution-policy-sha256');
     const snapshotIdentity = argument(argv, '--snapshot-identity');
     const runtimeNodePath = argument(argv, '--runtime-node-path');
     const nodeActualPath = argument(argv, '--node-actual-path');
-    const runtimeTsxPath = argument(argv, '--runtime-tsx-path');
+    const runtimeLoaderPath = argument(argv, '--runtime-loader-path');
+    const runtimeLoaderFlagsRaw = argument(argv, '--runtime-loader-flags');
     const runtimeRunnerPath = argument(argv, '--runtime-runner-path');
     const runnerActualPath = argument(argv, '--runner-actual-path');
-    const tsxPath = argument(argv, '--tsx-path');
-    if (path.isAbsolute(metisRoot) === false || path.isAbsolute(tsxPath) === false) throw new Error('strict Metis root and tsx path are required');
+    const loaderPath = argument(argv, '--loader-path');
+    let runtimeLoaderFlags: string[];
+    try {
+        const parsedFlags = JSON.parse(runtimeLoaderFlagsRaw) as unknown;
+        if (!Array.isArray(parsedFlags) || parsedFlags.some((item) => typeof item !== 'string')) throw new Error('not strings');
+        runtimeLoaderFlags = parsedFlags;
+    } catch {
+        throw new Error('runtime loader flags are invalid');
+    }
+    const expectedLoaderFlags = ['--disable-warning=ExperimentalWarning', '--experimental-loader'];
+    if (canonical(runtimeLoaderFlags) !== canonical(expectedLoaderFlags)) throw new Error('runtime loader flags drifted');
+    if (path.isAbsolute(metisRoot) === false || path.isAbsolute(loaderPath) === false) throw new Error('strict Metis root and loader path are required');
     if (snapshotIdentity !== `snapshot://${revision}/${tree}`) throw new Error('snapshot identity does not match revision and tree');
     if (request.metis_revision !== undefined && request.metis_revision !== revision) throw new Error('request revision does not match snapshot');
     if (request.metis_tree !== undefined && request.metis_tree !== tree) throw new Error('request tree does not match snapshot');
-    parseIdentity(metisRoot, revision, tree, packageSha, lockSha, modulesSha, runnerSha, nodeBinarySha, sandboxPolicyVersion, sandboxPolicySha);
+    parseIdentity(metisRoot, revision, tree, packageSha, lockSha, modulesSha, runnerSha, loaderSha, runtimeLoaderFlags, nodeBinarySha, oraclePolicyVersion, oraclePolicySha, executionPolicySha);
     if (nodeBinarySha !== '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c'
-        || sandboxPolicyVersion !== '2'
-        || sandboxPolicySha !== 'deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa') throw new Error('isolated runtime policy does not match its validated pin');
+        || oraclePolicyVersion !== '2'
+        || oraclePolicySha !== 'deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa'
+        || !/^[0-9a-f]{64}$/.test(executionPolicySha)) throw new Error('isolated runtime policy does not match its validated pin');
     if (path.resolve(process.execPath) !== path.resolve(nodeActualPath)) throw new Error('node runtime path does not match the validated identity');
     if (path.resolve(process.argv[1] ?? '') !== path.resolve(runnerActualPath)) throw new Error('runner path does not match the validated identity');
-    if (!path.resolve(tsxPath).startsWith(`${path.resolve(metisRoot)}${path.sep}`)) throw new Error('tsx path is outside the isolated snapshot');
+    if (!path.resolve(loaderPath).startsWith(`${path.resolve(metisRoot)}${path.sep}`)) throw new Error('loader path is outside the isolated snapshot');
+    const actualLoaderSha = createHash('sha256').update(readFileSync(loaderPath)).digest('hex');
+    if (actualLoaderSha !== loaderSha) throw new Error('native loader bytes differ from the validated identity');
+    if (runtimeLoaderPath !== `snapshot://${revision}/${tree}/.metis-oracle/native_ts_loader.mjs`) throw new Error('runtime loader identity drifted');
+    const loaderArgv = process.execArgv.slice(0, 3);
+    if (canonical(loaderArgv) !== canonical([...expectedLoaderFlags, loaderPath])) throw new Error('actual loader invocation flags drifted');
     const tooling = path.join(metisRoot, 'tooling');
     const langiumUrl = pathToFileURL(path.join(tooling, 'node_modules/langium/lib/index.js')).href;
     const servicesModule = await import(pathToFileURL(path.join(tooling, 'src/language/metis-module.ts')).href);
@@ -257,7 +282,9 @@ async function main(): Promise<void> {
     const runtime: RuntimeIdentity = {
         node: process.version,
         node_path: runtimeNodePath,
-        tsx_path: runtimeTsxPath,
+        loader_path: runtimeLoaderPath,
+        loader_sha256: `sha256:${loaderSha}`,
+        loader_flags: runtimeLoaderFlags,
         runner_path: runtimeRunnerPath,
         snapshot_revision: revision,
         snapshot_tree: tree,
@@ -266,8 +293,9 @@ async function main(): Promise<void> {
         node_modules_sha256: `sha256:${modulesSha}`,
         node_binary_sha256: `sha256:${nodeBinarySha}`,
         sandbox_exec_path: 'sandbox-exec:///usr/bin/sandbox-exec',
-        sandbox_policy_version: '2',
-        sandbox_policy_sha256: 'sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa',
+        oracle_policy_version: '2',
+        oracle_policy_sha256: `sha256:${oraclePolicySha}`,
+        execution_policy_sha256: `sha256:${executionPolicySha}`,
     };
     const toolchain = { revision, tree };
     if (parser.length > 0) {

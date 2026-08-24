@@ -75,10 +75,12 @@ def _identity(adapter: object) -> dict:
         "language_version": "0.43",
         "node": oracle_module.PINNED_NODE_VERSION,
         "node_path": oracle_module.NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{oracle_module.PINNED_LOADER_SHA256}",
+        "loader_flags": list(oracle_module.LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
             "/.metis-oracle/runner.ts"
@@ -89,8 +91,9 @@ def _identity(adapter: object) -> dict:
         "tooling_lock_sha256": f"sha256:{oracle_module.PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{oracle_module.PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": oracle_module.SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
         "class_module": adapter_type.__module__,
         "class_qualname": adapter_type.__qualname__,
         "code_file_sha256": code_hash,
@@ -111,10 +114,12 @@ def _runtime_receipt(candidate_sha: str, identity_sha: str) -> dict:
         "toolchain_tree": oracle_module.PINNED_METIS_TREE,
         "node": oracle_module.PINNED_NODE_VERSION,
         "node_path": oracle_module.NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{oracle_module.PINNED_LOADER_SHA256}",
+        "loader_flags": list(oracle_module.LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
             "/.metis-oracle/runner.ts"
@@ -125,8 +130,9 @@ def _runtime_receipt(candidate_sha: str, identity_sha: str) -> dict:
         "tooling_lock_sha256": f"sha256:{oracle_module.PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{oracle_module.PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": oracle_module.SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
     }
     return {**body, "runtime_receipt_sha256": canonical_hash(body)}
 

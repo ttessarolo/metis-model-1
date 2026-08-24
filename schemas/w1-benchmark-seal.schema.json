@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w1-benchmark-seal.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "status", "source_revision", "input_pins", "references", "counts", "blockers", "seal_eligible", "manifest_hash"],
+  "properties": {"schema_version": {"const": 1}, "manifest_id": {"const": "w1/benchmark-seal-v1"}, "status": {"const": "unsealed_evidence_only"}, "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "input_pins": {"$ref": "#/$defs/pins"}, "references": {"$ref": "#/$defs/references"}, "counts": {"$ref": "#/$defs/counts"}, "blockers": {"$ref": "#/$defs/blockers"}, "seal_eligible": {"const": false}, "manifest_hash": {"$ref": "#/$defs/hash"}},
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "pins": {"type": "object", "additionalProperties": false, "required": ["benchmark_plan", "closure", "assets", "blocker_map", "rights_dossier", "accuracy_target", "decision_register"], "properties": {"benchmark_plan": {"$ref": "#/$defs/hash"}, "closure": {"$ref": "#/$defs/hash"}, "assets": {"$ref": "#/$defs/hash"}, "blocker_map": {"$ref": "#/$defs/hash"}, "rights_dossier": {"$ref": "#/$defs/hash"}, "accuracy_target": {"$ref": "#/$defs/hash"}, "decision_register": {"$ref": "#/$defs/hash"}}},
+    "reference": {"type": "object", "additionalProperties": false, "required": ["identity", "file_sha256", "canonical_sha256"], "properties": {"identity": {"type": "string", "minLength": 1}, "file_sha256": {"$ref": "#/$defs/hash"}, "canonical_sha256": {"$ref": "#/$defs/hash"}}},
+    "references": {"type": "object", "additionalProperties": false, "required": ["closure", "assets", "blocker_map", "rights_dossier", "oracle_receipts", "leakage_assignment", "held_out_map", "accuracy_target"], "properties": {"closure": {"$ref": "#/$defs/reference"}, "assets": {"$ref": "#/$defs/reference"}, "blocker_map": {"$ref": "#/$defs/reference"}, "rights_dossier": {"$ref": "#/$defs/reference"}, "oracle_receipts": {"$ref": "#/$defs/reference"}, "leakage_assignment": {"$ref": "#/$defs/reference"}, "held_out_map": {"$ref": "#/$defs/reference"}, "accuracy_target": {"$ref": "#/$defs/reference"}}},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["tasks", "assets", "oracle_cells", "leakage_groups", "minimum_leakage_groups"], "properties": {"tasks": {"const": 30}, "assets": {"const": 201}, "oracle_cells": {"const": 160}, "leakage_groups": {"const": 1}, "minimum_leakage_groups": {"const": 563}}},
+    "blockers": {"type": "object", "additionalProperties": false, "required": ["legal_review", "task_specific_oracles", "oracle_cells", "leakage_groups", "phase_b", "f4_f6_typed_oracles", "o003", "ab_baseline"], "properties": {"legal_review": {"const": {"reviewed": 0, "required": 201}}, "task_specific_oracles": {"const": {"executed": 0, "required": 30}}, "oracle_cells": {"const": {"executed": 0, "required": 160}}, "leakage_groups": {"const": {"current": 1, "minimum": 563}}, "phase_b": {"const": "absent"}, "f4_f6_typed_oracles": {"const": "absent"}, "o003": {"const": "open"}, "ab_baseline": {"const": "absent"}}}
+  }
+}

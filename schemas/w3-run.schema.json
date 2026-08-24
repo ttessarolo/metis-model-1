@@ -64,7 +64,7 @@
     "hashList": {"type": "array", "items": {"$ref": "#/$defs/hash"}, "uniqueItems": true},
     "runtimeReceiptPolicy": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "candidate_sha256", "adapter_identity_sha256", "toolchain_revision", "toolchain_tree", "node", "node_path", "tsx_path", "runner_path", "node_binary_sha256", "runner_sha256", "tooling_package_sha256", "tooling_lock_sha256", "node_modules_sha256", "sandbox_exec_path", "sandbox_policy_version", "sandbox_policy_sha256", "runtime_receipt_sha256"],
+      "required": ["schema_version", "candidate_sha256", "adapter_identity_sha256", "toolchain_revision", "toolchain_tree", "node", "node_path", "loader_path", "loader_sha256", "loader_flags", "runner_path", "node_binary_sha256", "runner_sha256", "tooling_package_sha256", "tooling_lock_sha256", "node_modules_sha256", "sandbox_exec_path", "oracle_policy_version", "oracle_policy_sha256", "execution_policy_sha256", "runtime_receipt_sha256"],
       "properties": {
         "schema_version": {"const": 1},
         "candidate_sha256": {"$ref": "#/$defs/hash"},
@@ -73,16 +73,19 @@
         "toolchain_tree": {"const": "75473e26deff4084a0eb077a4c3e27d52dc07998"},
         "node": {"const": "v22.22.3"},
         "node_path": {"const": "node://v22.22.3"},
-        "tsx_path": {"const": "snapshot://a2dde2b191f6b78c2003d74875560da782470968/75473e26deff4084a0eb077a4c3e27d52dc07998/tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader_path": {"const": "snapshot://a2dde2b191f6b78c2003d74875560da782470968/75473e26deff4084a0eb077a4c3e27d52dc07998/.metis-oracle/native_ts_loader.mjs"},
+        "loader_sha256": {"const": "sha256:45e3557ce7ee345e2bca7de603c2ef8bc21aa2adb3f305d3f1cf6ee445273fee"},
+        "loader_flags": {"const": ["--disable-warning=ExperimentalWarning", "--experimental-loader"]},
         "runner_path": {"const": "snapshot://a2dde2b191f6b78c2003d74875560da782470968/75473e26deff4084a0eb077a4c3e27d52dc07998/.metis-oracle/runner.ts"},
         "node_binary_sha256": {"const": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"},
-        "runner_sha256": {"const": "sha256:484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5"},
+        "runner_sha256": {"const": "sha256:772baa27e981f611681330bc463aef2ebe06b5f4a83ef2a0313ccf66b6dfef5d"},
         "tooling_package_sha256": {"const": "sha256:f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80"},
         "tooling_lock_sha256": {"const": "sha256:fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb"},
         "node_modules_sha256": {"const": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"},
         "sandbox_exec_path": {"const": "sandbox-exec:///usr/bin/sandbox-exec"},
-        "sandbox_policy_version": {"const": "2"},
-        "sandbox_policy_sha256": {"const": "sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"},
+        "oracle_policy_version": {"const": "2"},
+        "oracle_policy_sha256": {"const": "sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"},
+        "execution_policy_sha256": {"$ref": "#/$defs/hash"},
         "runtime_receipt_sha256": {"$ref": "#/$defs/hash"}
       }
     },
@@ -118,7 +121,7 @@
       "additionalProperties": false,
       "required": ["schema_version", "receipt_mode", "candidate_sha256", "adapter_identity_sha256", "semantic_registry_sha256", "semantic_spec_sha256", "execution_profile_sha256", "executions", "runtime_receipt_sha256"],
       "properties": {
-        "schema_version": {"const": 2},
+        "schema_version": {"const": 3},
         "receipt_mode": {"const": "real-runner-envelopes"},
         "candidate_sha256": {"$ref": "#/$defs/hash"},
         "adapter_identity_sha256": {"$ref": "#/$defs/hash"},

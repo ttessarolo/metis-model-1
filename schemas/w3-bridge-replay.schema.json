@@ -8,6 +8,12 @@
   ],
   "$defs": {
     "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "nativeEvidence": {
+      "const": {
+        "path": "manifests/w3-native-loader-evidence.json",
+        "manifest_sha256": "sha256:a84ec4511009102f1c2cc23604a4147606e34030809537d1528fd49032f331f6"
+      }
+    },
     "nullableHash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
     "processRootCounts": {
       "type": "object",
@@ -16,6 +22,16 @@
       "properties": {
         "files": { "type": "integer", "minimum": 0, "maximum": 512 },
         "directories": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 134217728 }
+      }
+    },
+    "runtimeRootCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "directories", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "directories": { "type": "integer", "minimum": 1, "maximum": 8 },
         "bytes": { "type": "integer", "minimum": 0, "maximum": 134217728 }
       }
     },
@@ -61,7 +77,7 @@
         "state": { "const": "sealed" },
         "kind": {
           "enum": [
-            "production-process-root", "production-trusted-root",
+            "production-process-root", "production-runtime-root", "production-trusted-root",
             "qualification-publication-partial-root", "replay-holder-root"
           ]
         },
@@ -86,6 +102,19 @@
             "logical_root": { "const": "process" },
             "anchor": { "const": "run-root" },
             "counts": { "$ref": "#/$defs/processRootCounts" }
+          }
+        }
+      ]
+    },
+    "productionRuntimeRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-runtime-root" },
+            "logical_root": { "const": "runtime" },
+            "anchor": { "const": "run-root" },
+            "counts": { "$ref": "#/$defs/runtimeRootCounts" }
           }
         }
       ]
@@ -140,7 +169,7 @@
         "state": { "const": "unmeasurable" },
         "kind": {
           "enum": [
-            "production-process-root", "production-trusted-root",
+            "production-process-root", "production-runtime-root", "production-trusted-root",
             "qualification-publication-partial-root", "replay-holder-root"
           ]
         },
@@ -159,6 +188,18 @@
           "properties": {
             "kind": { "const": "production-process-root" },
             "logical_root": { "const": "process" },
+            "anchor": { "const": "run-root" }
+          }
+        }
+      ]
+    },
+    "productionRuntimeUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-runtime-root" },
+            "logical_root": { "const": "runtime" },
             "anchor": { "const": "run-root" }
           }
         }
@@ -206,6 +247,12 @@
         { "$ref": "#/$defs/productionProcessUnmeasurable" }
       ]
     },
+    "productionRuntimeBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/productionRuntimeRoot" },
+        { "$ref": "#/$defs/productionRuntimeUnmeasurable" }
+      ]
+    },
     "productionTrustedBlockedRoot": {
       "oneOf": [
         { "$ref": "#/$defs/productionTrustedRoot" },
@@ -227,10 +274,12 @@
     "retainedRoot": {
       "oneOf": [
         { "$ref": "#/$defs/productionProcessRoot" },
+        { "$ref": "#/$defs/productionRuntimeRoot" },
         { "$ref": "#/$defs/productionTrustedRoot" },
         { "$ref": "#/$defs/publicationPartialRoot" },
         { "$ref": "#/$defs/replayHolderRoot" },
         { "$ref": "#/$defs/productionProcessUnmeasurable" },
+        { "$ref": "#/$defs/productionRuntimeUnmeasurable" },
         { "$ref": "#/$defs/productionTrustedUnmeasurable" },
         { "$ref": "#/$defs/publicationPartialUnmeasurable" },
         { "$ref": "#/$defs/replayHolderUnmeasurable" }
@@ -246,7 +295,7 @@
         "delete_attempts": { "const": 0 },
         "retained_roots": {
           "type": "array",
-          "maxItems": 3,
+          "maxItems": 4,
           "items": { "$ref": "#/$defs/retainedRoot" }
         }
       }
@@ -261,10 +310,11 @@
         "delete_attempts": { "const": 0 },
         "retained_roots": {
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 3,
+          "maxItems": 3,
           "prefixItems": [
             { "$ref": "#/$defs/productionProcessRoot" },
+            { "$ref": "#/$defs/productionRuntimeRoot" },
             { "$ref": "#/$defs/productionTrustedRoot" }
           ],
           "items": false
@@ -299,9 +349,10 @@
         "retained_roots": {
           "type": "array",
           "minItems": 0,
-          "maxItems": 3,
+          "maxItems": 4,
           "prefixItems": [
             { "$ref": "#/$defs/productionProcessBlockedRoot" },
+            { "$ref": "#/$defs/productionRuntimeBlockedRoot" },
             { "$ref": "#/$defs/productionTrustedBlockedRoot" },
             { "$ref": "#/$defs/publicationPartialBlockedRoot" }
           ],
@@ -416,11 +467,12 @@
       "required": [
         "schema_version", "replay_id", "status", "claim", "authority_manifest_sha256",
         "runs", "normalized_projection_sha256", "capsule_manifest_sha256", "counts",
-        "roles", "nonce_model", "artifacts", "non_claims", "cleanup", "manifest_sha256"
+        "roles", "nonce_model", "artifacts", "native_evidence", "non_claims", "cleanup",
+        "manifest_sha256"
       ],
       "properties": {
-        "schema_version": { "const": 2 },
-        "replay_id": { "const": "w3-f1-f3-production-capsule-replay-v2" },
+        "schema_version": { "const": 3 },
+        "replay_id": { "const": "w3-f1-f3-production-capsule-replay-v3" },
         "status": { "const": "replay-qualified" },
         "claim": { "const": "three_ratified_smoke_specs_two_process_replay_only_no_accuracy_claim" },
         "authority_manifest_sha256": { "$ref": "#/$defs/hash" },
@@ -460,9 +512,11 @@
           "type": "array", "minItems": 5, "maxItems": 5,
           "items": { "$ref": "#/$defs/artifact" }
         },
+        "native_evidence": { "$ref": "#/$defs/nativeEvidence" },
         "non_claims": {
           "const": [
-            "no_w1_15_of_15_claim", "no_f4_f5_f6_claim", "no_benchmark_v1_claim",
+            "executed_preimage_authority=false", "no_w1_15_of_15_claim",
+            "no_f4_f5_f6_claim", "no_benchmark_v1_claim",
             "no_w5_claim", "no_semantic_accuracy_claim"
           ]
         },
@@ -474,11 +528,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "schema_version", "replay_id", "status", "claim", "reason", "observed_runs", "cleanup"
+        "schema_version", "replay_id", "status", "claim", "reason", "observed_runs",
+        "native_evidence", "cleanup"
       ],
       "properties": {
-        "schema_version": { "const": 2 },
-        "replay_id": { "const": "w3-f1-f3-production-capsule-replay-v2" },
+        "schema_version": { "const": 3 },
+        "replay_id": { "const": "w3-f1-f3-production-capsule-replay-v3" },
         "status": { "const": "blocked" },
         "claim": { "const": "no_replay_claim" },
         "reason": { "type": "string", "minLength": 1 },
@@ -492,6 +547,7 @@
           ],
           "items": false
         },
+        "native_evidence": { "$ref": "#/$defs/nativeEvidence" },
         "cleanup": { "$ref": "#/$defs/blockedReplayCleanup" }
       }
     }

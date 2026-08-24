@@ -1,7 +1,7 @@
 PINNED_NODE ?= /Users/tommasotessarolo/.hermes/node/bin/node
 PINNED_METIS_ROOT ?= /Users/tommasotessarolo/Developer/ares-matioska/metis
 
-.PHONY: setup validate validate-pilot assess-w5 lint format-check test check
+.PHONY: setup validate validate-pilot assess-experiment assess-w5 lint format-check test check
 
 setup:
 	uv sync --all-groups
@@ -11,6 +11,9 @@ validate:
 
 validate-pilot:
 	uv run metis-model1 validate-pilot
+
+assess-experiment:
+	uv run metis-model1 assess-experiment
 
 assess-w5:
 	uv run metis-model1 assess-w5

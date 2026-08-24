@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-phase-b-host-evidence.schema.json",
+  "title": "W3 Phase B host evidence v1",
+  "description": "The committed document is honestly not-run. The complete shape is a non-attesting contract fixture until an independently authorized host collector/verifier exists; schema validity alone grants no host credit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "status",
+    "nonclaims",
+    "bindings",
+    "artifact_roster",
+    "host_predicates",
+    "runs",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "w3-phase-b-host-evidence" },
+    "status": { "enum": ["not-run", "complete"] },
+    "nonclaims": {
+      "const": [
+        "no-production-authority",
+        "no-production-evidence",
+        "public-synthetic-only",
+        "no-semantic-accuracy-claim",
+        "no-W5-credit"
+      ]
+    },
+    "bindings": { "$ref": "#/$defs/bindings" },
+    "artifact_roster": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "host_predicates": {
+      "type": "array",
+      "maxItems": 28,
+      "items": { "$ref": "#/$defs/predicate" }
+    },
+    "runs": {
+      "type": "array",
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/run" }
+    },
+    "summary": { "$ref": "#/$defs/summary" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "not-run" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "bindings": { "$ref": "#/$defs/notRunBindings" },
+          "artifact_roster": { "maxItems": 0 },
+          "host_predicates": { "maxItems": 0 },
+          "runs": { "maxItems": 0 },
+          "summary": { "$ref": "#/$defs/notRunSummary" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "complete" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "bindings": { "$ref": "#/$defs/completeBindings" },
+          "artifact_roster": { "minItems": 139, "maxItems": 139 },
+          "host_predicates": { "minItems": 28, "maxItems": 28 },
+          "runs": { "minItems": 2, "maxItems": 2 },
+          "summary": { "$ref": "#/$defs/completeSummary" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "maybeHash": {
+      "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }]
+    },
+    "caller": {
+      "const": {
+        "name": "tommasotessarolo",
+        "uid": 501,
+        "gid": 20,
+        "group": "staff"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caller_account",
+        "command_sha256",
+        "bundle_sha256",
+        "authority_sha256",
+        "public_key_sha256",
+        "installed_roster_sha256"
+      ],
+      "properties": {
+        "caller_account": { "$ref": "#/$defs/caller" },
+        "command_sha256": { "$ref": "#/$defs/maybeHash" },
+        "bundle_sha256": { "$ref": "#/$defs/maybeHash" },
+        "authority_sha256": { "$ref": "#/$defs/maybeHash" },
+        "public_key_sha256": { "$ref": "#/$defs/maybeHash" },
+        "installed_roster_sha256": { "$ref": "#/$defs/maybeHash" }
+      }
+    },
+    "notRunBindings": {
+      "allOf": [
+        { "$ref": "#/$defs/bindings" },
+        {
+          "properties": {
+            "command_sha256": { "type": "null" },
+            "bundle_sha256": { "type": "null" },
+            "authority_sha256": { "type": "null" },
+            "public_key_sha256": { "type": "null" },
+            "installed_roster_sha256": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "completeBindings": {
+      "allOf": [
+        { "$ref": "#/$defs/bindings" },
+        {
+          "properties": {
+            "command_sha256": { "$ref": "#/$defs/hash" },
+            "bundle_sha256": { "$ref": "#/$defs/hash" },
+            "authority_sha256": { "$ref": "#/$defs/hash" },
+            "public_key_sha256": { "$ref": "#/$defs/hash" },
+            "installed_roster_sha256": { "$ref": "#/$defs/hash" }
+          }
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "kind", "root", "path", "size", "sha256"],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,511}$"
+        },
+        "kind": {
+          "enum": [
+            "host-command",
+            "install-bundle",
+            "authority",
+            "public-key-registry",
+            "installed-roster",
+            "host-predicate",
+            "candidate",
+            "execution-context",
+            "broker-request",
+            "broker-receipt",
+            "publication",
+            "stdout",
+            "stderr",
+            "native-cleanup",
+            "process-census",
+            "fd-census",
+            "temp-census"
+          ]
+        },
+        "root": { "enum": ["evidence", "installed"] },
+        "path": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        },
+        "size": { "type": "integer", "minimum": 1, "maximum": 4194304 },
+        "sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["obligation_id", "polarity", "passed", "artifact_id"],
+      "properties": {
+        "obligation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "polarity": { "enum": ["positive", "adversarial"] },
+        "passed": { "const": true },
+        "artifact_id": { "type": "string" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "artifact_id"],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "artifact_id": { "type": "string" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "candidate_id",
+        "context_artifact_id",
+        "request_artifact_id",
+        "receipt_artifact_id",
+        "publication_artifact_id",
+        "stdout_artifact_id",
+        "stderr_artifact_id",
+        "cleanup_artifact_id",
+        "process_census_artifact_id",
+        "fd_census_artifact_id",
+        "temp_census_artifact_id"
+      ],
+      "properties": {
+        "role": { "enum": ["author", "before", "after", "mutated", "fixed"] },
+        "candidate_id": { "type": "string" },
+        "context_artifact_id": { "type": "string" },
+        "request_artifact_id": { "type": "string" },
+        "receipt_artifact_id": { "type": "string" },
+        "publication_artifact_id": { "type": "string" },
+        "stdout_artifact_id": { "type": "string" },
+        "stderr_artifact_id": { "type": "string" },
+        "cleanup_artifact_id": { "type": "string" },
+        "process_census_artifact_id": { "type": "string" },
+        "fd_census_artifact_id": { "type": "string" },
+        "temp_census_artifact_id": { "type": "string" }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "candidates", "executions", "gaps"],
+      "properties": {
+        "run_id": { "enum": ["fresh-1", "fresh-2"] },
+        "candidates": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/candidate" }
+        },
+        "executions": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/execution" }
+        },
+        "gaps": { "const": 0 }
+      }
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_predicates",
+        "fresh_runs",
+        "candidates_per_run",
+        "semantic_roles_per_run",
+        "physical_executions"
+      ],
+      "properties": {
+        "host_predicates": { "type": "integer", "minimum": 0, "maximum": 28 },
+        "fresh_runs": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "candidates_per_run": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "semantic_roles_per_run": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "physical_executions": { "type": "integer", "minimum": 0, "maximum": 10 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets", "observed", "gaps"],
+      "properties": {
+        "targets": {
+          "const": {
+            "host_predicates": 28,
+            "fresh_runs": 2,
+            "candidates_per_run": 3,
+            "semantic_roles_per_run": 5,
+            "physical_executions": 10
+          }
+        },
+        "observed": { "$ref": "#/$defs/observed" },
+        "gaps": { "oneOf": [{ "const": 0 }, { "type": "null" }] }
+      }
+    },
+    "notRunSummary": {
+      "allOf": [
+        { "$ref": "#/$defs/summary" },
+        {
+          "properties": {
+            "observed": {
+              "const": {
+                "host_predicates": 0,
+                "fresh_runs": 0,
+                "candidates_per_run": 0,
+                "semantic_roles_per_run": 0,
+                "physical_executions": 0
+              }
+            },
+            "gaps": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "completeSummary": {
+      "allOf": [
+        { "$ref": "#/$defs/summary" },
+        {
+          "properties": {
+            "observed": {
+              "const": {
+                "host_predicates": 28,
+                "fresh_runs": 2,
+                "candidates_per_run": 3,
+                "semantic_roles_per_run": 5,
+                "physical_executions": 10
+              }
+            },
+            "gaps": { "const": 0 }
+          }
+        }
+      ]
+    }
+  }
+}

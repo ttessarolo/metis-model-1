@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-protected-anchor-service.schema.json",
+  "title": "W3 protected anchor service v1",
+  "description": "Exact ADVANCE-only request/response and append-only log record shapes. The service receives an expected anchor digest plus a canonical protected-public-synthetic receipt, independently verifies it, and derives the next anchor. There is no initialize, load or caller-supplied next-anchor field.",
+  "oneOf": [
+    { "$ref": "#/$defs/advanceRequest" },
+    { "$ref": "#/$defs/advanceSuccess" },
+    { "$ref": "#/$defs/advanceError" },
+    { "$ref": "#/$defs/logRecord" },
+    { "$ref": "#/$defs/installedConfig" }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "instanceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "head": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_id", "receipt_sequence", "receipt_sha256"],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "receipt_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "receipt_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "instance_id", "revision", "heads"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-broker-consumer-anchor" },
+        "instance_id": { "$ref": "#/$defs/instanceId" },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "heads": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/head" }
+        }
+      }
+    },
+    "canonicalReceipt": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "keyEpoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "algorithm", "key_id", "public_key", "revocation_high_water"],
+      "properties": {
+        "mode": { "const": "protected-public-synthetic" },
+        "algorithm": { "const": "ed25519" },
+        "key_id": { "$ref": "#/$defs/hash" },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "revocation_high_water": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9223372036854775807
+            }
+          ]
+        }
+      }
+    },
+    "releaseEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_sha256",
+        "release_id",
+        "release_sha256",
+        "retired_after_receipt_sequence"
+      ],
+      "properties": {
+        "authority_sha256": { "$ref": "#/$defs/hash" },
+        "release_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "release_sha256": { "$ref": "#/$defs/hash" },
+        "retired_after_receipt_sequence": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            }
+          ]
+        }
+      }
+    },
+    "installedConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "active_authority_path",
+        "active_authority_sha256",
+        "genesis_anchor_sha256",
+        "anchor_uid",
+        "anchor_gid",
+        "caller_uid",
+        "caller_gid",
+        "authorities",
+        "key_epochs",
+        "releases",
+        "registered_policy_sha256s"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-anchor-installed-config" },
+        "active_authority_path": {
+          "const": "/Library/Application Support/MetisModel1/registry/protected-authority.json"
+        },
+        "active_authority_sha256": { "$ref": "#/$defs/hash" },
+        "genesis_anchor_sha256": { "$ref": "#/$defs/hash" },
+        "anchor_uid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "anchor_gid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "caller_uid": {
+          "const": 501
+        },
+        "caller_gid": {
+          "const": 20
+        },
+        "authorities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "type": "object", "minProperties": 1 }
+        },
+        "key_epochs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/keyEpoch" }
+        },
+        "releases": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/releaseEvidence" }
+        },
+        "registered_policy_sha256s": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "advanceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "operation",
+        "expected_anchor_sha256",
+        "canonical_receipt"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-anchor-service-request" },
+        "operation": { "const": "ADVANCE" },
+        "expected_anchor_sha256": { "$ref": "#/$defs/hash" },
+        "canonical_receipt": { "$ref": "#/$defs/canonicalReceipt" }
+      }
+    },
+    "advanceSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "operation", "status", "anchor"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-anchor-service-response" },
+        "operation": { "const": "ADVANCE" },
+        "status": { "enum": ["advanced", "idempotent"] },
+        "anchor": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "advanceError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "operation", "status", "error"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-anchor-service-response" },
+        "operation": { "const": "ADVANCE" },
+        "status": { "const": "error" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "detail"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "detail": { "type": "string", "maxLength": 1024 }
+          }
+        }
+      }
+    },
+    "genesisPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor"],
+      "properties": {
+        "anchor": {
+          "allOf": [
+            { "$ref": "#/$defs/anchor" },
+            {
+              "properties": {
+                "revision": { "const": 0 },
+                "heads": { "const": [] }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "advancePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_anchor_sha256",
+        "receipt_sha256",
+        "receipt",
+        "anchor"
+      ],
+      "properties": {
+        "expected_anchor_sha256": { "$ref": "#/$defs/hash" },
+        "receipt_sha256": { "$ref": "#/$defs/hash" },
+        "receipt": { "$ref": "#/$defs/canonicalReceipt" },
+        "anchor": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "logRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "record_sequence",
+        "previous_record_sha256",
+        "record_kind",
+        "payload",
+        "record_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-protected-anchor-log-record" },
+        "record_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "previous_record_sha256": { "$ref": "#/$defs/hash" },
+        "record_kind": { "enum": ["genesis", "advance"] },
+        "payload": {
+          "oneOf": [
+            { "$ref": "#/$defs/genesisPayload" },
+            { "$ref": "#/$defs/advancePayload" }
+          ]
+        },
+        "record_sha256": { "$ref": "#/$defs/hash" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "record_kind": { "const": "genesis" } },
+            "required": ["record_kind"]
+          },
+          "then": {
+            "properties": { "payload": { "$ref": "#/$defs/genesisPayload" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "record_kind": { "const": "advance" } },
+            "required": ["record_kind"]
+          },
+          "then": {
+            "properties": { "payload": { "$ref": "#/$defs/advancePayload" } }
+          }
+        }
+      ]
+    }
+  }
+}

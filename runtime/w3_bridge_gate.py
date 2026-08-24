@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone two-fresh-process replay gate for W3 production capsule v2."""
+"""Standalone two-fresh-process replay gate for W3 production capsule v3."""
 
 from __future__ import annotations
 
@@ -22,25 +22,35 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-SCHEMA_VERSION = 2
-REPLAY_ID = "w3-f1-f3-production-capsule-replay-v2"
-QUALIFICATION_ID = "w3-f1-f3-production-capsule-qualification-v2"
-AUTHORITY_ID = "w3-f1-f3-production-capsule-authority-v2"
+SCHEMA_VERSION = 3
+REPLAY_ID = "w3-f1-f3-production-capsule-replay-v3"
+QUALIFICATION_ID = "w3-f1-f3-production-capsule-qualification-v3"
+AUTHORITY_ID = "w3-f1-f3-production-capsule-authority-v3"
 CLAIM = "three_ratified_smoke_specs_two_process_replay_only_no_accuracy_claim"
 NON_CLAIMS = [
+    "executed_preimage_authority=false",
     "no_w1_15_of_15_claim",
     "no_f4_f5_f6_claim",
     "no_benchmark_v1_claim",
     "no_w5_claim",
     "no_semantic_accuracy_claim",
 ]
+NATIVE_EVIDENCE = {
+    "path": "manifests/w3-native-loader-evidence.json",
+    "manifest_sha256": "sha256:a84ec4511009102f1c2cc23604a4147606e34030809537d1528fd49032f331f6",
+}
+EXECUTED_PREIMAGE_AUTHORITY = False
+REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256: str | None = None
 KIMI_REPORT_SHA256 = "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
 PROJECT_REVISION = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
 PINNED_METIS_REVISION = "a2dde2b191f6b78c2003d74875560da782470968"
 PINNED_METIS_TREE = "75473e26deff4084a0eb077a4c3e27d52dc07998"
 PINNED_NODE_VERSION = "v22.22.3"
 PINNED_NODE_SHA256 = "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
-PINNED_RUNNER_SHA256 = "sha256:484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5"
+PINNED_NODE_BYTES = 112_915_776
+PINNED_RUNNER_SHA256 = "sha256:772baa27e981f611681330bc463aef2ebe06b5f4a83ef2a0313ccf66b6dfef5d"
+PINNED_LOADER_SHA256 = "sha256:45e3557ce7ee345e2bca7de603c2ef8bc21aa2adb3f305d3f1cf6ee445273fee"
+PINNED_LOADER_FLAGS = ["--disable-warning=ExperimentalWarning", "--experimental-loader"]
 PINNED_TOOLING = {
     "package_sha256": "sha256:f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80",
     "lock_sha256": "sha256:fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb",
@@ -52,19 +62,21 @@ PINNED_ORACLE_POLICY_SHA256 = (
     "sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"
 )
 PINNED_LAUNCHER_POLICY_SHA256 = (
-    "sha256:cfd09f90d480ebbc7399759e18aea61a3410a33db9028a2ab9d01bd02d35f4d8"
+    "sha256:d4f6cb3c41f297d37bf2ba0bf56c271fbfb86da3b15cfe3c05963a5194fa9c97"
 )
 PINNED_CAPSULE_EXECUTION_POLICY = {
     "sandbox_policy_sha256": (
-        "sha256:79ee98a65f7eaa12506cb4e1af0a7ee1651e59c2966e43edcf195fbf793c81f6"
+        "sha256:4f29bf5e092d83993f19ad3d257cafd968a69b708679cecf5edc03cdf018de51"
     ),
     "capsule_ancestor_slots": 32,
+    "runtime_ancestor_slots": 32,
     "process_fork": "denied",
     "supervision": "node-session-group-leader",
+    "loader_flags": PINNED_LOADER_FLAGS,
 }
 # Frozen after the qualifier's final formatter pass.  The bridge never imports
 # the file being authenticated and cannot accept a caller-selected root.
-PINNED_QUALIFIER_SHA256 = "sha256:7303d59b65af90e3fef2c9e01c53cd4916b724f5b6e155298651db06ab937421"
+PINNED_QUALIFIER_SHA256 = "sha256:248549cf7dceab4a878daa3fae58bc7f39237c9fbea72344849c8c86d5ec4e26"
 QUALIFIER_BOOTSTRAP = """import hashlib
 import sys
 
@@ -76,7 +88,7 @@ qualifier_path = sys.argv.pop(1)
 bridge_control_fd = int(sys.argv.pop(1))
 bridge_control_nonce = sys.argv.pop(1)
 digest = hashlib.sha256(source).hexdigest()
-logical_identity = f"qualifier-v2://sha256/{digest}"
+logical_identity = f"qualifier-v3://sha256/{digest}"
 sys.argv[0] = logical_identity
 namespace = {
     "__name__": "__main__",
@@ -137,12 +149,14 @@ NONCE_MODEL = "excluded_execution_metadata_and_retained_root_physical_identity_o
 REPLAY_HOLDER_CAPS = (16384, 16384, 3 * 1024 * 1024 * 1024, 256 * 1024 * 1024)
 RETAINED_ROOT_CAPS = {
     "production-process-root": (512, 512, 128 * 1024 * 1024),
+    "production-runtime-root": (8, 8, 128 * 1024 * 1024),
     "production-trusted-root": (4096, 4096, 1024 * 1024 * 1024),
     "qualification-publication-partial-root": (128, 128, 32 * 1024 * 1024),
     "replay-holder-root": REPLAY_HOLDER_CAPS[:3],
 }
 RETAINED_ROOT_FILE_CAPS = {
     "production-process-root": 8 * 1024 * 1024,
+    "production-runtime-root": 128 * 1024 * 1024,
     "production-trusted-root": 8 * 1024 * 1024,
     "qualification-publication-partial-root": 4 * 1024 * 1024,
     "replay-holder-root": REPLAY_HOLDER_CAPS[3],
@@ -150,9 +164,11 @@ RETAINED_ROOT_FILE_CAPS = {
 BLOCKED_CHILD_RETAINED_PREFIXES = (
     (),
     ("production-process-root",),
-    ("production-process-root", "production-trusted-root"),
+    ("production-process-root", "production-runtime-root"),
+    ("production-process-root", "production-runtime-root", "production-trusted-root"),
     (
         "production-process-root",
+        "production-runtime-root",
         "production-trusted-root",
         "qualification-publication-partial-root",
     ),
@@ -180,6 +196,7 @@ QUALIFIED_CHILD_REPORT_KEYS = frozenset(
         "counts",
         "roles",
         "executions",
+        "native_evidence",
         "non_claims",
         "cleanup",
         "manifest_sha256",
@@ -199,6 +216,7 @@ QUALIFIED_REPLAY_REPORT_KEYS = frozenset(
         "roles",
         "nonce_model",
         "artifacts",
+        "native_evidence",
         "non_claims",
         "cleanup",
         "manifest_sha256",
@@ -212,6 +230,7 @@ BLOCKED_REPLAY_REPORT_KEYS = frozenset(
         "claim",
         "reason",
         "observed_runs",
+        "native_evidence",
         "cleanup",
     }
 )
@@ -245,6 +264,12 @@ class BridgeGateBlocked(ValueError):
         super().__init__(message)
         self.cleanup = cleanup
         self.observed_runs = observed_runs
+
+
+def _require_protected_execution_broker() -> None:
+    if REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None:
+        raise BridgeGateBlocked("production replay requires a protected execution broker authority")
+    raise BridgeGateBlocked("protected execution broker transport is not implemented")
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -614,8 +639,20 @@ def _seal_holder_tree(descriptor: int) -> None:
 def _snapshot_holder_tree(
     descriptor: int,
     *,
+    kind: str,
     caps: tuple[int, int, int, int] = REPLAY_HOLDER_CAPS,
 ) -> tuple[bytes, dict[str, int]]:
+    file_modes = {
+        "production-process-root": 0o444,
+        "production-runtime-root": 0o555,
+        "production-trusted-root": 0o444,
+        "replay-holder-root": 0o444,
+        "qualification-publication-partial-root": 0o444,
+    }
+    try:
+        expected_file_mode = file_modes[kind]
+    except KeyError as error:
+        raise BridgeGateBlocked("retained root kind has no registered file mode") from error
     max_files, max_directories, max_bytes, max_file_bytes = caps
     rows: list[bytes] = []
     counts = {"files": 0, "directories": 0, "bytes": 0}
@@ -663,7 +700,7 @@ def _snapshot_holder_tree(
                 if stat.S_ISDIR(opened.st_mode):
                     visit(child, relative)
                 else:
-                    if stat.S_IMODE(opened.st_mode) != 0o444 or opened.st_nlink != 1:
+                    if stat.S_IMODE(opened.st_mode) != expected_file_mode or opened.st_nlink != 1:
                         raise BridgeGateBlocked("replay holder regular file is not sealed")
                     if opened.st_size > max_file_bytes:
                         raise BridgeGateBlocked("retained root file or aggregate exceeds its cap")
@@ -692,7 +729,7 @@ def _snapshot_holder_tree(
                         row(
                             rendered,
                             "regular",
-                            0o444,
+                            expected_file_mode,
                             len(raw),
                             hashlib.sha256(raw).hexdigest(),
                         )
@@ -751,9 +788,9 @@ def _holder_descriptor(
     _seal_holder_tree(descriptor)
     handle.mode = 0o555
     witness_before = _holder_change_witness(descriptor)
-    first, counts = _snapshot_holder_tree(descriptor)
+    first, counts = _snapshot_holder_tree(descriptor, kind="replay-holder-root")
     witness_middle = _holder_change_witness(descriptor)
-    second, second_counts = _snapshot_holder_tree(descriptor)
+    second, second_counts = _snapshot_holder_tree(descriptor, kind="replay-holder-root")
     witness_after = _holder_change_witness(descriptor)
     if (
         first != second
@@ -937,6 +974,7 @@ def _validate_cleanup(
         raise BridgeGateBlocked("blocked retained root order is invalid")
     expected_identity = {
         "production-process-root": ("process", "run-root"),
+        "production-runtime-root": ("runtime", "run-root"),
         "production-trusted-root": ("trusted", "run-root"),
         "qualification-publication-partial-root": (
             "qualification-publication-partial",
@@ -1089,7 +1127,11 @@ def _validate_observed_runs(value: Any) -> list[dict[str, Any]]:
             _validate_cleanup(
                 row["cleanup"],
                 qualified=True,
-                expected_kinds=("production-process-root", "production-trusted-root"),
+                expected_kinds=(
+                    "production-process-root",
+                    "production-runtime-root",
+                    "production-trusted-root",
+                ),
             )
         elif row["status"] == "blocked":
             if row["qualification_manifest_sha256"] is not None or not _valid_hash(
@@ -1352,7 +1394,7 @@ def _validate_tree_descriptor(value: Any, *, kind: str) -> dict[str, Any]:
     descriptor = _exact(value, keys, f"{kind} bundle authority")
     if (
         type(descriptor["schema_version"]) is not int
-        or descriptor["schema_version"] != 2
+        or descriptor["schema_version"] != 3
         or not isinstance(descriptor["bundle_id"], str)
         or not descriptor["bundle_id"]
         or descriptor["kind"] != kind
@@ -1387,8 +1429,7 @@ def _validate_capsule(value: Any) -> dict[str, Any]:
             "revision",
             "tree",
             "language_version",
-            "node",
-            "tsx",
+            "loader",
             "runner",
             "tooling",
             "counts",
@@ -1400,7 +1441,7 @@ def _validate_capsule(value: Any) -> dict[str, Any]:
     )
     if (
         type(capsule["schema_version"]) is not int
-        or capsule["schema_version"] != 2
+        or capsule["schema_version"] != 3
         or not isinstance(capsule["capsule_id"], str)
         or not capsule["capsule_id"]
         or capsule["revision"] != PINNED_METIS_REVISION
@@ -1411,7 +1452,7 @@ def _validate_capsule(value: Any) -> dict[str, Any]:
     rows, total = _validate_file_rows(capsule["files"], "capsule")
     if any(
         row["path"] == "capsule.json"
-        or row["role"] not in {"git-archive", "tooling", "node", "tsx", "runner"}
+        or row["role"] not in {"git-archive", "tooling", "loader", "runner"}
         for row in rows
     ):
         raise BridgeGateBlocked("capsule file roster contains an invalid path or role")
@@ -1419,7 +1460,7 @@ def _validate_capsule(value: Any) -> dict[str, Any]:
     _exact_count_map(capsule["counts"], {"files": len(rows), "bytes": total}, "capsule counts")
     if capsule["roster_sha256"] != canonical_hash(rows) or capsule["tooling"] != PINNED_TOOLING:
         raise BridgeGateBlocked("capsule roster or tooling drifted")
-    for role in ("node", "tsx", "runner"):
+    for role in ("loader", "runner"):
         identity = _exact(capsule[role], {"path", "sha256", "mode"}, f"capsule {role}")
         _safe_path(identity["path"], f"capsule {role} path")
         row = by_path.get(identity["path"])
@@ -1430,9 +1471,17 @@ def _validate_capsule(value: Any) -> dict[str, Any]:
             or row["mode"] != identity["mode"]
         ):
             raise BridgeGateBlocked(f"capsule {role} identity is not bound into its roster")
-    if capsule["node"]["sha256"] != PINNED_NODE_SHA256 or capsule["node"]["mode"] != 0o555:
-        raise BridgeGateBlocked("capsule Node identity drifted")
-    if capsule["runner"]["sha256"] != PINNED_RUNNER_SHA256 or capsule["runner"]["mode"] != 0o444:
+    if capsule["loader"] != {
+        "path": ".metis-oracle/native_ts_loader.mjs",
+        "sha256": PINNED_LOADER_SHA256,
+        "mode": 0o444,
+    }:
+        raise BridgeGateBlocked("capsule loader identity drifted")
+    if capsule["runner"] != {
+        "path": ".metis-oracle/runner.ts",
+        "sha256": PINNED_RUNNER_SHA256,
+        "mode": 0o444,
+    }:
         raise BridgeGateBlocked("capsule runner identity drifted")
     _manifest_hash(capsule, "capsule authority")
     return capsule
@@ -1518,7 +1567,9 @@ def _load_authority(
             "source_bundle",
             "dependency_bundle",
             "capsule",
+            "runtime",
             "expected",
+            "native_evidence",
             "non_claims",
             "manifest_sha256",
         },
@@ -1526,7 +1577,7 @@ def _load_authority(
     )
     if (
         type(authority["schema_version"]) is not int
-        or authority["schema_version"] != 2
+        or authority["schema_version"] != 3
         or authority["authority_id"] != AUTHORITY_ID
         or authority["status"] != "independently_ratified"
         or _manifest_hash(authority, "production authority manifest") != expected_sha256
@@ -1567,11 +1618,31 @@ def _load_authority(
         raise BridgeGateBlocked("production launcher differs from measured bridge authority")
     worker = _exact(project["worker"], {"path", "sha256", "protocol"}, "production worker")
     _safe_path(worker["path"], "production worker path")
-    if worker["protocol"] != "w3-production-capsule-worker-v2" or not _valid_hash(worker["sha256"]):
+    if worker["protocol"] != "w3-production-capsule-worker-v3" or not _valid_hash(worker["sha256"]):
         raise BridgeGateBlocked("production worker identity is invalid")
     source = _validate_tree_descriptor(authority["source_bundle"], kind="source")
     _validate_tree_descriptor(authority["dependency_bundle"], kind="dependency")
     _validate_capsule(authority["capsule"])
+    runtime = _exact(
+        authority["runtime"], {"schema_version", "node", "loader_flags"}, "runtime authority"
+    )
+    node = _exact(
+        runtime["node"], {"path", "size", "source_mode", "mode", "sha256"}, "runtime Node"
+    )
+    if (
+        type(runtime["schema_version"]) is not int
+        or runtime["schema_version"] != SCHEMA_VERSION
+        or node
+        != {
+            "path": "bin/node",
+            "size": PINNED_NODE_BYTES,
+            "source_mode": 0o755,
+            "mode": 0o555,
+            "sha256": PINNED_NODE_SHA256,
+        }
+        or runtime["loader_flags"] != PINNED_LOADER_FLAGS
+    ):
+        raise BridgeGateBlocked("runtime Node preimage or loader flags drifted")
     source_by_path = {row["path"]: row for row in source["files"]}
     if (
         worker["path"] not in source_by_path
@@ -1594,6 +1665,8 @@ def _load_authority(
         raise BridgeGateBlocked("production authority roster is not exact")
     if authority["non_claims"] != NON_CLAIMS:
         raise BridgeGateBlocked("production authority overstates its scope")
+    if authority["native_evidence"] != NATIVE_EVIDENCE:
+        raise BridgeGateBlocked("production authority native evidence binding drifted")
     return authority
 
 
@@ -1621,9 +1694,9 @@ def _validate_qualification(
         raise BridgeGateBlocked("qualification report fields drifted")
     if (
         type(report["schema_version"]) is not int
-        or report["schema_version"] != 2
+        or report["schema_version"] != 3
         or report["qualification_id"] != QUALIFICATION_ID
-        or report["qualification_kind"] != "production-capsule-v2"
+        or report["qualification_kind"] != "production-capsule-v3"
         or report["status"] != "qualified"
         or report["claim"] != "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
         or report["authority_manifest_sha256"] != authority_sha256
@@ -1637,6 +1710,7 @@ def _validate_qualification(
         or report["dependency_roster_sha256"] != DEPENDENCY_ROSTER_SHA256
         or report["capsule_manifest_sha256"] != authority["capsule"]["manifest_sha256"]
         or report["launcher"] != authority["project"]["launcher"]
+        or report["native_evidence"] != NATIVE_EVIDENCE
         or report["non_claims"] != NON_CLAIMS
         or not isinstance(report["executions"], list)
         or len(report["executions"]) != 5
@@ -1651,7 +1725,11 @@ def _validate_qualification(
     _validate_cleanup(
         report["cleanup"],
         qualified=True,
-        expected_kinds=("production-process-root", "production-trusted-root"),
+        expected_kinds=(
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+        ),
     )
     for field in (
         "authority_manifest_sha256",
@@ -1726,6 +1804,7 @@ def _validate_qualification(
 
 _CHILD_ROOT_LOCATOR_PATTERNS = {
     "production-process-root": re.compile(r"^\.w3-production-[0-9a-f]{24}$"),
+    "production-runtime-root": re.compile(r"^\.w3-runtime-[0-9a-f]{24}$"),
     "production-trusted-root": re.compile(r"^\.w3-trusted-[0-9a-f]{24}$"),
 }
 _CHILD_PUBLICATION_LOCATOR_PATTERN = re.compile(r"^qualifications/[0-9a-f]{64}$")
@@ -1735,7 +1814,11 @@ def _remeasure_child_retained_roots(run_root: _AnchoredDirectory, cleanup_value:
     cleanup = _validate_cleanup(
         cleanup_value,
         qualified=True,
-        expected_kinds=("production-process-root", "production-trusted-root"),
+        expected_kinds=(
+            "production-process-root",
+            "production-runtime-root",
+            "production-trusted-root",
+        ),
     )
     for index, root in enumerate(cleanup["retained_roots"]):
         locator = _safe_path(root["locator"], f"child retained root {index} locator")
@@ -1759,9 +1842,13 @@ def _remeasure_child_retained_roots(run_root: _AnchoredDirectory, cleanup_value:
                 *RETAINED_ROOT_CAPS[root["kind"]],
                 RETAINED_ROOT_FILE_CAPS[root["kind"]],
             )
-            first, counts = _snapshot_holder_tree(handle.descriptor, caps=snapshot_caps)
+            first, counts = _snapshot_holder_tree(
+                handle.descriptor, kind=root["kind"], caps=snapshot_caps
+            )
             witness_middle = _holder_change_witness(handle.descriptor)
-            second, second_counts = _snapshot_holder_tree(handle.descriptor, caps=snapshot_caps)
+            second, second_counts = _snapshot_holder_tree(
+                handle.descriptor, kind=root["kind"], caps=snapshot_caps
+            )
             witness_after = _holder_change_witness(handle.descriptor)
             digest = bytes_hash(first)
             if (
@@ -1884,9 +1971,13 @@ def _remeasure_blocked_child_retained_roots(
                 *RETAINED_ROOT_CAPS[root["kind"]],
                 RETAINED_ROOT_FILE_CAPS[root["kind"]],
             )
-            first, counts = _snapshot_holder_tree(handle.descriptor, caps=snapshot_caps)
+            first, counts = _snapshot_holder_tree(
+                handle.descriptor, kind=root["kind"], caps=snapshot_caps
+            )
             witness_middle = _holder_change_witness(handle.descriptor)
-            second, second_counts = _snapshot_holder_tree(handle.descriptor, caps=snapshot_caps)
+            second, second_counts = _snapshot_holder_tree(
+                handle.descriptor, kind=root["kind"], caps=snapshot_caps
+            )
             witness_after = _holder_change_witness(handle.descriptor)
             digest = bytes_hash(first)
             if (
@@ -1926,17 +2017,20 @@ def _runtime_authority(authority: dict[str, Any]) -> dict[str, Any]:
     runtime = {
         "node": PINNED_NODE_VERSION,
         "node_path": f"node://{PINNED_NODE_VERSION}",
-        "tsx_path": f"{snapshot}/tooling/node_modules/tsx/dist/loader.mjs",
+        "loader_path": f"{snapshot}/.metis-oracle/native_ts_loader.mjs",
+        "loader_sha256": capsule["loader"]["sha256"],
+        "loader_flags": list(PINNED_LOADER_FLAGS),
         "runner_path": f"{snapshot}/.metis-oracle/runner.ts",
         "snapshot_revision": PINNED_METIS_REVISION,
         "snapshot_tree": PINNED_METIS_TREE,
         "tooling_package_sha256": tooling["package_sha256"],
         "tooling_lock_sha256": tooling["lock_sha256"],
         "node_modules_sha256": tooling["node_modules_sha256"],
-        "node_binary_sha256": capsule["node"]["sha256"],
+        "node_binary_sha256": authority["runtime"]["node"]["sha256"],
         "sandbox_exec_path": "sandbox-exec:///usr/bin/sandbox-exec",
-        "sandbox_policy_version": "2",
-        "sandbox_policy_sha256": PINNED_ORACLE_POLICY_SHA256,
+        "oracle_policy_version": "2",
+        "oracle_policy_sha256": PINNED_ORACLE_POLICY_SHA256,
+        "execution_policy_sha256": PINNED_CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
     }
     return {
         "toolchain": {
@@ -1947,11 +2041,13 @@ def _runtime_authority(authority: dict[str, Any]) -> dict[str, Any]:
         "runtime_identity": runtime,
         "evidence_pins": {
             "runner_sha256": capsule["runner"]["sha256"],
+            "loader_sha256": capsule["loader"]["sha256"],
             "tooling_package_sha256": tooling["package_sha256"],
             "tooling_lock_sha256": tooling["lock_sha256"],
             "node_modules_sha256": tooling["node_modules_sha256"],
-            "node_binary_sha256": capsule["node"]["sha256"],
-            "sandbox_policy_sha256": PINNED_ORACLE_POLICY_SHA256,
+            "node_binary_sha256": authority["runtime"]["node"]["sha256"],
+            "oracle_policy_sha256": PINNED_ORACLE_POLICY_SHA256,
+            "execution_policy_sha256": PINNED_CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
             "metis_status_sha256": canonical_hash(""),
         },
     }
@@ -1980,8 +2076,8 @@ def _validate_artifact(
     body = {key: item for key, item in artifact.items() if key != "manifest_sha256"}
     if (
         type(artifact["schema_version"]) is not int
-        or artifact["schema_version"] != 2
-        or artifact["protocol"] != "metis-runtime-capsule-v2"
+        or artifact["schema_version"] != 3
+        or artifact["protocol"] != "metis-runtime-capsule-v3"
         or artifact["execution_id"] != f"{row['candidate_id']}.{row['role']}"
         or artifact["request_sha256"] != row["request_sha256"]
         or artifact["capsule_manifest_sha256"] != authority["capsule"]["manifest_sha256"]
@@ -2025,11 +2121,13 @@ def _validate_artifact(
             "runtime_sha256",
             "runtime_identity",
             "runner_sha256",
+            "loader_sha256",
             "tooling_package_sha256",
             "tooling_lock_sha256",
             "node_modules_sha256",
             "node_binary_sha256",
-            "sandbox_policy_sha256",
+            "oracle_policy_sha256",
+            "execution_policy_sha256",
             "metis_status_sha256",
             "metis_status",
             "envelope_sha256",
@@ -2402,6 +2500,7 @@ def _run_once(
     source_bundle: Path,
     dependency_bundle: Path,
     capsule: Path,
+    node: Path,
     artifact_root: _AnchoredDirectory,
     run_root: _AnchoredDirectory,
     nonce: str,
@@ -2411,7 +2510,7 @@ def _run_once(
     run_root.assert_path_identity()
     arguments = [
         "--mode",
-        "production-capsule-v2",
+        "production-capsule-v3",
         "--authority",
         str(authority),
         "--authority-sha256",
@@ -2422,6 +2521,8 @@ def _run_once(
         str(dependency_bundle),
         "--capsule-root",
         str(capsule),
+        "--node-path",
+        str(node),
         "--artifact-root",
         str(artifact_root.path),
         "--run-root",
@@ -2456,17 +2557,19 @@ def _run_once(
                 "status",
                 "claim",
                 "reason",
+                "native_evidence",
                 "cleanup",
             },
             "blocked fresh qualification",
         )
         if (
             type(blocked["schema_version"]) is not int
-            or blocked["schema_version"] != 2
+            or blocked["schema_version"] != 3
             or blocked["qualification_id"] != QUALIFICATION_ID
-            or blocked["qualification_kind"] != "production-capsule-v2"
+            or blocked["qualification_kind"] != "production-capsule-v3"
             or blocked["status"] != "blocked"
             or blocked["claim"] != "no_qualification_claim"
+            or blocked["native_evidence"] != NATIVE_EVIDENCE
             or not isinstance(blocked["reason"], str)
             or not blocked["reason"]
         ):
@@ -2550,6 +2653,7 @@ def _validate_replay_result(
         or report["authority_manifest_sha256"] != authority_sha256
         or report["capsule_manifest_sha256"] != capsule_sha256
         or report["nonce_model"] != NONCE_MODEL
+        or report["native_evidence"] != NATIVE_EVIDENCE
         or report["non_claims"] != NON_CLAIMS
     ):
         raise BridgeGateBlocked("qualified replay report contract is invalid")
@@ -2599,7 +2703,11 @@ def _validate_replay_result(
         cleanup = _validate_cleanup(
             run["cleanup"],
             qualified=True,
-            expected_kinds=("production-process-root", "production-trusted-root"),
+            expected_kinds=(
+                "production-process-root",
+                "production-runtime-root",
+                "production-trusted-root",
+            ),
         )
         physical_rosters.append(cleanup["retained_roots"])
     if any(
@@ -2641,9 +2749,11 @@ def run_replay_gate(
     source_bundle_root: str | os.PathLike[str],
     dependency_bundle_root: str | os.PathLike[str],
     capsule_root: str | os.PathLike[str],
+    node_path: str | os.PathLike[str],
     artifact_root: str | os.PathLike[str],
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
+    _require_protected_execution_broker()
     if type(timeout_seconds) not in {int, float} or not 0 < timeout_seconds <= 60:
         raise BridgeGateBlocked("replay timeout is outside its cap")
     resolved = {
@@ -2664,6 +2774,9 @@ def run_replay_gate(
         ),
         "capsule": _strict_canonical_path(
             capsule_root, "replay capsule", must_exist=True, directory=True
+        ),
+        "node": _strict_canonical_path(
+            node_path, "replay registered Node", must_exist=True, directory=False
         ),
     }
     qualifier_preimage = _read_regular(resolved["qualifier"], MAX_REPORT_BYTES, "qualifier")
@@ -2725,6 +2838,7 @@ def run_replay_gate(
                         source_bundle=resolved["source"],
                         dependency_bundle=resolved["dependency"],
                         capsule=resolved["capsule"],
+                        node=resolved["node"],
                         artifact_root=run_artifacts,
                         run_root=run_root,
                         nonce=secrets.token_hex(32),
@@ -2816,6 +2930,7 @@ def run_replay_gate(
             "roles": ROLES,
             "nonce_model": NONCE_MODEL,
             "artifacts": artifact_digests,
+            "native_evidence": dict(NATIVE_EVIDENCE),
             "non_claims": list(NON_CLAIMS),
             "cleanup": cleanup,
         }
@@ -2872,6 +2987,7 @@ def _blocked(
         "claim": "no_replay_claim",
         "reason": reason,
         "observed_runs": observed_value,
+        "native_evidence": dict(NATIVE_EVIDENCE),
         "cleanup": cleanup_value,
     }
     blocked = _exact(report, BLOCKED_REPLAY_REPORT_KEYS, "blocked replay report")
@@ -2881,6 +2997,7 @@ def _blocked(
         or blocked["replay_id"] != REPLAY_ID
         or blocked["status"] != "blocked"
         or blocked["claim"] != "no_replay_claim"
+        or blocked["native_evidence"] != NATIVE_EVIDENCE
         or not isinstance(blocked["reason"], str)
         or not blocked["reason"]
     ):
@@ -2906,6 +3023,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-bundle-root", required=True)
     parser.add_argument("--dependency-bundle-root", required=True)
     parser.add_argument("--capsule-root", required=True)
+    parser.add_argument("--node-path", required=True)
     parser.add_argument("--artifact-root", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     try:
@@ -2918,6 +3036,7 @@ def main(argv: list[str] | None = None) -> int:
             source_bundle_root=arguments.source_bundle_root,
             dependency_bundle_root=arguments.dependency_bundle_root,
             capsule_root=arguments.capsule_root,
+            node_path=arguments.node_path,
             artifact_root=arguments.artifact_root,
             timeout_seconds=arguments.timeout_seconds,
         )

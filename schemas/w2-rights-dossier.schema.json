@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w2-rights-dossier.schema.json",
+  "title": "Metis Model 1 W2 rights dossier",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "status", "source_revision", "asset_register_manifest_hash", "counts", "summary", "policy", "assets", "dossier_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "w2/rights-dossier-v1"},
+    "status": {"const": "review_required_evidence_only"},
+    "source_revision": {"const": "a2dde2b191f6b78c2003d74875560da782470968"},
+    "asset_register_manifest_hash": {"$ref": "#/$defs/sha256"},
+    "asset_register_file_sha256": {"const": "sha256:1526f177989d6c54095542fb7488789bffe88f0b529750b3bc66e95ef1c8b68b"},
+    "counts": {"$ref": "#/$defs/counts"},
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reviewed", "approved", "excluded", "pending"],
+      "properties": {"reviewed": {"const": 0}, "approved": {"const": 0}, "excluded": {"const": 0}, "pending": {"const": 201}}
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_mode", "required_permissions", "double_review_required", "whole_tenant_closure_blocked_by"],
+      "properties": {
+        "evidence_mode": {"const": "opaque_hash_only"},
+        "required_permissions": {"const": ["training", "evaluation", "derivatives", "adapters"]},
+        "double_review_required": {"const": true},
+        "whole_tenant_closure_blocked_by": {"const": ["needs_review", "excluded"]}
+      }
+    },
+    "assets": {"type": "array", "minItems": 201, "maxItems": 201, "items": {"$ref": "#/$defs/asset"}},
+    "dossier_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assets_in", "assets_out", "asset_paths_distinct", "asset_blob_oids_distinct", "gaps"],
+      "properties": {"assets_in": {"const": 201}, "assets_out": {"const": 201}, "asset_paths_distinct": {"const": 201}, "asset_blob_oids_distinct": {"const": 201}, "gaps": {"const": 0}}
+    },
+    "asset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "blob_oid", "file_sha256", "status", "license", "rightsholder", "reviewer", "reviewed_at", "expiry", "evidence_ref", "evidence_sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^examples/play-prod-v2/.+"},
+        "blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "file_sha256": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+        "status": {"const": "needs_review"},
+        "license": {"type": ["string", "null"]},
+        "rightsholder": {"type": ["string", "null"]},
+        "reviewer": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"]},
+        "expiry": {"type": ["string", "null"]},
+        "evidence_ref": {"type": ["string", "null"]},
+        "evidence_sha256": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

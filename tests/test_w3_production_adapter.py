@@ -6,7 +6,6 @@ import os
 import runpy
 import subprocess
 import sys
-import types
 from copy import deepcopy
 from pathlib import Path
 
@@ -204,6 +203,33 @@ def _run_real_gate() -> dict:
 
 def test_production_authorities_ship_unset() -> None:
     assert production_module.REGISTERED_W3_SEMANTIC_REGISTRY_SHA256 is None
+
+
+@pytest.mark.parametrize("operation", ["identity", "evaluate"])
+def test_l66_legacy_production_adapter_stops_before_registry_artifact_or_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("legacy adapter crossed the protected-broker STOP")
+
+    monkeypatch.setattr(production_module, "_registered_registry", forbidden)
+    monkeypatch.setattr(production_module, "_safe_artifact_namespace", forbidden)
+    monkeypatch.setattr(production_module, "run_oracle", forbidden)
+    adapter = ProductionW3Adapter(
+        semantic_registry_json="{}",
+        metis_root="/absent-metis",
+    )
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
+        if operation == "identity":
+            adapter.identity()
+        else:
+            adapter.evaluate({})
+    assert observed == []
     assert oracle_module.REGISTERED_W3_ORACLE_ADAPTER is None
     assert oracle_module.REGISTERED_W3_ORACLE_IDENTITY_SHA256 is None
 
@@ -253,7 +279,7 @@ def test_smoke_manifests_are_exact_typed_and_conservatively_one_grouped(
     )
 
 
-def test_production_identity_requires_registry_authority_and_binds_transitive_files(
+def test_legacy_production_identity_stops_before_registry_or_transitive_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, registry = _load_manifests()
@@ -261,137 +287,87 @@ def test_production_identity_requires_registry_authority_and_binds_transitive_fi
         semantic_registry_json=REGISTRY_PATH.read_text(encoding="utf-8"),
         metis_root=str(METIS_ROOT),
     )
-    with pytest.raises(oracle_module.W3OracleTrustError, match="authority is unset"):
-        adapter.identity()
-    monkeypatch.setattr(
-        production_module,
-        "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
-        registry["manifest_sha256"],
-    )
-    identity = adapter.identity()
-    assert identity["schema_version"] == 2
-    assert identity["receipt_mode"] == "real-runner-envelopes"
-    assert identity["semantic_registry_sha256"] == registry["manifest_sha256"]
-    assert identity["execution_profile_sha256"] == (
-        oracle_module.PRODUCTION_EXECUTION_PROFILE_SHA256
-    )
-    assert all(
-        oracle_module.valid_hash(identity[field])
-        for field in (
-            "semantic_spec_schema_sha256",
-            "oracle_protocol_sha256",
-            "oracle_bridge_sha256",
-            "oracle_result_schema_sha256",
-            "source_register_schema_sha256",
-            "w3_run_schema_sha256",
-            "runtime_bindings_sha256",
+    for authority in (None, registry["manifest_sha256"]):
+        monkeypatch.setattr(
+            production_module,
+            "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
+            authority,
         )
-    )
+        with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
+            adapter.identity()
 
 
 @pytest.mark.parametrize("dependency", ["run_oracle", "verify_oracle_envelope"])
-def test_production_identity_binds_live_executor_and_verifier_globals(
+def test_legacy_production_identity_never_reaches_executor_or_verifier_globals(
     monkeypatch: pytest.MonkeyPatch,
     dependency: str,
 ) -> None:
-    _, registry = _load_manifests()
-    monkeypatch.setattr(
-        production_module,
-        "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
-        registry["manifest_sha256"],
-    )
+    observed: list[str] = []
     adapter = ProductionW3Adapter(
-        semantic_registry_json=REGISTRY_PATH.read_text(encoding="utf-8"),
+        semantic_registry_json="{}",
         metis_root="/definitely/not/metis",
     )
-    before = adapter.identity()
 
     def replacement(*args: object, **kwargs: object) -> dict:
         del args, kwargs
+        observed.append(dependency)
         return {"forged": True}
 
     monkeypatch.setattr(production_module, dependency, replacement)
-    after = adapter.identity()
-    assert after["runtime_bindings_sha256"] != before["runtime_bindings_sha256"]
-    assert canonical_hash(after) != canonical_hash(before)
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
+        adapter.identity()
+    assert observed == []
 
 
-def test_production_identity_binds_executor_live_globals(
+def test_legacy_production_identity_does_not_measure_executor_live_globals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, registry = _load_manifests()
-    monkeypatch.setattr(
-        production_module,
-        "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
-        registry["manifest_sha256"],
-    )
+    observed: list[str] = []
     adapter = ProductionW3Adapter(
-        semantic_registry_json=REGISTRY_PATH.read_text(encoding="utf-8"),
+        semantic_registry_json="{}",
         metis_root="/definitely/not/metis",
     )
-    before = adapter.identity()
-    original = production_module.run_oracle
-    forged_globals = dict(original.__globals__)
 
-    def forged_validation(*args: object, **kwargs: object) -> tuple:
+    def forbidden(*args: object, **kwargs: object) -> dict:
         del args, kwargs
-        return ()
-
-    forged_globals["validate_pinned_metis"] = forged_validation
-    clone = types.FunctionType(
-        original.__code__,
-        forged_globals,
-        original.__name__,
-        original.__defaults__,
-        original.__closure__,
-    )
-    clone.__kwdefaults__ = original.__kwdefaults__
-    clone.__module__ = original.__module__
-    clone.__qualname__ = original.__qualname__
-    monkeypatch.setattr(production_module, "run_oracle", clone)
-    after = adapter.identity()
-    assert after["runtime_bindings_sha256"] != before["runtime_bindings_sha256"]
-    assert canonical_hash(after) != canonical_hash(before)
-
-
-def test_independent_runtime_measurement_rejects_guard_and_executor_swap(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _, registry = _load_manifests()
-    monkeypatch.setattr(
-        production_module,
-        "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
-        registry["manifest_sha256"],
-    )
-    adapter = ProductionW3Adapter(
-        semantic_registry_json=REGISTRY_PATH.read_text(encoding="utf-8"),
-        metis_root="/definitely/not/metis",
-    )
-    before = adapter.identity()
-
-    def replacement(*args: object, **kwargs: object) -> dict:
-        del args, kwargs
+        observed.append("run_oracle")
         return {"forged": True}
 
-    monkeypatch.setattr(production_module, "run_oracle", replacement)
-    monkeypatch.setattr(
-        oracle_module,
-        "_production_runtime_bindings_sha256",
-        lambda adapter: before["runtime_bindings_sha256"],
-    )
-    with pytest.raises(oracle_module.W3OracleTrustError, match="independent measurements"):
+    monkeypatch.setattr(production_module, "run_oracle", forbidden)
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
         adapter.identity()
+    assert observed == []
 
 
-def test_production_adapter_recomputes_candidate_content_hash_before_execution(
+def test_legacy_production_identity_stops_before_independent_runtime_measurement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    candidates_manifest, registry = _load_manifests()
+    observed: list[str] = []
+    adapter = ProductionW3Adapter(
+        semantic_registry_json="{}",
+        metis_root="/definitely/not/metis",
+    )
+
+    def forbidden(*args: object, **kwargs: object) -> str:
+        del args, kwargs
+        observed.append("measurement")
+        return "sha256:" + "0" * 64
+
     monkeypatch.setattr(
         production_module,
-        "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
-        registry["manifest_sha256"],
+        "_independent_runtime_bindings_sha256",
+        forbidden,
     )
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
+        adapter.identity()
+    assert observed == []
+
+
+def test_legacy_production_adapter_stops_before_candidate_content_or_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidates_manifest, _ = _load_manifests()
+    observed: list[str] = []
     adapter = ProductionW3Adapter(
         semantic_registry_json=REGISTRY_PATH.read_text(encoding="utf-8"),
         metis_root="/definitely/not/metis",
@@ -400,8 +376,14 @@ def test_production_adapter_recomputes_candidate_content_hash_before_execution(
     forged["content_sha256"] = forged["root_evidence"]["content_sha256"]
     forged["semantic_spec_sha256"] = forged["root_evidence"]["semantic_spec_sha256"]
     forged["target_source"] += "variant injected { empty }\n"
-    with pytest.raises(oracle_module.W3OracleTrustError, match="content hash"):
+    monkeypatch.setattr(
+        production_module,
+        "run_oracle",
+        lambda *args, **kwargs: observed.append("run_oracle"),
+    )
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
         adapter.evaluate(forged)
+    assert observed == []
 
 
 @pytest.mark.parametrize("family", ["F-1", "F-2", "F-3"])
@@ -455,7 +437,7 @@ def test_exact_semantic_truth_rejects_nearby_but_wrong_evidence(family: str) -> 
         production_module._semantic_evidence(candidate, spec, executions)
 
 
-def test_rehashed_registry_tamper_cannot_self_authorize(
+def test_rehashed_registry_tamper_cannot_cross_protected_broker_stop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, registry = _load_manifests()
@@ -476,7 +458,7 @@ def test_rehashed_registry_tamper_cannot_self_authorize(
         semantic_registry_json=json.dumps(forged),
         metis_root=str(METIS_ROOT),
     )
-    with pytest.raises(oracle_module.W3OracleTrustError, match="registered authority"):
+    with pytest.raises(oracle_module.W3OracleTrustError, match="protected execution broker"):
         adapter.identity()
 
 
@@ -552,7 +534,7 @@ def test_run_schema_rejects_receipt_mode_downgrade_and_mixed_run(
         "receipt_sha256": canonical_hash(execution_body),
     }
     receipt_body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "receipt_mode": "real-runner-envelopes",
         "candidate_sha256": candidate_sha,
         "adapter_identity_sha256": identity_sha,

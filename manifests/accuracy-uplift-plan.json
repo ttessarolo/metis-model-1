@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "plan_id": "accuracy-uplift/v1",
+  "status": "pin_refresh_active",
+  "decision_ref": "O-010",
+  "canonical_spec": {
+    "path": "docs/16-accuracy-wave-catalog-domain-maintenance.md",
+    "sha256": "sha256:0afcb7d43f65c2c418e2ff77529280df53aa670b7d5239791c9ae136f66b9c20"
+  },
+  "historical_evidence": {
+    "baseline_id": "B12-v4",
+    "baseline_mode": "adapter_off",
+    "semantic_audit": "12/12",
+    "fine_tuned_adapter_present": false,
+    "delivery_ref": "artifacts/w5-xs/2026-08-24-delivery/DELIVERY.md",
+    "historical_contracts_immutable": true
+  },
+  "source_scope": {
+    "tenant_mode": "read_only_reference_only",
+    "tenant_revision": "456f11c6c4e88adf02c44eae782e39bd2be14eb6",
+    "tenant_tree": "1d9ff5a27e5adca7388d1b7d4e03e38c6dda8345",
+    "tenant_lineages": 1,
+    "tenant_examples_materialized": 0,
+    "tenant_accuracy_denominator_units": 0,
+    "tenant_values_policy": "retrieval_only_never_weight_truth",
+    "dataset_rights_status": "not_authorized"
+  },
+  "wave": {
+    "diagnostic": {
+      "id": "D18",
+      "total": 18,
+      "family_counts": {"F-1": 3, "F-2": 3, "F-3": 3, "F-4": 3, "F-5": 3, "F-6": 3},
+      "materialized": 0,
+      "model_outputs_allowed": false,
+      "use": "failure_categories_only"
+    },
+    "train": {
+      "total": 64,
+      "family_counts": {"F-1": 10, "F-2": 12, "F-3": 12, "F-4": 12, "F-5": 10, "F-6": 8},
+      "materialized": 0,
+      "conditional": true
+    },
+    "dev": {
+      "total": 16,
+      "family_counts": {"F-1": 3, "F-2": 3, "F-3": 3, "F-4": 3, "F-5": 2, "F-6": 2},
+      "materialized": 0,
+      "checkpoint_selection_only": true
+    },
+    "final_test": {
+      "id": "T30",
+      "total": 30,
+      "family_counts": {"F-1": 5, "F-2": 5, "F-3": 5, "F-4": 5, "F-5": 5, "F-6": 5},
+      "materialized": 0,
+      "seal_status": "not_sealed",
+      "model_outputs_allowed": false,
+      "checkpoint_selection_allowed": false
+    },
+    "leakage": {
+      "diagnostic_content_may_enter_other_splits": false,
+      "train_dev_final_roots_disjoint": true,
+      "minimum_train_roots": 16,
+      "maximum_derivations_per_train_root": 4
+    }
+  },
+  "catalog_value_domain": {
+    "construct_id": "catalog_value_domain",
+    "status": "pinned_refresh_pending",
+    "canonical_surface_authority": "upstream_grammar_at_pinned_revision",
+    "legacy_inline_materialized_values": "forbidden_as_canonical",
+    "values_authority": "toolchain_per_field_retrieval",
+    "bounded_domain_source": "external_per_field_value_set",
+    "open_domain_source": "live_index",
+    "tiny_stable_domain_policy": "tenant_setting",
+    "tenant_thresholds": "settings_lookup_only",
+    "weights_may_contain_tenant_domain_values": false,
+    "provisional_lexemes_authoritative": false,
+    "coverage_reservation": {
+      "diagnostic": {"F-1": 1, "F-6": 1},
+      "final_test": {"F-1": 1, "F-6": 1}
+    },
+    "materialization_allowed": false,
+    "oracle_truth_allowed": false
+  },
+  "upstream_grammar_dependency": {
+    "repository": "ares-matioska/metis",
+    "status": "surface_pinned_implementation_pending",
+    "planning_input": {
+      "path": "orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md",
+      "commit": "d6cf4066a334d2b8b3419c2d9c6574993ada8c2f"
+    },
+    "pin": {
+      "revision": "1f7eaae9d803edc90f51ff492ea443f18570015e",
+      "tree": "346ddce27270287c8a3781bced77bf75c5318c11",
+      "language_version": "0.43",
+      "specification": {
+        "path": "docs/design/catalog-values/spec.md",
+        "sha256": "sha256:34f26adb53809f1c0aed8e515564d3ed81e75f8023d125eb77ae51f8ab066678"
+      }
+    },
+    "required_evidence": [
+      "revision",
+      "tree",
+      "language_version",
+      "grammar",
+      "validator",
+      "compiler",
+      "ir_contract",
+      "retrieval_contract",
+      "semantic_oracle",
+      "tenant_threshold_setting_keys"
+    ]
+  },
+  "execution_partition": {
+    "allowed_now": [
+      "non_catalog_d18_task_design",
+      "non_catalog_t30_task_and_oracle_design",
+      "f6_structural_oracle_implementation",
+      "non_catalog_f4_f5_oracle_contract_work",
+      "upstream_read_only_pin_monitoring"
+    ],
+    "forbidden_now": [
+      "catalog_domain_prompt_truth",
+      "catalog_domain_oracle_truth",
+      "catalog_domain_split_materialization",
+      "t30_model_outputs_before_complete_seal",
+      "tenant_value_payloads",
+      "training"
+    ]
+  },
+  "maintenance": {
+    "order": [
+      "pin_and_diff",
+      "refresh_retrieval",
+      "regenerate_oracles",
+      "seal_maintenance_benchmark",
+      "run_existing_behavior_baseline",
+      "no_retrain_or_bounded_delta"
+    ],
+    "default_verdict": "NO_RETRAIN",
+    "training_open_condition": {
+      "minimum_correctable_semantic_failures": 3,
+      "minimum_distinct_roots": 2,
+      "compatible_ast_ir_semantics_required": true,
+      "separate_explicit_wave_required": true
+    },
+    "delta_qlora": {
+      "mode": "bounded_delta_only",
+      "checkpoint_selection": "dev_only",
+      "final_test_feedback_allowed": false
+    },
+    "full_successor_only_if": "ast_ir_or_verified_semantic_contract_changed_or_delta_and_replay_fail"
+  },
+  "gates": {
+    "surface_pin_complete": true,
+    "upstream_pin_complete": false,
+    "retrieval_contract_refreshed": false,
+    "semantic_oracle_refreshed": false,
+    "catalog_materialization_allowed": false,
+    "t30_sealed_before_model_outputs": false,
+    "model_evaluation_allowed": false,
+    "training_allowed": false,
+    "active_work": "pin_refresh"
+  },
+  "nonclaims": [
+    "no_upstream_implementation_pin",
+    "no_catalog_domain_dataset",
+    "no_tenant_dataset_authority",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim",
+    "nonpromotable"
+  ]
+}

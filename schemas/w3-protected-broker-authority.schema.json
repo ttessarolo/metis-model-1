@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-protected-broker-authority.schema.json",
+  "title": "W3 protected execution broker authority v1",
+  "description": "Registered protected-broker authority. Installed out of band in root-owned ancestry; never supplied by callers. Declares separate broker and runner identities, the root launcher identity, the authority-installed policy, exact required role paths/digests, an extensible complete root-owned code roster, release identity derived from that roster, and a mode-scoped signing identity. Protected-public-synthetic registers an exact public key; production remains unavailable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "authority_id",
+    "mode",
+    "signing",
+    "broker_identity",
+    "runner_identity",
+    "launcher_identity",
+    "installed_code_identity",
+    "installed_code_paths",
+    "installed_code_roster",
+    "policy_identity",
+    "release_identity"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "w3-protected-broker-authority" },
+    "authority_id": { "const": "w3-protected-broker-authority-v1" },
+    "mode": { "enum": ["synthetic", "protected-public-synthetic", "production"] },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id"],
+      "properties": {
+        "algorithm": { "enum": ["ed25519", "synthetic-hmac-sha256"] },
+        "key_id": { "$ref": "#/$defs/hash" },
+        "public_key": { "$ref": "#/$defs/ed25519PublicKey" }
+      }
+    },
+    "broker_identity": { "$ref": "#/$defs/brokerIdentity" },
+    "runner_identity": { "$ref": "#/$defs/runnerIdentity" },
+    "launcher_identity": { "$ref": "#/$defs/launcherIdentity" },
+    "installed_code_identity": { "$ref": "#/$defs/installedCodeIdentity" },
+    "installed_code_paths": { "$ref": "#/$defs/installedCodePaths" },
+    "installed_code_roster": { "$ref": "#/$defs/installedCodeRoster" },
+    "policy_identity": { "$ref": "#/$defs/policyIdentity" },
+    "release_identity": { "$ref": "#/$defs/releaseIdentity" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "mode": { "const": "synthetic" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "signing": {
+            "properties": { "algorithm": { "const": "synthetic-hmac-sha256" } },
+            "not": { "required": ["public_key"] }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "protected-public-synthetic" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "signing": {
+            "required": ["public_key"],
+            "properties": { "algorithm": { "const": "ed25519" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "production" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "signing": {
+            "properties": { "algorithm": { "const": "ed25519" } },
+            "not": { "required": ["public_key"] }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "ed25519PublicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{43}=$"
+    },
+    "principalUid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "brokerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user", "uid", "gid"],
+      "properties": {
+        "user": { "const": "_metisbroker" },
+        "uid": { "$ref": "#/$defs/principalUid" },
+        "gid": { "$ref": "#/$defs/principalUid" }
+      }
+    },
+    "runnerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user", "uid", "gid"],
+      "properties": {
+        "user": { "const": "_metisrunner" },
+        "uid": { "$ref": "#/$defs/principalUid" },
+        "gid": { "$ref": "#/$defs/principalUid" }
+      }
+    },
+    "launcherIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user", "uid", "gid"],
+      "properties": {
+        "user": { "const": "root" },
+        "uid": { "const": 0 },
+        "gid": { "const": 0 }
+      }
+    },
+    "installedCodeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "broker_code_sha256",
+        "launcher_sha256",
+        "worker_sha256",
+        "loader_sha256",
+        "runner_sha256",
+        "node_sha256"
+      ],
+      "properties": {
+        "broker_code_sha256": { "$ref": "#/$defs/hash" },
+        "launcher_sha256": { "$ref": "#/$defs/hash" },
+        "worker_sha256": { "$ref": "#/$defs/hash" },
+        "loader_sha256": { "$ref": "#/$defs/hash" },
+        "runner_sha256": { "$ref": "#/$defs/hash" },
+        "node_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "rosterPath": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9@_-][A-Za-z0-9@._-]*|\\.[A-Za-z0-9@_-][A-Za-z0-9@._-]*)(?:/(?:[A-Za-z0-9@_-][A-Za-z0-9@._-]*|\\.[A-Za-z0-9@_-][A-Za-z0-9@._-]*))*$"
+    },
+    "installedCodePaths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["broker", "launcher", "worker", "loader", "runner", "node"],
+      "properties": {
+        "broker": { "$ref": "#/$defs/rosterPath" },
+        "launcher": { "$ref": "#/$defs/rosterPath" },
+        "worker": { "$ref": "#/$defs/rosterPath" },
+        "loader": { "$ref": "#/$defs/rosterPath" },
+        "runner": { "$ref": "#/$defs/rosterPath" },
+        "node": { "$ref": "#/$defs/rosterPath" }
+      }
+    },
+    "rosterRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "mode", "sha256", "uid", "gid", "dev", "ino", "nlink"],
+      "properties": {
+        "path": { "$ref": "#/$defs/rosterPath" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "mode": { "type": "integer", "minimum": 32768, "maximum": 36863 },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "uid": { "const": 0 },
+        "gid": { "const": 0 },
+        "dev": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "ino": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "nlink": { "const": 1 }
+      }
+    },
+    "installedCodeRoster": {
+      "type": "array",
+      "minItems": 6,
+      "items": { "$ref": "#/$defs/rosterRow" }
+    },
+    "policyIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template_sha256", "parameters", "resolved_sha256"],
+      "properties": {
+        "template_sha256": { "$ref": "#/$defs/hash" },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/hash" }
+        },
+        "resolved_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "releaseIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["release_id", "ancestry_root_sha256"],
+      "properties": {
+        "release_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "ancestry_root_sha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

@@ -42,13 +42,28 @@ set. Deve includere:
 Ogni risultato pubblica numeratore, denominatore e intervallo di confidenza; una
 percentuale aggregata senza breakdown non è evidence sufficiente.
 
+Un maintenance benchmark per una nuova revisione Metis è distinto e versionato:
+non modifica il frozen benchmark precedente e viene sigillato prima di qualsiasi
+delta training. I suoi risultati qualificano soltanto la candidate e il commit
+dichiarati.
+
 Il comando integrato `validate-pilot` rigenera inoltre la closure tracciata dagli
 oggetti Git della revisione Metis fissata e richiede uguaglianza esatta. La sola
 coerenza interna del manifest o un asset self-hash ricalcolato non sostituiscono
 questo anchor; se il checkout sorgente manca, il gate diventa invalido.
-`assess-w5` è un comando di readiness separato e attualmente termina non-zero
-per i blocker popolazione indipendente, oracle non sigillati, W3 reale, O-003 e
-baseline A/B.
+
+I due semafori successivi non sono intercambiabili:
+
+- `assess-experiment` verifica soltanto che pin W4, source anchor, contratto
+  W5-XS e confine repository siano coerenti. `EXPERIMENT_PLAN_READY` non è
+  execution authority e porta i nonclaim
+  `nonpromotable` e `non99`;
+- `assess-w5` resta il gate rigoroso `ACCURACY99_PROMOTION`. Termina non-zero
+  sugli stessi cinque blocker: popolazione indipendente, oracle W1 non sigillati,
+  W3 reale assente, O-003 aperta e baseline A/B assente.
+
+Il primo ignora deliberatamente 563 gruppi, Phase B, F-4/F-5/F-6 e O-003 perché
+misura la necessità del tuning; non li dichiara chiusi.
 
 ## 4. Metriche
 
@@ -113,7 +128,23 @@ Se Model 1 viene usato dentro un coding agent più ampio, una mini-suite congela
 misura patching, instruction following e lettura di TypeScript/Rust senza
 pretendere che l'adapter diventi uno specialista di quei linguaggi.
 
-## 5. Soglie iniziali proposte
+## 5. Gate W5-XS ratificati
+
+La baseline diagnostica B usa 12 task, quattro per F-1/F-2/F-3. L'esito è
+`MODEL1_USABLE_LOCAL_NO_TRAIN` con almeno `11/12` successi semantici post-repair,
+zero veto critici, zero identificatori inventati accettati e nessuna classe di
+errore ricorrente.
+
+Se B12 fallisce, B viene eseguita anche sui 24 task accoppiati congelati: con
+almeno `22/24` e zero critical failure totali si chiude `NO_TRAIN`; il dataset si
+apre soltanto sotto quella soglia e con almeno tre failure B12 correggibili. Se
+il tuning è giustificato, l'adapter viene conservato soltanto se D ottiene
+almeno tre successi netti, chiude almeno `ceil(fallimenti_semantici_B / 2)`, non
+perde alcun task già verde e ha zero critical failure, identificatori inventati
+accettati o modifiche estranee totali. Queste soglie sono direzionali e
+qualificano soltanto W5-XS.
+
+## 6. Soglie Accuracy-99 proposte
 
 Queste soglie sono **PROPOSTE**, da ratificare dopo il benchmark design ma prima
 di vedere il risultato finale:
@@ -133,7 +164,7 @@ di vedere il risultato finale:
 Il gate principale è congiuntivo: non si compensa un fallimento semantico con un
 punteggio sintattico molto alto.
 
-## 6. Disegno statistico
+## 7. Disegno statistico
 
 - intervalli Wilson al 95% per proporzioni;
 - paired bootstrap o test appaiato per B contro D sugli stessi task;
@@ -147,7 +178,7 @@ troppo larghi per un claim 99% per-famiglia: il report deve mostrarli e non
 simulare precisione. Il claim preregistrato è globale; i task ad alto impatto
 mantengono gate categorici indipendenti dalla significatività aggregata.
 
-## 7. Error taxonomy
+## 8. Error taxonomy
 
 Ogni fallimento riceve una causa primaria:
 
@@ -165,7 +196,7 @@ Ogni fallimento riceve una causa primaria:
 La categoria 10 non viene trasformata in errore del modello: il task è sospeso,
 corretto e il cambiamento del benchmark è versionato.
 
-## 8. Stop rule
+## 9. Stop rule
 
 Il ciclo si ferma e torna a diagnosi quando:
 
@@ -178,10 +209,15 @@ Il ciclo si ferma e torna a diagnosi quando:
 - la mini-suite generale regredisce oltre la soglia ratificata;
 - l'identità di config, dataset o checkpoint non è ricostruibile;
 - un output semanticamente errato viene classificato green solo perché compila.
+- B soddisfa già il gate W5-XS o non esistono failure semantiche ripetibili;
+- il micro-dataset ha yield accepted-by-oracle sotto il 50% o richiede oltre il
+  20% di adjudication manuale;
+- W5-XS supera 100 step, quattro ore, 110 GB Metal o 8 GiB di nuovi artefatti;
+- viene tentata una seconda configurazione o una rework W5-XS.
 
 Non si scala il numero di iterazioni per nascondere una di queste cause.
 
-## 9. Report di promozione
+## 10. Report di promozione
 
 Il report finale contiene:
 

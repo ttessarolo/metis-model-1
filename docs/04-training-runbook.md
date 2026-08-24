@@ -119,17 +119,41 @@ smoke test di poche iterazioni.
 - l'adapter cambia il comportamento e può essere disattivato;
 - tutti gli hash e la config sono ricostruibili.
 
-L'autorizzazione W5 richiede inoltre una slice W1 sigillata e il micro-eval
-Metis; questi due gate non sono soddisfatti dalla fixture sintetica W4.
+L'autorizzazione alla promotion W5/Accuracy-99 richiede inoltre una slice W1
+sigillata e il micro-eval Metis; questi due gate non sono soddisfatti dalla
+fixture sintetica W4. Non sono invece prerequisiti di `BASELINE_B` nel percorso
+W5-XS research-only.
 
 Altrimenti stato `BLOCKED`, con causa riproducibile. Non si passa al pilot
 riducendo di nascosto sequenza, iterazioni o controlli.
 
-## 5. WP — Pilot QLoRA
+## 5. W5-XS — First-value
+
+W5-XS applica il protocollo ratificato in
+[`15-first-value-experiment.md`](15-first-value-experiment.md):
+
+1. baseline B su 12 task e possibile `NO_TRAIN`;
+2. soltanto con failure ripetibili, 24 task di valutazione accoppiata congelati;
+3. 64 train + 16 dev F-1/F-2/F-3 accepted-by-oracle, cap fisso 80;
+4. una configurazione rank 8 / alpha 16 / LR `1e-5` / seed 17;
+5. 25 step, estesi a 50 e 100 soltanto con segnale dev positivo;
+6. confronto B/D terminale, senza seconda configurazione o rework.
+
+Il budget è quattro ore, quattro checkpoint, 8 GiB di nuovi artefatti e 110 GB
+Metal. Non si esegue una grid e non si ripetono seed nel first signal. Questa
+deroga delimitata riduce il costo di falsificare H-001; non seleziona né promuove
+un candidate Accuracy-99.
+
+`EXPERIMENT_PLAN_READY` certifica soltanto la completezza del piano. Inferenza,
+Node/Metis, materializzazione del dataset e optimizer richiedono la wave
+esplicita descritta nel piano W5-XS.
+
+## 6. WP — Pilot QLoRA di promotion
 
 ### Dataset
 
-- 3.000-8.000 esempi accepted-by-oracle;
+- 3.000-8.000 esempi accepted-by-oracle, soltanto dopo uplift W5-XS e decisione
+  separata di finanziare la promotion;
 - task mix stratificato F-1…F-6;
 - train/dev/internal-test per leakage group;
 - frozen benchmark già sigillato e non consultato per il tuning.
@@ -163,7 +187,7 @@ La scelta usa il dev set e considera insieme:
 La training loss da sola non seleziona il checkpoint. Il frozen benchmark non
 seleziona iperparametri.
 
-## 6. WV1 — Candidate Model 1
+## 7. WV1 — Candidate Model 1
 
 Si avvia soltanto se il pilot mostra miglioramento D−B credibile e non soltanto
 memorization. Passi:
@@ -178,7 +202,7 @@ memorization. Passi:
 8. eseguire contamination e reproducibility audit;
 9. produrre il promotion report.
 
-## 7. Reasoning mode e template
+## 8. Reasoning mode e template
 
 Qwen3.8 offre modalità di reasoning configurabili. Per evitare un confronto
 confuso:
@@ -193,7 +217,7 @@ confuso:
 Eventuali reasoning traces non devono contenere segreti né diventare un requisito
 di audit. L'evidence utile è la patch, il diagnostico, l'oracle e il risultato.
 
-## 8. Telemetry minima
+## 9. Telemetry minima
 
 Per ogni run:
 
@@ -211,7 +235,7 @@ Per ogni run:
 Log voluminosi e checkpoint non entrano in Git; il repository conserva report,
 indici, checksum e posizione nell'artifact store autorizzato.
 
-## 9. Recovery e rollback
+## 10. Recovery e rollback
 
 - checkpoint atomici in directory run-specific;
 - nessun overwrite dell'ultimo checkpoint valido;
@@ -221,7 +245,7 @@ indici, checksum e posizione nell'artifact store autorizzato.
 - stato `failed`, `qualified`, `candidate`, `promoted`, `rejected` esplicito;
 - una versione rejected resta documentata se ha prodotto evidence utile.
 
-## 10. Comandi: policy
+## 11. Comandi: policy
 
 I comandi eseguibili saranno aggiunti solo dopo il pin della versione e verificati
 con `--help`. La guida MLX-VLM corrente documenta, fra le altre, opzioni per

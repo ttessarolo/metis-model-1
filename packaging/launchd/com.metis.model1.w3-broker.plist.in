@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.metis.model1.w3-broker</string>
+	<key>UserName</key>
+	<string>_metisbroker</string>
+	<key>GroupName</key>
+	<string>_metisbroker</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Library/Application Support/MetisModel1/broker/bin/w3-broker-socket-shim</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/bin:/bin</string>
+		<key>METIS_W3_PACKAGE_INSTANCE</key>
+		<string>w3-public-synthetic-v1/install-v1</string>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>Sockets</key>
+	<dict>
+		<key>BrokerListener</key>
+		<dict>
+			<key>SockPathName</key>
+			<string>/var/run/metis-model1/w3-broker.sock</string>
+			<key>SockPathOwner</key>
+			<integer>501</integer>
+			<key>SockPathGroup</key>
+			<integer>20</integer>
+			<key>SockPathMode</key>
+			<integer>384</integer>
+		</dict>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Library/Logs/MetisModel1/broker/w3-broker.stdout.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Library/Logs/MetisModel1/broker/w3-broker.stderr.log</string>
+</dict>
+</plist>

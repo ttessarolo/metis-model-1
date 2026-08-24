@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import metis_model1.oracles as capsule_oracle_module
 import metis_model1.w3_oracles as oracle_module
 from metis_model1.w3_oracles import (
     PINNED_METIS_REVISION,
@@ -69,10 +70,12 @@ def _identity(adapter: object) -> dict:
         "language_version": "0.43",
         "node": oracle_module.PINNED_NODE_VERSION,
         "node_path": oracle_module.NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{oracle_module.PINNED_LOADER_SHA256}",
+        "loader_flags": list(oracle_module.LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
             "/.metis-oracle/runner.ts"
@@ -83,8 +86,9 @@ def _identity(adapter: object) -> dict:
         "tooling_lock_sha256": f"sha256:{oracle_module.PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{oracle_module.PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": oracle_module.SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
         "class_module": adapter_type.__module__,
         "class_qualname": adapter_type.__qualname__,
         "code_file_sha256": _file_hash(source),
@@ -105,10 +109,12 @@ def _runtime_receipt(candidate_sha: str, identity_sha: str) -> dict:
         "toolchain_tree": oracle_module.PINNED_METIS_TREE,
         "node": oracle_module.PINNED_NODE_VERSION,
         "node_path": oracle_module.NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{oracle_module.PINNED_LOADER_SHA256}",
+        "loader_flags": list(oracle_module.LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{oracle_module.PINNED_METIS_TREE}"
             "/.metis-oracle/runner.ts"
@@ -119,8 +125,9 @@ def _runtime_receipt(candidate_sha: str, identity_sha: str) -> dict:
         "tooling_lock_sha256": f"sha256:{oracle_module.PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{oracle_module.PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": oracle_module.SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": oracle_module.SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}",
     }
     return {**body, "runtime_receipt_sha256": canonical_hash(body)}
 
@@ -283,6 +290,43 @@ def register(monkeypatch: pytest.MonkeyPatch, adapter: RegisteredFakeAdapter) ->
 @pytest.fixture(autouse=True)
 def registered_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     register(monkeypatch, RegisteredFakeAdapter())
+
+
+def test_production_identity_distinguishes_oracle_and_execution_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = RegisteredFakeAdapter()
+    runtime_bindings_sha256 = canonical_hash("independently measured runtime bindings")
+    monkeypatch.setattr(
+        oracle_module,
+        "_production_runtime_bindings_sha256",
+        lambda measured_adapter: (
+            runtime_bindings_sha256
+            if measured_adapter is adapter
+            else canonical_hash("unexpected adapter")
+        ),
+    )
+
+    identity = oracle_module.production_adapter_identity(
+        adapter,
+        semantic_registry_sha256=canonical_hash("semantic registry"),
+        runtime_bindings_sha256=runtime_bindings_sha256,
+    )
+    oracle_policy_sha256 = f"sha256:{oracle_module.SANDBOX_POLICY_SHA256}"
+    execution_policy_sha256 = (
+        "sha256:"
+        + hashlib.sha256(
+            capsule_oracle_module.CAPSULE_EXECUTION_POLICY_TEMPLATE.encode("utf-8")
+        ).hexdigest()
+    )
+
+    assert identity["oracle_policy_sha256"] == oracle_policy_sha256
+    assert identity["execution_policy_sha256"] == execution_policy_sha256
+    assert (
+        identity["execution_policy_sha256"]
+        == oracle_module.CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"]
+    )
+    assert identity["execution_policy_sha256"] != identity["oracle_policy_sha256"]
 
 
 @pytest.mark.parametrize("family", ["F-1", "F-2", "F-3"])

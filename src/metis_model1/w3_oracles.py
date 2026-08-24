@@ -18,7 +18,10 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from metis_model1.oracles import (
+    CAPSULE_EXECUTION_POLICY,
+    LOADER_FLAGS,
     NODE_RUNTIME_IDENTITY,
+    PINNED_LOADER_SHA256,
     PINNED_METIS_TREE,
     PINNED_NODE_BINARY_SHA256,
     PINNED_NODE_MODULES_SHA256,
@@ -482,7 +485,7 @@ def production_adapter_identity(
     semantic_registry_sha256: str,
     runtime_bindings_sha256: str,
 ) -> dict[str, Any]:
-    """Measure the exact schema-v2 production identity from live files/state."""
+    """Measure the exact schema-v3 production identity from live files/state."""
 
     if not valid_hash(semantic_registry_sha256):
         raise W3OracleTrustError("production semantic registry authority is invalid")
@@ -510,7 +513,7 @@ def production_adapter_identity(
     }
     schema_dir = PROJECT_ROOT / "schemas"
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "adapter_id": "metis-model1-w3-production",
         "adapter_version": "1",
         "toolchain_revision": PINNED_METIS_REVISION,
@@ -518,10 +521,12 @@ def production_adapter_identity(
         "language_version": LANGUAGE_VERSION,
         "node": PINNED_NODE_VERSION,
         "node_path": NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{PINNED_LOADER_SHA256}",
+        "loader_flags": list(LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}/.metis-oracle/runner.ts"
         ),
@@ -531,8 +536,9 @@ def production_adapter_identity(
         "tooling_lock_sha256": f"sha256:{PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
         "class_module": adapter_type.__module__,
         "class_qualname": adapter_type.__qualname__,
         "code_file_sha256": _file_hash(source_path),
@@ -586,7 +592,9 @@ def adapter_identity_sha256() -> str:
         "language_version",
         "node",
         "node_path",
-        "tsx_path",
+        "loader_path",
+        "loader_sha256",
+        "loader_flags",
         "runner_path",
         "node_binary_sha256",
         "runner_sha256",
@@ -594,8 +602,9 @@ def adapter_identity_sha256() -> str:
         "tooling_lock_sha256",
         "node_modules_sha256",
         "sandbox_exec_path",
-        "sandbox_policy_version",
-        "sandbox_policy_sha256",
+        "oracle_policy_version",
+        "oracle_policy_sha256",
+        "execution_policy_sha256",
         "class_module",
         "class_qualname",
         "code_file_sha256",
@@ -634,7 +643,7 @@ def adapter_identity_sha256() -> str:
     schema_version = identity.get("schema_version")
     if schema_version == 1:
         _exact_keys(identity, base_identity_keys, "Oracle adapter identity")
-    elif schema_version == 2:
+    elif schema_version == 3:
         _exact_keys(
             identity,
             base_identity_keys | production_identity_keys,
@@ -653,11 +662,13 @@ def adapter_identity_sha256() -> str:
         or identity["metis_write"] != "forbidden"
         or identity["node"] != PINNED_NODE_VERSION
         or identity["node_path"] != NODE_RUNTIME_IDENTITY
-        or identity["tsx_path"]
+        or identity["loader_path"]
         != (
             f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         )
+        or identity["loader_sha256"] != f"sha256:{PINNED_LOADER_SHA256}"
+        or identity["loader_flags"] != list(LOADER_FLAGS)
         or identity["runner_path"]
         != (f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}/.metis-oracle/runner.ts")
         or identity["node_binary_sha256"] != f"sha256:{PINNED_NODE_BINARY_SHA256}"
@@ -666,11 +677,17 @@ def adapter_identity_sha256() -> str:
         or identity["tooling_lock_sha256"] != f"sha256:{PINNED_TOOLING_LOCK_SHA256}"
         or identity["node_modules_sha256"] != f"sha256:{PINNED_NODE_MODULES_SHA256}"
         or identity["sandbox_exec_path"] != SANDBOX_EXEC_IDENTITY
-        or identity["sandbox_policy_version"] != SANDBOX_POLICY_VERSION
-        or identity["sandbox_policy_sha256"] != f"sha256:{SANDBOX_POLICY_SHA256}"
+        or identity["oracle_policy_version"] != SANDBOX_POLICY_VERSION
+        or identity["oracle_policy_sha256"] != f"sha256:{SANDBOX_POLICY_SHA256}"
+        or identity["execution_policy_sha256"]
+        != (
+            CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"]
+            if schema_version == 3
+            else f"sha256:{SANDBOX_POLICY_SHA256}"
+        )
     ):
         raise W3OracleTrustError("Oracle adapter toolchain/write/network identity is not pinned")
-    if schema_version == 2:
+    if schema_version == 3:
         schema_dir = PROJECT_ROOT / "schemas"
         expected_production = {
             "semantic_spec_schema_sha256": _file_hash(schema_dir / "w3-semantic-spec.schema.json"),
@@ -695,11 +712,13 @@ def adapter_identity_sha256() -> str:
             )
     for field in (
         "node_binary_sha256",
+        "loader_sha256",
         "runner_sha256",
         "tooling_package_sha256",
         "tooling_lock_sha256",
         "node_modules_sha256",
-        "sandbox_policy_sha256",
+        "oracle_policy_sha256",
+        "execution_policy_sha256",
         "code_file_sha256",
         "instance_state_sha256",
         "identity_method_source_file_sha256",
@@ -755,11 +774,10 @@ def _exact_keys(value: Mapping[str, Any], expected: set[str], label: str) -> Non
 
 
 def _runtime_receipt(candidate_sha256: str, identity_sha256: str) -> dict[str, Any]:
-    """Return the required runtime-policy binding, not proof of runner execution.
+    """Return the fixture-v1 runtime-policy binding, not proof of runner execution.
 
-    A future production adapter remains separately reviewable and must obtain
-    authority only after its real runner evidence has been audited. The module
-    deliberately ships with no registered production adapter or identity.
+    Production schema v3 uses real runner envelopes and never calls this helper.
+    The module deliberately ships with no registered production adapter or identity.
     """
 
     body = {
@@ -770,10 +788,12 @@ def _runtime_receipt(candidate_sha256: str, identity_sha256: str) -> dict[str, A
         "toolchain_tree": PINNED_METIS_TREE,
         "node": PINNED_NODE_VERSION,
         "node_path": NODE_RUNTIME_IDENTITY,
-        "tsx_path": (
+        "loader_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
-            "/tooling/node_modules/tsx/dist/loader.mjs"
+            "/.metis-oracle/native_ts_loader.mjs"
         ),
+        "loader_sha256": f"sha256:{PINNED_LOADER_SHA256}",
+        "loader_flags": list(LOADER_FLAGS),
         "runner_path": (
             f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}/.metis-oracle/runner.ts"
         ),
@@ -783,8 +803,9 @@ def _runtime_receipt(candidate_sha256: str, identity_sha256: str) -> dict[str, A
         "tooling_lock_sha256": f"sha256:{PINNED_TOOLING_LOCK_SHA256}",
         "node_modules_sha256": f"sha256:{PINNED_NODE_MODULES_SHA256}",
         "sandbox_exec_path": SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": f"sha256:{SANDBOX_POLICY_SHA256}",
+        "oracle_policy_version": SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": f"sha256:{SANDBOX_POLICY_SHA256}",
+        "execution_policy_sha256": f"sha256:{SANDBOX_POLICY_SHA256}",
     }
     return {**body, "runtime_receipt_sha256": canonical_hash(body)}
 
@@ -866,7 +887,11 @@ def _validate_real_execution(
     if not isinstance(request, dict) or request != expected_request:
         raise W3OracleTrustError("real Oracle request is not the exact registered request")
     try:
-        verify_oracle_envelope(envelope, request=request)
+        verify_oracle_envelope(
+            envelope,
+            request=request,
+            expected_execution_policy_sha256=CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
+        )
     except ValueError as error:
         raise W3OracleTrustError("real Oracle envelope failed independent verification") from error
     result = envelope["result"]
@@ -948,7 +973,7 @@ def _validate_real_runtime_receipt(
         "runtime_receipt_sha256",
     }
     _exact_keys(value, expected_keys, "real Oracle runtime receipt")
-    if value["schema_version"] != 2 or value["receipt_mode"] != "real-runner-envelopes":
+    if value["schema_version"] != 3 or value["receipt_mode"] != "real-runner-envelopes":
         raise W3OracleTrustError("real Oracle runtime receipt schema/mode is not pinned")
     if (
         value["candidate_sha256"] != candidate_sha256
@@ -1081,7 +1106,7 @@ def invoke_oracle(candidate: Mapping[str, Any]) -> OracleEvaluation:
         raise W3OracleError("Oracle result is not bound to the registered adapter")
     expected_receipt_mode = (
         "real-runner-envelopes"
-        if identity_material.get("schema_version") == 2
+        if identity_material.get("schema_version") == 3
         else "fixture-policy"
     )
     if raw["receipt_mode"] != expected_receipt_mode:
@@ -1091,7 +1116,7 @@ def invoke_oracle(candidate: Mapping[str, Any]) -> OracleEvaluation:
         candidate_sha256,
         identity_sha256,
         candidate=canonical_candidate,
-        require_real=identity_material.get("schema_version") == 2,
+        require_real=identity_material.get("schema_version") == 3,
         expected_registry_sha256=identity_material.get("semantic_registry_sha256"),
     )
     predicates = raw["predicates"]

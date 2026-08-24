@@ -34,6 +34,29 @@ PINNED_NODE = oracle_module._resolve_pinned_node()[0]
 VALID = 'metis 0.43\nendpoint play.test as "test" {\n  variant v { empty }\n}\n'
 
 
+def test_l66_public_capsule_execution_stops_before_request_filesystem_or_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("public Oracle crossed the protected-broker STOP")
+
+    monkeypatch.setattr(oracle_module, "_validate_capsule_request", forbidden)
+    monkeypatch.setattr(oracle_module, "_strict_canonical_path", forbidden)
+    monkeypatch.setattr(oracle_module.subprocess, "Popen", forbidden)
+    with pytest.raises(OracleError, match="protected execution broker"):
+        oracle_module.run_oracle_from_capsule(
+            {},
+            capsule_root="absent-capsule",
+            process_root="absent-process",
+            output_path="absent-output",
+        )
+    assert observed == []
+
+
 def _oracle_open_fd_snapshot() -> dict[int, tuple[int, int, int, int]]:
     """Measure live descriptors by fstat; discard the closed /dev/fd scan handle."""
 
@@ -245,7 +268,7 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
             tree=oracle_module.PINNED_METIS_TREE,
         )
         request = {
-            "schema_version": 2,
+            "schema_version": 3,
             "protocol": oracle_module.CAPSULE_PROTOCOL,
             "execution_id": "candidate-fd.author",
             "run_nonce": "1" * 64,
@@ -260,6 +283,28 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
             lambda *_args, **_kwargs: (capsule, manifest),
         )
         monkeypatch.setattr(oracle_module, "_capture_runtime_capsule_contents", lambda *_: {})
+        monkeypatch.setattr(
+            oracle_module,
+            "_resolve_pinned_node",
+            lambda: (Path(sys.executable).resolve(), oracle_module.PINNED_NODE_BINARY_SHA256),
+        )
+
+        @contextlib.contextmanager
+        def runtime_preimage(invocation: Path, *_args: object):
+            root_descriptor = os.open(invocation, directory_flags)
+            node_path = Path(sys.executable).resolve()
+            node_descriptor = os.open(node_path, os.O_RDONLY | os.O_CLOEXEC)
+            try:
+                yield invocation, node_path, root_descriptor, node_descriptor
+            finally:
+                os.close(node_descriptor)
+                os.close(root_descriptor)
+
+        monkeypatch.setattr(
+            oracle_module,
+            "_owned_materialized_runtime_preimage",
+            runtime_preimage,
+        )
 
         def materialize(invocation: Path, *_args: object) -> tuple[Path, int]:
             descriptor = os.open(invocation, directory_flags)
@@ -283,6 +328,8 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
         root.mkdir(mode=0o700)
         runner = tmp_path / "runner.ts"
         runner.write_text("runner", encoding="utf-8")
+        loader = tmp_path / "native_ts_loader.mjs"
+        loader.write_text("loader", encoding="utf-8")
         output = root / "results" / "oracle.json"
         result = {"diagnostics": {}, "ast": {"inventory": {}}, "ir": {"value": None}}
 
@@ -331,6 +378,8 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
             lambda path: (
                 oracle_module.PINNED_NODE_BINARY_SHA256
                 if Path(path).name == "true"
+                else oracle_module.PINNED_LOADER_SHA256
+                if Path(path).name == "native_ts_loader.mjs"
                 else oracle_module.PINNED_RUNNER_SHA256
             ),
         )
@@ -348,7 +397,7 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
         monkeypatch.setattr(
             oracle_module,
             "_build_isolated_snapshot",
-            lambda *_args: (Holder(), root, root, runner, Path("/bin/true")),
+            lambda *_args: (Holder(), root, root, runner, loader, Path("/bin/true")),
         )
         monkeypatch.setattr(
             oracle_module,
@@ -672,7 +721,7 @@ def test_explicit_unqualified_node_is_rejected(
 ) -> None:
     wrong = write_unqualified_node(artifact_tmp / "unqualified-node")
     monkeypatch.setenv(oracle_module.NODE_RUNTIME_ENV, str(wrong))
-    with pytest.raises(OracleError, match="binary hash"):
+    with pytest.raises(OracleError, match="executable file"):
         execute(artifact_tmp)
 
 
@@ -697,10 +746,12 @@ def test_isolated_node_modules_mutation_between_validation_and_execution_is_reje
     original = oracle_module._build_isolated_snapshot
 
     def attacked(*args: object, **kwargs: object) -> object:
-        holder, snapshot, modules, snapshot_runner, snapshot_node = original(*args, **kwargs)
+        holder, snapshot, modules, snapshot_runner, snapshot_loader, snapshot_node = original(
+            *args, **kwargs
+        )
         target = modules / "langium/package.json"
         target.write_text("{}\n", encoding="utf-8")
-        return holder, snapshot, modules, snapshot_runner, snapshot_node
+        return holder, snapshot, modules, snapshot_runner, snapshot_loader, snapshot_node
 
     monkeypatch.setattr(oracle_module, "_build_isolated_snapshot", attacked)
     with pytest.raises(OracleError, match="changed before execution"):
@@ -709,8 +760,8 @@ def test_isolated_node_modules_mutation_between_validation_and_execution_is_reje
 
 def test_forged_runtime_path_is_rejected_even_with_rehashed_envelope(artifact_tmp: Path) -> None:
     envelope = execute(artifact_tmp)
-    envelope["result"]["runtime"]["tsx_path"] = "snapshot://forged/tsx"
-    envelope["evidence"]["runtime_identity"]["tsx_path"] = "snapshot://forged/tsx"
+    envelope["result"]["runtime"]["loader_path"] = "snapshot://forged/loader"
+    envelope["evidence"]["runtime_identity"]["loader_path"] = "snapshot://forged/loader"
     envelope["evidence"]["runtime_sha256"] = oracle_module._sha(
         envelope["evidence"]["runtime_identity"]
     )
@@ -726,9 +777,11 @@ def test_runner_mutation_after_snapshot_build_is_rejected(
     original = oracle_module._build_isolated_snapshot
 
     def attacked(*args: object, **kwargs: object) -> object:
-        holder, snapshot, modules, snapshot_runner, snapshot_node = original(*args, **kwargs)
+        holder, snapshot, modules, snapshot_runner, snapshot_loader, snapshot_node = original(
+            *args, **kwargs
+        )
         snapshot_runner.write_text("process.stdout.write('{}')\n", encoding="utf-8")
-        return holder, snapshot, modules, snapshot_runner, snapshot_node
+        return holder, snapshot, modules, snapshot_runner, snapshot_loader, snapshot_node
 
     monkeypatch.setattr(oracle_module, "_build_isolated_snapshot", attacked)
     with pytest.raises(OracleError, match="isolated runner changed before execution"):
@@ -794,9 +847,16 @@ def test_metis_checkout_status_is_unchanged_after_isolated_execution(artifact_tm
 def _capsule_fixture(tmp_path: Path) -> tuple[Path, dict]:
     root = tmp_path / "capsule"
     files = {
-        "bin/node": (b"node", 0o555, "node"),
-        "tooling/node_modules/tsx/dist/loader.mjs": (b"tsx", 0o444, "tsx"),
-        ".metis-oracle/runner.ts": (b"runner", 0o444, "runner"),
+        ".metis-oracle/native_ts_loader.mjs": (
+            oracle_module.LOADER_PATH.read_bytes(),
+            0o444,
+            "loader",
+        ),
+        ".metis-oracle/runner.ts": (
+            oracle_module.RUNNER_PATH.read_bytes(),
+            0o444,
+            "runner",
+        ),
         "tooling/package.json": (b"{}", 0o444, "tooling"),
     }
     rows = []
@@ -817,13 +877,12 @@ def _capsule_fixture(tmp_path: Path) -> tuple[Path, dict]:
     rows.sort(key=lambda row: row["path"])
     by_role = {row["role"]: row for row in rows}
     body = {
-        "schema_version": 2,
-        "capsule_id": "pytest-capsule-v2",
+        "schema_version": 3,
+        "capsule_id": "pytest-capsule-v3",
         "revision": oracle_module.PINNED_METIS_REVISION,
         "tree": oracle_module.PINNED_METIS_TREE,
         "language_version": "0.43",
-        "node": {key: by_role["node"][key] for key in ("path", "sha256", "mode")},
-        "tsx": {key: by_role["tsx"][key] for key in ("path", "sha256", "mode")},
+        "loader": {key: by_role["loader"][key] for key in ("path", "sha256", "mode")},
         "runner": {key: by_role["runner"][key] for key in ("path", "sha256", "mode")},
         "tooling": {
             "package_sha256": "sha256:" + oracle_module.PINNED_TOOLING_PACKAGE_SHA256,
@@ -883,7 +942,7 @@ def test_runtime_capsule_mutations_fail_closed(tmp_path: Path, attack: str) -> N
         (root / "extra").write_text("x")
         (root / "extra").chmod(0o444)
     elif attack == "mode":
-        (root / "bin/node").chmod(0o444)
+        (root / ".metis-oracle/native_ts_loader.mjs").chmod(0o555)
     elif attack == "symlink":
         (root / "escape").symlink_to(tmp_path / "outside")
     else:
@@ -917,23 +976,269 @@ def test_runtime_capsule_mutations_fail_closed(tmp_path: Path, attack: str) -> N
             item.chmod(0o644)
 
 
+@pytest.mark.parametrize("forbidden_role", ["node", "tsx"])
+def test_runtime_capsule_rejects_executable_or_legacy_loader_in_trusted_roster(
+    tmp_path: Path, forbidden_role: str
+) -> None:
+    root, manifest = _capsule_fixture(tmp_path)
+    root.chmod(0o755)
+    forbidden = root / "forbidden" / forbidden_role
+    forbidden.parent.mkdir()
+    forbidden.write_bytes(b"forbidden")
+    forbidden.chmod(0o444)
+    row = {
+        "path": forbidden.relative_to(root).as_posix(),
+        "size": len(b"forbidden"),
+        "mode": 0o444,
+        "sha256": "sha256:" + hashlib.sha256(b"forbidden").hexdigest(),
+        "role": forbidden_role,
+    }
+    changed = json.loads(oracle_module._canonical(manifest))
+    changed["files"].append(row)
+    changed["files"].sort(key=lambda item: item["path"])
+    changed["counts"] = {
+        "files": len(changed["files"]),
+        "bytes": sum(item["size"] for item in changed["files"]),
+    }
+    changed["roster_sha256"] = oracle_module._sha(changed["files"])
+    body = {key: value for key, value in changed.items() if key != "manifest_sha256"}
+    changed["manifest_sha256"] = oracle_module._sha(body)
+    (root / "capsule.json").chmod(0o644)
+    (root / "capsule.json").write_bytes(oracle_module._canonical(changed))
+    (root / "capsule.json").chmod(0o444)
+    forbidden.parent.chmod(0o555)
+    root.chmod(0o555)
+
+    with pytest.raises(OracleError, match="file record is invalid"):
+        oracle_module.verify_runtime_capsule(
+            root,
+            expected_manifest_sha256=changed["manifest_sha256"],
+        )
+
+
+def _run_native_loader_probe(
+    capsule: Path, runner_source: str
+) -> subprocess.CompletedProcess[bytes]:
+    loader = capsule / ".metis-oracle/native_ts_loader.mjs"
+    runner = capsule / ".metis-oracle/probe.ts"
+    loader.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(oracle_module.LOADER_PATH, loader)
+    runner.write_text(runner_source, encoding="utf-8")
+    return subprocess.run(
+        [
+            str(PINNED_NODE),
+            *oracle_module.LOADER_FLAGS,
+            str(loader),
+            str(runner),
+        ],
+        cwd=capsule,
+        capture_output=True,
+        check=False,
+        env={"PATH": "", "LANG": "C", "LC_ALL": "C"},
+        timeout=10,
+    )
+
+
+def test_native_loader_exact_flags_transform_inside_capsule_without_warning(tmp_path: Path) -> None:
+    capsule = tmp_path / "native-loader-success"
+    capsule.mkdir()
+    (capsule / "inside.ts").write_text(
+        'export const marker: string = "native-loader-ok";\n', encoding="utf-8"
+    )
+    completed = _run_native_loader_probe(
+        capsule,
+        'import { marker } from "../inside.js"; process.stdout.write(marker);\n',
+    )
+    assert completed.returncode == 0
+    assert completed.stdout == b"native-loader-ok"
+    assert completed.stderr == b""
+
+
+@pytest.mark.parametrize("attack", ["absolute", "symlink", "ambient-package"])
+def test_native_loader_blocks_escape_and_ambient_resolution(tmp_path: Path, attack: str) -> None:
+    capsule = tmp_path / "native-loader-blocked" / "capsule"
+    capsule.mkdir(parents=True)
+    outside = tmp_path / "native-loader-blocked" / "outside.mjs"
+    outside.write_text('export const marker = "outside";\n', encoding="utf-8")
+    if attack == "absolute":
+        specifier = outside.as_uri()
+    elif attack == "symlink":
+        (capsule / "escape.mjs").symlink_to(outside)
+        specifier = "../escape.mjs"
+    else:
+        package = capsule.parent / "node_modules" / "ambient-fixture"
+        package.mkdir(parents=True)
+        (package / "package.json").write_text(
+            '{"exports":"./index.mjs","type":"module"}', encoding="utf-8"
+        )
+        (package / "index.mjs").write_text('export const marker = "ambient";\n', encoding="utf-8")
+        specifier = "ambient-fixture"
+    completed = _run_native_loader_probe(
+        capsule,
+        f"import {{ marker }} from {json.dumps(specifier)}; process.stdout.write(marker);\n",
+    )
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert b"native loader blocked" in completed.stderr
+
+
 def _complete_mock_capsule_manifest(capsule: Path, manifest: dict) -> None:
     records = []
-    for role in ("node", "tsx", "runner"):
+    for role in ("loader", "runner"):
         path = capsule / manifest[role]["path"]
-        path.chmod(0o555 if role == "node" else 0o444)
+        path.chmod(0o444)
         raw = path.read_bytes()
         records.append(
             {
                 "path": manifest[role]["path"],
                 "size": len(raw),
-                "mode": 0o555 if role == "node" else 0o444,
+                "mode": 0o444,
                 "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
                 "role": role,
             }
         )
     manifest["files"] = records
     manifest["manifest_sha256"] = "sha256:" + "2" * 64
+
+
+def _runtime_node_fixture(tmp_path: Path, name: str) -> tuple[Path, Path]:
+    runtime = tmp_path / name
+    node = runtime / "bin/node"
+    node.parent.mkdir(parents=True)
+    node.write_bytes(b"#!/bin/sh\nexit 0\n")
+    node.chmod(0o755)
+    return runtime, node
+
+
+def _tiny_registered_node(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    raw = b"node"
+    source = tmp_path / "registered-node"
+    source.write_bytes(raw)
+    source.chmod(0o755)
+    monkeypatch.setattr(oracle_module, "PINNED_NODE_BYTES", len(raw))
+    monkeypatch.setattr(
+        oracle_module,
+        "PINNED_NODE_BINARY_SHA256",
+        hashlib.sha256(raw).hexdigest(),
+    )
+    return source
+
+
+def test_runtime_preimage_fd_materializer_has_exact_node_only_roster(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _tiny_registered_node(tmp_path, monkeypatch)
+    invocation = tmp_path / "invocation"
+    invocation.mkdir(mode=0o700)
+    invocation_fd = os.open(
+        invocation,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    root_fd = node_fd = -1
+    try:
+        root, node, root_fd, node_fd = oracle_module._materialize_runtime_preimage(
+            invocation,
+            invocation_fd,
+            source,
+        )
+        oracle_module._verify_runtime_preimage_at(root_fd, node_fd)
+        assert oracle_module._capsule_preimage_roster_at(root_fd) == (
+            {"bin/node"},
+            {"bin": 0o555},
+        )
+        assert oracle_module._directory_fd_matches_path(root_fd, root)
+        assert oracle_module._file_fd_matches_path(node_fd, node)
+    finally:
+        for descriptor in (node_fd, root_fd, invocation_fd):
+            if descriptor >= 0:
+                os.close(descriptor)
+
+
+def test_runtime_preimage_fd_materializer_rejects_path_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _tiny_registered_node(tmp_path, monkeypatch)
+    invocation = tmp_path / "invocation"
+    invocation.mkdir(mode=0o700)
+    invocation_fd = os.open(
+        invocation,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    displaced = invocation / "runtime-displaced"
+    outside = tmp_path / "runtime-outside"
+    outside.mkdir(mode=0o700)
+    original_verify = oracle_module._verify_runtime_preimage_at
+
+    def swap_after_verify(root_fd: int, node_fd: int) -> None:
+        original_verify(root_fd, node_fd)
+        runtime = invocation / "runtime"
+        runtime.chmod(0o700)
+        runtime.rename(displaced)
+        runtime.symlink_to(outside, target_is_directory=True)
+
+    monkeypatch.setattr(oracle_module, "_verify_runtime_preimage_at", swap_after_verify)
+    try:
+        with pytest.raises(OracleError, match="namespace changed during materialization"):
+            oracle_module._materialize_runtime_preimage(invocation, invocation_fd, source)
+        assert list(outside.iterdir()) == []
+    finally:
+        os.close(invocation_fd)
+
+
+def test_capsule_command_rejects_replaced_runtime_node_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _tiny_registered_node(tmp_path, monkeypatch)
+    invocation = tmp_path / "invocation"
+    invocation.mkdir(mode=0o700)
+    invocation_fd = os.open(
+        invocation,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    root_fd = node_fd = -1
+    try:
+        runtime, node, root_fd, node_fd = oracle_module._materialize_runtime_preimage(
+            invocation,
+            invocation_fd,
+            source,
+        )
+        capsule = tmp_path / "capsule-runtime-node-swap"
+        (capsule / "work").mkdir(parents=True)
+        process = tmp_path / "process-runtime-node-swap"
+        process.mkdir()
+        runtime.chmod(0o700)
+        (runtime / "bin").chmod(0o700)
+        displaced = runtime / "bin/node.displaced"
+        node.rename(displaced)
+        node.write_bytes(b"node")
+        node.chmod(0o555)
+        runtime.chmod(0o555)
+        (runtime / "bin").chmod(0o555)
+        with pytest.raises(OracleError, match="opened roots differ"):
+            oracle_module._run_capsule_command(
+                [str(node)],
+                cwd=capsule / "work",
+                request_bytes=b"{}",
+                stdout_path=process / "stdout",
+                stderr_path=process / "stderr",
+                timeout=1.0,
+                node_executable=node,
+                runtime_root=runtime,
+                capsule_root=capsule,
+                process_root=process,
+                runtime_root_fd=root_fd,
+                node_executable_fd=node_fd,
+            )
+    finally:
+        for descriptor in (node_fd, root_fd, invocation_fd):
+            if descriptor >= 0:
+                os.close(descriptor)
 
 
 @pytest.mark.parametrize("use_directory_fd", [False, True])
@@ -943,10 +1248,7 @@ def test_capsule_command_stderr_open_failure_closes_stdout_and_retains_partial_f
     capsule = tmp_path / "capsule-stderr-open-failure"
     cwd = capsule / "work"
     cwd.mkdir(parents=True)
-    node = capsule / "bin/node"
-    node.parent.mkdir()
-    node.write_bytes(b"#!/bin/sh\nexit 0\n")
-    node.chmod(0o755)
+    runtime, node = _runtime_node_fixture(tmp_path, "runtime-stderr-open-failure")
     process = tmp_path / "process-stderr-open-failure"
     process.mkdir()
     stream_directory_fd = (
@@ -980,6 +1282,7 @@ def test_capsule_command_stderr_open_failure_closes_stdout_and_retains_partial_f
                     stderr_path=process / f"stderr-{index}",
                     timeout=1.0,
                     node_executable=node,
+                    runtime_root=runtime,
                     capsule_root=capsule,
                     process_root=process,
                     stream_directory_fd=stream_directory_fd,
@@ -1001,10 +1304,10 @@ def test_capsule_command_stderr_open_race_preserves_replacement_and_owned_partia
     capsule = tmp_path / f"capsule-stderr-race-{use_directory_fd}"
     cwd = capsule / "work"
     cwd.mkdir(parents=True)
-    node = capsule / "bin/node"
-    node.parent.mkdir()
-    node.write_bytes(b"#!/bin/sh\nexit 0\n")
-    node.chmod(0o755)
+    runtime, node = _runtime_node_fixture(
+        tmp_path,
+        f"runtime-stderr-race-{use_directory_fd}",
+    )
     process = tmp_path / f"process-stderr-race-{use_directory_fd}"
     process.mkdir()
     stdout_path = process / "stdout-race"
@@ -1063,6 +1366,7 @@ def test_capsule_command_stderr_open_race_preserves_replacement_and_owned_partia
                 stderr_path=stderr_path,
                 timeout=1.0,
                 node_executable=node,
+                runtime_root=runtime,
                 capsule_root=capsule,
                 process_root=process,
                 stream_directory_fd=stream_directory_fd,
@@ -1082,10 +1386,7 @@ def test_capsule_command_keyboard_interrupt_reaps_group_and_retains_partial_stre
     capsule = tmp_path / f"capsule-interrupt-{use_directory_fd}"
     cwd = capsule / "work"
     cwd.mkdir(parents=True)
-    node = capsule / "bin/node"
-    node.parent.mkdir()
-    node.write_bytes(b"#!/bin/sh\nexit 0\n")
-    node.chmod(0o755)
+    runtime, node = _runtime_node_fixture(tmp_path, f"runtime-interrupt-{use_directory_fd}")
     process_root = tmp_path / f"process-interrupt-{use_directory_fd}"
     process_root.mkdir()
     stdout_path = process_root / "stdout-interrupt"
@@ -1129,6 +1430,7 @@ def test_capsule_command_keyboard_interrupt_reaps_group_and_retains_partial_stre
                 stderr_path=stderr_path,
                 timeout=5.0,
                 node_executable=node,
+                runtime_root=runtime,
                 capsule_root=capsule,
                 process_root=process_root,
                 stream_directory_fd=stream_directory_fd,
@@ -1159,7 +1461,7 @@ def test_run_from_capsule_never_calls_live_checkout_snapshot(
     capsule = tmp_path / "capsule-low-level"
     for name, raw in {
         "bin/node": b"node",
-        "tooling/node_modules/tsx/dist/loader.mjs": b"tsx",
+        ".metis-oracle/native_ts_loader.mjs": b"loader",
         ".metis-oracle/runner.ts": b"runner",
     }.items():
         path = capsule / name
@@ -1167,7 +1469,7 @@ def test_run_from_capsule_never_calls_live_checkout_snapshot(
         path.write_bytes(raw)
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader": {"path": ".metis-oracle/native_ts_loader.mjs"},
         "runner": {"path": ".metis-oracle/runner.ts"},
     }
     _complete_mock_capsule_manifest(capsule, manifest)
@@ -1186,7 +1488,9 @@ def test_run_from_capsule_never_calls_live_checkout_snapshot(
         endpoint="play.capsule",
     )
     runtime = oracle_module._runtime_identity_policy(
-        oracle_module.PINNED_METIS_REVISION, oracle_module.PINNED_METIS_TREE
+        oracle_module.PINNED_METIS_REVISION,
+        oracle_module.PINNED_METIS_TREE,
+        execution_policy_sha256=oracle_module.CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
     )
     ir_value = {"name": "play.capsule"}
     result = {
@@ -1211,7 +1515,7 @@ def test_run_from_capsule_never_calls_live_checkout_snapshot(
     process = tmp_path / "process"
     process.mkdir()
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1234,7 +1538,7 @@ def test_run_from_capsule_never_calls_live_checkout_snapshot(
 )
 def test_capsule_oracle_envelope_non_string_identity_is_typed_blocked(field: str) -> None:
     body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "request_sha256": "sha256:" + "1" * 64,
@@ -1274,7 +1578,7 @@ def test_public_capsule_executes_captured_preimage_during_runner_swap_restore(
     runner.write_text(original, encoding="utf-8")
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/loader.mjs"},
+        "loader": {"path": "tooling/loader.mjs"},
         "runner": {"path": "runner.mjs"},
     }
     _complete_mock_capsule_manifest(capsule, manifest)
@@ -1324,7 +1628,7 @@ def test_public_capsule_executes_captured_preimage_during_runner_swap_restore(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1360,7 +1664,7 @@ def test_public_capsule_invocation_creation_rejects_preexisting_parent_symlink(
     capsule = tmp_path / "capsule-invocation-symlink"
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader": {"path": ".metis-oracle/native_ts_loader.mjs"},
         "runner": {"path": ".metis-oracle/runner.ts"},
     }
     for relative in (item["path"] for item in manifest.values()):
@@ -1383,7 +1687,7 @@ def test_public_capsule_invocation_creation_rejects_preexisting_parent_symlink(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1407,7 +1711,7 @@ def test_public_capsule_materialization_blocks_timed_invocation_symlink_swap(
     capsule = tmp_path / "capsule-invocation-timed-swap"
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader": {"path": ".metis-oracle/native_ts_loader.mjs"},
         "runner": {"path": ".metis-oracle/runner.ts"},
     }
     for relative in (item["path"] for item in manifest.values()):
@@ -1429,7 +1733,7 @@ def test_public_capsule_materialization_blocks_timed_invocation_symlink_swap(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1469,7 +1773,7 @@ def test_public_capsule_invocation_creation_rejects_nonprivate_namespace_mode(
     capsule = tmp_path / "capsule-invocation-mode"
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader": {"path": ".metis-oracle/native_ts_loader.mjs"},
         "runner": {"path": ".metis-oracle/runner.ts"},
     }
     for relative in (item["path"] for item in manifest.values()):
@@ -1492,7 +1796,7 @@ def test_public_capsule_invocation_creation_rejects_nonprivate_namespace_mode(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1515,7 +1819,7 @@ def test_public_capsule_output_parent_timed_symlink_swap_writes_nothing_outside(
     capsule = tmp_path / "capsule-output-swap"
     manifest = {
         "node": {"path": "bin/node"},
-        "tsx": {"path": "tooling/node_modules/tsx/dist/loader.mjs"},
+        "loader": {"path": ".metis-oracle/native_ts_loader.mjs"},
         "runner": {"path": ".metis-oracle/runner.ts"},
     }
     for relative in (item["path"] for item in manifest.values()):
@@ -1540,7 +1844,7 @@ def test_public_capsule_output_parent_timed_symlink_swap_writes_nothing_outside(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1588,7 +1892,7 @@ def test_public_capsule_boundary_rejects_parent_symlink_inputs(
         endpoint="play.capsule",
     )
     request = {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": oracle_module.CAPSULE_PROTOCOL,
         "execution_id": "candidate-f1.author",
         "run_nonce": "1" * 64,
@@ -1602,7 +1906,7 @@ def test_public_capsule_boundary_rejects_parent_symlink_inputs(
             capsule,
             {
                 "node": {"path": "bin/node"},
-                "tsx": {"path": "tooling/tsx.mjs"},
+                "loader": {"path": "tooling/loader.mjs"},
                 "runner": {"path": "runner.ts"},
             },
         ),

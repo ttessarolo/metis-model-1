@@ -86,6 +86,11 @@ nuove ipotesi. H-001, H-002, H-004 e H-005 restano aperte.
 Se H-001 o H-002 falliscono, non si scala il training: si rivedono dataset,
 task formulation o confine del prodotto.
 
+Prima di tentare H-001, la variante B viene misurata da sola. Se B soddisfa il
+gate pratico W5-XS, `NO_TRAIN` è un esito di successo e Model 1 viene consegnato
+come sistema Qwen3.8+contesto+toolchain. Un adapter è un'ottimizzazione
+sperimentale, non un deliverable obbligatorio.
+
 ## 5. Definizione di “nativo”
 
 Per questo progetto, “nativo” è una proprietà misurabile e non uno slogan. Un
@@ -117,7 +122,13 @@ esplicita che riconcili la divergenza.
 
 ## 7. Successo di Model 1
 
-Model 1 può essere promosso solo quando:
+Model 1 ha due livelli di chiusura non intercambiabili.
+
+`MODEL1_USABLE_LOCAL` richiede che B, oppure D dopo un micro-adapter, soddisfi
+il gate semantico W5-XS senza veto critici. Non implica un claim statistico o
+distribuibilità.
+
+`ACCURACY99_PROMOTED` richiede invece che:
 
 - la catena di training è riproducibile da manifest e hash;
 - il benchmark frozen non è contaminato;

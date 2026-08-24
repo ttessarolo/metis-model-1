@@ -13,6 +13,12 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
+    "nativeEvidence": {
+      "const": {
+        "path": "manifests/w3-native-loader-evidence.json",
+        "manifest_sha256": "sha256:a84ec4511009102f1c2cc23604a4147606e34030809537d1528fd49032f331f6"
+      }
+    },
     "processRetainedCounts": {
       "type": "object",
       "additionalProperties": false,
@@ -31,6 +37,16 @@
         "files": { "type": "integer", "minimum": 0, "maximum": 4096 },
         "directories": { "type": "integer", "minimum": 1, "maximum": 4096 },
         "bytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 }
+      }
+    },
+    "runtimeRetainedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "directories", "bytes"],
+      "properties": {
+        "files": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "directories": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 134217728 }
       }
     },
     "publicationRetainedCounts": {
@@ -56,6 +72,7 @@
         "kind": {
           "enum": [
             "worker-process-root", "production-process-root",
+            "production-runtime-root",
             "production-trusted-root", "qualification-publication-partial-root"
           ]
         },
@@ -113,6 +130,19 @@
         }
       ]
     },
+    "productionRuntimeRoot": {
+      "allOf": [
+        { "$ref": "#/$defs/sealedRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-runtime-root" },
+            "logical_root": { "const": "runtime" },
+            "anchor": { "const": "run-root" },
+            "counts": { "$ref": "#/$defs/runtimeRetainedCounts" }
+          }
+        }
+      ]
+    },
     "publicationPartialRoot": {
       "allOf": [
         { "$ref": "#/$defs/sealedRetainedRoot" },
@@ -138,6 +168,7 @@
         "kind": {
           "enum": [
             "worker-process-root", "production-process-root",
+            "production-runtime-root",
             "production-trusted-root", "qualification-publication-partial-root"
           ]
         },
@@ -188,6 +219,18 @@
         }
       ]
     },
+    "productionRuntimeUnmeasurable": {
+      "allOf": [
+        { "$ref": "#/$defs/unmeasurableRetainedRoot" },
+        {
+          "properties": {
+            "kind": { "const": "production-runtime-root" },
+            "logical_root": { "const": "runtime" },
+            "anchor": { "const": "run-root" }
+          }
+        }
+      ]
+    },
     "publicationPartialUnmeasurable": {
       "allOf": [
         { "$ref": "#/$defs/unmeasurableRetainedRoot" },
@@ -218,6 +261,12 @@
         { "$ref": "#/$defs/productionTrustedUnmeasurable" }
       ]
     },
+    "productionRuntimeBlockedRoot": {
+      "oneOf": [
+        { "$ref": "#/$defs/productionRuntimeRoot" },
+        { "$ref": "#/$defs/productionRuntimeUnmeasurable" }
+      ]
+    },
     "publicationPartialBlockedRoot": {
       "oneOf": [
         { "$ref": "#/$defs/publicationPartialRoot" },
@@ -228,10 +277,12 @@
       "oneOf": [
         { "$ref": "#/$defs/workerProcessRoot" },
         { "$ref": "#/$defs/productionProcessRoot" },
+        { "$ref": "#/$defs/productionRuntimeRoot" },
         { "$ref": "#/$defs/productionTrustedRoot" },
         { "$ref": "#/$defs/publicationPartialRoot" },
         { "$ref": "#/$defs/workerProcessUnmeasurable" },
         { "$ref": "#/$defs/productionProcessUnmeasurable" },
+        { "$ref": "#/$defs/productionRuntimeUnmeasurable" },
         { "$ref": "#/$defs/productionTrustedUnmeasurable" },
         { "$ref": "#/$defs/publicationPartialUnmeasurable" }
       ]
@@ -246,7 +297,7 @@
         "delete_attempts": { "const": 0 },
         "retained_roots": {
           "type": "array",
-          "maxItems": 3,
+          "maxItems": 4,
           "items": { "$ref": "#/$defs/retainedRoot" }
         }
       }
@@ -268,7 +319,7 @@
         }
       }
     },
-    "qualifiedV2Cleanup": {
+    "qualifiedV3Cleanup": {
       "type": "object",
       "additionalProperties": false,
       "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
@@ -278,10 +329,11 @@
         "delete_attempts": { "const": 0 },
         "retained_roots": {
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 3,
+          "maxItems": 3,
           "prefixItems": [
             { "$ref": "#/$defs/productionProcessRoot" },
+            { "$ref": "#/$defs/productionRuntimeRoot" },
             { "$ref": "#/$defs/productionTrustedRoot" }
           ],
           "items": false
@@ -308,7 +360,7 @@
         }
       }
     },
-    "blockedV2Cleanup": {
+    "blockedV3Cleanup": {
       "type": "object",
       "additionalProperties": false,
       "required": ["status", "gc_policy", "delete_attempts", "retained_roots"],
@@ -319,9 +371,10 @@
         "retained_roots": {
           "type": "array",
           "minItems": 0,
-          "maxItems": 3,
+          "maxItems": 4,
           "prefixItems": [
             { "$ref": "#/$defs/productionProcessBlockedRoot" },
+            { "$ref": "#/$defs/productionRuntimeBlockedRoot" },
             { "$ref": "#/$defs/productionTrustedBlockedRoot" },
             { "$ref": "#/$defs/publicationPartialBlockedRoot" }
           ],
@@ -355,7 +408,7 @@
         "sandbox_policy_template_sha256": { "$ref": "#/$defs/hash" }
       }
     },
-    "launcherV2": {
+    "launcherV3": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -551,16 +604,17 @@
         "counts",
         "roles",
         "executions",
+        "native_evidence",
         "non_claims",
         "cleanup",
         "manifest_sha256"
       ],
       "properties": {
-        "schema_version": { "const": 2 },
+        "schema_version": { "const": 3 },
         "qualification_id": {
-          "const": "w3-f1-f3-production-capsule-qualification-v2"
+          "const": "w3-f1-f3-production-capsule-qualification-v3"
         },
-        "qualification_kind": { "const": "production-capsule-v2" },
+        "qualification_kind": { "const": "production-capsule-v3" },
         "status": { "const": "qualified" },
         "claim": {
           "const": "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
@@ -586,7 +640,7 @@
         },
         "worker_input_sha256": { "$ref": "#/$defs/hash" },
         "worker_output_sha256": { "$ref": "#/$defs/hash" },
-        "launcher": { "$ref": "#/$defs/launcherV2" },
+        "launcher": { "$ref": "#/$defs/launcherV3" },
         "counts": { "$ref": "#/$defs/counts" },
         "roles": { "$ref": "#/$defs/roles" },
         "executions": {
@@ -595,8 +649,10 @@
           "maxItems": 5,
           "items": { "$ref": "#/$defs/productionExecution" }
         },
+        "native_evidence": { "$ref": "#/$defs/nativeEvidence" },
         "non_claims": {
           "const": [
+            "executed_preimage_authority=false",
             "no_w1_15_of_15_claim",
             "no_f4_f5_f6_claim",
             "no_benchmark_v1_claim",
@@ -604,7 +660,7 @@
             "no_semantic_accuracy_claim"
           ]
         },
-        "cleanup": { "$ref": "#/$defs/qualifiedV2Cleanup" },
+        "cleanup": { "$ref": "#/$defs/qualifiedV3Cleanup" },
         "manifest_sha256": { "$ref": "#/$defs/hash" }
       }
     },
@@ -618,18 +674,20 @@
         "status",
         "claim",
         "reason",
+        "native_evidence",
         "cleanup"
       ],
       "properties": {
-        "schema_version": { "const": 2 },
+        "schema_version": { "const": 3 },
         "qualification_id": {
-          "const": "w3-f1-f3-production-capsule-qualification-v2"
+          "const": "w3-f1-f3-production-capsule-qualification-v3"
         },
-        "qualification_kind": { "const": "production-capsule-v2" },
+        "qualification_kind": { "const": "production-capsule-v3" },
         "status": { "const": "blocked" },
         "claim": { "const": "no_qualification_claim" },
         "reason": { "type": "string", "minLength": 1 },
-        "cleanup": { "$ref": "#/$defs/blockedV2Cleanup" }
+        "native_evidence": { "$ref": "#/$defs/nativeEvidence" },
+        "cleanup": { "$ref": "#/$defs/blockedV3Cleanup" }
       }
     },
     "blocked": {

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "F6 signed blind-human-review receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_sha256", "request_sha256", "task_id", "nonce", "candidate_sha256", "blind_package_sha256", "reviewer_id", "verdict", "reason_codes", "issued_at", "signature", "receipt_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "request_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "nonce": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "blind_package_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "reviewer_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "verdict": {"enum": ["pass", "fail", "abstain"]},
+    "reason_codes": {"type": "array", "maxItems": 32, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"}},
+    "issued_at": {"type": "string", "minLength": 1, "maxLength": 128},
+    "signature": {"type": "string", "pattern": "^[0-9a-f]{128}$"},
+    "receipt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

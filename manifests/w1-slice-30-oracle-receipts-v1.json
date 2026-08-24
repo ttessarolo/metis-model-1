@@ -1,0 +1,1721 @@
+{
+  "counts": {
+    "f4_f6_cells_executed": 0,
+    "f4_f6_cells_intended": 75,
+    "gaps": 160,
+    "oracle_cells_executed": 0,
+    "oracle_cells_intended": 160,
+    "task_ids_distinct": 30,
+    "tasks_in": 30,
+    "tasks_out": 30
+  },
+  "future_protected_role_receipt_target": {
+    "by_family": {
+      "F-4": {
+        "roles": [
+          "observed",
+          "proposed"
+        ],
+        "target": 10
+      },
+      "F-5": {
+        "roles": [
+          "legacy",
+          "canonical"
+        ],
+        "target": 10
+      },
+      "F-6": {
+        "roles": [
+          "explained_source"
+        ],
+        "target": 5
+      }
+    },
+    "executed": 0,
+    "status": "planning_target_not_evidence",
+    "target": 25
+  },
+  "input_pins": {
+    "benchmark_plan": "sha256:823546482e8bc698dd54192f42817a94ab8c0fadb4350100b2f8d9ec4624fee1",
+    "blocker_map": "sha256:de6924d31de844e25cd09bb4a056104be62fbdbd04e7b9349867e174b1361919",
+    "closure": "sha256:887e033ffee1fc35e1e0eb23e5d2696a1ddcd7f9d2fd5bcc6b363e77e2ddcf1a"
+  },
+  "manifest_hash": "sha256:e382ef9984482b8df15d4581fecf011cdbce26265bdb10e79a3b14f8a7c824a0",
+  "manifest_id": "w1/slice-30-oracle-receipts-v1",
+  "schema_version": 1,
+  "source_revision": "a2dde2b191f6b78c2003d74875560da782470968",
+  "status": "unexecuted_evidence_only",
+  "tasks": [
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-1",
+      "intended_oracles": [
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "author",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "23b58e42fd06167a1cdea7a22a89ce91f70571a6",
+      "source_path": "examples/play-prod-v2/properties/search/main.metis",
+      "task_id": "slice-0001/f1-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-1",
+      "intended_oracles": [
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "author",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "6bb22cb05488720bfe3dccc5768cb342e0c71577",
+      "source_path": "examples/play-prod-v2/properties/sky/sky_featured.metis",
+      "task_id": "slice-0001/f1-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-1",
+      "intended_oracles": [
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "author",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "1b27f647d272affaaa94a16bddf2e09019c7a5b4",
+      "source_path": "examples/play-prod-v2/properties/dem/dem_test.metis",
+      "task_id": "slice-0001/f1-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-1",
+      "intended_oracles": [
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "author",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "07ca0d02b056e8070a863841fa8696a5f5c28a8b",
+      "source_path": "examples/play-prod-v2/properties/snap/stagioni_prima_serata.metis",
+      "task_id": "slice-0001/f1-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-1",
+      "intended_oracles": [
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "author",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "30f6359acdb65b0982c4f947fb0c73dc08a21666",
+      "source_path": "examples/play-prod-v2/properties/play/main_2.metis",
+      "task_id": "slice-0001/f1-05"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-2",
+      "intended_oracles": [
+        "patch_minimality",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "edit",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "patch_minimality",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "92ab1a44a568fb9a8713ef4598ecf5b269a4e6e6",
+      "source_path": "examples/play-prod-v2/properties/search/filtered_search.metis",
+      "task_id": "slice-0001/f2-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-2",
+      "intended_oracles": [
+        "patch_minimality",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "edit",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "patch_minimality",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "3932d2aed949d2fdeaa87e0bfff575a50d2fa275",
+      "source_path": "examples/play-prod-v2/properties/play/film_genere_params.metis",
+      "task_id": "slice-0001/f2-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-2",
+      "intended_oracles": [
+        "patch_minimality",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "edit",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "patch_minimality",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "51d0927d96deff76a4fcefcc054a1a2f2ab8bbd9",
+      "source_path": "examples/play-prod-v2/properties/play/collection_order_by_editor.metis",
+      "task_id": "slice-0001/f2-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-2",
+      "intended_oracles": [
+        "patch_minimality",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "edit",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "patch_minimality",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "f364ec43f12a9e7990d706658f9633ab554409c0",
+      "source_path": "examples/play-prod-v2/properties/play/stagioni_sport_3.metis",
+      "task_id": "slice-0001/f2-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-2",
+      "intended_oracles": [
+        "patch_minimality",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "edit",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "patch_minimality",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "e4906d25434021bac0cfb73a3b0a28d2d0bd586b",
+      "source_path": "examples/play-prod-v2/properties/play/view_all_person.metis",
+      "task_id": "slice-0001/f2-05"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-3",
+      "intended_oracles": [
+        "diagnostic",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "repair",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "diagnostic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "79dbab5f39ea093db2f2f22329ac45d9da620651",
+      "source_path": "examples/play-prod-v2/properties/play/multiple_block_film.metis",
+      "task_id": "slice-0001/f3-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-3",
+      "intended_oracles": [
+        "diagnostic",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "repair",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "diagnostic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "31871212cd6ea2893ec579d222c4999b06dd75a1",
+      "source_path": "examples/play-prod-v2/properties/play/fallback_multiple_doc.metis",
+      "task_id": "slice-0001/f3-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-3",
+      "intended_oracles": [
+        "diagnostic",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "repair",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "diagnostic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "7719f75e8d02670436e5ac58c0d244e75f796851",
+      "source_path": "examples/play-prod-v2/properties/search/detail.metis",
+      "task_id": "slice-0001/f3-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-3",
+      "intended_oracles": [
+        "diagnostic",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "repair",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "diagnostic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "67a0609649a8ea4e8f23449013c22b29bc1c3b28",
+      "source_path": "examples/play-prod-v2/properties/play/enabler_highlights_calcio.metis",
+      "task_id": "slice-0001/f3-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-3",
+      "intended_oracles": [
+        "diagnostic",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "repair",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "diagnostic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "d38b2f1e53de5231f1d0dfdfccb075b893d5ecc2",
+      "source_path": "examples/play-prod-v2/_tenant.metis",
+      "task_id": "slice-0001/f3-05"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-4",
+      "intended_oracles": [
+        "compile",
+        "ir",
+        "wire",
+        "golden",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "review",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "wire",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "golden",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "6fefe9b115a0f70295b345aa623099318c37d34b",
+      "source_path": "examples/play-prod-v2/properties/play/similar_cinema.metis",
+      "task_id": "slice-0001/f4-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-4",
+      "intended_oracles": [
+        "compile",
+        "ir",
+        "wire",
+        "golden",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "review",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "wire",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "golden",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "e4a417de5001c39ab11cd4f568832b58fd051a5f",
+      "source_path": "examples/play-prod-v2/properties/play/multiple_block_dem_film_free.metis",
+      "task_id": "slice-0001/f4-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-4",
+      "intended_oracles": [
+        "compile",
+        "ir",
+        "wire",
+        "golden",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "review",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "wire",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "golden",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "fc86dd146f35df919534217af95f97a1179a1c8a",
+      "source_path": "examples/play-prod-v2/properties/play/inf_because_you.metis",
+      "task_id": "slice-0001/f4-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-4",
+      "intended_oracles": [
+        "compile",
+        "ir",
+        "wire",
+        "golden",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "review",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "wire",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "golden",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "70b511884a2905a6e9407d0df5cbb34f39176dee",
+      "source_path": "examples/play-prod-v2/properties/play/person_to_content_film.metis",
+      "task_id": "slice-0001/f4-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-4",
+      "intended_oracles": [
+        "compile",
+        "ir",
+        "wire",
+        "golden",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "review",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "wire",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "golden",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "562199b2fb655af20034f8834ae8155bf8d0be4e",
+      "source_path": "examples/play-prod-v2/properties/play/similar_serie_tv_fiction.metis",
+      "task_id": "slice-0001/f4-05"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-5",
+      "intended_oracles": [
+        "migration_pair",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "migrate",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "migration_pair",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "cbae5ea0b0908f1d5f2c8bd3b7e3750834825719",
+      "source_path": "examples/play-prod-v2/lib/presets.migrated.metis",
+      "task_id": "slice-0001/f5-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-5",
+      "intended_oracles": [
+        "migration_pair",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "migrate",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "migration_pair",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "0c1173e58bfaceae6620d8a3b8fdaab299bfbec4",
+      "source_path": "examples/play-prod-v2/properties/dem/_property.metis",
+      "task_id": "slice-0001/f5-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-5",
+      "intended_oracles": [
+        "migration_pair",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "migrate",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "migration_pair",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "c2d42d1e2927f308e56a82a089ffedeba80e32cf",
+      "source_path": "examples/play-prod-v2/properties/general/_property.migrated.metis",
+      "task_id": "slice-0001/f5-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-5",
+      "intended_oracles": [
+        "migration_pair",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "migrate",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "migration_pair",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "a73d4370d4e988bbe4f030dceeadf8f8bb3a9530",
+      "source_path": "examples/play-prod-v2/properties/sky/_property.migrated.metis",
+      "task_id": "slice-0001/f5-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-5",
+      "intended_oracles": [
+        "migration_pair",
+        "parse",
+        "link",
+        "validate",
+        "compile",
+        "semantic"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "migrate",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "migration_pair",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "parse",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "link",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "validate",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "compile",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "a5a970aa7b34d4d6c4b09dd549b086ad9edeab21",
+      "source_path": "examples/play-prod-v2/properties/play/continua_a_guardare.metis",
+      "task_id": "slice-0001/f5-05"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-6",
+      "intended_oracles": [
+        "ast",
+        "ir",
+        "semantic",
+        "human"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "explain",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "ast",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "human",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "918c7ef3f3215fa834a6b25fe9e65f790a76969d",
+      "source_path": "examples/play-prod-v2/catalogs/link.metis",
+      "task_id": "slice-0001/f6-01"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-6",
+      "intended_oracles": [
+        "ast",
+        "ir",
+        "semantic",
+        "human"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "explain",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "ast",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "human",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "72a645f3dbc5eba67e0794923edea71e10d1badb",
+      "source_path": "examples/play-prod-v2/catalogs/users.metis",
+      "task_id": "slice-0001/f6-02"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-6",
+      "intended_oracles": [
+        "ast",
+        "ir",
+        "semantic",
+        "human"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "explain",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "ast",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "human",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "c0e6c9590309c3368bb66e4c859de6d8cd2d68ac",
+      "source_path": "examples/play-prod-v2/transformers/play_search.metis",
+      "task_id": "slice-0001/f6-03"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-6",
+      "intended_oracles": [
+        "ast",
+        "ir",
+        "semantic",
+        "human"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "explain",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "ast",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "human",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "424ecf41c372f91c7b33187784446b8b707c48e8",
+      "source_path": "examples/play-prod-v2/settings/response.metis",
+      "task_id": "slice-0001/f6-04"
+    },
+    {
+      "closure_status": "computed_not_sealed",
+      "family": "F-6",
+      "intended_oracles": [
+        "ast",
+        "ir",
+        "semantic",
+        "human"
+      ],
+      "leakage_group_id": "sha256:2efe88f1ec36ca151c15a728db8623de4e8a34628ad3aaf60c76ae10ea170c47",
+      "mode": "explain",
+      "oracle_cells": [
+        {
+          "authority": null,
+          "predicate": "ast",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "ir",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "semantic",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        },
+        {
+          "authority": null,
+          "predicate": "human",
+          "receipt_ref": null,
+          "receipt_sha256": null,
+          "status": "not_run"
+        }
+      ],
+      "source_blob_oid": "1156ae317e53003214bf69cb41f8d28bb4ce61b3",
+      "source_path": "examples/play-prod-v2/lib/lists.metis",
+      "task_id": "slice-0001/f6-05"
+    }
+  ]
+}

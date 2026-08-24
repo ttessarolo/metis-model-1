@@ -9,6 +9,19 @@ revisione frontier.
 
 ## 2. Wave e dipendenze
 
+Il percorso di primo valore precede e non dipende dalla promotion:
+
+| Wave | Obiettivo | Dipende da | Exit principale |
+|---|---|---|---|
+| XS0 | Contratto first-value | W0, W4 | `XS_CONTRACT_VALID` |
+| XS1 | Baseline B | XS0 | `MODEL1_USABLE_LOCAL_NO_TRAIN` oppure failure taxonomy |
+| XS2 | Micro-dataset F-1/F-2/F-3 | XS1 fallita | 64 train + 16 dev oracle-clean |
+| XS3 | Micro-QLoRA | XS2 + mandato esplicito | adapter rank-8, massimo 100 step |
+| XS4 | Verdetto B/D | XS3 | `MODEL1_USABLE_LOCAL_WITH_ADAPTER` oppure stop |
+
+Queste wave qualificano soltanto `MODEL1_USABLE_LOCAL`. Le wave W1-W9 seguenti
+governano invece candidate, promotion e manutenzione:
+
 | Wave | Obiettivo | Dipende da | Exit principale |
 |---|---|---|---|
 | W0 | Contratto e repository | — | piano ratificato, fonti e scope fissati |
@@ -16,7 +29,7 @@ revisione frontier.
 | W2 | Corpus/provenance census | W0 | manifest sorgenti completo e sensitivity review |
 | W3 | Dataset builder v0 | W1, W2 | pilot dataset oracle-clean e contamination-clean |
 | W4 | Qwen3.8 MLX qualification | W0 | 600+ iterazioni, save/reload/resume, memoria stabile |
-| W5 | Pilot QLoRA | W3, W4 | miglioramento dev e nessuna regressione bloccante |
+| W5 | Pilot QLoRA promotion-scale | W3, W4, uplift XS4 | miglioramento dev e nessuna regressione bloccante |
 | W6 | Adversarial/internal test | W5 | failure taxonomy, checkpoint finalista, no leakage |
 | W7 | Candidate Model 1 | W6 | report A/B/C/D e gate proposti soddisfatti |
 | W8 | Packaging locale | W7 | adapter disattivabile, manifest/card/runbook completi |
@@ -75,7 +88,7 @@ The 30-50-task Metis smoke evaluation is not part of O-004 runtime
 ratification. Together with a sealed W1 slice, it is a pre-W5 entry gate and
 remains open.
 
-### W5 — Pilot
+### W5 — Pilot di promotion
 
 - pre-entry: sealed W1 slice and 30-50-task Metis smoke evaluation;
 - sweep config e seed;
@@ -102,9 +115,13 @@ remains open.
 - rollback test;
 - nessuna write autonoma abilitata per default.
 
-## 4. Definition of done complessiva
+## 4. Definition of done
 
-Model 1 è done quando:
+`MODEL1_USABLE_LOCAL` è done quando B supera il gate XS1 oppure D supera B nel
+gate XS4, il sistema locale è riproducibile nel perimetro dichiarato e nessun
+veto critico è aperto. `NO_TRAIN` è una chiusura valida.
+
+`ACCURACY99_PROMOTED` è done soltanto quando:
 
 1. il candidate è riproducibile e attribuibile;
 2. il benchmark è contamination-clean;
@@ -150,38 +167,86 @@ Stato corrente e deadline delle decisioni non ancora ratificate:
 |---|---|---|
 | O-001 | linguaggio/versione Metis canonica per v1 | RATIFICATA: `0.43` |
 | O-002 | famiglie held-out e criticità per famiglia | RATIFICATA; slice ancora da sigillare |
-| O-003 | soglie numeriche finali e tolleranze statistiche | prima di W5 |
+| O-003 | soglie numeriche finali e tolleranze statistiche | prima del W5 di promotion; non blocca W5-XS |
 | O-004 | versione `mlx`/`mlx-vlm` pin | RATIFICATA: `0.32.1` / `0.6.15` |
 | O-005 | rank/alpha/LR/seed grid | RATIFICATA: 4 config, 700 step max |
 | O-006 | formato artifact store locale | RATIFICATA: local-only, atomico, cap 40 GiB |
 | O-007 | adapter unico multi-task o adapter separati | dopo il pilot W5 |
 | O-008 | interfaccia CLI/editor/agent | prima di W8 |
 | O-009 | policy di distribuzione oltre local-only | dopo W7, con review dedicata |
-| O-010 | soglia di drift che richiede un nuovo adapter | prima di W9 |
+| O-010 | percorso di manutenzione per modifiche Metis | RATIFICATA prima della prima promotion W7; applicata in W9 |
+| O-011 | split baseline-first / Accuracy-99 | RATIFICATA: W5-XS separato dalla promotion |
 
 ## 7. Backlog eseguibile corrente
 
-Con W0 e il percorso tecnico W4 completati:
+Il percorso critico unico per il primo valore è ora:
 
-1. chiudere dependency graph, diritti e oracle delle 30 allocazioni W1;
-2. sigillare la slice soltanto dopo l'esecuzione degli oracle task-specifici;
-3. implementare i generatori W3 author/edit/repair con provenance immutabile;
-4. produrre pilot dataset e contamination report senza payload proprietari in
-   questo repository;
-5. ratificare O-003 dai denominatori frozen e dalla varianza delle baseline;
-   O-005/O-006 sono già ratificate e non bypassano i gate dati;
-6. autorizzare ed eseguire W5 soltanto dopo questi gate.
+1. eseguire 12 task B, quattro per F-1/F-2/F-3;
+2. chiudere `NO_TRAIN` se B raggiunge il gate XS1;
+3. altrimenti congelare ed eseguire B su 24 task distinti da train/dev, chiudendo
+   `NO_TRAIN` a `22/24` senza critical failure;
+4. solo sotto quella soglia, produrre esattamente 64 train + 16 dev
+   failure-driven e oracle-clean;
+5. eseguire un solo rank-8 fino a 100 step;
+6. confrontare B/D e terminare comunque entro cinque giorni, senza una seconda
+   configurazione o rework.
+
+Phase B privilegiata, receipt production-grade, review `201/201`, F-4/F-5/F-6,
+benchmark 600/563, O-003, grid e multi-seed non sono cancellati: costituiscono
+il backlog separato `ACCURACY99_PROMOTION`. Non bloccano XS0-XS4 e non ricevono
+claim di chiusura dal relativo esito.
+
+Inferenza, Node/Metis, dati/materializzazione e training richiedono il mandato
+W5-XS esplicito. Network/download, privilegi, live ARES, upload, promotion,
+commit e push restano esclusi.
 
 ## 8. Aggiornamento continuo
 
-Una nuova versione Metis non sovrascrive Model 1. Si apre una candidate successiva
-che dichiara:
+Una nuova revisione Metis non sovrascrive un Model 1 o il suo benchmark. Ogni
+candidate resta riproducibile contro i propri commit, manifest e receipt;
+l'aggiornamento apre una candidate successiva e conserva l'adapter precedente
+come rollback.
 
-- diff grammatica/validator/compiler;
-- percentuale di corpus e benchmark interessata;
-- esempi invalidati o migrati;
-- compatibilità dell'adapter precedente;
-- necessità di retrieval refresh, nuovo fine-tuning o entrambi.
+**Metodo Orchestra permanente.** Ogni aggiornamento mantiene un unico
+coordinator frontier responsabile di architettura, semantica, leakage, gate e
+verdetto. Le lane interne ricevono roster disgiunti e riportano risultati già
+ricontrollati. Kimi e Qwen esterni non appartengono al percorso critico corrente
+e non vengono attesi o invocati senza una nuova istruzione esplicita. Evidenze,
+STOP e aritmetica di copertura vengono depositati subito nelle lavagne
+condivise; il coordinator ispeziona i diff, riesegue i gate rilevanti e
+ricomputa almeno una claim prima di accettare una consegna. Capacità del team non
+equivale ad autorizzazione per training, download, privilegi, promotion o
+pubblicazione.
 
-Lo stesso vale per nuove revisioni Qwen o MLX: nessun floating `latest` in un
-artefatto promosso.
+**Percorso minimo per default.** Per una modifica grammaticale limitata, il
+coordinator:
+
+1. fissa il nuovo commit Metis e misura il diff di grammatica, validator,
+   compiler, IR e oracle;
+2. aggiorna retrieval e contesto correnti, quindi classifica esempi, costrutti,
+   famiglie e leakage group interessati;
+3. rigenera gli oracle applicabili e sigilla un maintenance benchmark versionato
+   sul nuovo commit, prima di creare esempi di training derivati;
+4. valuta l'adapter precedente con retrieval aggiornato sul maintenance benchmark
+   e su un replay stabile non derivato da alcun benchmark frozen;
+5. pubblica `NO_RETRAIN` se i gate applicabili restano soddisfatti senza
+   regressioni semantiche o critiche;
+6. altrimenti esegue soltanto un delta QLoRA dal precedente adapter, con esempi
+   nuovi o migrati accepted-by-oracle e un piccolo replay stabile; la selezione
+   usa dev, non il maintenance benchmark;
+7. ripete valutazione e gate di regressione, poi pubblica un nuovo adapter
+   versionato con manifest, hash, receipt e rollback all'adapter precedente.
+
+L'escalation a `FULL_SUCCESSOR` è richiesta soltanto se il diff modifica il
+contratto AST/IR o il significato verificato dagli oracle, oppure se retrieval
+aggiornato e delta QLoRA falliscono i gate semantici o il replay stabile. Il
+numero di file o righe modificate è una misura di impatto, non una scorciatoia
+per promuovere o scalare il training.
+
+Il benchmark precedente non viene riscritto né usato per tuning: mantiene il
+claim storico sul proprio commit. Il maintenance benchmark è una nuova versione
+con denominatori, provenance, leakage policy e limiti dichiarati; non estende
+automaticamente il claim della versione precedente.
+
+Una nuova revisione Qwen, MLX o MLX-VLM richiede inoltre le rispettive
+qualification e pin: nessun floating `latest`.

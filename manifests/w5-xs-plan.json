@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "plan_id": "w5-xs-plan/v1",
+  "status": "ratified",
+  "decision_ref": "O-011",
+  "canonical_spec": {
+    "path": "docs/15-first-value-experiment.md",
+    "sha256": "sha256:33a6e2aea56823d9c7f4378657278d5b7f3afe27352dcfebf7f5c4b26c10ad18"
+  },
+  "gate": {
+    "id": "EXPERIMENT_PLAN_READY",
+    "planned_next_stage": "REQUEST_W5_XS_EXECUTION_MANDATE",
+    "first_stage_after_execution_mandate": "XS0_THIN_RUNNER_AND_B12_ROSTER",
+    "verification_scope": "tracked_contracts_only",
+    "execution_authorized": false,
+    "execution_requires": "separate_explicit_w5_xs_wave_mandate"
+  },
+  "prerequisites": {
+    "qualification_contract": "qualification/runtime-pin.json",
+    "checkpoint_identity_contract": "qualification/checkpoint-pin.json",
+    "publication_policy_id": "local-artifact-store/v1",
+    "physical_checkpoint_verification": "deferred_to_authorized_execution_preflight"
+  },
+  "scope": {
+    "families": ["F-1", "F-2", "F-3"],
+    "local_only": true,
+    "research_only": true,
+    "network_allowed": false,
+    "privileged_execution_allowed": false,
+    "live_ares_allowed": false,
+    "upload_allowed": false,
+    "promotion_allowed": false
+  },
+  "baseline": {
+    "diagnostic_task_count": 12,
+    "diagnostic_family_counts": {"F-1": 4, "F-2": 4, "F-3": 4},
+    "reusable_fixture_tasks": 3,
+    "additional_task_specs_required": 9,
+    "thin_batch_compiler_loop_runner_required": true,
+    "roster_frozen_before_model_outputs": true,
+    "adapter_enabled": false,
+    "max_repair_cycles": 2,
+    "diagnostic_semantic_correct_min": 11,
+    "recurring_failure_min_tasks": 2,
+    "recurring_failure_min_parent_template_groups": 2,
+    "paired_task_count": 24,
+    "paired_family_counts": {"F-1": 8, "F-2": 8, "F-3": 8},
+    "paired_no_train_semantic_correct_min": 22,
+    "paired_training_open_semantic_correct_max": 21,
+    "minimum_correctable_b12_failures_for_training": 3,
+    "critical_failures_max": 0,
+    "critical_failure_roster_ref": "manifests/accuracy-target.json#forbidden_critical_failures",
+    "require_zero_unlisted_critical_failures": true
+  },
+  "dataset": {
+    "train_examples": 64,
+    "dev_examples": 16,
+    "total_examples": 80,
+    "failure_driven_train_examples": 48,
+    "failure_driven_source": "b12_taxonomy_only_no_b12_or_b24_parent_derivation",
+    "failure_driven_min_parent_template_groups": 12,
+    "canonical_replay_train_examples": 16,
+    "train_family_minimums": {"F-1": 16, "F-2": 16, "F-3": 16},
+    "dev_family_counts": {"F-1": 5, "F-2": 5, "F-3": 6},
+    "max_derivations_per_parent_template_group": 4,
+    "leakage_groups_disjoint_across_train_dev_paired": true,
+    "minimum_accepted_candidate_ratio": 0.5,
+    "maximum_manual_adjudication_candidate_ratio": 0.2
+  },
+  "training": {
+    "configurations": 1,
+    "rank": 8,
+    "alpha": 16,
+    "learning_rate": 0.00001,
+    "seed": 17,
+    "max_sequence_length": 1024,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "dropout": 0,
+    "step_gates": [25, 50, 100],
+    "minimum_dev_success_gain_to_continue": 1,
+    "max_optimizer_steps": 100,
+    "reworks_allowed": 0
+  },
+  "adapter_verdict": {
+    "minimum_net_success_gain": 3,
+    "minimum_closed_baseline_failures": "ceil(baseline_semantic_failures/2)",
+    "green_baseline_regressions_max": 0,
+    "critical_failures_total_max": 0,
+    "accepted_invented_identifiers_max": 0,
+    "unrelated_changes_max": 0,
+    "adapter_off_restore_required": true
+  },
+  "artifact_policy": {
+    "artifact_root": "artifacts/w5-xs",
+    "max_new_bytes": 8589934592,
+    "max_wall_clock_hours": 4,
+    "max_checkpoints": 4,
+    "max_peak_metal_gb": 110,
+    "tracked_payloads_allowed": false,
+    "atomic_publication_required": true,
+    "symlinks_allowed": false,
+    "automatic_deletion_allowed": false
+  },
+  "time_budget": {
+    "hard_stop_working_days": 5,
+    "second_configuration_allowed": false,
+    "rework_allowed": false
+  },
+  "nonclaims": [
+    "no_physical_checkpoint_verification",
+    "no_inference_authority",
+    "no_dataset_authority",
+    "no_training_authority",
+    "no_semantic_uplift_evidence",
+    "nonpromotable",
+    "non99"
+  ]
+}

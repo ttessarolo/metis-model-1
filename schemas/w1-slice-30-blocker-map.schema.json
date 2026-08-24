@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w1-slice-30-blocker-map.schema.json",
+  "title": "W1 slice-30 evidence-only blocker map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "status", "source_revision", "language_version", "closure_manifest_id", "input_pins", "counts", "tasks", "manifest_hash"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "benchmark/families-v1/slice-30-blocker-map-v1"},
+    "status": {"const": "computed_not_sealed_evidence_only"},
+    "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "language_version": {"const": "0.43"},
+    "closure_manifest_id": {"const": "benchmark/families-v1/slice-30-closure"},
+    "input_pins": {"type": "object", "additionalProperties": false, "required": ["benchmark_plan", "closure", "assets"], "properties": {"benchmark_plan": {"$ref": "#/$defs/hash"}, "closure": {"$ref": "#/$defs/hash"}, "assets": {"$ref": "#/$defs/hash"}}},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["tasks_in", "tasks_out", "task_ids_distinct", "assets_in", "assets_out", "leakage_groups", "gaps", "dependency_tags", "unresolved_dependencies"], "properties": {"tasks_in": {"const": 30}, "tasks_out": {"const": 30}, "task_ids_distinct": {"const": 30}, "assets_in": {"const": 201}, "assets_out": {"const": 201}, "leakage_groups": {"const": 1}, "gaps": {"const": 0}, "dependency_tags": {"$ref": "#/$defs/tag_counts"}, "unresolved_dependencies": {"$ref": "#/$defs/raw_tag_counts"}}},
+    "tasks": {"type": "array", "minItems": 30, "maxItems": 30, "items": {"$ref": "#/$defs/task"}},
+    "manifest_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "tag_counts": {"type": "object", "additionalProperties": false, "required": ["direct_runtime", "ambient", "external", "sidecar", "f3_mutation", "f4_golden", "f5_migration", "f6_human", "semantic", "task_oracle"], "properties": {"direct_runtime": {"const": 17}, "ambient": {"const": 10}, "external": {"const": 11}, "sidecar": {"const": 3}, "f3_mutation": {"const": 5}, "f4_golden": {"const": 5}, "f5_migration": {"const": 5}, "f6_human": {"const": 5}, "semantic": {"const": 15}, "task_oracle": {"const": 30}}},
+    "raw_tag_counts": {"type": "object", "additionalProperties": false, "required": ["ambient_time_runtime", "data_rights_not_reviewed", "external_service_or_transformer_runtime", "materialized_fallback_sidecar", "mutation_parent_unresolved", "semantic_oracle_not_executed", "task_specific_oracles_not_executed", "golden_ir_wire_ancestor_unresolved", "migration_pair_and_language_epoch_unresolved", "normalized_ast_ir_and_human_oracle_unresolved"], "properties": {"ambient_time_runtime": {"const": 10}, "data_rights_not_reviewed": {"const": 30}, "external_service_or_transformer_runtime": {"const": 11}, "materialized_fallback_sidecar": {"const": 3}, "mutation_parent_unresolved": {"const": 5}, "semantic_oracle_not_executed": {"const": 15}, "task_specific_oracles_not_executed": {"const": 30}, "golden_ir_wire_ancestor_unresolved": {"const": 5}, "migration_pair_and_language_epoch_unresolved": {"const": 5}, "normalized_ast_ir_and_human_oracle_unresolved": {"const": 5}}},
+    "task": {"type": "object", "additionalProperties": false, "required": ["task_id", "family", "mode", "source_path", "source_blob_oid", "oracle_refs", "closure_ref", "closure_status", "leakage_group_id", "dependency_tags", "status", "blockers", "evidence_refs"], "properties": {"task_id": {"type": "string", "pattern": "^slice-0001/f[1-6]-0[1-5]$"}, "family": {"enum": ["F-1", "F-2", "F-3", "F-4", "F-5", "F-6"]}, "mode": {"enum": ["author", "edit", "repair", "review", "migrate", "explain"]}, "source_path": {"type": "string", "minLength": 1}, "source_blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "oracle_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "closure_ref": {"const": "whole-tenant"}, "closure_status": {"const": "computed_not_sealed"}, "leakage_group_id": {"$ref": "#/$defs/hash"}, "dependency_tags": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"enum": ["direct_runtime", "ambient", "external", "sidecar", "f3_mutation", "f4_golden", "f5_migration", "f6_human", "semantic", "task_oracle"]}}, "status": {"const": "blocked"}, "blockers": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string"}}, "evidence_refs": {"const": []}}}
+  }
+}

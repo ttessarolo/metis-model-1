@@ -1,13 +1,13 @@
 # Feasibility and risks
 
-Snapshot date: **21 August 2026**.
+Snapshot date: **24 August 2026**.
 
 ## 1. Verdict
 
-**Conditional GO.** The exact bounded W4 technical path is now qualified, so the
-project is feasible enough to continue W1-W3 and prepare a controlled W5 pilot.
-It is not yet justified to fund a full pilot as if Metis semantic uplift,
-benchmark closure or redistribution rights were established facts.
+**W5-XS plan GO; execution requires one explicit local-only mandate; Accuracy-99
+remains blocked.** The exact bounded W4 technical path is qualified. The next
+evidence is the base Qwen3.8 with the real product context/compiler loop, not a
+larger dataset or a production broker.
 
 The concise state is:
 
@@ -15,15 +15,11 @@ The concise state is:
 INFERENCE AND BOUNDED TRAINING QUALIFIED / SEMANTIC UPLIFT UNTESTED
 ```
 
-Decision estimate for executing a bounded local W5 pilot once data gates close:
-**85% with a ±10 percentage-point uncertainty band**. Decision estimate for a
-defensible global 99% semantic claim under the preregistered contract: **20%
-with a ±15 point band**. These are planning judgments, not measured
-probabilities. W4 removes a concrete compatibility risk, while the current
-benchmark ancestry supplies only `1/563` independent groups and no B/D semantic
-evidence. Independently sourced data and a clean paired uplift would materially
-raise the second estimate; inability to source that diversity correctly stops
-the claim even if training runs.
+W5-XS can return `NO_TRAIN` after the 12-task B baseline or run one bounded
+micro-adapter. A first B/D verdict is planned in 3-5 working days after the
+explicit execution mandate. The independent global 99% claim remains a
+different project: the current benchmark ancestry supplies only `1/563`
+independent groups and no B/D semantic evidence.
 
 Under the narrower constraint "use only the currently tracked Metis corpus",
 the 563-group requirement is infeasible rather than merely low-confidence. A
@@ -42,6 +38,7 @@ it does not apply to a repo-only strategy.
 | W3 deterministic dataset builder | 80% | medium-high | Two independent frontier replays accept the fail-closed F-1/F-2/F-3 contract at P0/P1/P2=0; all four production authorities, real isolated-runner receipts, independently grouped semantic examples and F-4/F-5/F-6 remain absent |
 | W4 recorded Qwen3.8 MLX-VLM path | 95% | high | Exact pins passed backward, 10/50/600 iterations, save/reload, adapter-off, topology-bound LoRA targeting and bit-exact full-state resume at batch 1 / sequence 128 |
 | W4 bounded sequence-1024 ranks 8/16 | 90% | high | Real public-synthetic backward/checkpoint probes and rank-8 resume passed at 94.43-95.04 GB peak Metal; 2,048, positive dropout and accumulation variants remain unqualified |
+| W5-XS baseline-first verdict | 90% executable | medium-high | W4 and software contracts are ready; the batch inference/compiler-loop runner and 12 exact tasks remain to be built/executed |
 | W5 meaningful D-B semantic uplift | 50% | low | This is the central scientific hypothesis, not an implementation certainty |
 | W7/W8 strict candidate and packaging | 55% | low-medium | Conditional on W4, leakage-clean data, reproducibility and no material regression |
 
@@ -117,8 +114,17 @@ prove failure of this exact checkpoint. They remain risk signals, not verdicts.
 
 ## 5. Effort envelope
 
-Assuming one frontier coordinator, delegated mechanical lanes, and no upstream
-trainer defect:
+The two envelopes are deliberately separate.
+
+First-value W5-XS, after one explicit local-only execution mandate:
+
+- thin runner, exact B12 roster and first `NO_TRAIN` decision: 1-2 working days;
+- if needed, B24 paired evaluation plus fixed 64 train/16 dev: another 1-2 days;
+- one rank-8 run and paired B/D verdict: same day to one additional day;
+- no rework or second configuration: hard calendar cap of five working days.
+
+Accuracy-99/promotion, only after a positive W5-XS result and a separate funding
+decision:
 
 - W0: less than one focused engineering day;
 - W1 and W2 in parallel: roughly 6-12 weeks only after a source-acquisition or
@@ -133,27 +139,29 @@ trainer defect:
 - W5-W7: roughly 3-8 weeks if W3 and W4 are green;
 - W8: roughly 1-2 weeks after promotion evidence exists.
 
-With W0, the W3 contract core and the bounded W4 paths complete, the remaining
-credible envelope is approximately **10-24 focused engineering weeks** if the
-independent benchmark/data population exists. Safe W1/W2/W3 parallelism can
-compress calendar time, but cannot manufacture independence. Data-rights
-review, failure to source 563 groups, or weak D-B uplift can extend the schedule
-or correctly terminate the 99% claim.
+The **10-24 focused engineering weeks** estimate therefore applies only to the
+optional Accuracy-99 certification path if the independent benchmark/data
+population exists. It is not the estimate for producing or rejecting the first
+useful adapter.
 
 ## 6. Next evidence that changes the estimate
 
-1. Establish an authorized source-acquisition/new-authoring plan for at least
-   563 independent groups; the current tracked corpus is arithmetically
-   insufficient.
-2. Register the production W3 adapter and independently reviewed semantic
+1. Execute B on the 12-task W5-XS diagnostic roster; return `NO_TRAIN` when the
+   base system is sufficient.
+2. Only for repeatable failures, freeze and run B24; materialize exactly 64
+   train + 16 dev accepted-by-oracle examples only when B remains below `22/24`.
+3. Execute one rank-8 micro-run and the paired B/D stop rule.
+4. Only after positive uplift, decide whether to establish an authorized
+   source-acquisition/new-authoring plan for 563 independent groups.
+5. Register the production W3 adapter and independently reviewed semantic
    specifications; close dependency graphs, rights review and real Oracle
    receipts for the allocated W1 slice before sealing it.
-3. Extend the accepted F-1/F-2/F-3 contract to F-4/F-5/F-6, then materialize W3
+6. Extend the accepted F-1/F-2/F-3 contract to F-4/F-5/F-6, then materialize W3
    examples with immutable provenance and fail-closed Oracle results; do not
    copy proprietary payloads into this foundation repository.
-4. Ratify O-003 from frozen denominators and baseline variance. O-005/O-006 are
+7. Ratify O-003 from frozen denominators and baseline variance. O-005/O-006 are
    already preregistered and remain subordinate to this gate.
-5. Execute paired B/D held-out evaluation and require a meaningful semantic
+8. Execute the promotion-scale paired B/D held-out evaluation and require a meaningful semantic
    uplift without critical regressions before scaling training.
-6. Keep 2,048-token, positive-dropout or accumulation settings excluded unless
+9. Keep 2,048-token, positive-dropout or accumulation settings excluded unless
    a separately preregistered technical qualification proves them.

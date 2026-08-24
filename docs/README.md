@@ -1,7 +1,7 @@
 # Piano di Metis Model 1
 
-Stato del piano: **foundation W0 + closure W1/W2 + core contrattuale W3 +
-qualifica tecnica W4; W5 bloccato dai gate dati — 20 agosto 2026**.
+Stato del piano: **W5-XS first-value ratificato e pronto a ricevere il mandato
+esecutivo; promotion Accuracy-99 separata e ancora bloccata — 24 agosto 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -41,6 +41,12 @@ sempre quattro livelli epistemici:
     condizionato, stima, rischi e prossima evidence che cambia la stima.
 13. [`12-accuracy-99-execution-plan.md`](12-accuracy-99-execution-plan.md) —
     metrica preregistrata, sequenza esecutiva e stato dei gate verso il 99%.
+14. [`13-protected-execution-broker.md`](13-protected-execution-broker.md) —
+    disegno accettato del broker protetto, confine Phase A/Phase B e nonclaim.
+15. [`14-w1-w2-evidence-package.md`](14-w1-w2-evidence-package.md) — sidecar
+    fail-closed, denominatori correnti e gate per il seal W1/W2.
+16. [`15-first-value-experiment.md`](15-first-value-experiment.md) — percorso
+    baseline-first, dataset minimo, micro-QLoRA, tempi e stop rule W5-XS.
 
 ## Tesi operativa
 
@@ -57,7 +63,7 @@ I simboli e le decisioni che cambiano nel tempo restano nel checkout corrente o
 nel retrieval; parser, linker, validator, compiler e controlli di parità restano
 l'autorità eseguibile. La formula di Model 1 è quindi:
 
-> **Qwen3.8-27B + adapter Metis versionato + contesto corrente + ciclo
+> **Qwen3.8-27B + adapter Metis soltanto se utile + contesto corrente + ciclo
 > compiler/diagnostic/fix**
 
 ## Cosa non dichiara lo stato corrente
@@ -65,6 +71,7 @@ l'autorità eseguibile. La formula di Model 1 è quindi:
 Questo repository, allo stato iniziale, non dichiara che:
 
 - un training o adapter Metis di pilot sia già stato eseguito o promosso;
+- `EXPERIMENT_PLAN_READY` autorizzi inferenza, dataset o training;
 - la qualifica sintetica batch-1 / sequence-128 e i probe delimitati a 1.024
   token si estendano automaticamente a 2.048 token o ad altre configurazioni;
 - le soglie proposte siano state raggiunte;

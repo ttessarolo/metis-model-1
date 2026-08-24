@@ -27,10 +27,41 @@ CONTRACT_PAIRS = (
     ("schemas/split-manifest.schema.json", "examples/split-manifest.synthetic.json"),
     ("schemas/evaluation-report.schema.json", "examples/evaluation-report.synthetic.json"),
     ("schemas/hyperparameter-grid.schema.json", "manifests/hyperparameter-grid.json"),
+    (
+        "schemas/w1-slice-30-blocker-map.schema.json",
+        "manifests/w1-slice-30-blocker-map-v1.json",
+    ),
+    (
+        "schemas/w2-rights-dossier.schema.json",
+        "manifests/w2-rights-dossier-v1.json",
+    ),
+    (
+        "schemas/w1-slice-30-oracle-receipts.schema.json",
+        "manifests/w1-slice-30-oracle-receipts-v1.json",
+    ),
+    (
+        "schemas/w1-leakage-group-assignment.schema.json",
+        "manifests/w1-leakage-group-assignment-v1.json",
+    ),
+    (
+        "schemas/w1-held-out-family-map.schema.json",
+        "manifests/w1-held-out-family-map-v1.json",
+    ),
+    ("schemas/w1-benchmark-seal.schema.json", "manifests/w1-benchmark-seal-v1.json"),
+    ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
 STANDALONE_SCHEMAS = (
+    "schemas/f5-migration-fixture.schema.json",
+    "schemas/f5-migration-result.schema.json",
+    "schemas/f6-blind-review-request.schema.json",
+    "schemas/f6-human-review-final.schema.json",
+    "schemas/f6-human-review-policy.schema.json",
+    "schemas/f6-human-review-receipt.schema.json",
+    "schemas/f6-structural-auto-result.schema.json",
+    "schemas/f6-structural-truth.schema.json",
     "schemas/w3-bridge-replay.schema.json",
+    "schemas/w3-native-loader-evidence.schema.json",
     "schemas/w3-production-authority.schema.json",
     "schemas/w3-qualification.schema.json",
     "schemas/w3-semantic-spec.schema.json",
@@ -47,6 +78,12 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/w3_builder.py",
     "src/metis_model1/w3_oracles.py",
     "src/metis_model1/w3_production_adapter.py",
+    "src/metis_model1/w1_blockers.py",
+    "src/metis_model1/w1_seal.py",
+    "src/metis_model1/w2_rights.py",
+    "src/metis_model1/f5_migration.py",
+    "src/metis_model1/f6_human_review.py",
+    "src/metis_model1/f6_structural.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -55,6 +92,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/10-open-decisions.md",
     "docs/11-feasibility-and-risks.md",
     "docs/12-accuracy-99-execution-plan.md",
+    "docs/16-accuracy-wave-catalog-domain-maintenance.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -66,6 +104,13 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/benchmark-plan.json",
     "manifests/w3-f1-f3-smoke-candidates.json",
     "manifests/w3-f1-f3-smoke-semantic-specs.json",
+    "manifests/w1-slice-30-blocker-map-v1.json",
+    "manifests/w2-rights-dossier-v1.json",
+    "manifests/w1-slice-30-oracle-receipts-v1.json",
+    "manifests/w1-leakage-group-assignment-v1.json",
+    "manifests/w1-held-out-family-map-v1.json",
+    "manifests/w1-benchmark-seal-v1.json",
+    "manifests/accuracy-uplift-plan.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -108,13 +153,36 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/w3-qualification.schema.json",
     "schemas/w3-production-authority.schema.json",
     "schemas/w3-bridge-replay.schema.json",
+    "schemas/w3-native-loader-evidence.schema.json",
     "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
     "schemas/w3-run.schema.json",
+    "schemas/w1-slice-30-blocker-map.schema.json",
+    "schemas/w2-rights-dossier.schema.json",
+    "schemas/w1-slice-30-oracle-receipts.schema.json",
+    "schemas/w1-leakage-group-assignment.schema.json",
+    "schemas/w1-held-out-family-map.schema.json",
+    "schemas/w1-benchmark-seal.schema.json",
+    "schemas/accuracy-uplift-plan.schema.json",
+    "schemas/f5-migration-fixture.schema.json",
+    "schemas/f5-migration-result.schema.json",
+    "schemas/f6-blind-review-request.schema.json",
+    "schemas/f6-human-review-final.schema.json",
+    "schemas/f6-human-review-policy.schema.json",
+    "schemas/f6-human-review-receipt.schema.json",
+    "schemas/f6-structural-auto-result.schema.json",
+    "schemas/f6-structural-truth.schema.json",
     "tests/test_w3_production_adapter.py",
     "tests/test_w3_qualifier.py",
     "tests/test_w3_production_worker.py",
     "tests/test_w3_bridge_gate.py",
+    "tests/test_w1_blockers.py",
+    "tests/test_w1_seal.py",
+    "tests/test_w2_rights.py",
+    "tests/test_accuracy_uplift_plan.py",
+    "tests/test_f5_migration.py",
+    "tests/test_f6_human_review.py",
+    "tests/test_f6_structural.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -400,6 +468,254 @@ def validate_artifact_store_policy_contract(root: Path) -> list[str]:
     ):
         errors.append("O-006 is not fully ratified in the decision register")
     return errors
+
+
+def validate_w5_xs_plan_contract(root: Path) -> list[str]:
+    """Validate the plan-only W5-XS gate without touching model payloads."""
+
+    try:
+        plan, schema_errors = _validate_standalone_contract_schema(
+            root,
+            "schemas/w5-xs-plan.schema.json",
+            "manifests/w5-xs-plan.json",
+        )
+        if schema_errors:
+            return schema_errors
+
+        errors: list[str] = []
+        register = load_json(root / "manifests/decision-register.json")
+        decisions = [item for item in register["open_decisions"] if item.get("id") == "O-011"]
+        if (
+            len(decisions) != 1
+            or decisions[0].get("status") != "ratified"
+            or decisions[0].get("blocks") != []
+            or not decisions[0].get("resolution")
+        ):
+            errors.append("O-011 is not uniquely and fully ratified")
+
+        spec = plan["canonical_spec"]
+        spec_path = root / spec["path"]
+        spec_hash = "sha256:" + hashlib.sha256(spec_path.read_bytes()).hexdigest()
+        if spec_hash != spec["sha256"]:
+            errors.append("W5-XS canonical specification hash contains drift")
+
+        baseline = plan["baseline"]
+        if sum(baseline["diagnostic_family_counts"].values()) != baseline["diagnostic_task_count"]:
+            errors.append("W5-XS diagnostic family counts do not sum to 12")
+        if (
+            baseline["reusable_fixture_tasks"] + baseline["additional_task_specs_required"]
+            != baseline["diagnostic_task_count"]
+        ):
+            errors.append("W5-XS reusable and additional task counts do not sum to 12")
+        if sum(baseline["paired_family_counts"].values()) != baseline["paired_task_count"]:
+            errors.append("W5-XS paired family counts do not sum to 24")
+
+        dataset = plan["dataset"]
+        if dataset["train_examples"] + dataset["dev_examples"] != dataset["total_examples"]:
+            errors.append("W5-XS dataset counts do not sum to the fixed total")
+        if (
+            dataset["failure_driven_train_examples"] + dataset["canonical_replay_train_examples"]
+            != dataset["train_examples"]
+        ):
+            errors.append("W5-XS train composition does not sum to the fixed train total")
+        if (
+            dataset["failure_driven_min_parent_template_groups"]
+            * dataset["max_derivations_per_parent_template_group"]
+            < dataset["failure_driven_train_examples"]
+        ):
+            errors.append("W5-XS failure-driven diversity cannot cover the train denominator")
+
+        accuracy_target = load_json(root / "manifests/accuracy-target.json")
+        accuracy_errors = validate_accuracy_target_contract(root)
+        errors.extend(f"critical-failure roster: {error}" for error in accuracy_errors)
+        if (
+            baseline["require_zero_unlisted_critical_failures"]
+            != accuracy_target["require_zero_unlisted_critical_failures"]
+        ):
+            errors.append("W5-XS unlisted critical-failure policy differs from its target")
+
+        qualification_errors = validate_qualification_contract(root)
+        errors.extend(f"qualification: {error}" for error in qualification_errors)
+        publication_errors = validate_artifact_store_policy_contract(root)
+        errors.extend(f"publication policy: {error}" for error in publication_errors)
+
+        repository_files = git_repository_files(root)
+        boundary_errors = validate_artifact_policy_paths(repository_files)
+        boundary_errors.extend(validate_repository_file_contents(root, repository_files))
+        errors.extend(f"repository boundary: {error}" for error in boundary_errors)
+        return errors
+    except Exception as error:  # noqa: BLE001 - the plan gate must fail closed
+        return [f"W5-XS plan contract unreadable: {type(error).__name__}: {error}"]
+
+
+def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
+    """Validate the forward-only accuracy plan and its pending grammar boundary."""
+
+    try:
+        plan, schema_errors = _validate_standalone_contract_schema(
+            root,
+            "schemas/accuracy-uplift-plan.schema.json",
+            "manifests/accuracy-uplift-plan.json",
+        )
+        if schema_errors:
+            return schema_errors
+
+        errors: list[str] = []
+        register = load_json(root / "manifests/decision-register.json")
+        decisions = [item for item in register["open_decisions"] if item.get("id") == "O-010"]
+        if (
+            len(decisions) != 1
+            or decisions[0].get("status") != "ratified"
+            or decisions[0].get("blocks") != []
+            or not decisions[0].get("resolution")
+        ):
+            errors.append("O-010 is not uniquely and fully ratified")
+
+        spec = plan["canonical_spec"]
+        spec_path = root / spec["path"]
+        spec_hash = "sha256:" + hashlib.sha256(spec_path.read_bytes()).hexdigest()
+        if spec_hash != spec["sha256"]:
+            errors.append("accuracy-uplift canonical specification hash contains drift")
+
+        wave = plan["wave"]
+        expected_families = {f"F-{number}" for number in range(1, 7)}
+        for split_name in ("diagnostic", "train", "dev", "final_test"):
+            split = wave[split_name]
+            counts = split["family_counts"]
+            if set(counts) != expected_families:
+                errors.append(f"accuracy-uplift {split_name} family roster is not F-1...F-6")
+            if sum(counts.values()) != split["total"]:
+                errors.append(f"accuracy-uplift {split_name} family counts do not sum to total")
+        if wave["train"]["total"] + wave["dev"]["total"] != 80:
+            errors.append("accuracy-uplift conditional dataset is not exactly 64+16")
+
+        catalog = plan["catalog_value_domain"]
+        reservations = catalog["coverage_reservation"]
+        for split_name, wave_name in (("diagnostic", "diagnostic"), ("final_test", "final_test")):
+            for family in ("F-1", "F-6"):
+                reserved = reservations[split_name][family]
+                if reserved < 1 or reserved > wave[wave_name]["family_counts"][family]:
+                    errors.append(
+                        f"catalog-domain {split_name} reservation for {family} is outside the split"
+                    )
+
+        upstream = plan["upstream_grammar_dependency"]
+        gates = plan["gates"]
+        pending = upstream["status"] == "awaiting_upstream_pin"
+        surface_pending = upstream["status"] == "surface_pinned_implementation_pending"
+        pinned = upstream["status"] == "pinned"
+        surface_pinned = surface_pending or pinned
+        if gates["surface_pin_complete"] != surface_pinned:
+            errors.append("surface pin gate disagrees with the grammar dependency status")
+        if gates["upstream_pin_complete"] != pinned:
+            errors.append("upstream pin gate disagrees with the grammar dependency status")
+
+        pending_forbidden = {
+            "catalog_domain_prompt_truth",
+            "catalog_domain_oracle_truth",
+            "catalog_domain_split_materialization",
+            "t30_model_outputs_before_complete_seal",
+            "tenant_value_payloads",
+            "training",
+        }
+        if pending:
+            if upstream["pin"] is not None:
+                errors.append("pending upstream grammar dependency must not carry a pin")
+            if catalog["status"] != "reserved_pending_upstream_pin":
+                errors.append("pending catalog-domain construct status was laundered")
+            if catalog["materialization_allowed"] or catalog["oracle_truth_allowed"]:
+                errors.append("catalog-domain truth/materialization opened before the upstream pin")
+            if gates["catalog_materialization_allowed"]:
+                errors.append("catalog materialization gate opened before the upstream pin")
+            if not pending_forbidden.issubset(plan["execution_partition"]["forbidden_now"]):
+                errors.append("pending grammar execution partition omits a fail-closed prohibition")
+
+        if surface_pending:
+            if upstream["pin"] is None:
+                errors.append("surface-pinned grammar dependency has no specification pin")
+            if catalog["status"] != "pinned_refresh_pending":
+                errors.append("surface-pinned catalog-domain status hides pending implementation")
+            if catalog["materialization_allowed"] or catalog["oracle_truth_allowed"]:
+                errors.append("catalog-domain truth opened before the implementation pin")
+            if gates["retrieval_contract_refreshed"] or gates["semantic_oracle_refreshed"]:
+                errors.append("retrieval/oracle refresh claimed before the implementation pin")
+            if gates["catalog_materialization_allowed"]:
+                errors.append("catalog materialization gate opened before the implementation pin")
+            if not pending_forbidden.issubset(plan["execution_partition"]["forbidden_now"]):
+                errors.append("surface-pinned execution partition omits a fail-closed prohibition")
+
+        if pinned and upstream["pin"] is None:
+            errors.append("pinned upstream grammar dependency has no evidence pin")
+        refresh_ready = (
+            gates["upstream_pin_complete"]
+            and gates["retrieval_contract_refreshed"]
+            and gates["semantic_oracle_refreshed"]
+        )
+        if pending and (
+            gates["retrieval_contract_refreshed"] or gates["semantic_oracle_refreshed"]
+        ):
+            errors.append("retrieval/oracle refresh claimed before the upstream pin")
+        if surface_pinned and not refresh_ready:
+            if catalog["status"] != "pinned_refresh_pending":
+                errors.append("pinned catalog-domain status does not expose pending refresh work")
+            if catalog["materialization_allowed"] or catalog["oracle_truth_allowed"]:
+                errors.append("catalog-domain truth opened before all refresh gates")
+        if refresh_ready and (
+            catalog["status"] != "ready_for_materialization"
+            or not catalog["materialization_allowed"]
+            or not catalog["oracle_truth_allowed"]
+        ):
+            errors.append("refreshed catalog-domain state is not ready for materialization")
+        if catalog["materialization_allowed"] != gates["catalog_materialization_allowed"]:
+            errors.append("catalog materialization state disagrees with its gate")
+        if catalog["materialization_allowed"] and not refresh_ready:
+            errors.append("catalog materialization opened before pin, retrieval and oracle refresh")
+        if catalog["oracle_truth_allowed"] and not refresh_ready:
+            errors.append("catalog oracle truth opened before pin, retrieval and oracle refresh")
+        if catalog["status"] == "ready_for_materialization" and not refresh_ready:
+            errors.append("catalog-domain status claims readiness before all refresh gates")
+
+        final_test = wave["final_test"]
+        t30_sealed = (
+            final_test["seal_status"] == "sealed_pre_output"
+            and final_test["materialized"] == final_test["total"]
+        )
+        if gates["t30_sealed_before_model_outputs"] != t30_sealed:
+            errors.append("T30 seal gate disagrees with its materialized pre-output state")
+        if final_test["seal_status"] == "sealed_pre_output" and not t30_sealed:
+            errors.append("T30 claims a seal without all 30 materialized tasks")
+        if gates["model_evaluation_allowed"] and not t30_sealed:
+            errors.append("model evaluation opened before the complete T30 pre-output seal")
+        if (
+            wave["diagnostic"]["model_outputs_allowed"] != gates["model_evaluation_allowed"]
+            or final_test["model_outputs_allowed"] != gates["model_evaluation_allowed"]
+        ):
+            errors.append("model-output flags disagree with the evaluation gate")
+        if gates["training_allowed"]:
+            errors.append("accuracy-uplift planning contract cannot authorize training")
+
+        maintenance = plan["maintenance"]
+        if maintenance["default_verdict"] != "NO_RETRAIN":
+            errors.append("accuracy-uplift default verdict is not NO_RETRAIN")
+        condition = maintenance["training_open_condition"]
+        if (
+            condition["minimum_correctable_semantic_failures"] < 3
+            or condition["minimum_distinct_roots"] < 2
+        ):
+            errors.append("delta training condition is weaker than three failures/two roots")
+        if (
+            maintenance["delta_qlora"]["checkpoint_selection"] != "dev_only"
+            or maintenance["delta_qlora"]["final_test_feedback_allowed"]
+        ):
+            errors.append("delta QLoRA selection leaks final-test evidence")
+
+        repository_files = git_repository_files(root)
+        boundary_errors = validate_artifact_policy_paths(repository_files)
+        boundary_errors.extend(validate_repository_file_contents(root, repository_files))
+        errors.extend(f"repository boundary: {error}" for error in boundary_errors)
+        return errors
+    except Exception as error:  # noqa: BLE001 - the plan gate must fail closed
+        return [f"accuracy-uplift plan unreadable: {type(error).__name__}: {error}"]
 
 
 def validate_hyperparameter_grid_contract(root: Path) -> list[str]:
@@ -709,6 +1025,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "counts",
             "roles",
             "executions",
+            "native_evidence",
             "non_claims",
             "cleanup",
             "manifest_sha256",
@@ -720,14 +1037,15 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "status",
             "claim",
             "reason",
+            "native_evidence",
             "cleanup",
         },
     }
     qualifier_cleanup_refs = {
         "qualified": "#/$defs/qualifiedV1Cleanup",
         "blocked": "#/$defs/blockedV1Cleanup",
-        "productionQualified": "#/$defs/qualifiedV2Cleanup",
-        "productionBlocked": "#/$defs/blockedV2Cleanup",
+        "productionQualified": "#/$defs/qualifiedV3Cleanup",
+        "productionBlocked": "#/$defs/blockedV3Cleanup",
     }
     for name, expected_keys in expected_variant_keys.items():
         variant = qualification.get("$defs", {}).get(name, {})
@@ -760,10 +1078,14 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
         ),
         (
             qualification,
-            "qualifiedV2Cleanup",
-            2,
-            ["#/$defs/productionProcessRoot", "#/$defs/productionTrustedRoot"],
-            "qualification v2",
+            "qualifiedV3Cleanup",
+            3,
+            [
+                "#/$defs/productionProcessRoot",
+                "#/$defs/productionRuntimeRoot",
+                "#/$defs/productionTrustedRoot",
+            ],
+            "qualification v3",
         ),
         (
             qualification,
@@ -777,20 +1099,25 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
         ),
         (
             qualification,
-            "blockedV2Cleanup",
+            "blockedV3Cleanup",
             0,
             [
                 "#/$defs/productionProcessBlockedRoot",
+                "#/$defs/productionRuntimeBlockedRoot",
                 "#/$defs/productionTrustedBlockedRoot",
                 "#/$defs/publicationPartialBlockedRoot",
             ],
-            "blocked qualification v2",
+            "blocked qualification v3",
         ),
         (
             bridge,
             "qualifiedChildCleanup",
-            2,
-            ["#/$defs/productionProcessRoot", "#/$defs/productionTrustedRoot"],
+            3,
+            [
+                "#/$defs/productionProcessRoot",
+                "#/$defs/productionRuntimeRoot",
+                "#/$defs/productionTrustedRoot",
+            ],
             "bridge child",
         ),
         (
@@ -806,6 +1133,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             0,
             [
                 "#/$defs/productionProcessBlockedRoot",
+                "#/$defs/productionRuntimeBlockedRoot",
                 "#/$defs/productionTrustedBlockedRoot",
                 "#/$defs/publicationPartialBlockedRoot",
             ],
@@ -853,6 +1181,12 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
         ),
         (
             qualification,
+            "productionRuntimeBlockedRoot",
+            ("productionRuntimeRoot", "productionRuntimeUnmeasurable"),
+            "qualification runtime",
+        ),
+        (
+            qualification,
             "productionTrustedBlockedRoot",
             ("productionTrustedRoot", "productionTrustedUnmeasurable"),
             "qualification trusted",
@@ -868,6 +1202,12 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "productionProcessBlockedRoot",
             ("productionProcessRoot", "productionProcessUnmeasurable"),
             "bridge process",
+        ),
+        (
+            bridge,
+            "productionRuntimeBlockedRoot",
+            ("productionRuntimeRoot", "productionRuntimeUnmeasurable"),
+            "bridge runtime",
         ),
         (
             bridge,
@@ -898,6 +1238,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             errors.append(f"W3 blocked {label} sealed/unmeasurable union drifted")
     expected_count_caps = (
         (qualification, "processRetainedCounts", (512, 512, 134217728), "qualification process"),
+        (qualification, "runtimeRetainedCounts", (8, 8, 134217728), "qualification runtime"),
         (qualification, "trustedRetainedCounts", (4096, 4096, 1073741824), "qualification trusted"),
         (
             qualification,
@@ -906,6 +1247,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "qualification publication",
         ),
         (bridge, "processRootCounts", (512, 512, 134217728), "bridge process"),
+        (bridge, "runtimeRootCounts", (8, 8, 134217728), "bridge runtime"),
         (bridge, "trustedRootCounts", (4096, 4096, 1073741824), "bridge trusted"),
         (bridge, "publicationRootCounts", (128, 128, 33554432), "bridge publication"),
         (bridge, "holderRootCounts", (16384, 16384, 3221225472), "bridge holder"),
@@ -931,6 +1273,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "roles",
             "nonce_model",
             "artifacts",
+            "native_evidence",
             "non_claims",
             "cleanup",
             "manifest_sha256",
@@ -942,6 +1285,7 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
             "claim",
             "reason",
             "observed_runs",
+            "native_evidence",
             "cleanup",
         },
     }
@@ -964,9 +1308,9 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
     qualified = bridge.get("$defs", {}).get("qualified", {})
     required = set(qualified.get("required", ()))
     if bridge.get("$defs", {}).get("qualified", {}).get("properties", {}).get("schema_version") != {
-        "const": 2
+        "const": 3
     }:
-        errors.append("W3 bridge qualified schema version is not v2")
+        errors.append("W3 bridge qualified schema version is not v3")
     if not {"runs", "normalized_projection_sha256"}.issubset(required):
         errors.append("W3 bridge qualified physical/normalized replay binding is incomplete")
     if {"qualification_manifest_sha256", "reports_sha256"} & required:
@@ -1010,6 +1354,66 @@ def validate_w3_retained_report_schema_contract(root: Path | None = None) -> lis
         ]
         if bridge.get("$defs", {}).get(f"observedRun{index}", {}).get("allOf") != expected:
             errors.append(f"W3 bridge observed-run {index} index binding drifted")
+    return errors
+
+
+def validate_w1_w2_evidence_package(root: Path) -> list[str]:
+    """Fail closed on semantic drift across the six W1/W2 evidence sidecars.
+
+    JSON Schema proves only their fixed wire shape.  Each sidecar's own
+    deterministic validator binds that shape to the current frozen inputs and
+    retains the intentionally unresolved W1/W2 state.
+    """
+
+    from metis_model1.w1_blockers import validate_blocker_map
+    from metis_model1.w1_seal import (
+        validate_benchmark_seal,
+        validate_held_out_map,
+        validate_leakage_assignment,
+        validate_oracle_receipts,
+    )
+    from metis_model1.w2_rights import validate_rights_dossier
+
+    validators = (
+        (
+            "w1-blocker-map",
+            "manifests/w1-slice-30-blocker-map-v1.json",
+            lambda instance: validate_blocker_map(instance, root),
+        ),
+        (
+            "w2-rights-dossier",
+            "manifests/w2-rights-dossier-v1.json",
+            validate_rights_dossier,
+        ),
+        (
+            "w1-oracle-receipts",
+            "manifests/w1-slice-30-oracle-receipts-v1.json",
+            lambda instance: validate_oracle_receipts(instance, root),
+        ),
+        (
+            "w1-leakage-assignment",
+            "manifests/w1-leakage-group-assignment-v1.json",
+            lambda instance: validate_leakage_assignment(instance, root),
+        ),
+        (
+            "w1-held-out-map",
+            "manifests/w1-held-out-family-map-v1.json",
+            lambda instance: validate_held_out_map(instance, root),
+        ),
+        (
+            "w1-benchmark-seal",
+            "manifests/w1-benchmark-seal-v1.json",
+            lambda instance: validate_benchmark_seal(instance, root),
+        ),
+    )
+    errors: list[str] = []
+    for label, relative_path, validator in validators:
+        try:
+            semantic_errors = validator(load_json(root / relative_path))
+        except Exception as error:  # Fail closed at the contract/validator boundary.
+            errors.append(f"{label}: semantic validator raised {type(error).__name__}: {error}")
+            continue
+        errors.extend(f"{label}: {error}" for error in semantic_errors)
     return errors
 
 
@@ -1076,6 +1480,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     else:
         report.passes.append("artifact-store=local-only/40GiB-cap/atomic/no-auto-delete")
 
+    accuracy_uplift_errors = validate_accuracy_uplift_plan_contract(root)
+    if accuracy_uplift_errors:
+        report.errors.extend(accuracy_uplift_errors)
+    else:
+        report.passes.append("accuracy-uplift=D18/64+16/T30/catalog-surface-pinned")
+
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)
     if hyperparameter_errors:
         report.errors.extend(hyperparameter_errors)
@@ -1087,6 +1497,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         report.errors.extend(qualification_errors)
     else:
         report.passes.append("qualification=static-contract-pass")
+
+    w1_w2_errors = validate_w1_w2_evidence_package(root)
+    if w1_w2_errors:
+        report.errors.extend(w1_w2_errors)
+    else:
+        report.passes.append("w1-w2-evidence-package=6-semantic-sidecars")
 
     repository_files = git_repository_files(root)
     report.repository_files = len(repository_files)

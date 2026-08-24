@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-native-loader-evidence.schema.json",
+  "title": "Blocked W3 native-loader static closure receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "status",
+    "available",
+    "metis",
+    "assumptions",
+    "non_claims",
+    "toolchain",
+    "source_closure",
+    "package_closure",
+    "capsule_closure",
+    "parity",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "evidence_id": { "const": "w3-native-loader-static-closure-blocked-v1" },
+    "status": { "const": "blocked" },
+    "available": { "const": false },
+    "metis": {
+      "const": {
+        "revision": "a2dde2b191f6b78c2003d74875560da782470968",
+        "tree": "75473e26deff4084a0eb077a4c3e27d52dc07998"
+      }
+    },
+    "assumptions": {
+      "const": {
+        "exclusive_host_required": true,
+        "executed_preimage_authority": false
+      }
+    },
+    "non_claims": {
+      "const": [
+        "executed_preimage_authority=false",
+        "no-durable-parity-evidence",
+        "no-production-evidence",
+        "no-dataset-qualification",
+        "no-training-readiness",
+        "no-semantic-accuracy-evidence"
+      ]
+    },
+    "toolchain": { "$ref": "#/$defs/toolchain" },
+    "source_closure": { "$ref": "#/$defs/sourceClosure" },
+    "package_closure": { "$ref": "#/$defs/packageClosure" },
+    "capsule_closure": { "$ref": "#/$defs/capsuleClosure" },
+    "parity": {
+      "const": {
+        "available": false,
+        "console_only_observations_included": false,
+        "durable_rows": 0,
+        "evidence_credit": "none",
+        "expected_rows": 15,
+        "reason": "observation-denominator-drift",
+        "status": "blocked"
+      }
+    },
+    "manifest_sha256": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*(?:^|/)\\.git(?:/|$))(?!.*(?:^|/)\\.env(?:\\.|/|$))[A-Za-z0-9@.$_-]+(?:/[A-Za-z0-9@.$_-]+)*$"
+    },
+    "pinnedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census",
+        "generator",
+        "loader",
+        "node",
+        "parser",
+        "policies",
+        "reference_comparator",
+        "runner"
+      ],
+      "properties": {
+        "census": {
+          "allOf": [
+            { "$ref": "#/$defs/pinnedFile" },
+            {
+              "properties": {
+                "path": { "const": "runtime/metis_oracle/native_evidence_census.mjs" }
+              }
+            }
+          ]
+        },
+        "generator": {
+          "allOf": [
+            { "$ref": "#/$defs/pinnedFile" },
+            {
+              "properties": {
+                "path": { "const": "runtime/w3_native_evidence.py" }
+              }
+            }
+          ]
+        },
+        "loader": {
+          "const": {
+            "mode": 292,
+            "path": ".metis-oracle/native_ts_loader.mjs",
+            "sha256": "sha256:45e3557ce7ee345e2bca7de603c2ef8bc21aa2adb3f305d3f1cf6ee445273fee"
+          }
+        },
+        "node": {
+          "const": {
+            "retained_mode": 365,
+            "sha256": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
+            "size": 112915776,
+            "source_mode": 493,
+            "version": "v22.22.3"
+          }
+        },
+        "parser": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package", "path", "sha256"],
+          "properties": {
+            "package": { "const": "typescript@5.9.3" },
+            "path": { "const": "tooling/node_modules/typescript/lib/typescript.js" },
+            "sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "policies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "combined_sha256",
+            "native_execution_sha256",
+            "node_sha256",
+            "oracle_sha256",
+            "outer_sha256",
+            "reference_comparator_sha256"
+          ],
+          "properties": {
+            "combined_sha256": { "$ref": "#/$defs/hash" },
+            "native_execution_sha256": { "$ref": "#/$defs/hash" },
+            "node_sha256": { "$ref": "#/$defs/hash" },
+            "oracle_sha256": { "$ref": "#/$defs/hash" },
+            "outer_sha256": { "$ref": "#/$defs/hash" },
+            "reference_comparator_sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "reference_comparator": {
+          "const": {
+            "allows_child_process": true,
+            "allows_temp_writes": true,
+            "credit": "reference-only-no-production-authority",
+            "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463",
+            "package": "tsx@4.22.4",
+            "path": "tooling/node_modules/tsx/dist/loader.mjs",
+            "sha256": "sha256:7dcee7691241fdd4a59a52879597d22d603d770a764282724eaca7cab03b389f"
+          }
+        },
+        "runner": {
+          "const": {
+            "mode": 292,
+            "path": ".metis-oracle/runner.ts",
+            "sha256": "sha256:772baa27e981f611681330bc463aef2ebe06b5f4a83ef2a0313ccf66b6dfef5d"
+          }
+        }
+      }
+    },
+    "importEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dynamic", "resolved_path", "specifier", "type_only"],
+      "properties": {
+        "dynamic": { "type": "boolean" },
+        "resolved_path": {
+          "oneOf": [
+            { "$ref": "#/$defs/path" },
+            { "type": "null" }
+          ]
+        },
+        "specifier": { "type": "string", "minLength": 1 },
+        "type_only": { "type": "boolean" }
+      }
+    },
+    "sourceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["git_blob_oid", "imports", "mode", "path", "sha256", "size"],
+      "properties": {
+        "git_blob_oid": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "imports": { "type": "array", "items": { "$ref": "#/$defs/importEdge" } },
+        "mode": { "const": 292 },
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sourceClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counts", "entries", "roster_sha256", "rows"],
+      "properties": {
+        "counts": {
+          "const": {
+            "bytes": 967481,
+            "edges": 99,
+            "files": 32,
+            "relative_resolutions": 66
+          }
+        },
+        "entries": {
+          "const": [
+            "tooling/src/compiler/compile.ts",
+            "tooling/src/compiler/serialize.ts",
+            "tooling/src/language/metis-module.ts"
+          ]
+        },
+        "roster_sha256": { "$ref": "#/$defs/hash" },
+        "rows": {
+          "type": "array",
+          "minItems": 32,
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/sourceRow" }
+        }
+      }
+    },
+    "packageRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "package", "path", "sha256", "size"],
+      "properties": {
+        "mode": { "const": 292 },
+        "package": { "type": "string", "minLength": 3 },
+        "path": {
+          "type": "string",
+          "pattern": "^tooling/node_modules/[A-Za-z0-9@.$_/-]+$"
+        },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "size": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "packageClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counts", "package_identities", "roster_sha256", "rows"],
+      "properties": {
+        "counts": {
+          "const": {
+            "bytes": 7710543,
+            "files": 1790,
+            "packages": 15
+          }
+        },
+        "package_identities": {
+          "const": [
+            "@chevrotain/cst-dts-gen@12.0.0",
+            "@chevrotain/gast@12.0.0",
+            "@chevrotain/regexp-to-ast@12.0.0",
+            "@chevrotain/types@12.0.0",
+            "@chevrotain/utils@12.0.0",
+            "chevrotain-allstar@0.4.3",
+            "chevrotain@12.0.0",
+            "langium@4.3.0",
+            "lodash-es@4.18.1",
+            "vscode-jsonrpc@9.0.0",
+            "vscode-languageserver-protocol@3.18.1",
+            "vscode-languageserver-textdocument@1.0.13",
+            "vscode-languageserver-types@3.18.0",
+            "vscode-languageserver@10.0.1",
+            "vscode-uri@3.1.0"
+          ]
+        },
+        "roster_sha256": { "$ref": "#/$defs/hash" },
+        "rows": {
+          "type": "array",
+          "minItems": 1790,
+          "maxItems": 1790,
+          "items": { "$ref": "#/$defs/packageRow" }
+        }
+      }
+    },
+    "capsuleRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "path", "role", "sha256", "size"],
+      "properties": {
+        "mode": { "const": 292 },
+        "path": { "$ref": "#/$defs/path" },
+        "role": { "enum": ["git-archive", "tooling", "loader", "runner"] },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "size": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "capsuleClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counts", "roster_sha256", "rows", "runtime_observation"],
+      "properties": {
+        "counts": { "const": { "bytes": 8922291, "files": 1827 } },
+        "roster_sha256": { "$ref": "#/$defs/hash" },
+        "rows": {
+          "type": "array",
+          "minItems": 1827,
+          "maxItems": 1827,
+          "items": { "$ref": "#/$defs/capsuleRow" }
+        },
+        "runtime_observation": {
+          "const": {
+            "available": false,
+            "durable_urls": 0,
+            "evidence_credit": "none"
+          }
+        }
+      }
+    }
+  }
+}

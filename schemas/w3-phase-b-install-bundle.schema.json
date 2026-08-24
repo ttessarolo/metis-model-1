@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-phase-b-install-bundle.schema.json",
+  "title": "W3 Phase B install bundle v1",
+  "description": "L70 installable-but-unexecuted bundle. The preinstall release content projection excludes dev/ino; the runtime authority ancestry digest exists only after measurement during apply.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "status", "outcome", "nonclaims", "release_content_roster_sha256", "principals", "services", "installer_bootstrap", "artifacts", "artifact_roster_sha256", "python_runtime", "python_dependencies", "node_capsule", "source_roster", "install_roster", "authority_roster_paths", "directories", "backend_roster_sha256", "bundle_sha256"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "w3-phase-b-install-bundle" },
+    "status": { "enum": ["awaiting-bootstrap-build", "frozen"] },
+    "outcome": { "const": "PHASE_B_INSTALLABLE_UNEXECUTED" },
+    "nonclaims": {
+      "const": ["no-production-authority", "no-production-evidence", "public-synthetic-only", "no-semantic-accuracy-claim", "no-W5-credit"]
+    },
+    "release_content_roster_sha256": { "$ref": "#/$defs/hash" },
+    "principals": { "$ref": "#/$defs/principals" },
+    "services": {
+      "const": ["com.metis.model1.w3-launcher", "com.metis.model1.w3-anchor", "com.metis.model1.w3-broker"]
+    },
+    "installer_bootstrap": { "$ref": "#/$defs/installerBootstrap" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "artifact_roster_sha256": { "$ref": "#/$defs/maybeHash" },
+    "python_runtime": { "$ref": "#/$defs/pythonRuntime" },
+    "python_dependencies": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/dependency" }
+    },
+    "node_capsule": { "$ref": "#/$defs/nodeCapsule" },
+    "source_roster": { "$ref": "#/$defs/roster" },
+    "install_roster": { "$ref": "#/$defs/roster" },
+    "authority_roster_paths": { "type": "array", "minItems": 7, "uniqueItems": true, "items": { "type": "string", "pattern": "^/(?!Users/)[^\\u0000]+$" } },
+    "directories": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/directoryRow" } },
+    "backend_roster_sha256": { "$ref": "#/$defs/maybeHash" },
+    "bundle_sha256": { "$ref": "#/$defs/maybeHash" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "frozen" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "artifacts": { "items": { "properties": { "source_size": { "type": "integer" }, "source_sha256": { "$ref": "#/$defs/hash" }, "size": { "type": "integer" }, "sha256": { "$ref": "#/$defs/hash" } } } },
+          "artifact_roster_sha256": { "$ref": "#/$defs/hash" },
+          "source_roster": { "properties": { "files": { "type": "integer", "minimum": 1 }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/hash" } } },
+          "install_roster": { "properties": { "files": { "type": "integer", "minimum": 1 }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/hash" } } },
+          "backend_roster_sha256": { "$ref": "#/$defs/hash" },
+          "bundle_sha256": { "$ref": "#/$defs/hash" },
+          "installer_bootstrap": {
+            "properties": {
+              "bootstrap_binary_size": { "const": 54232 },
+              "bootstrap_binary_sha256": { "const": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447" },
+              "build_provenance": { "$ref": "#/$defs/bootstrapBuildProvenance" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "maybeHash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "maybeCount": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "uid", "gid", "group", "disposition"],
+      "properties": {
+        "name": { "type": "string" }, "uid": { "type": "integer", "minimum": 0 },
+        "gid": { "type": "integer", "minimum": 0 }, "group": { "type": "string" },
+        "disposition": { "enum": ["must-exist-exactly", "create-only-if-name-uid-gid-free"] }
+      }
+    },
+    "installerBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source_root", "target_root", "descriptor_path", "descriptor_magic", "descriptor_max_bytes", "file_count_max", "total_bytes_max", "bootstrap_install_path", "bootstrap_source_path", "bootstrap_source_size", "bootstrap_source_sha256", "bootstrap_binary_size", "bootstrap_binary_sha256", "build_provenance", "manifest_relative_path", "plan_relative_path", "python_path", "executor_module", "python_argv", "cwd", "sterile_environment", "admin_precondition", "admin_invocation_template"],
+      "properties": {
+        "version": { "const": 1 },
+        "source_root": { "const": "/private/var/tmp/MetisModel1-w3-phase-b-source" },
+        "target_root": { "const": "/private/var/db/MetisModel1/w3-phase-b-install-bundle" },
+        "descriptor_path": { "const": "/private/var/db/MetisModel1/w3-phase-b-bootstrap.descriptor" },
+        "descriptor_magic": { "const": "METIS-W3-PHASE-B-BOOTSTRAP-V1" },
+        "descriptor_max_bytes": { "const": 33554432 },
+        "file_count_max": { "const": 8192 },
+        "total_bytes_max": { "const": 2147483648 },
+        "bootstrap_install_path": { "const": "/private/var/db/MetisModel1/w3-installer-bootstrap" },
+        "bootstrap_source_path": { "const": "runtime/w3_installer_bootstrap.c" },
+        "bootstrap_source_size": { "const": 79144 },
+        "bootstrap_source_sha256": { "const": "sha256:66e686da506dfb67c6652c7cbd5952095d9867a0230d99542f96a2cebe0f7a31" },
+        "bootstrap_binary_size": { "oneOf": [{ "const": 54232 }, { "type": "null" }] },
+        "bootstrap_binary_sha256": { "oneOf": [{ "const": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447" }, { "type": "null" }] },
+        "build_provenance": { "oneOf": [{ "$ref": "#/$defs/bootstrapBuildProvenance" }, { "type": "null" }] },
+        "manifest_relative_path": { "const": "metadata/w3-phase-b-install-bundle.json" },
+        "plan_relative_path": { "const": "metadata/install-plan.json" },
+        "python_path": { "const": "/private/var/db/MetisModel1/w3-phase-b-install-bundle/install-root/Library/Application Support/MetisModel1/runtime/python/bin/python3.13" },
+        "executor_module": { "const": "runtime.w3_broker_executor" },
+        "python_argv": { "const": ["-I", "-B", "-m", "runtime.w3_broker_executor"] },
+        "cwd": { "const": "/" },
+        "sterile_environment": { "const": { "PATH": "/usr/bin:/bin:/usr/sbin:/sbin" } },
+        "admin_precondition": { "const": ["trusted-/usr/bin/install-copy-bootstrap-and-descriptor", "external-/usr/bin/shasum-remeasure-before-exec", "trusted-/usr/bin/env--ignore-environment-before-stage-0-exec", "no-repository-python-before-stage-0"] },
+        "admin_invocation_template": { "$ref": "#/$defs/adminInvocationTemplate" }
+      }
+    },
+    "adminInvocationTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "cwd", "stage0_environment", "bootstrap_source", "bootstrap_target", "trusted_install_argv", "target_remeasure_before_exec", "argv", "pre_main_boundary", "in_main_scrub_role"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "kind": { "const": "w3-phase-b-admin-invocation-template" },
+        "cwd": { "const": "/" },
+        "stage0_environment": { "const": { "PATH": "/usr/bin:/bin:/usr/sbin:/sbin" } },
+        "bootstrap_source": { "const": { "path": "/private/var/tmp/MetisModel1-w3-phase-b-bootstrap/w3-installer-bootstrap", "size": 54232, "sha256": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447", "mode": "0555" } },
+        "bootstrap_target": { "const": { "path": "/private/var/db/MetisModel1/w3-installer-bootstrap", "size": 54232, "sha256": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447", "mode": "0555" } },
+        "trusted_install_argv": { "const": ["/usr/bin/sudo", "--", "/usr/bin/install", "-o", "root", "-g", "wheel", "-m", "0555", "/private/var/tmp/MetisModel1-w3-phase-b-bootstrap/w3-installer-bootstrap", "/private/var/db/MetisModel1/w3-installer-bootstrap"] },
+        "target_remeasure_before_exec": { "const": { "path": "/private/var/db/MetisModel1/w3-installer-bootstrap", "regular_no_symlink": true, "size": 54232, "sha256": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447", "mode": "0555", "must_match_source_bytes": true } },
+        "argv": { "const": ["/usr/bin/sudo", "--", "/usr/bin/env", "-i", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "/private/var/db/MetisModel1/w3-installer-bootstrap", "--apply", "--descriptor-digest", "<DESCRIPTOR_SHA256>", "--plan-digest", "<PLAN_SHA256>", "--bundle-digest", "<MANIFEST_SHA256>"] },
+        "pre_main_boundary": { "const": "trusted-admin-clean-environment-before-stage0-image-load" },
+        "in_main_scrub_role": { "const": "defense-in-depth-after-main-only" }
+      }
+    },
+    "bootstrapBuildProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compiler_path", "compiler_size", "compiler_sha256", "compiler_version", "linker_path", "linker_size", "linker_sha256", "linker_version", "sdk_path", "sdk_version", "sdk_settings_path", "sdk_settings_size", "sdk_settings_sha256", "libsystem_link_path", "libsystem_link_text", "libsystem_link_uid", "libsystem_link_gid", "libsystem_link_mode", "libsystem_link_nlink", "libsystem_resolved_path", "libsystem_size", "libsystem_sha256", "commondigest_path", "commondigest_size", "commondigest_sha256", "architecture", "deployment_target", "argv", "environment", "cwd", "repeat_builds", "build_hashes", "build_status", "reproducible_binary_sha256", "mach_o_architectures", "linked_dylibs", "lc_uuid_present", "forbidden_path_strings_present"],
+      "properties": {
+        "compiler_path": { "const": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" },
+        "compiler_size": { "const": 141373024 },
+        "compiler_sha256": { "const": "sha256:7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a" },
+        "compiler_version": { "const": "Apple clang version 21.0.0 (clang-2100.1.1.101)" },
+        "linker_path": { "const": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld" },
+        "linker_size": { "const": 2331792 },
+        "linker_sha256": { "const": "sha256:5897b275efd93b201b6df5832dd541262b3f20f290859ba78f2200a6a66ef38b" },
+        "linker_version": { "const": "ld-1267" },
+        "sdk_path": { "const": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk" },
+        "sdk_version": { "const": "26.5" },
+        "sdk_settings_path": { "const": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/SDKSettings.json" },
+        "sdk_settings_size": { "const": 7774 },
+        "sdk_settings_sha256": { "const": "sha256:f8d005f09381389167f9e0aeaa169bc9e7dff162ef22ca2fd8e98df7ff1acafe" },
+        "libsystem_link_path": { "const": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/usr/lib/libSystem.tbd" },
+        "libsystem_link_text": { "const": "libSystem.B.tbd" },
+        "libsystem_link_uid": { "const": 0 },
+        "libsystem_link_gid": { "const": 0 },
+        "libsystem_link_mode": { "const": 493 },
+        "libsystem_link_nlink": { "const": 1 },
+        "libsystem_resolved_path": { "const": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/usr/lib/libSystem.B.tbd" },
+        "libsystem_size": { "const": 334178 },
+        "libsystem_sha256": { "const": "sha256:20cfce043f11a083e2eb6111efe3579919a8082fa4cc912a7bd839af2010ec57" },
+        "commondigest_path": { "const": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/usr/include/CommonCrypto/CommonDigest.h" },
+        "commondigest_size": { "const": 11970 },
+        "commondigest_sha256": { "const": "sha256:83a9705bbc8d44f27ee61801064ee99288496a038d623f152aa30db6819e9ca6" },
+        "architecture": { "const": "arm64" },
+        "deployment_target": { "const": "26.0" },
+        "argv": { "const": ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang", "-std=c11", "-O2", "-Wall", "-Wextra", "-Wpedantic", "-Werror", "-arch", "arm64", "-mmacosx-version-min=26.0", "-isysroot", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk", "-Wl,-no_uuid", "<SOURCE>", "-o", "<OUTPUT>"] },
+        "environment": { "const": { "LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "ZERO_AR_DATE": "1" } },
+        "cwd": { "const": "/" },
+        "repeat_builds": { "const": 2 },
+        "build_hashes": { "const": ["sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447", "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447"] },
+        "build_status": { "const": "reproducible-two-builds" },
+        "reproducible_binary_sha256": { "const": "sha256:ddd09fcffc5e8a38ab0f140fce640e66b9020b2654e398a2268a77fd787a8447" },
+        "mach_o_architectures": { "const": ["arm64"] },
+        "linked_dylibs": { "const": ["/usr/lib/libSystem.B.dylib"] },
+        "lc_uuid_present": { "const": false },
+        "forbidden_path_strings_present": { "const": false }
+      }
+    },
+    "principals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caller", "broker", "runner", "anchor", "launcher"],
+      "properties": {
+        "caller": { "allOf": [{ "$ref": "#/$defs/principal" }, { "properties": { "name": { "const": "tommasotessarolo" }, "uid": { "const": 501 }, "gid": { "const": 20 }, "group": { "const": "staff" }, "disposition": { "const": "must-exist-exactly" } } }] },
+        "broker": { "allOf": [{ "$ref": "#/$defs/principal" }, { "properties": { "name": { "const": "_metisbroker" }, "uid": { "const": 499 }, "gid": { "const": 499 }, "group": { "const": "_metisbroker" } } }] },
+        "runner": { "allOf": [{ "$ref": "#/$defs/principal" }, { "properties": { "name": { "const": "_metisrunner" }, "uid": { "const": 498 }, "gid": { "const": 498 }, "group": { "const": "_metisrunner" } } }] },
+        "anchor": { "allOf": [{ "$ref": "#/$defs/principal" }, { "properties": { "name": { "const": "_metisanchor" }, "uid": { "const": 497 }, "gid": { "const": 497 }, "group": { "const": "_metisanchor" } } }] },
+        "launcher": { "allOf": [{ "$ref": "#/$defs/principal" }, { "properties": { "name": { "const": "root" }, "uid": { "const": 0 }, "gid": { "const": 0 }, "group": { "const": "wheel" }, "disposition": { "const": "must-exist-exactly" } } }] }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "source_path", "source_size", "source_sha256", "install_path", "size", "sha256"],
+      "properties": {
+        "role": { "enum": ["broker", "worker", "installer", "installer-executor", "host-evidence", "launcher", "anchor", "broker-socket-shim", "anchor-socket-shim", "python", "cryptography", "loader", "runner", "node", "policy", "fixture-registry", "broker-config", "broker-plist", "launcher-plist", "anchor-plist"] },
+        "source_path": { "type": "string", "pattern": "^/private/var/db/MetisModel1/w3-phase-b-install-bundle/artifacts/[a-z0-9-]+$" },
+        "source_size": { "$ref": "#/$defs/maybeCount" },
+        "source_sha256": { "$ref": "#/$defs/maybeHash" },
+        "install_path": { "type": "string", "pattern": "^/(?!Users/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" },
+        "size": { "$ref": "#/$defs/maybeCount" },
+        "sha256": { "$ref": "#/$defs/maybeHash" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "launcher" } }, "required": ["role"] },
+          "then": { "properties": { "source_size": { "const": 53976 }, "source_sha256": { "const": "sha256:bab278339cc1ad059cafa5cd1d2e75999495d45d768ee5c7b8770473698d09ca" }, "size": { "const": 53976 }, "sha256": { "const": "sha256:bab278339cc1ad059cafa5cd1d2e75999495d45d768ee5c7b8770473698d09ca" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "broker-socket-shim" } }, "required": ["role"] },
+          "then": { "properties": { "source_size": { "const": 34272 }, "source_sha256": { "const": "sha256:97fa87cc18a0bb05cd4f52dbb60a0ee828c8ad7f14374d85f5275b1e4010a08a" }, "size": { "const": 34272 }, "sha256": { "const": "sha256:97fa87cc18a0bb05cd4f52dbb60a0ee828c8ad7f14374d85f5275b1e4010a08a" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "anchor-socket-shim" } }, "required": ["role"] },
+          "then": { "properties": { "source_size": { "const": 34272 }, "source_sha256": { "const": "sha256:ff4f3af8b591d35a46b904768d787a48d3f16e8f2ca6e42de949fc5d92210aba" }, "size": { "const": 34272 }, "sha256": { "const": "sha256:ff4f3af8b591d35a46b904768d787a48d3f16e8f2ca6e42de949fc5d92210aba" } } }
+        }
+      ]
+    },
+    "roster": {
+      "type": "object", "additionalProperties": false, "required": ["files", "bytes", "sha256", "entries"],
+      "properties": { "files": { "$ref": "#/$defs/maybeCount" }, "bytes": { "$ref": "#/$defs/maybeCount" }, "sha256": { "$ref": "#/$defs/maybeHash" }, "entries": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/sourceRow" }, { "$ref": "#/$defs/installRow" }] } } }
+    },
+    "sourceRow": {
+      "type": "object", "additionalProperties": false, "required": ["path", "size", "sha256"],
+      "properties": { "path": { "type": "string", "pattern": "^/(?!Users/)[^\\u0000]+$" }, "size": { "type": "integer", "minimum": 0 }, "sha256": { "$ref": "#/$defs/hash" } }
+    },
+    "installRow": {
+      "type": "object", "additionalProperties": false, "required": ["path", "size", "mode", "uid", "gid", "sha256"],
+      "properties": { "path": { "type": "string", "pattern": "^/(?!Users/)[^\\u0000]+$" }, "size": { "type": "integer", "minimum": 0 }, "mode": { "type": "integer", "minimum": 32768, "maximum": 36863 }, "uid": { "type": "integer", "minimum": 0 }, "gid": { "type": "integer", "minimum": 0 }, "sha256": { "$ref": "#/$defs/hash" } }
+    },
+    "directoryRow": {
+      "type": "object", "additionalProperties": false, "required": ["path", "uid", "gid", "mode"],
+      "properties": { "path": { "type": "string", "pattern": "^/(?!Users/)[^\\u0000]+$" }, "uid": { "type": "integer", "minimum": 0 }, "gid": { "type": "integer", "minimum": 0 }, "mode": { "type": "integer", "minimum": 0, "maximum": 511 } }
+    },
+    "pythonRuntime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["implementation", "version", "source_census", "source_install_map", "wheel_install_map", "project_install_paths", "executable_paths", "staged_roster", "symlink_policy", "editable_paths_allowed"],
+      "properties": {
+        "implementation": { "const": "CPython" }, "version": { "const": "3.13.3" },
+        "source_census": { "$ref": "#/$defs/pythonSourceCensus" },
+        "source_install_map": { "type": "array", "minItems": 1808, "maxItems": 1808, "items": { "$ref": "#/$defs/sourceInstallMapRow" } },
+        "wheel_install_map": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/wheelInstallMapRow" } },
+        "project_install_paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^/Library/Application Support/MetisModel1/runtime/python/lib/python3\\.13/site-packages/(?:runtime|metis_model1)/[^\\u0000]+$" } },
+        "executable_paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^/Library/Application Support/MetisModel1/runtime/python/[^\\u0000]+$" } },
+        "staged_roster": { "$ref": "#/$defs/roster" },
+        "symlink_policy": { "const": "no-symlinks-normalize-aliases-before-freeze" },
+        "editable_paths_allowed": { "const": false }
+      }
+    },
+    "dependency": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version", "wheel_path", "wheel_size", "wheel_sha256"],
+      "properties": { "name": { "enum": ["cryptography", "cffi", "pycparser"] }, "version": { "type": "string" }, "wheel_path": { "type": "string", "pattern": "^/private/var/db/MetisModel1/w3-phase-b-install-bundle/wheels/[a-z0-9.-]+\\.whl$" }, "wheel_size": { "type": "integer", "minimum": 1 }, "wheel_sha256": { "$ref": "#/$defs/hash" } }
+    },
+    "nodeCapsule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node_version", "node_sha256", "source_census", "evidence_status", "host_credit"],
+      "properties": { "node_version": { "const": "v22.22.3" }, "node_sha256": { "$ref": "#/$defs/hash" }, "source_census": { "$ref": "#/$defs/nodeSourceCensus" }, "evidence_status": { "const": "blocked-static-capsule-only" }, "host_credit": { "const": false } }
+    },
+    "pythonSourceCensus": {
+      "type": "object", "additionalProperties": false, "required": ["files", "bytes", "sha256", "entries"],
+      "properties": {
+        "files": { "const": 1808 }, "bytes": { "const": 44064036 }, "sha256": { "const": "sha256:b632ae57ee6c013e720fc699380923d807cafa6e82df6b1e96ab9163d7193333" },
+        "entries": { "type": "array", "minItems": 1808, "maxItems": 1808, "items": { "$ref": "#/$defs/relativeSourceRow" } }
+      }
+    },
+    "nodeSourceCensus": {
+      "type": "object", "additionalProperties": false, "required": ["files", "bytes", "sha256", "entries"],
+      "properties": {
+        "files": { "const": 1827 }, "bytes": { "const": 8922291 }, "sha256": { "const": "sha256:d72a8a4bc3b3225c9750994f9f98bd8f653fef341bb23893425cde67810bafa2" },
+        "entries": { "type": "array", "minItems": 1827, "maxItems": 1827, "items": { "$ref": "#/$defs/nodeSourceRow" } }
+      }
+    },
+    "relativeSourceRow": {
+      "type": "object", "additionalProperties": false, "required": ["path", "size", "sha256", "mode"],
+      "properties": { "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" }, "size": { "type": "integer", "minimum": 0 }, "sha256": { "$ref": "#/$defs/hash" }, "mode": { "type": "integer", "minimum": 0, "maximum": 4095 } }
+    },
+    "sourceInstallMapRow": {
+      "type": "object", "additionalProperties": false, "required": ["source_path", "install_path"],
+      "properties": {
+        "source_path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" },
+        "install_path": { "type": "string", "pattern": "^/Library/Application Support/MetisModel1/runtime/python/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" }
+      }
+    },
+    "wheelInstallMapRow": {
+      "type": "object", "additionalProperties": false, "required": ["distribution", "member_path", "install_path"],
+      "properties": {
+        "distribution": { "enum": ["cryptography", "cffi", "pycparser"] },
+        "member_path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" },
+        "install_path": { "type": "string", "pattern": "^/Library/Application Support/MetisModel1/runtime/python/lib/python3\\.13/site-packages/[^\\u0000]+$" }
+      }
+    },
+    "nodeSourceRow": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "path", "role", "sha256", "size"],
+      "properties": { "mode": { "type": "integer", "minimum": 0, "maximum": 4095 }, "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$" }, "role": { "enum": ["git-archive", "loader", "runner", "tooling"] }, "sha256": { "$ref": "#/$defs/hash" }, "size": { "type": "integer", "minimum": 0 } }
+    }
+  }
+}

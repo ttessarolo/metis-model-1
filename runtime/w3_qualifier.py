@@ -35,37 +35,48 @@ SCHEMA_VERSION = 1
 PROTOCOL = "w3-clean-process-v1"
 QUALIFICATION_ID = "w3-f1-f3-clean-process-qualification-v1"
 CLAIM = "three_candidate_infrastructure_only_no_accuracy_claim"
-V2_SCHEMA_VERSION = 2
-V2_PROTOCOL = "w3-production-capsule-worker-v2"
-V2_QUALIFICATION_ID = "w3-f1-f3-production-capsule-qualification-v2"
-V2_CLAIM = "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
-V2_AUTHORITY_ID = "w3-f1-f3-production-capsule-authority-v2"
-V2_KIMI_REPORT_SHA256 = "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
-V2_PROJECT_SHA = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
-V2_CANDIDATE_MANIFEST_SHA256 = (
+V3_SCHEMA_VERSION = 3
+V3_PROTOCOL = "w3-production-capsule-worker-v3"
+V3_QUALIFICATION_ID = "w3-f1-f3-production-capsule-qualification-v3"
+V3_CLAIM = "three_ratified_smoke_specs_production_capsule_only_no_accuracy_claim"
+V3_AUTHORITY_ID = "w3-f1-f3-production-capsule-authority-v3"
+V3_KIMI_REPORT_SHA256 = "sha256:a810598d9b62143f6172a4faa58f91879d4ac19f097cc19255a6ce43356fb83a"
+V3_PROJECT_SHA = "5a5d817bb3df817fbd5d47b7bc4edd4517f8d9b7"
+V3_CANDIDATE_MANIFEST_SHA256 = (
     "sha256:4ee3e735179194b838ec38b0c11f1f9a166d640fcfece1eee68b6f9b6dd63bc5"
 )
-V2_SEMANTIC_REGISTRY_SHA256 = (
+V3_SEMANTIC_REGISTRY_SHA256 = (
     "sha256:9b9aa14836eb6924e61df0ab1e0a7b7224f9958b78056ae66fd27f59868cc7c3"
 )
-V2_DEPENDENCY_FILES = 144
-V2_DEPENDENCY_BYTES = 1_799_002
-V2_DEPENDENCY_ROSTER_SHA256 = "db649bc14ee947ff43a2e5dbd540585123a259bb771a087692b72a4c0d463f42"
-V2_NODE_BINARY_SHA256 = "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
-V2_RUNNER_SHA256 = "sha256:484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5"
-V2_PYTHON = {
+V3_DEPENDENCY_FILES = 144
+V3_DEPENDENCY_BYTES = 1_799_002
+V3_DEPENDENCY_ROSTER_SHA256 = "db649bc14ee947ff43a2e5dbd540585123a259bb771a087692b72a4c0d463f42"
+V3_NODE_BINARY_SHA256 = "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
+V3_NODE_BINARY_BYTES = 112_915_776
+V3_RUNNER_SHA256 = "sha256:772baa27e981f611681330bc463aef2ebe06b5f4a83ef2a0313ccf66b6dfef5d"
+V3_LOADER_SHA256 = "sha256:45e3557ce7ee345e2bca7de603c2ef8bc21aa2adb3f305d3f1cf6ee445273fee"
+V3_LOADER_FLAGS = ("--disable-warning=ExperimentalWarning", "--experimental-loader")
+V3_NATIVE_TRACE_FD_ENV = "METIS_MODEL1_NATIVE_TRACE_FD"
+V3_PYTHON = {
     "implementation": "CPython",
     "version": "3.13.3",
     "abi": "cp313-macosx_arm64",
     "machine": "arm64",
 }
-V2_NON_CLAIMS = [
+V3_NON_CLAIMS = [
+    "executed_preimage_authority=false",
     "no_w1_15_of_15_claim",
     "no_f4_f5_f6_claim",
     "no_benchmark_v1_claim",
     "no_w5_claim",
     "no_semantic_accuracy_claim",
 ]
+V3_NATIVE_EVIDENCE = {
+    "path": "manifests/w3-native-loader-evidence.json",
+    "manifest_sha256": "sha256:a84ec4511009102f1c2cc23604a4147606e34030809537d1528fd49032f331f6",
+}
+EXECUTED_PREIMAGE_AUTHORITY = False
+REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256: str | None = None
 HASH_PREFIX = "sha256:"
 MAX_AUTHORITY_BYTES = 1024 * 1024
 MAX_BUNDLE_FILE_BYTES = 8 * 1024 * 1024
@@ -82,6 +93,7 @@ ZERO_HASH = "sha256:" + ("0" * 64)
 RETAINED_ROOT_CAPS = {
     "worker-process-root": (512, 512, 128 * 1024 * 1024, MAX_WORKER_STDOUT_BYTES),
     "production-process-root": (512, 512, 128 * 1024 * 1024, MAX_WORKER_STDOUT_BYTES),
+    "production-runtime-root": (8, 8, 128 * 1024 * 1024, 128 * 1024 * 1024),
     "production-trusted-root": (4096, 4096, 1024 * 1024 * 1024, MAX_BUNDLE_FILE_BYTES),
     "qualification-publication-partial-root": (
         128,
@@ -95,15 +107,22 @@ BLOCKED_V1_RETAINED_PREFIXES = (
     ("worker-process-root",),
     ("worker-process-root", "qualification-publication-partial-root"),
 )
-BLOCKED_V2_RETAINED_PREFIXES = (
+BLOCKED_V3_RETAINED_PREFIXES = (
     (),
     ("production-process-root",),
-    ("production-process-root", "production-trusted-root"),
+    ("production-process-root", "production-runtime-root"),
+    ("production-process-root", "production-runtime-root", "production-trusted-root"),
     (
         "production-process-root",
+        "production-runtime-root",
         "production-trusted-root",
         "qualification-publication-partial-root",
     ),
+)
+QUALIFIED_V3_RETAINED_KINDS = (
+    "production-process-root",
+    "production-runtime-root",
+    "production-trusted-root",
 )
 QUALIFIED_V1_REPORT_KEYS = frozenset(
     {
@@ -129,7 +148,7 @@ QUALIFIED_V1_REPORT_KEYS = frozenset(
 BLOCKED_V1_REPORT_KEYS = frozenset(
     {"schema_version", "qualification_id", "status", "claim", "reason", "cleanup"}
 )
-QUALIFIED_V2_REPORT_KEYS = frozenset(
+QUALIFIED_V3_REPORT_KEYS = frozenset(
     {
         "schema_version",
         "qualification_id",
@@ -151,12 +170,13 @@ QUALIFIED_V2_REPORT_KEYS = frozenset(
         "counts",
         "roles",
         "executions",
+        "native_evidence",
         "non_claims",
         "cleanup",
         "manifest_sha256",
     }
 )
-BLOCKED_V2_REPORT_KEYS = frozenset(
+BLOCKED_V3_REPORT_KEYS = frozenset(
     {
         "schema_version",
         "qualification_id",
@@ -164,6 +184,7 @@ BLOCKED_V2_REPORT_KEYS = frozenset(
         "status",
         "claim",
         "reason",
+        "native_evidence",
         "cleanup",
     }
 )
@@ -199,7 +220,7 @@ OUTER_SANDBOX_POLICY_TEMPLATE = """(version 1)
 OUTER_SANDBOX_POLICY_TEMPLATE_SHA256 = (
     HASH_PREFIX + hashlib.sha256(OUTER_SANDBOX_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
 )
-V2_OUTER_SANDBOX_POLICY_TEMPLATE = """(version 1)
+V3_OUTER_SANDBOX_POLICY_TEMPLATE = """(version 1)
 (deny default)
 (deny network*)
 (deny process-fork)
@@ -221,12 +242,16 @@ V2_OUTER_SANDBOX_POLICY_TEMPLATE = """(version 1)
 (allow sysctl-read)
 (allow mach-lookup)
 """
-V2_CAPSULE_ANCESTOR_SLOTS = 32
-_V2_CAPSULE_ANCESTOR_POLICY = "\n".join(
+V3_CAPSULE_ANCESTOR_SLOTS = 32
+_V3_CAPSULE_ANCESTOR_POLICY = "\n".join(
     f'  (literal (param "CAPSULE_ANCESTOR_{index:02d}"))'
-    for index in range(V2_CAPSULE_ANCESTOR_SLOTS)
+    for index in range(V3_CAPSULE_ANCESTOR_SLOTS)
 )
-V2_NODE_SANDBOX_POLICY_TEMPLATE = (
+_V3_RUNTIME_ANCESTOR_POLICY = "\n".join(
+    f'  (literal (param "RUNTIME_ANCESTOR_{index:02d}"))'
+    for index in range(V3_CAPSULE_ANCESTOR_SLOTS)
+)
+V3_NODE_SANDBOX_POLICY_TEMPLATE = (
     """(version 1)
 (deny default)
 (deny network*)
@@ -237,36 +262,41 @@ V2_NODE_SANDBOX_POLICY_TEMPLATE = (
   (subpath "/System/Library")
   (subpath "/usr/lib")
   (subpath "/private/var/db/dyld")
+  (subpath (param "RUNTIME_ROOT"))
   (subpath (param "CAPSULE_ROOT"))
   (subpath (param "PROCESS_ROOT")))
 """
     + '(allow file-read-data (literal "/"))\n'
     + '(allow file-read-metadata\n  (literal "/")\n'
-    + _V2_CAPSULE_ANCESTOR_POLICY
+    + _V3_CAPSULE_ANCESTOR_POLICY
+    + "\n"
+    + _V3_RUNTIME_ANCESTOR_POLICY
     + "\n)\n"
     + """\
-(deny file-write* (subpath (param "CAPSULE_ROOT")))
+(deny file-write*
+  (subpath (param "RUNTIME_ROOT"))
+  (subpath (param "CAPSULE_ROOT")))
 (allow file-write* (subpath (param "PROCESS_ROOT")))
 (allow sysctl-read)
 (allow mach-lookup)
 """
 )
-V2_NODE_SANDBOX_POLICY_TEMPLATE_SHA256 = (
-    HASH_PREFIX + hashlib.sha256(V2_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
+V3_NODE_SANDBOX_POLICY_TEMPLATE_SHA256 = (
+    HASH_PREFIX + hashlib.sha256(V3_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
 )
-# The bridge's minimal stdin bootstrap is independently hashed into the v2
+# The bridge's minimal stdin bootstrap is independently hashed into the v3
 # launcher identity.  It executes the measured qualifier preimage rather than
 # reopening a mutable path.  Keep this pin synchronized with the literal
 # bootstrap in runtime/w3_bridge_gate.py.
-V2_QUALIFIER_BOOTSTRAP_SHA256 = (
-    "sha256:62982b45b859fa4220f0d40c9647c19b4596668311baa61a9ca9934c6adc046a"
+V3_QUALIFIER_BOOTSTRAP_SHA256 = (
+    "sha256:42af379e5dcfd1d1d59f53829181a010aa1b540d7a8ad86b5efe9738383090f4"
 )
-V2_OUTER_SANDBOX_POLICY_TEMPLATE_SHA256 = (
+V3_OUTER_SANDBOX_POLICY_TEMPLATE_SHA256 = (
     HASH_PREFIX
     + hashlib.sha256(
-        V2_OUTER_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
+        V3_OUTER_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
         + b"\0"
-        + V2_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
+        + V3_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")
     ).hexdigest()
 )
 CANDIDATE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -285,7 +315,7 @@ QUALIFICATION_STOPS = [
     "no_f4_f5_f6_claim",
     "no_semantic_accuracy_claim",
 ]
-V2_QUALIFICATION_STOPS = list(V2_NON_CLAIMS)
+V3_QUALIFICATION_STOPS = list(V3_NON_CLAIMS)
 
 EXPECTED_ROLE_COUNTS = {
     "author": 1,
@@ -303,11 +333,13 @@ REQUIRED_BUNDLE_KINDS = frozenset({"w3", "schema", "manifest", "runner", "worker
 EVIDENCE_PIN_KEYS = frozenset(
     {
         "runner_sha256",
+        "loader_sha256",
         "tooling_package_sha256",
         "tooling_lock_sha256",
         "node_modules_sha256",
         "node_binary_sha256",
-        "sandbox_policy_sha256",
+        "oracle_policy_sha256",
+        "execution_policy_sha256",
         "metis_status_sha256",
     }
 )
@@ -315,7 +347,9 @@ RUNTIME_IDENTITY_KEYS = frozenset(
     {
         "node",
         "node_path",
-        "tsx_path",
+        "loader_path",
+        "loader_sha256",
+        "loader_flags",
         "runner_path",
         "snapshot_revision",
         "snapshot_tree",
@@ -324,8 +358,9 @@ RUNTIME_IDENTITY_KEYS = frozenset(
         "node_modules_sha256",
         "node_binary_sha256",
         "sandbox_exec_path",
-        "sandbox_policy_version",
-        "sandbox_policy_sha256",
+        "oracle_policy_version",
+        "oracle_policy_sha256",
+        "execution_policy_sha256",
     }
 )
 LAUNCHER_IDENTITY_KEYS = frozenset(
@@ -341,12 +376,14 @@ LAUNCHER_IDENTITY_KEYS = frozenset(
         "sandbox_policy_template_sha256",
     }
 )
-V2_LAUNCHER_IDENTITY_KEYS = LAUNCHER_IDENTITY_KEYS | {"qualifier_bootstrap_sha256"}
-V2_CAPSULE_EXECUTION_POLICY = {
-    "sandbox_policy_sha256": V2_NODE_SANDBOX_POLICY_TEMPLATE_SHA256,
-    "capsule_ancestor_slots": V2_CAPSULE_ANCESTOR_SLOTS,
+V3_LAUNCHER_IDENTITY_KEYS = LAUNCHER_IDENTITY_KEYS | {"qualifier_bootstrap_sha256"}
+V3_CAPSULE_EXECUTION_POLICY = {
+    "sandbox_policy_sha256": V3_NODE_SANDBOX_POLICY_TEMPLATE_SHA256,
+    "capsule_ancestor_slots": V3_CAPSULE_ANCESTOR_SLOTS,
+    "runtime_ancestor_slots": V3_CAPSULE_ANCESTOR_SLOTS,
     "process_fork": "denied",
     "supervision": "node-session-group-leader",
+    "loader_flags": list(V3_LOADER_FLAGS),
 }
 EVIDENCE_KEYS = frozenset(
     {
@@ -359,11 +396,13 @@ EVIDENCE_KEYS = frozenset(
         "runtime_sha256",
         "runtime_identity",
         "runner_sha256",
+        "loader_sha256",
         "tooling_package_sha256",
         "tooling_lock_sha256",
         "node_modules_sha256",
         "node_binary_sha256",
-        "sandbox_policy_sha256",
+        "oracle_policy_sha256",
+        "execution_policy_sha256",
         "metis_status_sha256",
         "metis_status",
         "envelope_sha256",
@@ -390,6 +429,26 @@ class QualificationBlocked(ValueError):
     def __init__(self, message: str, *, cleanup: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.cleanup = cleanup
+
+
+def _v3_capsule_process_environment(process_root: Path) -> dict[str, str]:
+    environment = {
+        "PATH": "",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TMPDIR": str(process_root),
+    }
+    if V3_NATIVE_TRACE_FD_ENV in environment:
+        raise QualificationBlocked("production capsule environment enables reference tracing")
+    return environment
+
+
+def _require_protected_execution_broker() -> None:
+    if REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None:
+        raise QualificationBlocked(
+            "production qualification requires a protected execution broker authority"
+        )
+    raise QualificationBlocked("protected execution broker transport is not implemented")
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -778,7 +837,7 @@ def _seal_retained_tree(descriptor: int, kind: str) -> None:
                         raise QualificationBlocked(
                             f"{kind} file or aggregate count exceeds its cap"
                         )
-                    os.fchmod(child, 0o444)
+                    os.fchmod(child, 0o555 if kind == "production-runtime-root" else 0o444)
                 after = os.stat(name, dir_fd=directory, follow_symlinks=False)
                 retained = os.fstat(child)
                 if (after.st_dev, after.st_ino) != (retained.st_dev, retained.st_ino):
@@ -855,7 +914,8 @@ def _snapshot_retained_tree(
                 if stat.S_ISDIR(opened.st_mode):
                     visit(child, relative)
                 else:
-                    if stat.S_IMODE(opened.st_mode) != 0o444 or opened.st_nlink != 1:
+                    expected_mode = 0o555 if kind == "production-runtime-root" else 0o444
+                    if stat.S_IMODE(opened.st_mode) != expected_mode or opened.st_nlink != 1:
                         raise QualificationBlocked(
                             f"{kind} regular file is not singly linked and sealed"
                         )
@@ -883,7 +943,7 @@ def _snapshot_retained_tree(
                     if counts["files"] > max_files or counts["bytes"] > max_bytes:
                         raise QualificationBlocked(f"{kind} roster exceeds its cap")
                     digest = hashlib.sha256(raw).hexdigest()
-                    physical = row(rendered, "regular", 0o444, len(raw), digest)
+                    physical = row(rendered, "regular", expected_mode, len(raw), digest)
                     rows.append(physical)
             except OSError as error:
                 raise QualificationBlocked(f"{kind} could not be snapshotted") from error
@@ -1133,6 +1193,7 @@ def _remove_owned_directory(handle: _AnchoredDirectory) -> bool:
 _RETAINED_ROOT_IDENTITIES = {
     "worker-process-root": ("process", "artifact-root"),
     "production-process-root": ("process", "run-root"),
+    "production-runtime-root": ("runtime", "run-root"),
     "production-trusted-root": ("trusted", "run-root"),
     "qualification-publication-partial-root": (
         "qualification-publication-partial",
@@ -1967,15 +2028,16 @@ def _load_authority(path: Path, expected_sha256: str) -> dict[str, Any]:
         "node_modules_sha256": pins["node_modules_sha256"],
         "node_binary_sha256": pins["node_binary_sha256"],
         "sandbox_exec_path": "sandbox-exec:///usr/bin/sandbox-exec",
-        "sandbox_policy_version": "2",
-        "sandbox_policy_sha256": pins["sandbox_policy_sha256"],
+        "oracle_policy_version": "2",
+        "oracle_policy_sha256": pins["oracle_policy_sha256"],
+        "execution_policy_sha256": pins["execution_policy_sha256"],
     }
     if any(runtime[key] != value for key, value in expected_runtime_values.items()):
         raise QualificationBlocked("runtime identity differs from its transitive pins")
     snapshot = f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
     if (
         runtime["node_path"] != f"node://{PINNED_NODE_VERSION}"
-        or runtime["tsx_path"] != f"{snapshot}/tooling/node_modules/tsx/dist/loader.mjs"
+        or runtime["loader_path"] != f"{snapshot}/.metis-oracle/native_ts_loader.mjs"
         or runtime["runner_path"] != f"{snapshot}/.metis-oracle/runner.ts"
     ):
         raise QualificationBlocked("runtime executable identities differ from the snapshot")
@@ -1994,7 +2056,7 @@ def _load_authority(path: Path, expected_sha256: str) -> dict[str, Any]:
     return authority
 
 
-def _launcher_identity_v2() -> dict[str, Any]:
+def _launcher_identity_v3() -> dict[str, Any]:
     injected = globals().get("__qualifier_preimage__")
     injected_path = globals().get("__qualifier_path__")
     if injected is None and injected_path is None:
@@ -2014,9 +2076,9 @@ def _launcher_identity_v2() -> dict[str, Any]:
             directory=False,
         )
         identity = _launcher_identity_from_preimage(qualifier, injected)
-    identity["sandbox_policy_template_sha256"] = V2_OUTER_SANDBOX_POLICY_TEMPLATE_SHA256
-    identity["qualifier_bootstrap_sha256"] = V2_QUALIFIER_BOOTSTRAP_SHA256
-    if identity["python_version"] != V2_PYTHON["version"]:
+    identity["sandbox_policy_template_sha256"] = V3_OUTER_SANDBOX_POLICY_TEMPLATE_SHA256
+    identity["qualifier_bootstrap_sha256"] = V3_QUALIFIER_BOOTSTRAP_SHA256
+    if identity["python_version"] != V3_PYTHON["version"]:
         raise QualificationBlocked("production capsule launcher requires CPython 3.13.3")
     return identity
 
@@ -2039,7 +2101,7 @@ def _validate_tree_descriptor(
     if kind == "dependency":
         keys.add("python")
     descriptor = _exact_keys(value, keys, label)
-    _exact_int(descriptor["schema_version"], V2_SCHEMA_VERSION, f"{label} schema version")
+    _exact_int(descriptor["schema_version"], V3_SCHEMA_VERSION, f"{label} schema version")
     if (
         not isinstance(descriptor["bundle_id"], str)
         or not descriptor["bundle_id"]
@@ -2088,14 +2150,14 @@ def _validate_tree_descriptor(
             raise QualificationBlocked("source bundle roster digest is invalid")
     else:
         python = _exact_keys(
-            descriptor["python"], set(V2_PYTHON), "dependency bundle Python identity"
+            descriptor["python"], set(V3_PYTHON), "dependency bundle Python identity"
         )
-        if python != V2_PYTHON:
+        if python != V3_PYTHON:
             raise QualificationBlocked("dependency bundle Python ABI is not registered")
         if (
-            len(files) != V2_DEPENDENCY_FILES
-            or total != V2_DEPENDENCY_BYTES
-            or descriptor["roster_sha256"] != V2_DEPENDENCY_ROSTER_SHA256
+            len(files) != V3_DEPENDENCY_FILES
+            or total != V3_DEPENDENCY_BYTES
+            or descriptor["roster_sha256"] != V3_DEPENDENCY_ROSTER_SHA256
         ):
             raise QualificationBlocked("dependency bundle denominator or roster digest drifted")
     return descriptor
@@ -2108,8 +2170,7 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
         "revision",
         "tree",
         "language_version",
-        "node",
-        "tsx",
+        "loader",
         "runner",
         "tooling",
         "counts",
@@ -2118,7 +2179,7 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
         "manifest_sha256",
     }
     capsule = _exact_keys(value, keys, "capsule authority")
-    _exact_int(capsule["schema_version"], V2_SCHEMA_VERSION, "capsule schema version")
+    _exact_int(capsule["schema_version"], V3_SCHEMA_VERSION, "capsule schema version")
     if (
         not isinstance(capsule["capsule_id"], str)
         or not capsule["capsule_id"]
@@ -2150,7 +2211,7 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
             or type(record["mode"]) is not int
             or record["mode"] not in {0o444, 0o555}
             or not _valid_hash(record["sha256"])
-            or record["role"] not in {"git-archive", "tooling", "node", "tsx", "runner"}
+            or record["role"] not in {"git-archive", "tooling", "loader", "runner"}
         ):
             raise QualificationBlocked(f"capsule file {index} is invalid")
         seen[path.as_posix()] = record
@@ -2160,7 +2221,7 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
         raise QualificationBlocked("capsule counts differ from its roster")
     if capsule["roster_sha256"] != canonical_hash(files):
         raise QualificationBlocked("capsule roster digest is invalid")
-    for label in ("node", "tsx", "runner"):
+    for label in ("loader", "runner"):
         identity = _exact_keys(capsule[label], {"path", "sha256", "mode"}, f"capsule {label}")
         row = seen.get(identity["path"])
         if (
@@ -2170,15 +2231,15 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
             or row["mode"] != identity["mode"]
         ):
             raise QualificationBlocked(f"capsule {label} identity is not in the exact roster")
-    if capsule["node"] != {
-        "path": capsule["node"]["path"],
-        "sha256": V2_NODE_BINARY_SHA256,
-        "mode": 0o555,
+    if capsule["loader"] != {
+        "path": ".metis-oracle/native_ts_loader.mjs",
+        "sha256": V3_LOADER_SHA256,
+        "mode": 0o444,
     }:
-        raise QualificationBlocked("capsule Node binary is not the qualified executable")
+        raise QualificationBlocked("capsule loader is not the registered native loader")
     if capsule["runner"] != {
-        "path": capsule["runner"]["path"],
-        "sha256": V2_RUNNER_SHA256,
+        "path": ".metis-oracle/runner.ts",
+        "sha256": V3_RUNNER_SHA256,
         "mode": 0o444,
     }:
         raise QualificationBlocked("capsule runner is not the registered runner")
@@ -2200,7 +2261,7 @@ def _validate_capsule_descriptor(value: Any) -> dict[str, Any]:
     return capsule
 
 
-def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
+def _load_authority_v3(path: Path, expected_sha256: str) -> dict[str, Any]:
     path = _strict_canonical_path(
         path,
         "production authority manifest",
@@ -2220,14 +2281,16 @@ def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
         "source_bundle",
         "dependency_bundle",
         "capsule",
+        "runtime",
         "expected",
+        "native_evidence",
         "non_claims",
         "manifest_sha256",
     }
     authority = _exact_keys(authority, keys, "production authority manifest")
-    _exact_int(authority["schema_version"], V2_SCHEMA_VERSION, "authority schema version")
+    _exact_int(authority["schema_version"], V3_SCHEMA_VERSION, "authority schema version")
     if (
-        authority["authority_id"] != V2_AUTHORITY_ID
+        authority["authority_id"] != V3_AUTHORITY_ID
         or authority["status"] != "independently_ratified"
         or _manifest_hash(authority) != expected_sha256
     ):
@@ -2241,7 +2304,7 @@ def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
         ratification["verdict"] != "RATIFIABLE"
         or ratification["scope"] != ["F-1", "F-2", "F-3"]
         or ratification["independent"] is not True
-        or ratification["kimi_report_sha256"] != V2_KIMI_REPORT_SHA256
+        or ratification["kimi_report_sha256"] != V3_KIMI_REPORT_SHA256
     ):
         raise QualificationBlocked("production authority does not bind the exact Kimi ratification")
     project = _exact_keys(
@@ -2249,22 +2312,22 @@ def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
         {"revision", "candidate_manifest", "semantic_registry", "launcher", "worker"},
         "production authority project",
     )
-    if project["revision"] != V2_PROJECT_SHA:
+    if project["revision"] != V3_PROJECT_SHA:
         raise QualificationBlocked("production authority project revision drifted")
     candidate = _exact_keys(project["candidate_manifest"], {"path", "manifest_sha256"}, "candidate")
     semantic = _exact_keys(project["semantic_registry"], {"path", "manifest_sha256"}, "semantic")
     _safe_relative_path(candidate["path"], "candidate manifest path")
     _safe_relative_path(semantic["path"], "semantic registry path")
-    if candidate["manifest_sha256"] != V2_CANDIDATE_MANIFEST_SHA256:
+    if candidate["manifest_sha256"] != V3_CANDIDATE_MANIFEST_SHA256:
         raise QualificationBlocked("frozen candidate manifest digest drifted")
-    if semantic["manifest_sha256"] != V2_SEMANTIC_REGISTRY_SHA256:
+    if semantic["manifest_sha256"] != V3_SEMANTIC_REGISTRY_SHA256:
         raise QualificationBlocked("frozen semantic registry digest drifted")
-    _exact_keys(project["launcher"], V2_LAUNCHER_IDENTITY_KEYS, "production launcher")
-    if project["launcher"] != _launcher_identity_v2():
+    _exact_keys(project["launcher"], V3_LAUNCHER_IDENTITY_KEYS, "production launcher")
+    if project["launcher"] != _launcher_identity_v3():
         raise QualificationBlocked("production launcher identity differs from authority")
     worker = _exact_keys(project["worker"], {"path", "sha256", "protocol"}, "production worker")
     _safe_relative_path(worker["path"], "production worker path")
-    if worker["protocol"] != V2_PROTOCOL or not _valid_hash(worker["sha256"]):
+    if worker["protocol"] != V3_PROTOCOL or not _valid_hash(worker["sha256"]):
         raise QualificationBlocked("production worker identity is invalid")
     source = _validate_tree_descriptor(
         authority["source_bundle"], kind="source", label="source bundle authority"
@@ -2273,6 +2336,21 @@ def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
         authority["dependency_bundle"], kind="dependency", label="dependency bundle authority"
     )
     capsule = _validate_capsule_descriptor(authority["capsule"])
+    runtime = _exact_keys(
+        authority["runtime"], {"schema_version", "node", "loader_flags"}, "runtime authority"
+    )
+    _exact_int(runtime["schema_version"], V3_SCHEMA_VERSION, "runtime authority schema version")
+    node = _exact_keys(
+        runtime["node"], {"path", "size", "source_mode", "mode", "sha256"}, "runtime Node"
+    )
+    if node != {
+        "path": "bin/node",
+        "size": V3_NODE_BINARY_BYTES,
+        "source_mode": 0o755,
+        "mode": 0o555,
+        "sha256": V3_NODE_BINARY_SHA256,
+    } or runtime["loader_flags"] != list(V3_LOADER_FLAGS):
+        raise QualificationBlocked("runtime Node preimage or loader flags drifted")
     source_by_path = {item["path"]: item for item in source["files"]}
     required = {
         worker["path"]: worker["sha256"],
@@ -2287,9 +2365,11 @@ def _load_authority_v2(path: Path, expected_sha256: str) -> dict[str, Any]:
     _exact_int(expected["candidates"], 3, "production expected candidate count")
     _exact_int(expected["executions"], 5, "production expected execution count")
     _exact_count_map(expected["roles"], EXPECTED_ROLE_COUNTS, "production expected roles")
-    if authority["non_claims"] != V2_NON_CLAIMS:
+    if authority["native_evidence"] != V3_NATIVE_EVIDENCE:
+        raise QualificationBlocked("production authority native evidence binding drifted")
+    if authority["non_claims"] != V3_NON_CLAIMS:
         raise QualificationBlocked("production authority overstates its claim scope")
-    del dependency, capsule
+    del dependency, capsule, runtime
     return authority
 
 
@@ -2416,12 +2496,12 @@ def _verify_external_tree(
         raise QualificationBlocked(f"{label} manifest mode drifted")
     if descriptor.get("kind") == "dependency":
         measured = _dependency_roster_digest(root, descriptor["files"])
-        if measured != descriptor["roster_sha256"] or measured != V2_DEPENDENCY_ROSTER_SHA256:
+        if measured != descriptor["roster_sha256"] or measured != V3_DEPENDENCY_ROSTER_SHA256:
             raise QualificationBlocked("dependency bundle roster digest differs from its bytes")
     return root, contents
 
 
-def _materialize_tree_preimage_v2(
+def _materialize_tree_preimage_v3(
     trusted_root: _AnchoredDirectory,
     *,
     kind: str,
@@ -2475,7 +2555,7 @@ def _materialize_tree_preimage_v2(
         target.mode = 0o555
         trusted_root.assert_path_identity()
         target.assert_path_identity()
-        _verify_materialized_tree_preimage_v2(
+        _verify_materialized_tree_preimage_v3(
             target,
             descriptor,
             contents,
@@ -2496,7 +2576,7 @@ def _materialize_tree_preimage_v2(
             namespace.close()
 
 
-def _verify_materialized_tree_preimage_v2(
+def _verify_materialized_tree_preimage_v3(
     target: _AnchoredDirectory,
     descriptor: dict[str, Any],
     contents: dict[str, bytes],
@@ -2577,12 +2657,12 @@ def _verify_materialized_tree_preimage_v2(
             measured.update(b"\n")
         if (
             measured.hexdigest() != descriptor["roster_sha256"]
-            or measured.hexdigest() != V2_DEPENDENCY_ROSTER_SHA256
+            or measured.hexdigest() != V3_DEPENDENCY_ROSTER_SHA256
         ):
             raise QualificationBlocked("dependency preimage roster digest differs from bytes")
 
 
-def _verify_tree_preimage_at_v2(
+def _verify_tree_preimage_at_v3(
     trusted_root: _AnchoredDirectory,
     *,
     kind: str,
@@ -2609,7 +2689,7 @@ def _verify_tree_preimage_at_v2(
             mode=0o555,
             create=False,
         )
-        _verify_materialized_tree_preimage_v2(
+        _verify_materialized_tree_preimage_v3(
             target,
             descriptor,
             contents,
@@ -2624,7 +2704,89 @@ def _verify_tree_preimage_at_v2(
             namespace.close()
 
 
-def _seal_preimage_namespace_v2(trusted_root: _AnchoredDirectory) -> Path:
+def _materialize_runtime_node_v3(
+    runtime_root: _AnchoredDirectory,
+    source_node: Path,
+    descriptor: dict[str, Any],
+) -> Path:
+    """Capture the exact registered Node bytes into the sealed runtime root."""
+
+    source_node = _strict_canonical_path(
+        source_node, "registered Node source", must_exist=True, directory=False
+    )
+    source_metadata = source_node.lstat()
+    if (
+        source_node.is_symlink()
+        or not stat.S_ISREG(source_metadata.st_mode)
+        or source_metadata.st_nlink != 1
+        or stat.S_IMODE(source_metadata.st_mode) != descriptor["source_mode"]
+        or source_metadata.st_size != descriptor["size"]
+    ):
+        raise QualificationBlocked("registered Node source metadata drifted")
+    raw = _read_regular_file(
+        source_node,
+        RETAINED_ROOT_CAPS["production-runtime-root"][3],
+        "registered Node source",
+    )
+    if len(raw) != descriptor["size"] or _bytes_hash(raw) != descriptor["sha256"]:
+        raise QualificationBlocked("registered Node source bytes drifted")
+    relative = _safe_relative_path(descriptor["path"], "runtime Node path")
+    runtime_root.assert_path_identity()
+    _write_regular_relative(
+        runtime_root.descriptor,
+        relative,
+        raw,
+        "retained runtime Node",
+        mode=descriptor["mode"],
+    )
+    _seal_retained_tree(runtime_root.descriptor, "production-runtime-root")
+    runtime_root.mode = 0o555
+    runtime_root.assert_path_identity()
+    retained = _source_file(runtime_root.path, relative, "retained runtime Node")
+    retained_metadata = retained.lstat()
+    retained_raw = _read_regular_file(
+        retained,
+        RETAINED_ROOT_CAPS["production-runtime-root"][3],
+        "retained runtime Node",
+    )
+    if (
+        stat.S_IMODE(retained_metadata.st_mode) != descriptor["mode"]
+        or len(retained_raw) != descriptor["size"]
+        or _bytes_hash(retained_raw) != descriptor["sha256"]
+    ):
+        raise QualificationBlocked("retained runtime Node differs from authority")
+    roster, counts = _snapshot_retained_tree(runtime_root.descriptor, "production-runtime-root")
+    if counts != {"files": 1, "directories": 2, "bytes": descriptor["size"]} or not roster:
+        raise QualificationBlocked("retained runtime root roster is not exact")
+    return retained
+
+
+def _verify_runtime_node_v3(
+    runtime_root: _AnchoredDirectory,
+    descriptor: dict[str, Any],
+) -> Path:
+    runtime_root.assert_path_identity()
+    relative = _safe_relative_path(descriptor["path"], "runtime Node path")
+    retained = _source_file(runtime_root.path, relative, "retained runtime Node")
+    metadata = retained.lstat()
+    raw = _read_regular_file(
+        retained,
+        RETAINED_ROOT_CAPS["production-runtime-root"][3],
+        "retained runtime Node",
+    )
+    if (
+        stat.S_IMODE(metadata.st_mode) != descriptor["mode"]
+        or len(raw) != descriptor["size"]
+        or _bytes_hash(raw) != descriptor["sha256"]
+    ):
+        raise QualificationBlocked("retained runtime Node changed")
+    roster, counts = _snapshot_retained_tree(runtime_root.descriptor, "production-runtime-root")
+    if counts != {"files": 1, "directories": 2, "bytes": descriptor["size"]} or not roster:
+        raise QualificationBlocked("retained runtime root roster changed")
+    return retained
+
+
+def _seal_preimage_namespace_v3(trusted_root: _AnchoredDirectory) -> Path:
     namespace: _AnchoredDirectory | None = None
     try:
         namespace = _open_child_directory(
@@ -3513,7 +3675,7 @@ def _run_worker_with_process(
     return stdout_bytes, process
 
 
-_V2_CHILD_BOOTSTRAP = r"""
+_V3_CHILD_BOOTSTRAP = r"""
 import errno
 import json
 import os
@@ -3595,7 +3757,7 @@ runpy.run_path(worker, run_name="__main__")
 """.strip()
 
 
-def _run_worker_v2(
+def _run_worker_v3(
     *,
     source_bundle: Path,
     dependency_bundle: Path,
@@ -3628,7 +3790,7 @@ def _run_worker_v2(
     if _entry_exists_at(artifact_root, denied_name):
         raise QualificationBlocked("production external-write canary already exists")
     worker = source_bundle / worker_relative
-    launcher = _launcher_identity_v2()
+    launcher = _launcher_identity_v3()
     python_root = Path(launcher["python_executable"]).parent.parent.resolve(strict=True)
     environment = {
         "LANG": "C",
@@ -3647,7 +3809,7 @@ def _run_worker_v2(
     command = [
         launcher["sandbox_exec_path"],
         "-p",
-        V2_OUTER_SANDBOX_POLICY_TEMPLATE,
+        V3_OUTER_SANDBOX_POLICY_TEMPLATE,
         "-D",
         f"PROCESS_ROOT={process_root.path}",
         "-D",
@@ -3663,7 +3825,7 @@ def _run_worker_v2(
         "-S",
         "-B",
         "-c",
-        _V2_CHILD_BOOTSTRAP,
+        _V3_CHILD_BOOTSTRAP,
     ]
     process: subprocess.Popen[bytes] | None = None
     supervision_complete = False
@@ -3762,7 +3924,7 @@ def _run_worker_v2(
     return stdout_bytes
 
 
-def _capsule_envelope_from_result_v2(
+def _capsule_envelope_from_result_v3(
     *,
     execution: dict[str, Any],
     result: Any,
@@ -3770,7 +3932,7 @@ def _capsule_envelope_from_result_v2(
     authority: dict[str, Any],
 ) -> dict[str, Any]:
     request = execution["request"]
-    runtime_authority = _v2_runtime_authority(authority)
+    runtime_authority = _v3_runtime_authority(authority)
     runtime = runtime_authority["runtime_identity"]
     result = _exact_keys(result, RESULT_KEYS, "capsule runner result")
     ir_value = result["ir"].get("value") if isinstance(result.get("ir"), dict) else None
@@ -3800,41 +3962,51 @@ def _capsule_envelope_from_result_v2(
     )
     execution_id = f"{execution['candidate_id']}.{execution['role']}"
     body = {
-        "schema_version": 2,
-        "protocol": "metis-runtime-capsule-v2",
+        "schema_version": 3,
+        "protocol": "metis-runtime-capsule-v3",
         "execution_id": execution_id,
         "request_sha256": canonical_hash(request),
         "capsule_manifest_sha256": authority["capsule"]["manifest_sha256"],
-        "execution_policy": _validated_capsule_execution_policy_v2(),
+        "execution_policy": _validated_capsule_execution_policy_v3(),
         "oracle_envelope": oracle_envelope,
     }
     return {**body, "run_nonce": run_nonce, "manifest_sha256": canonical_hash(body)}
 
 
-def _validated_capsule_execution_policy_v2() -> dict[str, Any]:
+def _validated_capsule_execution_policy_v3() -> dict[str, Any]:
     measured = {
         "sandbox_policy_sha256": (
             HASH_PREFIX
-            + hashlib.sha256(V2_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
+            + hashlib.sha256(V3_NODE_SANDBOX_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
         ),
-        "capsule_ancestor_slots": V2_CAPSULE_ANCESTOR_SLOTS,
+        "capsule_ancestor_slots": V3_CAPSULE_ANCESTOR_SLOTS,
+        "runtime_ancestor_slots": V3_CAPSULE_ANCESTOR_SLOTS,
         "process_fork": "denied",
         "supervision": "node-session-group-leader",
+        "loader_flags": list(V3_LOADER_FLAGS),
     }
-    if measured != V2_CAPSULE_EXECUTION_POLICY:
+    if measured != V3_CAPSULE_EXECUTION_POLICY:
         raise QualificationBlocked("capsule process policy bytes differ from runtime identity")
     return dict(measured)
 
 
 def _capsule_ancestor_definitions(capsule: Path) -> dict[str, str]:
-    capsule = _strict_canonical_path(
-        capsule,
-        "capsule root for Node policy",
+    return _root_ancestor_definitions(capsule, "CAPSULE")
+
+
+def _runtime_ancestor_definitions(runtime_root: Path) -> dict[str, str]:
+    return _root_ancestor_definitions(runtime_root, "RUNTIME")
+
+
+def _root_ancestor_definitions(root: Path, prefix: str) -> dict[str, str]:
+    root = _strict_canonical_path(
+        root,
+        f"{prefix.lower()} root for Node policy",
         must_exist=True,
         directory=True,
     )
     ancestors: list[Path] = []
-    current = capsule.parent
+    current = root.parent
     while current != current.parent:
         try:
             metadata = current.lstat()
@@ -3844,10 +4016,10 @@ def _capsule_ancestor_definitions(capsule: Path) -> dict[str, str]:
             raise QualificationBlocked("capsule ancestry contains a non-directory or symlink")
         ancestors.append(current)
         current = current.parent
-    if len(ancestors) > V2_CAPSULE_ANCESTOR_SLOTS:
+    if len(ancestors) > V3_CAPSULE_ANCESTOR_SLOTS:
         raise QualificationBlocked("capsule ancestry exceeds the Node policy slot cap")
-    padded = [*ancestors, *([capsule] * (V2_CAPSULE_ANCESTOR_SLOTS - len(ancestors)))]
-    return {f"CAPSULE_ANCESTOR_{index:02d}": str(path) for index, path in enumerate(padded)}
+    padded = [*ancestors, *([root] * (V3_CAPSULE_ANCESTOR_SLOTS - len(ancestors)))]
+    return {f"{prefix}_ANCESTOR_{index:02d}": str(path) for index, path in enumerate(padded)}
 
 
 def _validate_capsule_ancestor_definitions(capsule: Path, definitions: Any) -> None:
@@ -3856,12 +4028,13 @@ def _validate_capsule_ancestor_definitions(capsule: Path, definitions: Any) -> N
         raise QualificationBlocked("capsule ancestor policy parameters drifted")
 
 
-def _execute_capsule_node_streams_v2(
+def _execute_capsule_node_streams_v3(
     *,
     command: list[str],
     tooling: Path,
     request_bytes: bytes,
     process_root: _AnchoredDirectory,
+    runtime_root: _AnchoredDirectory,
     invocation: _AnchoredDirectory,
     execution_id: str,
     timeout_seconds: float,
@@ -3873,6 +4046,7 @@ def _execute_capsule_node_streams_v2(
     stderr_descriptor = -1
     try:
         process_root.assert_path_identity()
+        runtime_root.assert_path_identity()
         invocation.assert_path_identity()
         stdout_descriptor = os.open(
             "stdout.json",
@@ -3898,7 +4072,7 @@ def _execute_capsule_node_streams_v2(
                 stdin=subprocess.PIPE,
                 stdout=stdout,
                 stderr=stderr,
-                env={"PATH": "", "LANG": "C", "LC_ALL": "C"},
+                env=_v3_capsule_process_environment(process_root.path),
                 **supervision,
             )
             if os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
@@ -3971,31 +4145,29 @@ def _execute_capsule_node_streams_v2(
         mode=0o600,
     )
     process_root.assert_path_identity()
+    runtime_root.assert_path_identity()
     invocation.assert_path_identity()
     if returncode != 0 or stderr_bytes:
         raise QualificationBlocked("capsule Node failed or emitted unregistered stderr")
     return stdout_bytes
 
 
-def _run_capsule_node_v2(
+def _run_capsule_node_v3(
     *,
     execution: dict[str, Any],
     capsule: Path,
+    node: Path,
+    runtime_root: _AnchoredDirectory,
     process_root: _AnchoredDirectory,
     run_nonce: str,
     timeout_seconds: float,
     authority: dict[str, Any],
 ) -> dict[str, Any]:
     capsule_descriptor = authority["capsule"]
-    node = _source_file(
+    loader = _source_file(
         capsule,
-        _safe_relative_path(capsule_descriptor["node"]["path"], "capsule Node path"),
-        "capsule Node",
-    )
-    tsx = _source_file(
-        capsule,
-        _safe_relative_path(capsule_descriptor["tsx"]["path"], "capsule tsx path"),
-        "capsule tsx",
+        _safe_relative_path(capsule_descriptor["loader"]["path"], "capsule loader path"),
+        "capsule loader",
     )
     runner = _source_file(
         capsule,
@@ -4006,12 +4178,15 @@ def _run_capsule_node_v2(
     if tooling.is_symlink() or not tooling.is_dir():
         raise QualificationBlocked("capsule tooling directory is unavailable")
     execution_id = f"{execution['candidate_id']}.{execution['role']}"
-    runtime = _v2_runtime_authority(authority)["runtime_identity"]
+    runtime = _v3_runtime_authority(authority)["runtime_identity"]
     ancestor_definitions = _capsule_ancestor_definitions(capsule)
     _validate_capsule_ancestor_definitions(capsule, ancestor_definitions)
+    runtime_ancestors = _runtime_ancestor_definitions(runtime_root.path)
+    if runtime_ancestors != _runtime_ancestor_definitions(runtime_root.path):
+        raise QualificationBlocked("runtime ancestor policy parameters drifted")
     ancestor_arguments = [
         argument
-        for name, value in ancestor_definitions.items()
+        for name, value in {**ancestor_definitions, **runtime_ancestors}.items()
         for argument in ("-D", f"{name}={value}")
     ]
 
@@ -4023,8 +4198,8 @@ def _run_capsule_node_v2(
     snapshot = f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
     node_command = [
         str(node),
-        "--import",
-        str(tsx),
+        *V3_LOADER_FLAGS,
+        str(loader),
         str(runner),
         "--metis-root",
         str(capsule),
@@ -4032,14 +4207,18 @@ def _run_capsule_node_v2(
         PINNED_METIS_REVISION,
         "--metis-tree",
         PINNED_METIS_TREE,
-        "--tsx-path",
-        str(tsx),
+        "--loader-path",
+        str(loader),
+        "--loader-sha256",
+        raw_hash(capsule_descriptor["loader"]["sha256"]),
+        "--runtime-loader-flags",
+        json.dumps(list(V3_LOADER_FLAGS), separators=(",", ":")),
         "--runtime-node-path",
         runtime["node_path"],
         "--node-actual-path",
         str(node),
-        "--runtime-tsx-path",
-        runtime["tsx_path"],
+        "--runtime-loader-path",
+        runtime["loader_path"],
         "--runtime-runner-path",
         runtime["runner_path"],
         "--runner-actual-path",
@@ -4051,11 +4230,13 @@ def _run_capsule_node_v2(
         "--runner-sha256",
         raw_hash(capsule_descriptor["runner"]["sha256"]),
         "--node-binary-sha256",
-        raw_hash(capsule_descriptor["node"]["sha256"]),
-        "--sandbox-policy-version",
-        runtime["sandbox_policy_version"],
-        "--sandbox-policy-sha256",
-        raw_hash(runtime["sandbox_policy_sha256"]),
+        raw_hash(authority["runtime"]["node"]["sha256"]),
+        "--oracle-policy-version",
+        runtime["oracle_policy_version"],
+        "--oracle-policy-sha256",
+        raw_hash(runtime["oracle_policy_sha256"]),
+        "--execution-policy-sha256",
+        raw_hash(runtime["execution_policy_sha256"]),
         "--tooling-package-sha256",
         raw_hash(capsule_descriptor["tooling"]["package_sha256"]),
         "--tooling-lock-sha256",
@@ -4064,11 +4245,13 @@ def _run_capsule_node_v2(
     command = [
         str(SANDBOX_EXEC_PATH),
         "-p",
-        V2_NODE_SANDBOX_POLICY_TEMPLATE,
+        V3_NODE_SANDBOX_POLICY_TEMPLATE,
         "-D",
         f"PROCESS_ROOT={process_root.path}",
         "-D",
         f"NODE_EXECUTABLE={node}",
+        "-D",
+        f"RUNTIME_ROOT={runtime_root.path}",
         "-D",
         f"CAPSULE_ROOT={capsule}",
         *ancestor_arguments,
@@ -4096,17 +4279,18 @@ def _run_capsule_node_v2(
         process_root.assert_path_identity()
         namespace.assert_path_identity()
         invocation.assert_path_identity()
-        stdout_bytes = _execute_capsule_node_streams_v2(
+        stdout_bytes = _execute_capsule_node_streams_v3(
             command=command,
             tooling=tooling,
             request_bytes=request_bytes,
             process_root=process_root,
+            runtime_root=runtime_root,
             invocation=invocation,
             execution_id=execution_id,
             timeout_seconds=timeout_seconds,
         )
         result = _decode_json(stdout_bytes, "capsule Node stdout", require_canonical=True)
-        envelope = _capsule_envelope_from_result_v2(
+        envelope = _capsule_envelope_from_result_v3(
             execution=execution,
             result=result,
             run_nonce=run_nonce,
@@ -4120,10 +4304,12 @@ def _run_capsule_node_v2(
             namespace.close()
 
 
-def _run_capsule_roster_v2(
+def _run_capsule_roster_v3(
     *,
     executions: list[dict[str, Any]],
     capsule: Path,
+    node: Path,
+    runtime_root: _AnchoredDirectory,
     process_root: _AnchoredDirectory,
     run_nonce: str,
     timeout_seconds: float,
@@ -4131,9 +4317,11 @@ def _run_capsule_roster_v2(
 ) -> list[dict[str, Any]]:
     prepared: list[dict[str, Any]] = []
     for execution in executions:
-        envelope = _run_capsule_node_v2(
+        envelope = _run_capsule_node_v3(
             execution=execution,
             capsule=capsule,
+            node=node,
+            runtime_root=runtime_root,
             process_root=process_root,
             run_nonce=run_nonce,
             timeout_seconds=timeout_seconds,
@@ -4476,26 +4664,29 @@ def _verify_worker_output(
     )
 
 
-def _v2_runtime_authority(authority: dict[str, Any]) -> dict[str, Any]:
+def _v3_runtime_authority(authority: dict[str, Any]) -> dict[str, Any]:
     capsule = authority["capsule"]
     tooling = capsule["tooling"]
     snapshot = f"snapshot://{PINNED_METIS_REVISION}/{PINNED_METIS_TREE}"
     runtime = {
         "node": PINNED_NODE_VERSION,
         "node_path": f"node://{PINNED_NODE_VERSION}",
-        "tsx_path": f"{snapshot}/tooling/node_modules/tsx/dist/loader.mjs",
+        "loader_path": f"{snapshot}/.metis-oracle/native_ts_loader.mjs",
+        "loader_sha256": capsule["loader"]["sha256"],
+        "loader_flags": list(V3_LOADER_FLAGS),
         "runner_path": f"{snapshot}/.metis-oracle/runner.ts",
         "snapshot_revision": PINNED_METIS_REVISION,
         "snapshot_tree": PINNED_METIS_TREE,
         "tooling_package_sha256": tooling["package_sha256"],
         "tooling_lock_sha256": tooling["lock_sha256"],
         "node_modules_sha256": tooling["node_modules_sha256"],
-        "node_binary_sha256": capsule["node"]["sha256"],
+        "node_binary_sha256": authority["runtime"]["node"]["sha256"],
         "sandbox_exec_path": "sandbox-exec:///usr/bin/sandbox-exec",
-        "sandbox_policy_version": "2",
-        "sandbox_policy_sha256": (
+        "oracle_policy_version": "2",
+        "oracle_policy_sha256": (
             "sha256:deb8f45c9dfc2f336dbfb6f69a13e599a51929864ede8229969fa7f6e03f40aa"
         ),
+        "execution_policy_sha256": V3_NODE_SANDBOX_POLICY_TEMPLATE_SHA256,
     }
     return {
         "toolchain": {
@@ -4506,17 +4697,19 @@ def _v2_runtime_authority(authority: dict[str, Any]) -> dict[str, Any]:
         "runtime_identity": runtime,
         "evidence_pins": {
             "runner_sha256": capsule["runner"]["sha256"],
+            "loader_sha256": capsule["loader"]["sha256"],
             "tooling_package_sha256": tooling["package_sha256"],
             "tooling_lock_sha256": tooling["lock_sha256"],
             "node_modules_sha256": tooling["node_modules_sha256"],
-            "node_binary_sha256": capsule["node"]["sha256"],
-            "sandbox_policy_sha256": runtime["sandbox_policy_sha256"],
+            "node_binary_sha256": authority["runtime"]["node"]["sha256"],
+            "oracle_policy_sha256": runtime["oracle_policy_sha256"],
+            "execution_policy_sha256": runtime["execution_policy_sha256"],
             "metis_status_sha256": canonical_hash(""),
         },
     }
 
 
-def _verify_capsule_envelope_v2(
+def _verify_capsule_envelope_v3(
     value: Any,
     *,
     request: dict[str, Any],
@@ -4539,15 +4732,15 @@ def _verify_capsule_envelope_v2(
         },
         "capsule Oracle envelope",
     )
-    _exact_int(envelope["schema_version"], 2, "capsule envelope schema version")
+    _exact_int(envelope["schema_version"], 3, "capsule envelope schema version")
     if (
-        envelope["protocol"] != "metis-runtime-capsule-v2"
+        envelope["protocol"] != "metis-runtime-capsule-v3"
         or not isinstance(envelope["execution_id"], str)
         or CANDIDATE_ID_PATTERN.fullmatch(envelope["execution_id"]) is None
         or envelope["run_nonce"] != run_nonce
         or envelope["request_sha256"] != canonical_hash(request)
         or envelope["capsule_manifest_sha256"] != authority["capsule"]["manifest_sha256"]
-        or envelope["execution_policy"] != _validated_capsule_execution_policy_v2()
+        or envelope["execution_policy"] != _validated_capsule_execution_policy_v3()
     ):
         raise QualificationBlocked("capsule envelope is not bound to its request and capsule")
     normalized = {key: item for key, item in envelope.items() if key != "run_nonce"}
@@ -4558,12 +4751,12 @@ def _verify_capsule_envelope_v2(
         envelope["oracle_envelope"],
         request,
         expected_status,
-        _v2_runtime_authority(authority),
+        _v3_runtime_authority(authority),
     )
     return normalized, result
 
 
-def _verify_worker_output_v2(
+def _verify_worker_output_v3(
     stdout_bytes: bytes,
     output_root: _AnchoredDirectory,
     request: dict[str, Any],
@@ -4587,9 +4780,9 @@ def _verify_worker_output_v2(
         },
         "production worker output",
     )
-    _exact_int(output["schema_version"], 2, "production worker schema version")
+    _exact_int(output["schema_version"], 3, "production worker schema version")
     if (
-        output["protocol"] != V2_PROTOCOL
+        output["protocol"] != V3_PROTOCOL
         or output["status"] != "completed"
         or output["authority_manifest_sha256"] != request["authority_manifest_sha256"]
         or output["run_nonce"] != request["run_nonce"]
@@ -4644,7 +4837,7 @@ def _verify_worker_output_v2(
         expected_execution_id = f"{row['candidate_id']}.{row['role']}"
         if row["capsule_envelope"].get("execution_id") != expected_execution_id:
             raise QualificationBlocked("capsule execution id differs from candidate role")
-        normalized, result = _verify_capsule_envelope_v2(
+        normalized, result = _verify_capsule_envelope_v3(
             row["capsule_envelope"],
             request=expected["request"],
             run_nonce=request["run_nonce"],
@@ -4743,8 +4936,8 @@ def _verify_worker_output_v2(
     if observed != normalized_artifacts:
         raise QualificationBlocked("production output root contains unregistered content")
     normalized_summary = {
-        "schema_version": 2,
-        "protocol": V2_PROTOCOL,
+        "schema_version": 3,
+        "protocol": V3_PROTOCOL,
         "status": "completed",
         "authority_manifest_sha256": output["authority_manifest_sha256"],
         "counts": counts,
@@ -5186,25 +5379,26 @@ def _qualify_impl(
             artifact_handle.close()
 
 
-def _validate_report_v2(report: Any, launcher: dict[str, Any]) -> None:
+def _validate_report_v3(report: Any, launcher: dict[str, Any]) -> None:
     report = _exact_keys(
         report,
-        QUALIFIED_V2_REPORT_KEYS,
+        QUALIFIED_V3_REPORT_KEYS,
         "production qualification report",
     )
-    _exact_int(report["schema_version"], 2, "production report schema version")
+    _exact_int(report["schema_version"], 3, "production report schema version")
     if (
-        report["qualification_id"] != V2_QUALIFICATION_ID
-        or report["qualification_kind"] != "production-capsule-v2"
+        report["qualification_id"] != V3_QUALIFICATION_ID
+        or report["qualification_kind"] != "production-capsule-v3"
         or report["status"] != "qualified"
-        or report["claim"] != V2_CLAIM
-        or report["ratification_evidence_sha256"] != V2_KIMI_REPORT_SHA256
-        or report["project_revision"] != V2_PROJECT_SHA
-        or report["candidate_manifest_sha256"] != V2_CANDIDATE_MANIFEST_SHA256
-        or report["semantic_registry_sha256"] != V2_SEMANTIC_REGISTRY_SHA256
-        or report["dependency_roster_sha256"] != V2_DEPENDENCY_ROSTER_SHA256
+        or report["claim"] != V3_CLAIM
+        or report["ratification_evidence_sha256"] != V3_KIMI_REPORT_SHA256
+        or report["project_revision"] != V3_PROJECT_SHA
+        or report["candidate_manifest_sha256"] != V3_CANDIDATE_MANIFEST_SHA256
+        or report["semantic_registry_sha256"] != V3_SEMANTIC_REGISTRY_SHA256
+        or report["dependency_roster_sha256"] != V3_DEPENDENCY_ROSTER_SHA256
         or report["launcher"] != launcher
-        or report["non_claims"] != V2_NON_CLAIMS
+        or report["native_evidence"] != V3_NATIVE_EVIDENCE
+        or report["non_claims"] != V3_NON_CLAIMS
     ):
         raise QualificationBlocked("production qualification report contract is invalid")
     for field in (
@@ -5229,7 +5423,7 @@ def _validate_report_v2(report: Any, launcher: dict[str, Any]) -> None:
     _validate_cleanup(
         report["cleanup"],
         qualified=True,
-        expected_kinds=("production-process-root", "production-trusted-root"),
+        expected_kinds=QUALIFIED_V3_RETAINED_KINDS,
     )
     rows = report["executions"]
     if not isinstance(rows, list) or len(rows) != 5:
@@ -5297,19 +5491,20 @@ def _assert_disjoint_roots(named: dict[str, Path]) -> None:
                 raise QualificationBlocked(f"{left_name} and {right_name} must be disjoint")
 
 
-def _qualify_v2_impl(
+def _qualify_v3_impl(
     *,
     authority_path: str | os.PathLike[str],
     authority_sha256: str,
     source_bundle_root: str | os.PathLike[str],
     dependency_bundle_root: str | os.PathLike[str],
     capsule_root: str | os.PathLike[str],
+    node_path: str | os.PathLike[str],
     artifact_root: str | os.PathLike[str],
     run_root: str | os.PathLike[str],
     run_nonce: str,
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
-    launcher_before = _launcher_identity_v2()
+    launcher_before = _launcher_identity_v3()
     if type(timeout_seconds) not in {int, float} or not 0 < timeout_seconds <= MAX_TIMEOUT_SECONDS:
         raise QualificationBlocked("production timeout is outside the registered cap")
     if not isinstance(run_nonce, str) or re.fullmatch(r"[0-9a-f]{64}", run_nonce) is None:
@@ -5320,11 +5515,14 @@ def _qualify_v2_impl(
         must_exist=True,
         directory=False,
     )
-    authority = _load_authority_v2(authority_file, authority_sha256)
+    authority = _load_authority_v3(authority_file, authority_sha256)
 
     source_bundle = _resolve_external_root(source_bundle_root, "source bundle root")
     dependency_bundle = _resolve_external_root(dependency_bundle_root, "dependency bundle root")
     capsule = _resolve_external_root(capsule_root, "capsule root")
+    node_source = _strict_canonical_path(
+        node_path, "registered Node source", must_exist=True, directory=False
+    )
     artifact = _strict_canonical_path(
         artifact_root,
         "artifact root",
@@ -5343,6 +5541,7 @@ def _qualify_v2_impl(
             "source bundle": source_bundle,
             "dependency bundle": dependency_bundle,
             "capsule": capsule,
+            "registered Node source": node_source,
             "artifact root": artifact,
             "run root": run,
         }
@@ -5379,6 +5578,7 @@ def _qualify_v2_impl(
     artifact_handle: _AnchoredDirectory | None = None
     run_handle: _AnchoredDirectory | None = None
     process_root: _AnchoredDirectory | None = None
+    runtime_root: _AnchoredDirectory | None = None
     trusted_root: _AnchoredDirectory | None = None
     try:
         artifact_handle = _open_or_create_secure_root(artifact, "artifact root")
@@ -5392,6 +5592,15 @@ def _qualify_v2_impl(
             registry=registry,
             kind="production-process-root",
             logical_root="process",
+            anchor="run-root",
+        )
+        runtime_root = _create_random_directory(
+            run_handle,
+            ".w3-runtime-",
+            "production runtime root",
+            registry=registry,
+            kind="production-runtime-root",
+            logical_root="runtime",
             anchor="run-root",
         )
         trusted_root = _create_random_directory(
@@ -5419,8 +5628,14 @@ def _qualify_v2_impl(
         artifact_handle.assert_path_identity()
         run_handle.assert_path_identity()
         process_root.assert_path_identity()
+        runtime_root.assert_path_identity()
         trusted_root.assert_path_identity()
-        source_preimage = _materialize_tree_preimage_v2(
+        retained_node = _materialize_runtime_node_v3(
+            runtime_root,
+            node_source,
+            authority["runtime"]["node"],
+        )
+        source_preimage = _materialize_tree_preimage_v3(
             trusted_root,
             kind="source",
             descriptor=authority["source_bundle"],
@@ -5428,7 +5643,7 @@ def _qualify_v2_impl(
             manifest_name="bundle.json",
             label="source bundle",
         )
-        dependency_preimage = _materialize_tree_preimage_v2(
+        dependency_preimage = _materialize_tree_preimage_v3(
             trusted_root,
             kind="dependency",
             descriptor=authority["dependency_bundle"],
@@ -5436,7 +5651,7 @@ def _qualify_v2_impl(
             manifest_name="bundle.json",
             label="dependency bundle",
         )
-        capsule_preimage = _materialize_tree_preimage_v2(
+        capsule_preimage = _materialize_tree_preimage_v3(
             trusted_root,
             kind="capsule",
             descriptor=authority["capsule"],
@@ -5444,31 +5659,33 @@ def _qualify_v2_impl(
             manifest_name="capsule.json",
             label="runtime capsule",
         )
-        _seal_preimage_namespace_v2(trusted_root)
+        _seal_preimage_namespace_v3(trusted_root)
         trusted_root.assert_path_identity()
-        supervised_executions = _run_capsule_roster_v2(
+        supervised_executions = _run_capsule_roster_v3(
             executions=executions,
             capsule=capsule_preimage,
+            node=retained_node,
+            runtime_root=runtime_root,
             process_root=process_root,
             run_nonce=run_nonce,
             timeout_seconds=float(timeout_seconds),
             authority=authority,
         )
         worker_request = {
-            "schema_version": 2,
-            "protocol": V2_PROTOCOL,
+            "schema_version": 3,
+            "protocol": V3_PROTOCOL,
             "authority_manifest_sha256": authority_sha256,
             "source_bundle_manifest_sha256": authority["source_bundle"]["manifest_sha256"],
             "dependency_bundle_manifest_sha256": authority["dependency_bundle"]["manifest_sha256"],
             "capsule_manifest_sha256": authority["capsule"]["manifest_sha256"],
-            "candidate_manifest_sha256": V2_CANDIDATE_MANIFEST_SHA256,
-            "semantic_registry_sha256": V2_SEMANTIC_REGISTRY_SHA256,
+            "candidate_manifest_sha256": V3_CANDIDATE_MANIFEST_SHA256,
+            "semantic_registry_sha256": V3_SEMANTIC_REGISTRY_SHA256,
             "run_nonce": run_nonce,
             "expected": authority["expected"],
             "executions": supervised_executions,
         }
         request_bytes = canonical_json_bytes(worker_request)
-        stdout_bytes = _run_worker_v2(
+        stdout_bytes = _run_worker_v3(
             source_bundle=source_preimage,
             dependency_bundle=dependency_preimage,
             worker_relative=authority["project"]["worker"]["path"],
@@ -5492,7 +5709,7 @@ def _qualify_v2_impl(
                 verified,
                 normalized_worker_sha256,
                 normalized_worker_bytes,
-            ) = _verify_worker_output_v2(
+            ) = _verify_worker_output_v3(
                 stdout_bytes,
                 output_root,
                 worker_request,
@@ -5509,7 +5726,7 @@ def _qualify_v2_impl(
             stdout_bytes,
             normalized_worker_bytes,
         )
-        _verify_tree_preimage_at_v2(
+        _verify_tree_preimage_at_v3(
             trusted_root,
             kind="source",
             descriptor=authority["source_bundle"],
@@ -5517,7 +5734,7 @@ def _qualify_v2_impl(
             manifest_name="bundle.json",
             label="source bundle",
         )
-        _verify_tree_preimage_at_v2(
+        _verify_tree_preimage_at_v3(
             trusted_root,
             kind="dependency",
             descriptor=authority["dependency_bundle"],
@@ -5525,7 +5742,7 @@ def _qualify_v2_impl(
             manifest_name="bundle.json",
             label="dependency bundle",
         )
-        _verify_tree_preimage_at_v2(
+        _verify_tree_preimage_at_v3(
             trusted_root,
             kind="capsule",
             descriptor=authority["capsule"],
@@ -5533,7 +5750,8 @@ def _qualify_v2_impl(
             manifest_name="capsule.json",
             label="runtime capsule",
         )
-        launcher_after = _launcher_identity_v2()
+        _verify_runtime_node_v3(runtime_root, authority["runtime"]["node"])
+        launcher_after = _launcher_identity_v3()
         if launcher_after != launcher_before or launcher_after != authority["project"]["launcher"]:
             raise QualificationBlocked("production launcher changed during qualification")
         request_without_nonce = {
@@ -5554,31 +5772,32 @@ def _qualify_v2_impl(
         ]
         cleanup = registry.cleanup(qualified=True)
         report_body = {
-            "schema_version": 2,
-            "qualification_id": V2_QUALIFICATION_ID,
-            "qualification_kind": "production-capsule-v2",
+            "schema_version": 3,
+            "qualification_id": V3_QUALIFICATION_ID,
+            "qualification_kind": "production-capsule-v3",
             "status": "qualified",
-            "claim": V2_CLAIM,
+            "claim": V3_CLAIM,
             "authority_manifest_sha256": authority_sha256,
-            "ratification_evidence_sha256": V2_KIMI_REPORT_SHA256,
-            "project_revision": V2_PROJECT_SHA,
+            "ratification_evidence_sha256": V3_KIMI_REPORT_SHA256,
+            "project_revision": V3_PROJECT_SHA,
             "source_bundle_manifest_sha256": authority["source_bundle"]["manifest_sha256"],
             "dependency_bundle_manifest_sha256": authority["dependency_bundle"]["manifest_sha256"],
-            "dependency_roster_sha256": V2_DEPENDENCY_ROSTER_SHA256,
+            "dependency_roster_sha256": V3_DEPENDENCY_ROSTER_SHA256,
             "capsule_manifest_sha256": authority["capsule"]["manifest_sha256"],
-            "candidate_manifest_sha256": V2_CANDIDATE_MANIFEST_SHA256,
-            "semantic_registry_sha256": V2_SEMANTIC_REGISTRY_SHA256,
+            "candidate_manifest_sha256": V3_CANDIDATE_MANIFEST_SHA256,
+            "semantic_registry_sha256": V3_SEMANTIC_REGISTRY_SHA256,
             "worker_input_sha256": canonical_hash(request_without_nonce),
             "worker_output_sha256": normalized_worker_sha256,
             "launcher": launcher_before,
             "counts": denominators["counts"],
             "roles": denominators["roles"],
             "executions": verified,
-            "non_claims": list(V2_NON_CLAIMS),
+            "native_evidence": dict(V3_NATIVE_EVIDENCE),
+            "non_claims": list(V3_NON_CLAIMS),
             "cleanup": cleanup,
         }
         report = {**report_body, "manifest_sha256": canonical_hash(report_body)}
-        _validate_report_v2(report, launcher_before)
+        _validate_report_v3(report, launcher_before)
         _publish_qualification(artifact_handle, process_root, report, registry)
         artifact_handle.assert_path_identity()
         run_handle.assert_path_identity()
@@ -5588,7 +5807,7 @@ def _qualify_v2_impl(
         _validate_cleanup(
             cleanup,
             qualified=False,
-            blocked_prefixes=BLOCKED_V2_RETAINED_PREFIXES,
+            blocked_prefixes=BLOCKED_V3_RETAINED_PREFIXES,
         )
         if isinstance(error, QualificationBlocked):
             error.cleanup = cleanup
@@ -5600,6 +5819,8 @@ def _qualify_v2_impl(
     finally:
         if process_root is not None:
             process_root.close()
+        if runtime_root is not None:
+            runtime_root.close()
         if trusted_root is not None:
             trusted_root.close()
         registry.close()
@@ -5609,26 +5830,29 @@ def _qualify_v2_impl(
             artifact_handle.close()
 
 
-def qualify_v2(
+def qualify_v3(
     *,
     authority_path: str | os.PathLike[str],
     authority_sha256: str,
     source_bundle_root: str | os.PathLike[str],
     dependency_bundle_root: str | os.PathLike[str],
     capsule_root: str | os.PathLike[str],
+    node_path: str | os.PathLike[str],
     artifact_root: str | os.PathLike[str],
     run_root: str | os.PathLike[str],
     run_nonce: str,
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     try:
+        _require_protected_execution_broker()
         _require_launcher_flags()
-        return _qualify_v2_impl(
+        return _qualify_v3_impl(
             authority_path=authority_path,
             authority_sha256=authority_sha256,
             source_bundle_root=source_bundle_root,
             dependency_bundle_root=dependency_bundle_root,
             capsule_root=capsule_root,
+            node_path=node_path,
             artifact_root=artifact_root,
             run_root=run_root,
             run_nonce=run_nonce,
@@ -5640,7 +5864,7 @@ def qualify_v2(
         raise
     except Exception as error:
         raise QualificationBlocked(
-            "malformed v2 input caused an internal rejection", cleanup=_empty_cleanup()
+            "malformed v3 input caused an internal rejection", cleanup=_empty_cleanup()
         ) from error
 
 
@@ -5674,15 +5898,15 @@ def qualify(
 
 
 def _validate_blocked_report(report: Any, *, production: bool) -> dict[str, Any]:
-    expected_keys = BLOCKED_V2_REPORT_KEYS if production else BLOCKED_V1_REPORT_KEYS
+    expected_keys = BLOCKED_V3_REPORT_KEYS if production else BLOCKED_V1_REPORT_KEYS
     blocked = _exact_keys(report, expected_keys, "blocked qualification report")
     _exact_int(
         blocked["schema_version"],
-        V2_SCHEMA_VERSION if production else SCHEMA_VERSION,
+        V3_SCHEMA_VERSION if production else SCHEMA_VERSION,
         "blocked qualification report schema version",
     )
     if (
-        blocked["qualification_id"] != (V2_QUALIFICATION_ID if production else QUALIFICATION_ID)
+        blocked["qualification_id"] != (V3_QUALIFICATION_ID if production else QUALIFICATION_ID)
         or blocked["status"] != "blocked"
         or blocked["claim"] != "no_qualification_claim"
         or not isinstance(blocked["reason"], str)
@@ -5690,9 +5914,11 @@ def _validate_blocked_report(report: Any, *, production: bool) -> dict[str, Any]
     ):
         raise QualificationBlocked("blocked qualification report contract is invalid")
     if production:
-        if blocked["qualification_kind"] != "production-capsule-v2":
+        if blocked["qualification_kind"] != "production-capsule-v3":
             raise QualificationBlocked("blocked production qualification kind is invalid")
-        blocked_prefixes = BLOCKED_V2_RETAINED_PREFIXES
+        if blocked["native_evidence"] != V3_NATIVE_EVIDENCE:
+            raise QualificationBlocked("blocked production native evidence binding drifted")
+        blocked_prefixes = BLOCKED_V3_RETAINED_PREFIXES
     else:
         blocked_prefixes = BLOCKED_V1_RETAINED_PREFIXES
     _validate_cleanup(
@@ -5710,16 +5936,17 @@ def _blocked(reason: str, cleanup: dict[str, Any] | None = None) -> dict[str, An
         "status": "blocked",
         "claim": "no_qualification_claim",
         "reason": reason,
+        "native_evidence": dict(V3_NATIVE_EVIDENCE),
         "cleanup": _empty_cleanup() if cleanup is None else cleanup,
     }
     return _validate_blocked_report(report, production=False)
 
 
-def _blocked_v2(reason: str, cleanup: dict[str, Any] | None = None) -> dict[str, Any]:
+def _blocked_v3(reason: str, cleanup: dict[str, Any] | None = None) -> dict[str, Any]:
     report = {
-        "schema_version": V2_SCHEMA_VERSION,
-        "qualification_id": V2_QUALIFICATION_ID,
-        "qualification_kind": "production-capsule-v2",
+        "schema_version": V3_SCHEMA_VERSION,
+        "qualification_id": V3_QUALIFICATION_ID,
+        "qualification_kind": "production-capsule-v3",
         "status": "blocked",
         "claim": "no_qualification_claim",
         "reason": reason,
@@ -5743,7 +5970,7 @@ def _preclassify_cli_mode(argv: list[str]) -> tuple[str, int]:
             values.append(value)
         elif token.startswith("--mode="):
             values.append(token.partition("=")[2])
-    mode = "production-capsule-v2" if "production-capsule-v2" in values else "fixture-v1"
+    mode = "production-capsule-v3" if "production-capsule-v3" in values else "fixture-v1"
     return mode, len(values)
 
 
@@ -5751,7 +5978,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = _CanonicalArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--mode",
-        choices=("fixture-v1", "production-capsule-v2"),
+        choices=("fixture-v1", "production-capsule-v3"),
         default="fixture-v1",
     )
     parser.add_argument("--authority", required=True)
@@ -5760,6 +5987,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-bundle-root")
     parser.add_argument("--dependency-bundle-root")
     parser.add_argument("--capsule-root")
+    parser.add_argument("--node-path")
     parser.add_argument("--artifact-root", required=True)
     parser.add_argument("--run-root")
     parser.add_argument("--run-nonce")
@@ -5781,6 +6009,7 @@ def main(argv: list[str] | None = None) -> int:
                     arguments.source_bundle_root,
                     arguments.dependency_bundle_root,
                     arguments.capsule_root,
+                    arguments.node_path,
                     arguments.run_root,
                     arguments.run_nonce,
                 )
@@ -5798,20 +6027,22 @@ def main(argv: list[str] | None = None) -> int:
                 "--source-bundle-root": arguments.source_bundle_root,
                 "--dependency-bundle-root": arguments.dependency_bundle_root,
                 "--capsule-root": arguments.capsule_root,
+                "--node-path": arguments.node_path,
                 "--run-root": arguments.run_root,
                 "--run-nonce": arguments.run_nonce,
             }
             missing = [name for name, value in required.items() if value is None]
             if missing or arguments.source_root is not None:
                 raise QualificationBlocked(
-                    "production-capsule-v2 arguments are invalid: " + ",".join(missing)
+                    "production-capsule-v3 arguments are invalid: " + ",".join(missing)
                 )
-            report = qualify_v2(
+            report = qualify_v3(
                 authority_path=arguments.authority,
                 authority_sha256=arguments.authority_sha256,
                 source_bundle_root=arguments.source_bundle_root,
                 dependency_bundle_root=arguments.dependency_bundle_root,
                 capsule_root=arguments.capsule_root,
+                node_path=arguments.node_path,
                 artifact_root=arguments.artifact_root,
                 run_root=arguments.run_root,
                 run_nonce=arguments.run_nonce,
@@ -5819,8 +6050,8 @@ def main(argv: list[str] | None = None) -> int:
             )
     except QualificationBlocked as error:
         blocked = (
-            _blocked_v2(str(error), error.cleanup)
-            if mode == "production-capsule-v2"
+            _blocked_v3(str(error), error.cleanup)
+            if mode == "production-capsule-v3"
             else _blocked(str(error), error.cleanup)
         )
         sys.stdout.buffer.write(canonical_json_bytes(blocked) + b"\n")

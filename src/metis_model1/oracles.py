@@ -33,10 +33,14 @@ PINNED_NODE_VERSION = "v22.22.3"
 PINNED_TOOLING_PACKAGE_SHA256 = "f8130a67f948720b339695fae614f32185610f762d69b85ff600f08971f2fb80"
 PINNED_TOOLING_LOCK_SHA256 = "fed109b62f300ed824201f4b167d700072008b0b4a817cbb512a2eee32edc9fb"
 PINNED_NODE_MODULES_SHA256 = "1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
-PINNED_RUNNER_SHA256 = "484dd9518afe1dcf712bde80e367aa70f175c9dd28a3a214243616c1a298cbe5"
+PINNED_RUNNER_SHA256 = "772baa27e981f611681330bc463aef2ebe06b5f4a83ef2a0313ccf66b6dfef5d"
+PINNED_LOADER_SHA256 = "45e3557ce7ee345e2bca7de603c2ef8bc21aa2adb3f305d3f1cf6ee445273fee"
 PINNED_NODE_BINARY_SHA256 = "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
+PINNED_NODE_BYTES = 112_915_776
+LOADER_FLAGS = ("--disable-warning=ExperimentalWarning", "--experimental-loader")
 NODE_RUNTIME_IDENTITY = "node://v22.22.3"
 NODE_RUNTIME_ENV = "METIS_MODEL1_NODE"
+NATIVE_TRACE_FD_ENV = "METIS_MODEL1_NATIVE_TRACE_FD"
 SANDBOX_EXEC_PATH = Path("/usr/bin/sandbox-exec")
 SANDBOX_EXEC_IDENTITY = "sandbox-exec:///usr/bin/sandbox-exec"
 SANDBOX_POLICY = "(version 1) (allow default) (deny file-write*) (deny network*)"
@@ -67,17 +71,24 @@ SCHEMA_VERSION = 1
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = (PROJECT_ROOT / "artifacts").resolve()
 RUNNER_PATH = (PROJECT_ROOT / "runtime/metis_oracle/runner.ts").resolve()
+LOADER_PATH = (PROJECT_ROOT / "runtime/metis_oracle/native_ts_loader.mjs").resolve()
 SCHEMA_PATH = PROJECT_ROOT / "schemas/oracle-result.schema.json"
-CAPSULE_PROTOCOL = "metis-runtime-capsule-v2"
-CAPSULE_SCHEMA_VERSION = 2
+CAPSULE_PROTOCOL = "metis-runtime-capsule-v3"
+CAPSULE_SCHEMA_VERSION = 3
 CAPSULE_MANIFEST_NAME = "capsule.json"
 MAX_CAPSULE_MANIFEST_BYTES = 8 * 1024 * 1024
 MAX_CAPSULE_FILE_BYTES = 256 * 1024 * 1024
 MAX_CAPSULE_STDOUT_BYTES = 8 * 1024 * 1024
 MAX_CAPSULE_STDERR_BYTES = 64 * 1024
 CAPSULE_ANCESTOR_SLOTS = 32
+RUNTIME_ANCESTOR_SLOTS = 32
+EXECUTED_PREIMAGE_AUTHORITY = False
+REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256: str | None = None
 _CAPSULE_ANCESTOR_POLICY = "\n".join(
     f'  (literal (param "CAPSULE_ANCESTOR_{index:02d}"))' for index in range(CAPSULE_ANCESTOR_SLOTS)
+)
+_RUNTIME_ANCESTOR_POLICY = "\n".join(
+    f'  (literal (param "RUNTIME_ANCESTOR_{index:02d}"))' for index in range(RUNTIME_ANCESTOR_SLOTS)
 )
 CAPSULE_EXECUTION_POLICY_TEMPLATE = (
     """(version 1)
@@ -90,15 +101,20 @@ CAPSULE_EXECUTION_POLICY_TEMPLATE = (
   (subpath "/System/Library")
   (subpath "/usr/lib")
   (subpath "/private/var/db/dyld")
+  (subpath (param "RUNTIME_ROOT"))
   (subpath (param "CAPSULE_ROOT"))
   (subpath (param "PROCESS_ROOT")))
 """
     + '(allow file-read-data (literal "/"))\n'
     + '(allow file-read-metadata\n  (literal "/")\n'
     + _CAPSULE_ANCESTOR_POLICY
+    + "\n"
+    + _RUNTIME_ANCESTOR_POLICY
     + "\n)\n"
     + """\
-(deny file-write* (subpath (param "CAPSULE_ROOT")))
+(deny file-write*
+  (subpath (param "RUNTIME_ROOT"))
+  (subpath (param "CAPSULE_ROOT")))
 (allow file-write* (subpath (param "PROCESS_ROOT")))
 (allow sysctl-read)
 (allow mach-lookup)
@@ -109,8 +125,10 @@ CAPSULE_EXECUTION_POLICY = {
         "sha256:" + hashlib.sha256(CAPSULE_EXECUTION_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
     ),
     "capsule_ancestor_slots": CAPSULE_ANCESTOR_SLOTS,
+    "runtime_ancestor_slots": RUNTIME_ANCESTOR_SLOTS,
     "process_fork": "denied",
     "supervision": "node-session-group-leader",
+    "loader_flags": list(LOADER_FLAGS),
 }
 CAPSULE_REQUEST_KEYS = frozenset(
     {
@@ -129,8 +147,7 @@ CAPSULE_MANIFEST_KEYS = frozenset(
         "revision",
         "tree",
         "language_version",
-        "node",
-        "tsx",
+        "loader",
         "runner",
         "tooling",
         "counts",
@@ -143,6 +160,19 @@ CAPSULE_MANIFEST_KEYS = frozenset(
 
 class OracleError(ValueError):
     """Raised when an oracle result cannot be trusted."""
+
+
+def _capsule_production_environment() -> dict[str, str]:
+    environment = {"PATH": "", "LANG": "C", "LC_ALL": "C"}
+    if NATIVE_TRACE_FD_ENV in environment:
+        raise OracleError("production capsule environment enables reference tracing")
+    return environment
+
+
+def _require_protected_execution_broker() -> None:
+    if REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None:
+        raise OracleError("capsule execution requires a protected execution broker authority")
+    raise OracleError("protected execution broker transport is not implemented")
 
 
 MetisOracleError = OracleError
@@ -236,6 +266,91 @@ def _capsule_file(root: Path, relative: PurePosixPath, label: str) -> Path:
     return resolved
 
 
+def validate_runtime_capsule_descriptor(value: Any) -> dict[str, Any]:
+    """Validate the exact v3 capsule descriptor without touching its filesystem root."""
+
+    manifest = _exact_object(value, CAPSULE_MANIFEST_KEYS, "runtime capsule manifest")
+    if (
+        type(manifest["schema_version"]) is not int
+        or manifest["schema_version"] != CAPSULE_SCHEMA_VERSION
+        or not isinstance(manifest["capsule_id"], str)
+        or not manifest["capsule_id"]
+        or manifest["revision"] != PINNED_METIS_REVISION
+        or manifest["tree"] != PINNED_METIS_TREE
+        or manifest["language_version"] != LANGUAGE_VERSION
+    ):
+        raise OracleError("runtime capsule identity drifted")
+    files = manifest["files"]
+    if not isinstance(files, list) or not files:
+        raise OracleError("runtime capsule file roster is empty")
+    registered: dict[str, dict[str, Any]] = {}
+    byte_total = 0
+    for index, record_value in enumerate(files):
+        record = _exact_object(
+            record_value,
+            {"path", "size", "mode", "sha256", "role"},
+            f"runtime capsule file {index}",
+        )
+        relative = _safe_capsule_path(record["path"], f"runtime capsule file {index} path")
+        name = relative.as_posix()
+        if (
+            name == CAPSULE_MANIFEST_NAME
+            or name in registered
+            or type(record["size"]) is not int
+            or record["size"] < 0
+            or type(record["mode"]) is not int
+            or record["mode"] not in {0o444, 0o555}
+            or not isinstance(record["sha256"], str)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", record["sha256"])
+            or record["role"] not in {"git-archive", "tooling", "loader", "runner"}
+        ):
+            raise OracleError("runtime capsule file record is invalid")
+        registered[name] = record
+        byte_total += record["size"]
+    counts = _exact_object(manifest["counts"], {"files", "bytes"}, "capsule counts")
+    if counts != {"files": len(files), "bytes": byte_total}:
+        raise OracleError("runtime capsule counts differ from its roster")
+    if manifest["roster_sha256"] != _sha(files):
+        raise OracleError("runtime capsule roster digest is invalid")
+    expected_identities = {
+        "loader": {
+            "path": ".metis-oracle/native_ts_loader.mjs",
+            "sha256": "sha256:" + PINNED_LOADER_SHA256,
+            "mode": 0o444,
+        },
+        "runner": {
+            "path": ".metis-oracle/runner.ts",
+            "sha256": "sha256:" + PINNED_RUNNER_SHA256,
+            "mode": 0o444,
+        },
+    }
+    for role, expected in expected_identities.items():
+        identity = _exact_object(manifest[role], {"path", "sha256", "mode"}, f"capsule {role}")
+        row = registered.get(expected["path"])
+        if (
+            identity != expected
+            or row is None
+            or any(row[field] != expected[field] for field in ("path", "sha256", "mode"))
+            or row["role"] != role
+        ):
+            raise OracleError(f"capsule {role} identity differs from its exact pin")
+    tooling = _exact_object(
+        manifest["tooling"],
+        {"package_sha256", "lock_sha256", "node_modules_sha256"},
+        "capsule tooling",
+    )
+    if tooling != {
+        "package_sha256": "sha256:" + PINNED_TOOLING_PACKAGE_SHA256,
+        "lock_sha256": "sha256:" + PINNED_TOOLING_LOCK_SHA256,
+        "node_modules_sha256": "sha256:" + PINNED_NODE_MODULES_SHA256,
+    }:
+        raise OracleError("capsule tooling identity differs from its pins")
+    body = {key: item for key, item in manifest.items() if key != "manifest_sha256"}
+    if manifest["manifest_sha256"] != _sha(body):
+        raise OracleError("runtime capsule manifest digest is invalid")
+    return manifest
+
+
 def verify_runtime_capsule(
     capsule_root: str | os.PathLike[str],
     *,
@@ -263,7 +378,10 @@ def verify_runtime_capsule(
     if raw != _canonical(manifest):
         raise OracleError("runtime capsule manifest is not canonical JSON")
     manifest = _exact_object(manifest, CAPSULE_MANIFEST_KEYS, "runtime capsule manifest")
-    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 2:
+    if (
+        type(manifest["schema_version"]) is not int
+        or manifest["schema_version"] != CAPSULE_SCHEMA_VERSION
+    ):
         raise OracleError("runtime capsule schema version is invalid")
     body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
     measured_manifest = _sha(body)
@@ -272,6 +390,7 @@ def verify_runtime_capsule(
         or measured_manifest != expected_manifest_sha256
     ):
         raise OracleError("runtime capsule manifest differs from its independent digest")
+    validate_runtime_capsule_descriptor(manifest)
     if (
         manifest["revision"] != PINNED_METIS_REVISION
         or manifest["tree"] != PINNED_METIS_TREE
@@ -301,7 +420,7 @@ def verify_runtime_capsule(
             or record["mode"] not in {0o444, 0o555}
             or not isinstance(record["sha256"], str)
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", record["sha256"])
-            or record["role"] not in {"git-archive", "tooling", "node", "tsx", "runner"}
+            or record["role"] not in {"git-archive", "tooling", "loader", "runner"}
         ):
             raise OracleError("runtime capsule file record is invalid")
         path = _capsule_file(root, relative, f"runtime capsule file {name}")
@@ -332,8 +451,7 @@ def verify_runtime_capsule(
         raise OracleError("runtime capsule roster digest is invalid")
 
     identities = {
-        "node": (manifest["node"], "node"),
-        "tsx": (manifest["tsx"], "tsx"),
+        "loader": (manifest["loader"], "loader"),
         "runner": (manifest["runner"], "runner"),
     }
     for label, (identity, role) in identities.items():
@@ -346,6 +464,14 @@ def verify_runtime_capsule(
             or record["mode"] != identity["mode"]
         ):
             raise OracleError(f"capsule {label} identity is not in the verified roster")
+    if manifest["loader"] != {
+        "path": ".metis-oracle/native_ts_loader.mjs",
+        "sha256": "sha256:" + PINNED_LOADER_SHA256,
+        "mode": 0o444,
+    }:
+        raise OracleError("capsule native loader identity differs from its pin")
+    if manifest["runner"].get("sha256") != "sha256:" + PINNED_RUNNER_SHA256:
+        raise OracleError("capsule runner identity differs from its pin")
     tooling = _exact_object(
         manifest["tooling"],
         {"package_sha256", "lock_sha256", "node_modules_sha256"},
@@ -570,6 +696,19 @@ def _directory_fd_matches_path(directory_fd: int, path: Path) -> bool:
     return (
         not stat.S_ISLNK(metadata.st_mode)
         and stat.S_ISDIR(metadata.st_mode)
+        and (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino)
+    )
+
+
+def _file_fd_matches_path(file_fd: int, path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    opened = os.fstat(file_fd)
+    return (
+        not stat.S_ISLNK(metadata.st_mode)
+        and stat.S_ISREG(metadata.st_mode)
         and (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino)
     )
 
@@ -821,7 +960,14 @@ def _validate_node_binary(node: str | os.PathLike[str] | None) -> tuple[Path, st
         resolved = Path(node).resolve(strict=True)
     except (OSError, RuntimeError) as error:
         raise OracleError("pinned Node binary path is invalid") from error
-    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+    metadata = resolved.lstat()
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o755
+        or metadata.st_nlink != 1
+        or metadata.st_size != PINNED_NODE_BYTES
+        or not os.access(resolved, os.X_OK)
+    ):
         raise OracleError("pinned Node binary must be an executable file")
     digest = _file_sha256(resolved)
     if digest != PINNED_NODE_BINARY_SHA256:
@@ -897,7 +1043,7 @@ def _build_isolated_snapshot(
     tooling_runtime: dict[str, str],
     runner: Path,
     node_binary: Path,
-) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, Path, Path]:
+) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, Path, Path, Path]:
     """Materialize only pinned Git objects plus a checked tooling dependency copy."""
 
     holder: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory(
@@ -929,6 +1075,7 @@ def _build_isolated_snapshot(
     source_modules = root / "tooling" / "node_modules"
     snapshot_modules = tooling / "node_modules"
     snapshot_runner = snapshot / ".metis-oracle" / "runner.ts"
+    snapshot_loader = snapshot / ".metis-oracle" / "native_ts_loader.mjs"
     snapshot_node = snapshot / ".metis-oracle" / "node"
     try:
         if not tooling.is_dir():
@@ -936,10 +1083,13 @@ def _build_isolated_snapshot(
         shutil.copytree(source_modules, snapshot_modules, symlinks=True)
         snapshot_runner.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(runner, snapshot_runner)
+        shutil.copyfile(LOADER_PATH, snapshot_loader)
         shutil.copyfile(node_binary, snapshot_node)
         shutil.copymode(node_binary, snapshot_node)
         if _file_sha256(snapshot_runner) != PINNED_RUNNER_SHA256:
             raise OracleError("isolated runner differs from its pin")
+        if _file_sha256(snapshot_loader) != PINNED_LOADER_SHA256:
+            raise OracleError("isolated native loader differs from its pin")
         if _file_sha256(snapshot_node) != PINNED_NODE_BINARY_SHA256:
             raise OracleError("isolated Node binary differs from its pin")
         _validate_tree_symlinks(snapshot, "Metis snapshot")
@@ -956,16 +1106,19 @@ def _build_isolated_snapshot(
             "lock_sha256": tooling_runtime["lock_sha256"],
             "node_modules_sha256": tooling_runtime["node_modules_sha256"],
             "runner_sha256": PINNED_RUNNER_SHA256,
+            "loader_sha256": PINNED_LOADER_SHA256,
+            "loader_flags": list(LOADER_FLAGS),
             "node_binary_sha256": PINNED_NODE_BINARY_SHA256,
             "sandbox_exec_path": SANDBOX_EXEC_IDENTITY,
-            "sandbox_policy_version": SANDBOX_POLICY_VERSION,
-            "sandbox_policy_sha256": SANDBOX_POLICY_SHA256,
+            "oracle_policy_version": SANDBOX_POLICY_VERSION,
+            "oracle_policy_sha256": SANDBOX_POLICY_SHA256,
+            "execution_policy_sha256": SANDBOX_POLICY_SHA256,
         }
         (snapshot / ".metis-oracle-identity.json").write_bytes(_canonical(identity))
     except (OSError, shutil.Error, OracleError) as error:
         holder.cleanup()
         raise OracleError(f"cannot prepare the isolated Metis tooling: {error}") from error
-    return holder, snapshot, snapshot_modules, snapshot_runner, snapshot_node
+    return holder, snapshot, snapshot_modules, snapshot_runner, snapshot_loader, snapshot_node
 
 
 def _resolve_absolute(path: str | os.PathLike[str], label: str) -> Path:
@@ -1068,13 +1221,9 @@ def validate_pinned_metis(
     if tracked:
         raise OracleError("Metis tracked working tree must match the pinned revision")
     tooling = root / "tooling"
-    tsx = tooling / "node_modules" / ".bin" / "tsx"
-    if not tooling.is_dir() or not tsx.is_file() or not os.access(tsx, os.X_OK):
-        raise OracleError("pinned tooling/node_modules/.bin/tsx is required")
-    tsx_real = tsx.resolve(strict=True)
     node_modules = (tooling / "node_modules").resolve(strict=True)
-    if not _contains(node_modules, tsx_real):
-        raise OracleError("tsx must resolve inside pinned tooling/node_modules")
+    if not tooling.is_dir() or not node_modules.is_dir():
+        raise OracleError("pinned tooling/node_modules is required")
     package_sha256 = _file_sha256(tooling / "package.json")
     lock_sha256 = _file_sha256(tooling / "package-lock.json")
     modules_sha256 = _node_modules_sha256(node_modules)
@@ -1127,8 +1276,12 @@ def _validate_runner_path(path: str | os.PathLike[str], metis_root: Path) -> Pat
 
 
 def _runtime_identity_policy(
-    revision: str, tree: str, tooling_runtime: dict[str, str] | None = None
-) -> dict[str, str]:
+    revision: str,
+    tree: str,
+    tooling_runtime: dict[str, str] | None = None,
+    *,
+    execution_policy_sha256: str | None = None,
+) -> dict[str, Any]:
     package_sha = PINNED_TOOLING_PACKAGE_SHA256
     lock_sha = PINNED_TOOLING_LOCK_SHA256
     modules_sha = PINNED_NODE_MODULES_SHA256
@@ -1136,10 +1289,15 @@ def _runtime_identity_policy(
         package_sha = tooling_runtime["package_sha256"]
         lock_sha = tooling_runtime["lock_sha256"]
         modules_sha = tooling_runtime["node_modules_sha256"]
+    execution_sha = execution_policy_sha256 or ("sha256:" + SANDBOX_POLICY_SHA256)
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", execution_sha):
+        raise OracleError("runtime execution policy identity is invalid")
     return {
         "node": PINNED_NODE_VERSION,
         "node_path": NODE_RUNTIME_IDENTITY,
-        "tsx_path": f"snapshot://{revision}/{tree}/tooling/node_modules/tsx/dist/loader.mjs",
+        "loader_path": f"snapshot://{revision}/{tree}/.metis-oracle/native_ts_loader.mjs",
+        "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
+        "loader_flags": list(LOADER_FLAGS),
         "runner_path": f"snapshot://{revision}/{tree}/.metis-oracle/runner.ts",
         "snapshot_revision": revision,
         "snapshot_tree": tree,
@@ -1148,8 +1306,9 @@ def _runtime_identity_policy(
         "node_modules_sha256": "sha256:" + modules_sha,
         "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
         "sandbox_exec_path": SANDBOX_EXEC_IDENTITY,
-        "sandbox_policy_version": SANDBOX_POLICY_VERSION,
-        "sandbox_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "oracle_policy_version": SANDBOX_POLICY_VERSION,
+        "oracle_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "execution_policy_sha256": execution_sha,
     }
 
 
@@ -1159,7 +1318,7 @@ def _runtime_identity(
     revision: str,
     tree: str,
     tooling_runtime: dict[str, str],
-) -> dict[str, str]:
+) -> dict[str, Any]:
     if node_version != PINNED_NODE_VERSION:
         raise OracleError(
             f"node runtime mismatch: expected {PINNED_NODE_VERSION}, got {node_version}"
@@ -1176,7 +1335,7 @@ def _check_response(
     revision: str,
     tree: str,
     *,
-    expected_runtime: dict[str, str] | None = None,
+    expected_runtime: dict[str, Any] | None = None,
     expected_mode: str = "endpoint",
 ) -> dict[str, Any]:
     if expected_mode not in EXECUTION_MODES:
@@ -1216,9 +1375,12 @@ def _check_response(
         or result_runtime.get("tooling_lock_sha256") != "sha256:" + PINNED_TOOLING_LOCK_SHA256
         or result_runtime.get("node_modules_sha256") != "sha256:" + PINNED_NODE_MODULES_SHA256
         or result_runtime.get("node_binary_sha256") != "sha256:" + PINNED_NODE_BINARY_SHA256
+        or result_runtime.get("loader_sha256") != "sha256:" + PINNED_LOADER_SHA256
+        or result_runtime.get("loader_flags") != list(LOADER_FLAGS)
         or result_runtime.get("sandbox_exec_path") != SANDBOX_EXEC_IDENTITY
-        or result_runtime.get("sandbox_policy_version") != SANDBOX_POLICY_VERSION
-        or result_runtime.get("sandbox_policy_sha256") != "sha256:" + SANDBOX_POLICY_SHA256
+        or result_runtime.get("oracle_policy_version") != SANDBOX_POLICY_VERSION
+        or result_runtime.get("oracle_policy_sha256") != "sha256:" + SANDBOX_POLICY_SHA256
+        or not isinstance(result_runtime.get("execution_policy_sha256"), str)
     ):
         raise OracleError("runner runtime identity does not match the tooling pins")
     if expected_runtime is not None and result_runtime != expected_runtime:
@@ -1315,7 +1477,12 @@ def build_oracle_request(
     }
 
 
-def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict[str, Any]:
+def verify_oracle_envelope(
+    envelope: Any,
+    *,
+    request: Any | None = None,
+    expected_execution_policy_sha256: str | None = None,
+) -> dict[str, Any]:
     """Verify a materialized oracle envelope without executing the compiler."""
 
     if not isinstance(envelope, dict):
@@ -1332,7 +1499,9 @@ def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict
     if stored_envelope_sha256 != _sha(unsigned):
         raise OracleError("oracle envelope hash does not match its contents")
     expected_runtime = _runtime_identity_policy(
-        evidence["toolchain_revision"], evidence["toolchain_tree"]
+        evidence["toolchain_revision"],
+        evidence["toolchain_tree"],
+        execution_policy_sha256=expected_execution_policy_sha256,
     )
     if evidence["runtime_identity"] != expected_runtime:
         raise OracleError("oracle runtime identity does not match the immutable runtime policy")
@@ -1363,11 +1532,13 @@ def verify_oracle_envelope(envelope: Any, *, request: Any | None = None) -> dict
         raise OracleError("oracle Metis status hash does not match")
     expected_pins = {
         "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
+        "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
         "tooling_package_sha256": "sha256:" + PINNED_TOOLING_PACKAGE_SHA256,
         "tooling_lock_sha256": "sha256:" + PINNED_TOOLING_LOCK_SHA256,
         "node_modules_sha256": "sha256:" + PINNED_NODE_MODULES_SHA256,
         "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
-        "sandbox_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "oracle_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "execution_policy_sha256": expected_runtime["execution_policy_sha256"],
         "toolchain_revision": PINNED_METIS_REVISION,
         "toolchain_tree": PINNED_METIS_TREE,
     }
@@ -1461,9 +1632,16 @@ def verify_capsule_oracle_envelope(
             or envelope["request_sha256"] != _sha(request["request"])
         ):
             raise OracleError("capsule oracle envelope differs from its request")
-        verify_oracle_envelope(envelope["oracle_envelope"], request=request["request"])
+        verify_oracle_envelope(
+            envelope["oracle_envelope"],
+            request=request["request"],
+            expected_execution_policy_sha256=CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
+        )
     else:
-        verify_oracle_envelope(envelope["oracle_envelope"])
+        verify_oracle_envelope(
+            envelope["oracle_envelope"],
+            expected_execution_policy_sha256=CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
+        )
     body = {
         key: value for key, value in envelope.items() if key not in {"run_nonce", "manifest_sha256"}
     }
@@ -1494,6 +1672,30 @@ def _capsule_ancestor_definitions(capsule: Path) -> dict[str, str]:
         raise OracleError("capsule ancestry exceeds the process policy slot cap")
     padded = [*ancestors, *([capsule] * (CAPSULE_ANCESTOR_SLOTS - len(ancestors)))]
     return {f"CAPSULE_ANCESTOR_{index:02d}": str(path) for index, path in enumerate(padded)}
+
+
+def _runtime_ancestor_definitions(runtime: Path) -> dict[str, str]:
+    runtime = _strict_canonical_path(
+        runtime,
+        "runtime root for process policy",
+        must_exist=True,
+        directory=True,
+    )
+    ancestors: list[Path] = []
+    current = runtime.parent
+    while current != current.parent:
+        try:
+            metadata = current.lstat()
+        except OSError as error:
+            raise OracleError("runtime ancestry is unavailable") from error
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise OracleError("runtime ancestry contains a non-directory or symlink")
+        ancestors.append(current)
+        current = current.parent
+    if len(ancestors) > RUNTIME_ANCESTOR_SLOTS:
+        raise OracleError("runtime ancestry exceeds the process policy slot cap")
+    padded = [*ancestors, *([runtime] * (RUNTIME_ANCESTOR_SLOTS - len(ancestors)))]
+    return {f"RUNTIME_ANCESTOR_{index:02d}": str(path) for index, path in enumerate(padded)}
 
 
 def _kill_and_reap_capsule_group(process: subprocess.Popen[bytes]) -> None:
@@ -1697,10 +1899,13 @@ def _run_capsule_command(
     stderr_path: Path,
     timeout: float,
     node_executable: Path,
+    runtime_root: Path,
     capsule_root: Path,
     process_root: Path,
     stream_directory_fd: int | None = None,
     capsule_root_fd: int | None = None,
+    runtime_root_fd: int | None = None,
+    node_executable_fd: int | None = None,
     process_root_fd: int | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     node_executable = _strict_canonical_path(
@@ -1712,6 +1917,12 @@ def _run_capsule_command(
     capsule_root = _strict_canonical_path(
         capsule_root,
         "capsule command root",
+        must_exist=True,
+        directory=True,
+    )
+    runtime_root = _strict_canonical_path(
+        runtime_root,
+        "capsule runtime root",
         must_exist=True,
         directory=True,
     )
@@ -1740,15 +1951,42 @@ def _run_capsule_command(
         directory=False,
     )
     if (
-        capsule_root_fd is not None
-        and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
-    ) or (
-        process_root_fd is not None
-        and not _directory_fd_matches_path(process_root_fd, process_root)
+        (
+            capsule_root_fd is not None
+            and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+        )
+        or (
+            runtime_root_fd is not None
+            and not _directory_fd_matches_path(runtime_root_fd, runtime_root)
+        )
+        or (
+            process_root_fd is not None
+            and not _directory_fd_matches_path(process_root_fd, process_root)
+        )
+        or (
+            node_executable_fd is not None
+            and not _file_fd_matches_path(node_executable_fd, node_executable)
+        )
     ):
         raise OracleError("capsule command opened roots differ from their path identities")
-    if not command or command[0] != str(node_executable):
+    if (
+        not command
+        or command[0] != str(node_executable)
+        or not _contains(runtime_root, node_executable)
+    ):
         raise OracleError("capsule command does not start with the registered Node executable")
+    if any(
+        _contains(left, right)
+        for left, right in (
+            (runtime_root, capsule_root),
+            (capsule_root, runtime_root),
+            (runtime_root, process_root),
+            (process_root, runtime_root),
+            (capsule_root, process_root),
+            (process_root, capsule_root),
+        )
+    ):
+        raise OracleError("capsule command root classes are not disjoint")
     if (
         not _contains(capsule_root, cwd)
         or not _contains(process_root, stdout_path)
@@ -1769,8 +2007,10 @@ def _run_capsule_command(
             + hashlib.sha256(CAPSULE_EXECUTION_POLICY_TEMPLATE.encode("utf-8")).hexdigest()
         ),
         "capsule_ancestor_slots": CAPSULE_ANCESTOR_SLOTS,
+        "runtime_ancestor_slots": RUNTIME_ANCESTOR_SLOTS,
         "process_fork": "denied",
         "supervision": "node-session-group-leader",
+        "loader_flags": list(LOADER_FLAGS),
     }
     if measured_policy != CAPSULE_EXECUTION_POLICY:
         raise OracleError("capsule process policy bytes differ from their runtime identity")
@@ -1778,6 +2018,11 @@ def _run_capsule_command(
     ancestor_arguments = [
         argument
         for name, value in ancestor_definitions.items()
+        for argument in ("-D", f"{name}={value}")
+    ]
+    runtime_ancestor_arguments = [
+        argument
+        for name, value in _runtime_ancestor_definitions(runtime_root).items()
         for argument in ("-D", f"{name}={value}")
     ]
     supervised_command = [
@@ -1789,8 +2034,11 @@ def _run_capsule_command(
         "-D",
         f"NODE_EXECUTABLE={node_executable}",
         "-D",
+        f"RUNTIME_ROOT={runtime_root}",
+        "-D",
         f"CAPSULE_ROOT={capsule_root}",
         *ancestor_arguments,
+        *runtime_ancestor_arguments,
         *command,
     ]
     process: subprocess.Popen[bytes] | None = None
@@ -1829,11 +2077,22 @@ def _run_capsule_command(
                 stderr = streams.enter_context(os.fdopen(stderr_descriptor, "wb"))
                 stderr_descriptor = -1
                 if (
-                    capsule_root_fd is not None
-                    and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
-                ) or (
-                    process_root_fd is not None
-                    and not _directory_fd_matches_path(process_root_fd, process_root)
+                    (
+                        capsule_root_fd is not None
+                        and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+                    )
+                    or (
+                        runtime_root_fd is not None
+                        and not _directory_fd_matches_path(runtime_root_fd, runtime_root)
+                    )
+                    or (
+                        process_root_fd is not None
+                        and not _directory_fd_matches_path(process_root_fd, process_root)
+                    )
+                    or (
+                        node_executable_fd is not None
+                        and not _file_fd_matches_path(node_executable_fd, node_executable)
+                    )
                 ):
                     raise OracleError("capsule command roots changed before execution")
                 process = subprocess.Popen(
@@ -1842,7 +2101,7 @@ def _run_capsule_command(
                     stdin=subprocess.PIPE,
                     stdout=stdout,
                     stderr=stderr,
-                    env={"PATH": "", "LANG": "C", "LC_ALL": "C"},
+                    env=_capsule_production_environment(),
                     start_new_session=True,
                 )
                 if os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
@@ -1865,11 +2124,22 @@ def _run_capsule_command(
             raise OracleError("capsule runner process was not created")
         process.wait(timeout=2)
         if (
-            capsule_root_fd is not None
-            and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
-        ) or (
-            process_root_fd is not None
-            and not _directory_fd_matches_path(process_root_fd, process_root)
+            (
+                capsule_root_fd is not None
+                and not _directory_fd_matches_path(capsule_root_fd, capsule_root)
+            )
+            or (
+                runtime_root_fd is not None
+                and not _directory_fd_matches_path(runtime_root_fd, runtime_root)
+            )
+            or (
+                process_root_fd is not None
+                and not _directory_fd_matches_path(process_root_fd, process_root)
+            )
+            or (
+                node_executable_fd is not None
+                and not _file_fd_matches_path(node_executable_fd, node_executable)
+            )
         ):
             raise OracleError("capsule command roots changed during execution")
         if stream_directory_fd is None:
@@ -1910,16 +2180,12 @@ def _capsule_command(
     capsule: Path,
     manifest: dict[str, Any],
     runtime: dict[str, Any],
+    node: Path,
 ) -> tuple[Path, list[str]]:
-    node = _capsule_file(
+    loader = _capsule_file(
         capsule,
-        _safe_capsule_path(manifest["node"]["path"], "node"),
-        "node",
-    )
-    tsx = _capsule_file(
-        capsule,
-        _safe_capsule_path(manifest["tsx"]["path"], "tsx"),
-        "tsx",
+        _safe_capsule_path(manifest["loader"]["path"], "loader"),
+        "loader",
     )
     runner = _capsule_file(
         capsule,
@@ -1928,8 +2194,8 @@ def _capsule_command(
     )
     return node, [
         str(node),
-        "--import",
-        str(tsx),
+        *LOADER_FLAGS,
+        str(loader),
         str(runner),
         "--metis-root",
         str(capsule),
@@ -1937,14 +2203,18 @@ def _capsule_command(
         PINNED_METIS_REVISION,
         "--metis-tree",
         PINNED_METIS_TREE,
-        "--tsx-path",
-        str(tsx),
+        "--loader-path",
+        str(loader),
+        "--loader-sha256",
+        PINNED_LOADER_SHA256,
         "--runtime-node-path",
         runtime["node_path"],
         "--node-actual-path",
         str(node),
-        "--runtime-tsx-path",
-        runtime["tsx_path"],
+        "--runtime-loader-path",
+        runtime["loader_path"],
+        "--runtime-loader-flags",
+        json.dumps(list(LOADER_FLAGS), separators=(",", ":")),
         "--runtime-runner-path",
         runtime["runner_path"],
         "--runner-actual-path",
@@ -1957,15 +2227,121 @@ def _capsule_command(
         PINNED_RUNNER_SHA256,
         "--node-binary-sha256",
         PINNED_NODE_BINARY_SHA256,
-        "--sandbox-policy-version",
+        "--oracle-policy-version",
         SANDBOX_POLICY_VERSION,
-        "--sandbox-policy-sha256",
+        "--oracle-policy-sha256",
         SANDBOX_POLICY_SHA256,
+        "--execution-policy-sha256",
+        CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"].removeprefix("sha256:"),
         "--tooling-package-sha256",
         PINNED_TOOLING_PACKAGE_SHA256,
         "--tooling-lock-sha256",
         PINNED_TOOLING_LOCK_SHA256,
     ]
+
+
+def _verify_runtime_preimage_at(root_fd: int, node_fd: int) -> None:
+    root_metadata = os.fstat(root_fd)
+    node_metadata = os.fstat(node_fd)
+    files, directories = _capsule_preimage_roster_at(root_fd)
+    raw, measured_node = _read_capsule_preimage_file_at(
+        root_fd,
+        PurePosixPath("bin/node"),
+        128 * 1024 * 1024,
+        "runtime Node preimage",
+    )
+    if (
+        not stat.S_ISDIR(root_metadata.st_mode)
+        or stat.S_IMODE(root_metadata.st_mode) != 0o555
+        or files != {"bin/node"}
+        or directories != {"bin": 0o555}
+        or not stat.S_ISREG(node_metadata.st_mode)
+        or stat.S_IMODE(node_metadata.st_mode) != 0o555
+        or node_metadata.st_nlink != 1
+        or node_metadata.st_size != PINNED_NODE_BYTES
+        or (node_metadata.st_dev, node_metadata.st_ino)
+        != (measured_node.st_dev, measured_node.st_ino)
+        or hashlib.sha256(raw).hexdigest() != PINNED_NODE_BINARY_SHA256
+    ):
+        raise OracleError("runtime Node preimage bytes, size, mode or roster differ from the pin")
+
+
+def _materialize_runtime_preimage(
+    invocation: Path,
+    invocation_fd: int,
+    source_node: Path,
+) -> tuple[Path, Path, int, int]:
+    source_raw = _read_exact_regular(
+        source_node,
+        128 * 1024 * 1024,
+        "registered Node source",
+    )
+    if (
+        len(source_raw) != PINNED_NODE_BYTES
+        or hashlib.sha256(source_raw).hexdigest() != PINNED_NODE_BINARY_SHA256
+    ):
+        raise OracleError("registered Node source changed before capture")
+    root_fd = -1
+    bin_fd = -1
+    node_fd = -1
+    try:
+        os.mkdir("runtime", 0o700, dir_fd=invocation_fd)
+        root_fd = os.open(
+            "runtime",
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=invocation_fd,
+        )
+        bin_fd = _open_capsule_preimage_directory_at(root_fd, ("bin",), create=True)
+        _write_capsule_preimage_file_at(bin_fd, "node", source_raw, 0o555)
+        node_fd = os.open(
+            "node",
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=bin_fd,
+        )
+        os.fchmod(bin_fd, 0o555)
+        os.fchmod(root_fd, 0o555)
+        _verify_runtime_preimage_at(root_fd, node_fd)
+        root = invocation / "runtime"
+        node = root / "bin" / "node"
+        if (
+            not _directory_fd_matches_path(invocation_fd, invocation)
+            or not _directory_fd_matches_path(root_fd, root)
+            or not _file_fd_matches_path(node_fd, node)
+        ):
+            raise OracleError("runtime Node preimage namespace changed during materialization")
+        return root, node, root_fd, node_fd
+    except BaseException:
+        for descriptor in (node_fd, bin_fd, root_fd):
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+        raise
+    finally:
+        if bin_fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(bin_fd)
+
+
+@contextlib.contextmanager
+def _owned_materialized_runtime_preimage(
+    invocation: Path,
+    invocation_fd: int,
+    source_node: Path,
+) -> Iterator[tuple[Path, Path, int, int]]:
+    root_fd = -1
+    node_fd = -1
+    try:
+        root, node, root_fd, node_fd = _materialize_runtime_preimage(
+            invocation,
+            invocation_fd,
+            source_node,
+        )
+        yield root, node, root_fd, node_fd
+    finally:
+        for descriptor in (node_fd, root_fd):
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
 
 
 def run_oracle_from_capsule(
@@ -1976,12 +2352,13 @@ def run_oracle_from_capsule(
     output_path: str | os.PathLike[str],
     timeout: float = 60.0,
 ) -> dict[str, Any]:
-    """Run the exact registered Node/tsx/runner closure from an immutable capsule.
+    """Run the exact registered Node/loader/runner closure from an immutable capsule.
 
     This low-level boundary deliberately has no ``metis_root`` or ``runner_path``
     override and never calls :func:`_build_isolated_snapshot` or reads Git.
     """
 
+    _require_protected_execution_broker()
     request = _validate_capsule_request(capsule_request)
     if type(timeout) not in {int, float} or not 0 < timeout <= 60:
         raise OracleError("capsule oracle timeout is outside the registered cap")
@@ -2007,7 +2384,12 @@ def run_oracle_from_capsule(
     invocation_name = f"{request['execution_id']}-{request['run_nonce'][:16]}"
 
     capsule_contents = _capture_runtime_capsule_contents(capsule, manifest)
-    runtime = _runtime_identity_policy(PINNED_METIS_REVISION, PINNED_METIS_TREE)
+    runtime = _runtime_identity_policy(
+        PINNED_METIS_REVISION,
+        PINNED_METIS_TREE,
+        execution_policy_sha256=CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
+    )
+    node_source, _ = _resolve_pinned_node()
     semantic = request["request"]
     with (
         _secure_invocation_workspace(root, invocation_name) as (invocation, invocation_fd),
@@ -2017,6 +2399,11 @@ def run_oracle_from_capsule(
             manifest,
             capsule_contents,
         ) as (capsule_preimage, capsule_preimage_fd),
+        _owned_materialized_runtime_preimage(
+            invocation,
+            invocation_fd,
+            node_source,
+        ) as (runtime_root, runtime_node, runtime_fd, runtime_node_fd),
     ):
         write_fd = -1
         try:
@@ -2033,7 +2420,12 @@ def run_oracle_from_capsule(
                 or stat.S_IMODE(write_metadata.st_mode) != 0o700
             ):
                 raise OracleError("capsule writable invocation root is invalid")
-            node, command = _capsule_command(capsule_preimage, manifest, runtime)
+            node, command = _capsule_command(
+                capsule_preimage,
+                manifest,
+                runtime,
+                runtime_node,
+            )
             completed = _run_capsule_command(
                 command,
                 cwd=capsule_preimage / "tooling",
@@ -2042,12 +2434,16 @@ def run_oracle_from_capsule(
                 stderr_path=write_root / "stderr.txt",
                 timeout=float(timeout),
                 node_executable=node,
+                runtime_root=runtime_root,
                 capsule_root=capsule_preimage,
                 process_root=write_root,
                 stream_directory_fd=write_fd,
                 capsule_root_fd=capsule_preimage_fd,
+                runtime_root_fd=runtime_fd,
+                node_executable_fd=runtime_node_fd,
                 process_root_fd=write_fd,
             )
+            _verify_runtime_preimage_at(runtime_fd, runtime_node_fd)
             _verify_runtime_capsule_preimage_at(
                 capsule_preimage_fd,
                 manifest,
@@ -2090,11 +2486,13 @@ def run_oracle_from_capsule(
         "runtime_sha256": _sha(runtime),
         "runtime_identity": runtime,
         "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
+        "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
         "tooling_package_sha256": "sha256:" + PINNED_TOOLING_PACKAGE_SHA256,
         "tooling_lock_sha256": "sha256:" + PINNED_TOOLING_LOCK_SHA256,
         "node_modules_sha256": "sha256:" + PINNED_NODE_MODULES_SHA256,
         "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
-        "sandbox_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+        "oracle_policy_sha256": runtime["oracle_policy_sha256"],
+        "execution_policy_sha256": runtime["execution_policy_sha256"],
         "metis_status_sha256": _sha(""),
         "metis_status": "",
     }
@@ -2104,7 +2502,11 @@ def run_oracle_from_capsule(
         "evidence": evidence,
     }
     oracle_envelope["evidence"]["envelope_sha256"] = _sha(oracle_envelope)
-    verify_oracle_envelope(oracle_envelope, request=semantic)
+    verify_oracle_envelope(
+        oracle_envelope,
+        request=semantic,
+        expected_execution_policy_sha256=CAPSULE_EXECUTION_POLICY["sandbox_policy_sha256"],
+    )
     capsule_body = {
         "schema_version": CAPSULE_SCHEMA_VERSION,
         "protocol": CAPSULE_PROTOCOL,
@@ -2187,9 +2589,14 @@ def run_oracle(
         raise OracleError("Metis checkout changed during validation")
     source_modules = root / "tooling" / "node_modules"
     source_modules_before = _node_modules_sha256(source_modules)
-    holder, snapshot, snapshot_modules, snapshot_runner, snapshot_node = _build_isolated_snapshot(
-        root, revision, tree, toolchain_runtime, runner, node
-    )
+    (
+        holder,
+        snapshot,
+        snapshot_modules,
+        snapshot_runner,
+        snapshot_loader,
+        snapshot_node,
+    ) = _build_isolated_snapshot(root, revision, tree, toolchain_runtime, runner, node)
     try:
         snapshot_modules_before = _node_modules_sha256(snapshot_modules)
         snapshot_modules_pin = toolchain_runtime["node_modules_sha256"]
@@ -2197,13 +2604,15 @@ def run_oracle(
             raise OracleError("isolated tooling node_modules changed before execution")
         if _file_sha256(snapshot_runner) != PINNED_RUNNER_SHA256:
             raise OracleError("isolated runner changed before execution")
+        if _file_sha256(snapshot_loader) != PINNED_LOADER_SHA256:
+            raise OracleError("isolated native loader changed before execution")
         if _file_sha256(snapshot_node) != PINNED_NODE_BINARY_SHA256:
             raise OracleError("isolated Node binary changed before execution")
         snapshot_identity = f"snapshot://{revision}/{tree}"
         command = [
             str(snapshot_node),
-            "--import",
-            str(snapshot / "tooling" / "node_modules" / "tsx" / "dist" / "loader.mjs"),
+            *LOADER_FLAGS,
+            str(snapshot_loader),
             str(snapshot_runner),
             "--metis-root",
             str(snapshot),
@@ -2211,14 +2620,18 @@ def run_oracle(
             revision,
             "--metis-tree",
             tree,
-            "--tsx-path",
-            str(snapshot / "tooling" / "node_modules" / "tsx" / "dist" / "loader.mjs"),
+            "--loader-path",
+            str(snapshot_loader),
+            "--loader-sha256",
+            PINNED_LOADER_SHA256,
             "--runtime-node-path",
             runtime["node_path"],
             "--node-actual-path",
             str(snapshot_node.resolve()),
-            "--runtime-tsx-path",
-            runtime["tsx_path"],
+            "--runtime-loader-path",
+            runtime["loader_path"],
+            "--runtime-loader-flags",
+            json.dumps(list(LOADER_FLAGS), separators=(",", ":")),
             "--runtime-runner-path",
             runtime["runner_path"],
             "--runner-actual-path",
@@ -2231,9 +2644,11 @@ def run_oracle(
             PINNED_RUNNER_SHA256,
             "--node-binary-sha256",
             PINNED_NODE_BINARY_SHA256,
-            "--sandbox-policy-version",
+            "--oracle-policy-version",
             SANDBOX_POLICY_VERSION,
-            "--sandbox-policy-sha256",
+            "--oracle-policy-sha256",
+            SANDBOX_POLICY_SHA256,
+            "--execution-policy-sha256",
             SANDBOX_POLICY_SHA256,
             "--tooling-package-sha256",
             toolchain_runtime["package_sha256"],
@@ -2261,6 +2676,8 @@ def run_oracle(
             raise OracleError("oracle runner changed isolated tooling node_modules")
         if _file_sha256(snapshot_runner) != PINNED_RUNNER_SHA256:
             raise OracleError("oracle runner changed isolated runner")
+        if _file_sha256(snapshot_loader) != PINNED_LOADER_SHA256:
+            raise OracleError("oracle runner changed isolated native loader")
         if _file_sha256(snapshot_node) != PINNED_NODE_BINARY_SHA256:
             raise OracleError("oracle runner changed isolated Node binary")
         after_status = _git(root, "status", "--porcelain=v1", "--untracked-files=no")
@@ -2305,11 +2722,13 @@ def run_oracle(
             "runtime_sha256": _sha(runtime),
             "runtime_identity": runtime,
             "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
+            "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
             "tooling_package_sha256": "sha256:" + toolchain_runtime["package_sha256"],
             "tooling_lock_sha256": "sha256:" + toolchain_runtime["lock_sha256"],
             "node_modules_sha256": "sha256:" + toolchain_runtime["node_modules_sha256"],
             "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
-            "sandbox_policy_sha256": "sha256:" + SANDBOX_POLICY_SHA256,
+            "oracle_policy_sha256": runtime["oracle_policy_sha256"],
+            "execution_policy_sha256": runtime["execution_policy_sha256"],
             "metis_status_sha256": _sha(before_status),
             "metis_status": before_status,
         }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "F6 blind-human-review finalization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "status", "eligible_for_f6_credit", "policy_sha256", "request_sha256", "receipt_sha256", "automatic_result_sha256", "human_verdict", "final_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "status": {"const": "f6_credit_denied"},
+    "eligible_for_f6_credit": {"const": false},
+    "policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "request_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "receipt_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "automatic_result_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "human_verdict": {"enum": ["fail", "abstain"]},
+    "final_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

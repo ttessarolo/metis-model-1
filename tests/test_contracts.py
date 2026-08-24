@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import pytest
 
+import metis_model1.contracts as contracts
 from metis_model1.contracts import (
     load_json,
     repository_root,
@@ -28,12 +29,71 @@ def test_repository_foundation_is_valid() -> None:
     assert "schema=schemas/w3-bridge-replay.schema.json" in report.passes
     assert "schema=schemas/w3-production-authority.schema.json" in report.passes
     assert "schema=schemas/w3-qualification.schema.json" in report.passes
+    assert "schema=schemas/w3-native-loader-evidence.schema.json" in report.passes
     assert "schema=schemas/w3-semantic-spec.schema.json" in report.passes
     assert "schema=schemas/w3-source-register.schema.json" in report.passes
     assert "schema=schemas/w3-run.schema.json" in report.passes
+    assert "contract=manifests/w1-slice-30-blocker-map-v1.json" in report.passes
+    assert "contract=manifests/w2-rights-dossier-v1.json" in report.passes
+    assert "contract=manifests/w1-slice-30-oracle-receipts-v1.json" in report.passes
+    assert "contract=manifests/w1-leakage-group-assignment-v1.json" in report.passes
+    assert "contract=manifests/w1-held-out-family-map-v1.json" in report.passes
+    assert "contract=manifests/w1-benchmark-seal-v1.json" in report.passes
+    assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
+
+
+def test_foundation_rejects_semantic_w2_rights_laundering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repository_root()
+    original = contracts.load_json
+
+    def drifted(path):
+        value = original(path)
+        if path.name == "w2-rights-dossier-v1.json":
+            value = deepcopy(value)
+            value["assets"][0]["license"] = "invented-rights-claim"
+        return value
+
+    monkeypatch.setattr(contracts, "load_json", drifted)
+
+    report = contracts.validate_foundation(root)
+
+    assert "w2-rights-dossier: dossier field drift: assets" in report.errors
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "variant_names"),
+    [
+        ("w3-production-authority.schema.json", (None,)),
+        (
+            "w3-qualification.schema.json",
+            ("productionQualified", "productionBlocked"),
+        ),
+        ("w3-bridge-replay.schema.json", ("qualified", "blocked")),
+    ],
+)
+def test_l66_production_schemas_bind_exact_native_evidence_manifest(
+    schema_name: str,
+    variant_names: tuple[str | None, ...],
+) -> None:
+    root = repository_root()
+    manifest = load_json(root / "manifests/w3-native-loader-evidence.json")
+    schema = load_json(root / "schemas" / schema_name)
+    expected = {
+        "const": {
+            "path": "manifests/w3-native-loader-evidence.json",
+            "manifest_sha256": manifest["manifest_sha256"],
+        }
+    }
+    assert schema["$defs"]["nativeEvidence"] == expected
+    for variant_name in variant_names:
+        target = schema if variant_name is None else schema["$defs"][variant_name]
+        assert "native_evidence" in target["required"]
+        assert target["properties"]["native_evidence"] == {"$ref": "#/$defs/nativeEvidence"}
 
 
 def test_w3_source_checkpoint_revision_is_repeated_exactly_across_four_paths() -> None:
@@ -69,13 +129,13 @@ def test_w3_report_schemas_require_deferred_cleanup_on_all_six_variants() -> Non
         "$ref": "#/$defs/qualifiedV1Cleanup"
     }
     assert qualification["$defs"]["productionQualified"]["properties"]["cleanup"] == {
-        "$ref": "#/$defs/qualifiedV2Cleanup"
+        "$ref": "#/$defs/qualifiedV3Cleanup"
     }
     assert qualification["$defs"]["blocked"]["properties"]["cleanup"] == {
         "$ref": "#/$defs/blockedV1Cleanup"
     }
     assert qualification["$defs"]["productionBlocked"]["properties"]["cleanup"] == {
-        "$ref": "#/$defs/blockedV2Cleanup"
+        "$ref": "#/$defs/blockedV3Cleanup"
     }
     assert bridge["$defs"]["qualified"]["properties"]["cleanup"] == {
         "$ref": "#/$defs/qualifiedReplayCleanup"

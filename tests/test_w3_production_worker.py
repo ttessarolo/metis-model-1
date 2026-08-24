@@ -25,7 +25,7 @@ def _request() -> dict:
         ("candidate-f3", "F-3", "fixed", "ok"),
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "protocol": WORKER.PROTOCOL,
         "authority_manifest_sha256": "sha256:" + "1" * 64,
         "source_bundle_manifest_sha256": "sha256:" + "2" * 64,
@@ -43,8 +43,8 @@ def _request() -> dict:
                 "expected_status": status,
                 "request": {"schema_version": 1, "role": role},
                 "capsule_envelope": {
-                    "schema_version": 2,
-                    "protocol": "metis-runtime-capsule-v2",
+                    "schema_version": 3,
+                    "protocol": "metis-runtime-capsule-v3",
                     "execution_id": f"{candidate}.{role}",
                     "run_nonce": "7" * 64,
                     "request_sha256": "sha256:" + "8" * 64,

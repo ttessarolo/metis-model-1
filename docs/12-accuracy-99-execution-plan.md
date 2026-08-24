@@ -2,6 +2,11 @@
 
 Status: **pre-registered proposal, before candidate results**.
 
+Scope: this document governs only `ACCURACY99_PROMOTION_READY`. It does not
+govern W5-XS, does not block `BASELINE_B` and is not authority for inference,
+dataset materialization or training. The first-value path is
+[`15-first-value-experiment.md`](15-first-value-experiment.md).
+
 ## 1. What 99% means
 
 The target is not loss, parser accuracy or compile-clean. It is variant D —
@@ -52,8 +57,9 @@ Status: completed.
 - Metis checkout fixed read-only at `a2dde2b...`;
 - Qwen3.8 checkpoint/runtime fixed and technically qualified;
 - training artifacts stay outside Git;
-- Kimi K3 and internal delegated lanes operate through blackboards and return
-  evidence to the frontier coordinator.
+- internal delegated lanes operate through blackboards and return evidence to
+  the frontier coordinator; external teams are historical evidence, not a
+  dependency of the current path.
 
 ### Step 1 — Seal the 30-task smoke slice
 
@@ -86,7 +92,20 @@ demo and a generated template. This is three syntactic roots and at most two
 defensible ancestry roots, so new or independently sourced material is required
 before Step 2 can close.
 
-### Step 3 — Build W3 dataset pipeline
+### Step 3 — Establish strict A/B baseline
+
+Run the frozen 30-task smoke set with identical prompt, context, sampling,
+reasoning mode and two-cycle budget:
+
+- A: base, no context/compiler loop;
+- B: base plus current context/compiler loop.
+
+Publish numerator, denominator, family breakdown, failures and latency. Baseline
+variance and failure taxonomy complete the evidence required for O-003. This is
+the promotion baseline; the earlier 12-task W5-XS baseline remains separate and
+cannot be relabelled as claim-grade evidence.
+
+### Step 4 — Build W3 dataset pipeline
 
 Implement deterministic generators for author/edit/repair first, followed by
 review/migration/explanation. Every candidate example is rejected unless it has:
@@ -109,17 +128,6 @@ authorities are still unset. Real receipts are `0/15` for the allocated
 F-1/F-2/F-3 smoke tasks, and F-4/F-5/F-6 are not implemented. Fixture receipts
 are policy bindings, not proof of a real isolated Metis execution.
 
-### Step 4 — Establish A/B baseline
-
-Run the frozen 30-task smoke set with identical prompt, context, sampling,
-reasoning mode and two-cycle budget:
-
-- A: base, no context/compiler loop;
-- B: base plus current context/compiler loop.
-
-Publish numerator, denominator, family breakdown, failures and latency. Baseline
-variance and failure taxonomy complete the evidence required for O-003.
-
 ### Step 5 — Ratify W5 controls
 
 - O-003: absolute Accuracy-99 gate plus paired B/D uplift and tolerances fixed
@@ -137,7 +145,7 @@ path passed rank-8 step 1, rank-8 resume to step 2 and rank-16 step 1 with
 finite loss and 94.43-95.04 GB peak Metal. The bounded four-configuration grid
 and 32 GiB sweep checkpoint cap are fixed before candidate results. O-003
 remains open because the frozen independent denominator and baseline variance
-do not yet exist, so W5 remains blocked.
+do not yet exist, so Accuracy-99 promotion (promotion-scale W5) remains blocked.
 
 ### Step 6 — Execute bounded QLoRA pilot
 
@@ -184,11 +192,12 @@ paired B/D results; no loss curve is promoted into an accuracy forecast.
 
 The active board is
 [`orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md`](../orchestra/runs/2026-08-20-model1-delivery/BLACKBOARD.md).
-It records the current frontier/Kimi delivery wave, the hardened promotion and
+It records the current internal-Orchestra delivery wave, the hardened promotion and
 Oracle trust boundaries, the W3 source contract and the current W4 wrapper
 identity. The earlier accuracy-pilot board is historical and remains closed.
 
-W5 is still blocked: the production W3 adapter/register and semantic-spec
+Accuracy-99 promotion is still blocked: the production W3 adapter/register and semantic-spec
 authority, real F-1/F-2/F-3 receipts, F-4/F-5/F-6, benchmark v1, 563 independent
 groups, A/B baseline and O-003 are not ratified. No semantic training result or
-99% accuracy claim has been produced.
+99% accuracy claim has been produced. These facts do not block the separately
+ratified W5-XS baseline-first experiment.

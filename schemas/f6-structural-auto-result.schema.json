@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/f6-structural-auto-result.schema.json",
+  "title": "Metis Model 1 F-6 automatic structural result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "status", "eligible_for_f6_credit", "outcomes", "failure_reasons", "evidence", "result_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "status": {"enum": ["automatic_pass_human_pending", "automatic_fail"]},
+    "eligible_for_f6_credit": {"const": false},
+    "outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ast", "ir", "semantic", "human"],
+      "properties": {
+        "ast": {"enum": ["pass", "fail"]},
+        "ir": {"enum": ["pass", "fail"]},
+        "semantic": {"enum": ["pass", "fail"]},
+        "human": {"const": "not_run"}
+      }
+    },
+    "failure_reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["truth_sha256", "candidate_sha256", "oracle_envelope_sha256"],
+      "properties": {
+        "truth_sha256": {"$ref": "#/$defs/hash"},
+        "candidate_sha256": {"$ref": "#/$defs/hash"},
+        "oracle_envelope_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "result_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "automatic_pass_human_pending"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "outcomes": {"const": {"ast": "pass", "ir": "pass", "semantic": "pass", "human": "not_run"}},
+          "failure_reasons": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "automatic_fail"}}, "required": ["status"]},
+      "then": {"properties": {"failure_reasons": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+}

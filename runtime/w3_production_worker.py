@@ -26,8 +26,8 @@ from metis_model1.oracles import (
     verify_capsule_oracle_envelope,
 )
 
-PROTOCOL = "w3-production-capsule-worker-v2"
-SCHEMA_VERSION = 2
+PROTOCOL = "w3-production-capsule-worker-v3"
+SCHEMA_VERSION = 3
 HASH_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 ROLE_COUNTS = {"author": 1, "before": 1, "after": 1, "mutated": 1, "fixed": 1}
@@ -144,7 +144,7 @@ def _validated_request(value: Any) -> dict[str, Any]:
         },
         "worker request",
     )
-    if type(request["schema_version"]) is not int or request["schema_version"] != 2:
+    if type(request["schema_version"]) is not int or request["schema_version"] != 3:
         raise ProductionWorkerError("worker schema version is invalid")
     if request["protocol"] != PROTOCOL:
         raise ProductionWorkerError("worker protocol is invalid")
@@ -240,8 +240,8 @@ def execute(value: Any) -> dict[str, Any]:
         artifact_relative = f"artifacts/{row['candidate_id']}/{row['role']}.json"
         artifact = output_root / artifact_relative
         capsule_request = {
-            "schema_version": 2,
-            "protocol": "metis-runtime-capsule-v2",
+            "schema_version": 3,
+            "protocol": "metis-runtime-capsule-v3",
             "execution_id": f"{row['candidate_id']}.{row['role']}",
             "run_nonce": request["run_nonce"],
             "capsule_manifest_sha256": request["capsule_manifest_sha256"],

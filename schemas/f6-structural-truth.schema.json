@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/f6-structural-truth.schema.json",
+  "title": "Metis Model 1 F-6 sealed structural truth",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "truth_id", "task_id", "family", "status", "source", "oracle_evidence", "required_claims", "human_review_required", "model_outputs_observed", "truth_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "truth_id": {"type": "string", "pattern": "^f6-truth/[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "family": {"const": "F-6"},
+    "status": {"const": "sealed_pre_output"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolchain_revision", "toolchain_tree", "source_blob_oid", "source_sha256", "source_path", "oracle_request_sha256", "oracle_envelope_sha256"],
+      "properties": {
+        "toolchain_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "toolchain_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "source_blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "source_sha256": {"$ref": "#/$defs/hash"},
+        "source_path": {"type": "string", "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*\\.metis$"},
+        "oracle_request_sha256": {"$ref": "#/$defs/hash"},
+        "oracle_envelope_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "oracle_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpoint_name", "ast_signature", "ir_signature", "ast_inventory_sha256", "ir_value_sha256"],
+      "properties": {
+        "endpoint_name": {"type": "string", "minLength": 1},
+        "ast_signature": {"$ref": "#/$defs/hash"},
+        "ir_signature": {"$ref": "#/$defs/hash"},
+        "ast_inventory_sha256": {"$ref": "#/$defs/hash"},
+        "ir_value_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "required_claims": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/claim"}},
+    "human_review_required": {"const": true},
+    "model_outputs_observed": {"const": false},
+    "truth_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "basis", "ast_path", "ir_path", "value"],
+      "properties": {
+        "claim_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+        "basis": {"enum": ["ast", "ir", "ast_ir"]},
+        "ast_path": {"type": ["string", "null"], "minLength": 1},
+        "ir_path": {"type": ["string", "null"], "minLength": 1},
+        "value": {}
+      },
+      "allOf": [
+        {"if": {"properties": {"basis": {"const": "ast"}}, "required": ["basis"]}, "then": {"properties": {"ast_path": {"type": "string"}, "ir_path": {"type": "null"}}}},
+        {"if": {"properties": {"basis": {"const": "ir"}}, "required": ["basis"]}, "then": {"properties": {"ast_path": {"type": "null"}, "ir_path": {"type": "string"}}}},
+        {"if": {"properties": {"basis": {"const": "ast_ir"}}, "required": ["basis"]}, "then": {"properties": {"ast_path": {"type": "string"}, "ir_path": {"type": "string"}}}}
+      ]
+    }
+  }
+}

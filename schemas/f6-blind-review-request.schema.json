@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "F6 blind review request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "policy_sha256", "task_id", "nonce", "candidate_sha256", "blind_package_sha256", "blind_package", "request_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_id": {"type": "string", "pattern": "^f6-blind-review/[a-z0-9][a-z0-9._/-]{0,127}/[0-9a-f]{64}$"},
+    "policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$"},
+    "nonce": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "blind_package_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "blind_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "ast_inventory", "ir_value", "candidate_response"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "text"],
+          "properties": {
+            "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.metis$"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        "ast_inventory": {},
+        "ir_value": {},
+        "candidate_response": {}
+      }
+    },
+    "request_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

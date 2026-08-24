@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/w3-protected-broker-receipt.schema.json",
+  "title": "W3 protected execution broker receipt v1",
+  "description": "Signed receipt for one protected execution. Binds claimed versus measured digests, principal identities and effective UID/GID, resolved policy identity, full pre/post rosters, request and nonces, the audit attempt_sequence, the consumer-facing receipt_sequence and previous_receipt_sha256, stdout/stderr/exit, atomic publication, exact cleanup census, nonclaims and signature. Consumers pin the receipt_sequence high-water and chain head per authority; attempt_sequence is audit-ledger ordering only. Signed material is the canonical receipt with only signature.value omitted. A summary or truncated roster is invalid; unknown fields are invalid.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "mode",
+    "executed_preimage_authority",
+    "nonclaims",
+    "request",
+    "measured",
+    "broker_nonce",
+    "attempt_sequence",
+    "receipt_sequence",
+    "previous_receipt_sha256",
+    "identities",
+    "effective_ids",
+    "policy",
+    "roster",
+    "output",
+    "cleanup",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "w3-protected-broker-receipt" },
+    "mode": { "enum": ["synthetic", "protected-public-synthetic", "production"] },
+    "executed_preimage_authority": { "type": "boolean" },
+    "nonclaims": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "request": { "$ref": "#/$defs/requestBinding" },
+    "measured": { "$ref": "#/$defs/measuredDigests" },
+    "broker_nonce": { "$ref": "#/$defs/nonce" },
+    "attempt_sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "receipt_sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "previous_receipt_sha256": { "$ref": "#/$defs/hash" },
+    "identities": { "$ref": "#/$defs/identities" },
+    "effective_ids": { "$ref": "#/$defs/effectiveIds" },
+    "policy": { "$ref": "#/$defs/policy" },
+    "roster": { "$ref": "#/$defs/roster" },
+    "output": { "$ref": "#/$defs/output" },
+    "cleanup": { "$ref": "#/$defs/cleanup" },
+    "signature": { "$ref": "#/$defs/signature" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "mode": { "const": "synthetic" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "executed_preimage_authority": { "const": false },
+          "nonclaims": {
+            "const": [
+              "executed_preimage_authority=false",
+              "no-production-authority",
+              "no-production-evidence",
+              "phase-a-structure-only",
+              "synthetic-hmac-sha256-signature",
+              "unprotected-test-stores-carry-zero-authority"
+            ]
+          },
+          "signature": {
+            "properties": {
+              "algorithm": { "const": "synthetic-hmac-sha256" },
+              "value": { "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "protected-public-synthetic" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "executed_preimage_authority": { "const": true },
+          "nonclaims": {
+            "const": [
+              "no-production-authority",
+              "no-production-evidence",
+              "public-synthetic-only",
+              "no-semantic-accuracy-claim",
+              "no-W5-credit"
+            ]
+          },
+          "signature": {
+            "properties": {
+              "algorithm": { "const": "ed25519" },
+              "value": { "pattern": "^[A-Za-z0-9+/]{86}==$" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "production" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "executed_preimage_authority": { "const": true },
+          "nonclaims": {
+            "minItems": 1,
+            "items": {
+              "not": { "const": "executed_preimage_authority=false" }
+            }
+          },
+          "signature": {
+            "properties": {
+              "algorithm": { "const": "ed25519" },
+              "value": { "pattern": "^[A-Za-z0-9+/]{86}==$" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requestBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_hash",
+        "client_nonce",
+        "claimed_authority_sha256",
+        "claimed_release_sha256",
+        "claimed_policy_sha256"
+      ],
+      "properties": {
+        "request_hash": { "$ref": "#/$defs/hash" },
+        "client_nonce": { "$ref": "#/$defs/nonce" },
+        "claimed_authority_sha256": { "$ref": "#/$defs/hash" },
+        "claimed_release_sha256": { "$ref": "#/$defs/hash" },
+        "claimed_policy_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "measuredDigests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_sha256", "release_sha256", "policy_sha256"],
+      "properties": {
+        "authority_sha256": { "$ref": "#/$defs/hash" },
+        "release_sha256": { "$ref": "#/$defs/hash" },
+        "policy_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "identities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["broker", "launcher", "worker", "node", "loader"],
+      "properties": {
+        "broker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["user", "code_sha256"],
+          "properties": {
+            "user": { "const": "_metisbroker" },
+            "code_sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "launcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code_sha256"],
+          "properties": { "code_sha256": { "$ref": "#/$defs/hash" } }
+        },
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code_sha256"],
+          "properties": { "code_sha256": { "$ref": "#/$defs/hash" } }
+        },
+        "node": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256", "version"],
+          "properties": {
+            "sha256": { "$ref": "#/$defs/hash" },
+            "version": {
+              "type": "string",
+              "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "loader": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "$ref": "#/$defs/hash" } }
+        }
+      }
+    },
+    "effectiveIds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "broker_uid",
+        "broker_gid",
+        "runner_uid",
+        "runner_gid",
+        "launcher_uid",
+        "launcher_gid"
+      ],
+      "properties": {
+        "broker_uid": { "$ref": "#/$defs/principalId" },
+        "broker_gid": { "$ref": "#/$defs/principalId" },
+        "runner_uid": { "$ref": "#/$defs/principalId" },
+        "runner_gid": { "$ref": "#/$defs/principalId" },
+        "launcher_uid": { "const": 0 },
+        "launcher_gid": { "const": 0 }
+      }
+    },
+    "principalId": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template_sha256", "parameters", "resolved_sha256"],
+      "properties": {
+        "template_sha256": { "$ref": "#/$defs/hash" },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/hash" }
+        },
+        "resolved_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "rosterPath": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9@_-][A-Za-z0-9@._-]*|\\.[A-Za-z0-9@_-][A-Za-z0-9@._-]*)(?:/(?:[A-Za-z0-9@_-][A-Za-z0-9@._-]*|\\.[A-Za-z0-9@_-][A-Za-z0-9@._-]*))*$"
+    },
+    "rosterRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "size",
+        "mode",
+        "sha256",
+        "uid",
+        "gid",
+        "dev",
+        "ino",
+        "nlink"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/rosterPath" },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "mode": {
+          "type": "integer",
+          "minimum": 32768,
+          "maximum": 36863
+        },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "uid": { "const": 0 },
+        "gid": { "const": 0 },
+        "dev": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "ino": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "nlink": { "const": 1 }
+      }
+    },
+    "roster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pre", "post"],
+      "properties": {
+        "pre": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rosterRow" }
+        },
+        "post": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rosterRow" }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stdout_sha256", "stderr_sha256", "exit_code", "publication"],
+      "properties": {
+        "stdout_sha256": { "$ref": "#/$defs/hash" },
+        "stderr_sha256": { "$ref": "#/$defs/hash" },
+        "exit_code": {
+          "type": "integer",
+          "minimum": -255,
+          "maximum": 255
+        },
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256", "size", "atomic"],
+          "properties": {
+            "sha256": { "$ref": "#/$defs/hash" },
+            "size": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9223372036854775807
+            },
+            "atomic": { "const": true }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_census", "fd_census", "temp_census"],
+      "properties": {
+        "process_census": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["residual_children", "census_sha256"],
+          "properties": {
+            "residual_children": { "const": 0 },
+            "census_sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "fd_census": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["retained_fds", "census_sha256"],
+          "properties": {
+            "retained_fds": { "const": 0 },
+            "census_sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "temp_census": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entries", "roster_sha256"],
+          "properties": {
+            "entries": { "const": [] },
+            "roster_sha256": { "$ref": "#/$defs/hash" }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "value"],
+      "properties": {
+        "algorithm": { "enum": ["ed25519", "synthetic-hmac-sha256"] },
+        "key_id": { "$ref": "#/$defs/hash" },
+        "value": { "type": "string" }
+      }
+    }
+  }
+}

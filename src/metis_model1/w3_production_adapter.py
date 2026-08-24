@@ -1,8 +1,8 @@
-"""Production W3 adapter backed by the isolated, pinned Metis runner.
+"""Declassified legacy W3 adapter retained behind a protected-broker STOP.
 
-The module intentionally ships with no semantic-registry authority. Tests and
-later release tooling may inject an independently reviewed exact hash; without
-that authority both identity lookup and evaluation fail closed.
+This adapter still implements the pre-capsule v2 oracle path.  Identity lookup
+and evaluation therefore fail before registry, filesystem, or process access
+until a separately protected broker and its external receipt consumer exist.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ from metis_model1.w3_oracles import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SEMANTIC_SCHEMA_PATH = PROJECT_ROOT / "schemas/w3-semantic-spec.schema.json"
 REGISTERED_W3_SEMANTIC_REGISTRY_SHA256: str | None = None
+REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256: str | None = None
 
 
 def _canonical_copy(value: Any, label: str) -> Any:
@@ -52,6 +53,14 @@ def _canonical_copy(value: Any, label: str) -> Any:
         return json.loads(canonical_json_bytes(value))
     except (TypeError, ValueError) as error:
         raise W3OracleTrustError(f"{label} is not canonical JSON") from error
+
+
+def _require_external_production_receipts() -> None:
+    if REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None:
+        raise W3OracleTrustError(
+            "ProductionW3Adapter requires a protected execution broker and external receipts"
+        )
+    raise W3OracleTrustError("external protected-broker receipt consumption is not implemented")
 
 
 def _registered_registry(raw: str) -> dict[str, Any]:
@@ -332,6 +341,7 @@ class ProductionW3Adapter:
     artifact_namespace: str = "w3-production/bridge-v1"
 
     def identity(self) -> Mapping[str, Any]:
+        _require_external_production_receipts()
         registry = _registered_registry(self.semantic_registry_json)
         _safe_artifact_namespace(self.artifact_namespace)
         return production_adapter_identity(
@@ -341,6 +351,7 @@ class ProductionW3Adapter:
         )
 
     def evaluate(self, candidate: Mapping[str, Any]) -> Mapping[str, Any]:
+        _require_external_production_receipts()
         canonical_candidate = _canonical_copy(dict(candidate), "candidate")
         if not isinstance(canonical_candidate, dict):
             raise W3OracleTrustError("candidate must be an object")
@@ -496,5 +507,6 @@ class ProductionW3Adapter:
 
 __all__ = [
     "ProductionW3Adapter",
+    "REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256",
     "REGISTERED_W3_SEMANTIC_REGISTRY_SHA256",
 ]

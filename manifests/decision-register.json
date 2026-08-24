@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-20T17:24:44Z",
+  "updated_at": "2026-08-24T05:28:52Z",
   "canonical_decision_log": "docs/00-charter-and-decisions.md#3-decisioni-ratificate",
   "open_decisions": [
     {
@@ -95,13 +95,33 @@
     },
     {
       "id": "O-010",
-      "title": "Drift threshold requiring a new adapter",
-      "status": "open",
+      "title": "Lightweight-first maintenance path for Metis changes",
+      "status": "ratified",
       "owner": "frontier+operations",
-      "deadline_wave": "W9",
-      "blocks": ["W9"],
-      "evidence_required": ["Metis change taxonomy", "Regression history"],
-      "resolution": null
+      "deadline_wave": "W7",
+      "blocks": [],
+      "evidence_required": [
+        "Pinned grammar, validator, compiler, IR and oracle diff",
+        "Versioned maintenance benchmark and stable replay",
+        "Existing-adapter regression result with refreshed retrieval",
+        "Oracle-clean delta dataset and dev-only selection when retuning"
+      ],
+      "resolution": "Ratified a lightweight-first path. Pin and measure every Metis revision, refresh retrieval and test the existing adapter first; publish NO_RETRAIN when semantic and critical regression gates remain green. Use only a bounded DELTA_QLORA from the previous adapter with oracle-accepted delta examples and provenance-clean replay when AST/IR and verified semantics remain compatible but NO_RETRAIN fails. Require FULL_SUCCESSOR only for AST/IR or semantic-contract change, or when retrieval plus delta QLoRA still fails semantic or replay gates. Previous benchmarks, datasets and adapters remain immutable and available for attribution and rollback."
+    },
+    {
+      "id": "O-011",
+      "title": "Baseline-first experiment separated from Accuracy-99 promotion",
+      "status": "ratified",
+      "owner": "frontier+product",
+      "deadline_wave": "W5",
+      "blocks": [],
+      "evidence_required": [
+        "W4 qualification and local artifact-store contracts",
+        "Twelve-task B baseline with semantic failure taxonomy",
+        "Explicit local-only execution mandate before inference or training",
+        "Paired B/D verdict if a micro-adapter is justified"
+      ],
+      "resolution": "Ratified two non-interchangeable gates. EXPERIMENT_PLAN_READY certifies only the machine-readable W5-XS plan and is not baseline or training authority, semantic-uplift evidence, promotion or a 99% claim. ACCURACY99_PROMOTION_READY retains the strict O-003, 600/563, W1/W3 and A/B requirements. A green B baseline closes the local product as NO_TRAIN; only repeatable semantic failures may open exactly 64 train plus 16 dev examples and one rank-8 run up to 100 steps under a separate explicit mandate."
     }
   ]
 }

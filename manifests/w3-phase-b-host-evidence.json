@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "w3-phase-b-host-evidence",
+  "status": "not-run",
+  "nonclaims": [
+    "no-production-authority",
+    "no-production-evidence",
+    "public-synthetic-only",
+    "no-semantic-accuracy-claim",
+    "no-W5-credit"
+  ],
+  "bindings": {
+    "caller_account": {
+      "name": "tommasotessarolo",
+      "uid": 501,
+      "gid": 20,
+      "group": "staff"
+    },
+    "command_sha256": null,
+    "bundle_sha256": null,
+    "authority_sha256": null,
+    "public_key_sha256": null,
+    "installed_roster_sha256": null
+  },
+  "artifact_roster": [],
+  "host_predicates": [],
+  "runs": [],
+  "summary": {
+    "targets": {
+      "host_predicates": 28,
+      "fresh_runs": 2,
+      "candidates_per_run": 3,
+      "semantic_roles_per_run": 5,
+      "physical_executions": 10
+    },
+    "observed": {
+      "host_predicates": 0,
+      "fresh_runs": 0,
+      "candidates_per_run": 0,
+      "semantic_roles_per_run": 0,
+      "physical_executions": 0
+    },
+    "gaps": null
+  }
+}
