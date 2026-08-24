@@ -4529,3 +4529,12 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   compares stdout byte-for-byte with its canonical JSON serialization. Both
   whitespace forgeries join the negative matrix; no runtime gate is weakened
   and no model output or optimizer state exists.
+- FACT — The zero-output training freeze is created from published preimage
+  `6f376d3baf4dd4538e932ee0e690c1956a9b3de0`: freeze self-hash
+  `sha256:bb254d74d1d775f551a69163a0b7e629bf8b7f5213e822d6844241a7345e66e3`,
+  file SHA-256 `adbfe653e8a82460c97fac3fc0174506401faa618201b9bd63519444fb0e88f1`,
+  dataset receipt file hash `sha256:8ea174d6fc115734c2af722f5cd954b323543a2167a6029bb747e2cfeee72aa9`,
+  base roster 15 files/3 weight shards, artifact census 7 files/466479 bytes and
+  checkpoint steps empty. The freeze reports `model_outputs_observed=false`
+  and `training_started=false`; it must be committed/pushed and reopened before
+  baseline generation.
