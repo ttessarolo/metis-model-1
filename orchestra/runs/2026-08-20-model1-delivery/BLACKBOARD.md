@@ -4048,3 +4048,34 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   credentials outside Git, and perform upload plus clean-room restore/hash
   verification only when a real adapter or resumable checkpoint exists and a
   dedicated external-upload mandate is active.
+- FACT — Read-only artifact inventory at HEAD `ccb47ab5...` confirms the pinned
+  MLX base checkpoint under `artifacts/w4/2026-08-20-qualification/checkpoint`:
+  three weight shards, `16,054,541,349` bytes, verified tree
+  `d8f18539...` and config `14b65a0e...`. W4 also contains 24 adapter files and
+  14 state files used only for public-synthetic technical qualification; the
+  canonical step-4 adapter is `233,581,693` bytes / `049d7a3c...`, and its
+  resumable state is `700,776,754` bytes / `bfcc42bd...`. They are not a Metis
+  Model 1 candidate and receive no backup/promotion credit.
+- FACT — The IAM Identity Center session authenticates as user `metis` through
+  role `MetisModel1BackupWriter` in the expected AWS account. The operational
+  profile is the generated role/account profile, client/bucket region is
+  `eu-west-1`, and scoped listing of `s3://metis-model-1/metis-model1/` succeeds.
+  Global `ListAllMyBuckets` and unscoped `HeadBucket` remain denied, while
+  `GetBucketLocation` succeeds; this is the intended least-privilege boundary.
+- DONE — L0 writes and rereads exactly one zero-byte access canary at
+  `metis-model1/access-check/codex-sso-2026-08-24`. `PutObject` and
+  `HeadObject` succeed, the returned object is versioned and reports
+  `ServerSideEncryption=AES256`, `ContentLength=0` and the exact purpose/client
+  metadata. No credential or `.env` was read, copied or stored.
+- STOP — W5-XS contains `0` adapter/checkpoint payloads and the registered
+  production adapter remains unset: dataset `0`, adapter `0`, training steps
+  `0` are the ratified `NO_TRAIN` success, not missing backup bytes. Therefore
+  no base model, W4 qualification adapter or synthetic resumable state is
+  uploaded as if it were Model 1. The private AWS target is operationally ready
+  for the first real candidate package; Object Lock remains disabled by the
+  user's explicit choice.
+- RISK — Mandatory post-L75 `make check` is fully replayed: foundation `46/0`,
+  Ruff and formatting are green, while pytest remains exactly `1031 passed, 102
+  failed, 1 skipped`. The failures are the already-open external-Metis revision
+  mismatch and absent protected W3/Oracle authorities; no board, backup-contract
+  or S3-access regression is present, and no broad-green claim is made.
