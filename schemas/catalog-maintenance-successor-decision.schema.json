@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-successor-decision.schema.json",
+  "title": "Redacted catalog prompt-cure successor decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "authority_scope", "evaluation_receipt_sha256", "freeze_sha256", "execution_head", "execution_tree", "result", "training_authorized", "auto_qlora_authorized", "promotion_claim", "accuracy_claim", "nonclaims", "decision_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["NO_RETRAIN_PROMPT_CURE", "DIAGNOSE"]},
+    "authority_scope": {"const": "public_synthetic_prompt_cure_execution_only"},
+    "evaluation_receipt_sha256": {"$ref": "#/$defs/hash"},
+    "freeze_sha256": {"$ref": "#/$defs/hash"},
+    "execution_head": {"$ref": "#/$defs/oid"},
+    "execution_tree": {"$ref": "#/$defs/oid"},
+    "result": {"type": "object", "additionalProperties": false, "required": ["cases", "semantic_correct", "critical_failure", "invented_values", "legacy_inline", "retrieval_error"], "properties": {"cases": {"const": 8}, "semantic_correct": {"type": "integer", "minimum": 0, "maximum": 8}, "critical_failure": {"type": "integer", "minimum": 0, "maximum": 8}, "invented_values": {"type": "integer", "minimum": 0, "maximum": 8}, "legacy_inline": {"type": "integer", "minimum": 0, "maximum": 8}, "retrieval_error": {"type": "integer", "minimum": 0, "maximum": 8}}},
+    "training_authorized": {"const": false}, "auto_qlora_authorized": {"const": false}, "promotion_claim": {"const": false}, "accuracy_claim": {"const": false},
+    "nonclaims": {"const": ["no_accuracy_claim", "no_promotion_claim", "no_training_authority", "no_tenant_dataset_authority", "no_independent_accuracy_denominator", "no_live_execution_attestation", "nonpromotable"]},
+    "decision_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"}}
+}

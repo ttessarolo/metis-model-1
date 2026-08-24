@@ -73,12 +73,19 @@ CONTRACT_PAIRS = (
         "schemas/catalog-maintenance-probe-decision.schema.json",
         "manifests/catalog-maintenance-probe-decision-v1.json",
     ),
+    (
+        "schemas/catalog-maintenance-successor-probe.schema.json",
+        "manifests/catalog-maintenance-successor-probe-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
 STANDALONE_SCHEMAS = (
     "schemas/accuracy-maintenance-roster.schema.json",
     "schemas/catalog-retrieval-receipt.schema.json",
+    "schemas/catalog-maintenance-successor-freeze.schema.json",
+    "schemas/catalog-maintenance-successor-evaluation.schema.json",
+    "schemas/catalog-maintenance-successor-decision.schema.json",
     "schemas/f5-migration-fixture.schema.json",
     "schemas/f5-migration-result.schema.json",
     "schemas/f6-blind-review-request.schema.json",
@@ -118,6 +125,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/catalog_retrieval_refresh.py",
     "src/metis_model1/catalog_maintenance_probe.py",
     "src/metis_model1/catalog_maintenance_probe_evidence.py",
+    "src/metis_model1/catalog_maintenance_successor.py",
+    "src/metis_model1/catalog_maintenance_successor_evidence.py",
     "src/metis_model1/maintenance_decision.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
@@ -128,6 +137,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/11-feasibility-and-risks.md",
     "docs/12-accuracy-99-execution-plan.md",
     "docs/16-accuracy-wave-catalog-domain-maintenance.md",
+    "docs/17-catalog-prompt-cure-successor.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -157,6 +167,11 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/catalog-maintenance-probe-freeze.schema.json",
     "schemas/catalog-maintenance-probe-evaluation.schema.json",
     "schemas/catalog-maintenance-probe-decision.schema.json",
+    "manifests/catalog-maintenance-successor-probe-v1.json",
+    "schemas/catalog-maintenance-successor-probe.schema.json",
+    "schemas/catalog-maintenance-successor-freeze.schema.json",
+    "schemas/catalog-maintenance-successor-evaluation.schema.json",
+    "schemas/catalog-maintenance-successor-decision.schema.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-open.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json",
@@ -165,6 +180,14 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/catalog-maintenance/probe-v1/cases/edit-invalid-open-inline.json",
     "fixtures/catalog-maintenance/probe-v1/cases/repair-unsynchronized-enum.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-retrieval-curated.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/author-audience-enum5.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/author-summary-open.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/author-availability-inline.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/author-nested-code-enum4.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/edit-category-inline3-to-enum3.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/edit-invalid-query-open.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/repair-tags-unsynchronized-enum3.json",
+    "fixtures/catalog-maintenance/successor-v1/cases/edit-retrieval-curated-not-inline.json",
     "fixtures/catalog-maintenance/public-synthetic-v1/metis.toml",
     "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis",
     "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/bb-people.metis",
@@ -711,6 +734,123 @@ def validate_catalog_maintenance_probe_contract(root: Path) -> list[str]:
         return errors
     except Exception as error:  # noqa: BLE001 - the gate must fail closed
         return [f"catalog maintenance probe unreadable: {type(error).__name__}: {error}"]
+
+
+def validate_catalog_maintenance_successor_contract(root: Path) -> list[str]:
+    """Validate the fresh prompt-cure roster without granting output authority."""
+
+    try:
+        from metis_model1 import catalog_maintenance_successor as successor
+
+        manifest, _schema, cases = successor.load_probe_contract(root)
+        errors: list[str] = []
+        expected_paths = {item["path"] for item in manifest["files"]}
+        actual_paths = {
+            path.relative_to(root).as_posix()
+            for path in (root / "fixtures/catalog-maintenance/successor-v1").rglob("*")
+            if path.is_file()
+        }
+        if actual_paths != expected_paths:
+            errors.append("catalog maintenance successor case tree differs from its manifest")
+
+        bindings = manifest["cases"]
+        case_ids = [case["case_id"] for case in cases]
+        roots = [case["provenance"]["semantic_root"] for case in cases]
+        templates = [case["provenance"]["template_id"] for case in cases]
+        if (
+            len(cases) != 8
+            or len(set(case_ids)) != 8
+            or len(set(roots)) != 8
+            or len(set(templates)) != 8
+            or manifest["counts"]["gaps"] != 0
+        ):
+            errors.append("catalog maintenance successor roster is not 8/8/distinct/gaps0")
+        if [binding["case_id"] for binding in bindings] != case_ids:
+            errors.append("catalog maintenance successor binding order differs from cases")
+        modes = {
+            "authors": sum(case["mode"] == "author" for case in cases),
+            "edits": sum(case["mode"] == "edit" for case in cases),
+            "repairs": sum(case["mode"] == "repair" for case in cases),
+        }
+        if any(manifest["counts"][key] != value for key, value in modes.items()):
+            errors.append("catalog maintenance successor mode arithmetic contains drift")
+        if {case["provenance"]["lineage_component"] for case in cases} != {
+            "public-synthetic-catalog-successor-v1"
+        }:
+            errors.append("catalog maintenance successor lineage is outside public synthetic")
+
+        old_manifest = load_json(root / "manifests/catalog-maintenance-probe-v1.json")
+        old_cases = [load_json(root / item["fixture_path"]) for item in old_manifest["cases"]]
+        if set(case_ids) & {case["case_id"] for case in old_cases}:
+            errors.append("catalog maintenance successor reuses a v1 case ID")
+        if set(roots) & {case["provenance"]["semantic_root"] for case in old_cases}:
+            errors.append("catalog maintenance successor reuses a v1 semantic root")
+        if set(templates) & {case["provenance"]["template_id"] for case in old_cases}:
+            errors.append("catalog maintenance successor reuses a v1 template")
+        if {case["target"]["expected_source"] for case in cases} & {
+            case["target"]["expected_source"] for case in old_cases
+        }:
+            errors.append("catalog maintenance successor reuses a v1 expected source")
+
+        for case in cases:
+            retrieval = (
+                {"value": "Curated", "size": 1}
+                if case["retrieval"]["kind"] == "public_synthetic_value"
+                else None
+            )
+            messages = successor.build_messages(case, retrieval)
+            rendered = "\n".join(message["content"] for message in messages)
+            if [message["role"] for message in messages] != ["system", "user"]:
+                errors.append(f"catalog maintenance successor role drift: {case['case_id']}")
+            if case["target"]["expected_source"].strip() in rendered:
+                errors.append(f"catalog maintenance successor target leakage: {case['case_id']}")
+            feedback = successor.build_repair_message("catalog describe rejected candidate")
+            if any(fragment in feedback for fragment in case["target"]["required_fragments"]):
+                errors.append(f"catalog maintenance successor feedback leakage: {case['case_id']}")
+
+        gates = manifest["gates"]
+        if (
+            gates["model_outputs_before_seal"] is not False
+            or gates["training_authority"] is not False
+            or gates["promotion_claim"] is not False
+            or gates["accuracy_claim"] is not False
+        ):
+            errors.append("catalog maintenance successor grants forbidden authority")
+        return errors
+    except Exception as error:  # noqa: BLE001 - the gate must fail closed
+        return [f"catalog maintenance successor unreadable: {type(error).__name__}: {error}"]
+
+
+def validate_catalog_maintenance_successor_evidence_contract(root: Path) -> list[str]:
+    """Validate either the lawful pre-output phase or both terminal receipts."""
+
+    evaluation_path = root / "manifests/catalog-maintenance-successor-evaluation-v1.json"
+    decision_path = root / "manifests/catalog-maintenance-successor-decision-v1.json"
+    present = (evaluation_path.is_file(), decision_path.is_file())
+    if present == (False, False):
+        return []
+    if present != (True, True):
+        return ["catalog maintenance successor terminal evidence is only partially present"]
+    try:
+        from metis_model1 import catalog_maintenance_successor_evidence as evidence
+
+        evaluation = load_json(evaluation_path)
+        decision = load_json(decision_path)
+        errors = [
+            f"evaluation: {error}"
+            for error in evidence.validate_evaluation_receipt(evaluation, root=root)
+        ]
+        errors.extend(
+            f"decision: {error}"
+            for error in evidence.validate_decision(
+                decision, root=root, evaluation_path=evaluation_path
+            )
+        )
+        return errors
+    except Exception as error:  # noqa: BLE001 - fail closed on tracked evidence
+        return [
+            f"catalog maintenance successor evidence unreadable: {type(error).__name__}: {error}"
+        ]
 
 
 def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
@@ -2122,6 +2262,29 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         )
         report.passes.append(
             f"catalog-maintenance-probe=8-cases/{probe_plan['status'].replace('_', '-')}/{result}"
+        )
+
+    catalog_successor_errors = validate_catalog_maintenance_successor_contract(root)
+    if catalog_successor_errors:
+        report.errors.extend(
+            f"catalog-maintenance-successor: {error}" for error in catalog_successor_errors
+        )
+    else:
+        report.passes.append("catalog-maintenance-successor=8-cases/static/no-training")
+
+    catalog_successor_evidence_errors = validate_catalog_maintenance_successor_evidence_contract(
+        root
+    )
+    if catalog_successor_evidence_errors:
+        report.errors.extend(
+            f"catalog-maintenance-successor-evidence: {error}"
+            for error in catalog_successor_evidence_errors
+        )
+    else:
+        terminal = (root / "manifests/catalog-maintenance-successor-decision-v1.json").is_file()
+        report.passes.append(
+            "catalog-maintenance-successor-evidence="
+            + ("terminal-redacted" if terminal else "pre-output")
         )
 
     from metis_model1.maintenance_decision import (

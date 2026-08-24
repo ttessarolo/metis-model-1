@@ -4344,3 +4344,22 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - FACT — No fine-tuned adapter exists: the observed run used the external
   ~16.05 GB Qwen3.8 base checkpoint with adapter disabled. There is therefore
   no Model 1 fine-tuning payload to upload to S3 in this closed wave.
+- FACT — The authorized successor is a separate public-synthetic prompt-cure
+  wave: cases/roots/templates `in=8 out=8 distinct=8 gaps=0`, modes `4 author +
+  3 edit + 1 repair`, Qwen3.8 base only, adapter off. It reuses and revalidates
+  the already-green pinned retrieval receipt; no v1 model output, score, run,
+  freeze or decision enters the successor.
+- FIX — L91 `gpt-5.6-luna` medium removes canonical enum/open fragments from
+  all eight request texts; L92 `gpt-5.6-luna` medium hardens the scorer, exact
+  observation shape, worker repository sandbox and post-run worktree seal; L93
+  `gpt-5.6-terra` high supplies and attacks the redacted terminal evidence
+  contract. L0 binds docs, contracts, schemas, tests, fixtures and evidence code
+  into the future freeze and closes all independent P0/P1 findings.
+- DONE — Successor static gates are focused `64/64`, retrieval `26/26`,
+  foundation `65/0`, Ruff/format/diff green. Required broad `make check` is
+  `1173 passed, 102 failed, 1 skipped`; the same inherited protected groups are
+  Oracle `31`, bridge `25`, qualifier `46`, with successor regressions zero.
+- DECISION — Model outputs, training, downloads, S3 and live/tenant access stay
+  false. The next lawful transition is exact text preimage commit+non-force
+  push, then a generated no-output freeze, independent audit, freeze commit+
+  push, and only then the sole successor model invocation.

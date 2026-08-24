@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_role": "catalog_probe_case_spec",
+  "case_id": "author-nested-code-enum4",
+  "status": "sealed_pre_output_spec",
+  "upstream": {
+    "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+    "language_version": "0.43"
+  },
+  "family": "F-1",
+  "mode": "author",
+  "construct": "enum_external_nested_code",
+  "difficulty": "intermediate",
+  "provenance": {
+    "semantic_root": "root/successor-nested-code-enum4",
+    "template_id": "template/successor-nested-code-enum4",
+    "lineage_component": "public-synthetic-catalog-successor-v1",
+    "parents": [
+      "public-synthetic/catalog-video/details-code-enum4"
+    ]
+  },
+  "prompt": {
+    "request": "Author the complete public.video catalog with details as an object and details.code as an external enum domain of cardinality 4. Preserve the nested path and keep its values in per-field retrieval; do not inline values.",
+    "context_refs": [
+      "manifests/catalog-retrieval-execution-v1.json#describe-all",
+      "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis"
+    ]
+  },
+  "target": {
+    "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    details object {\n      code keyword enum(4)\n    }\n  }\n}\n",
+    "required_fragments": [
+      "code keyword enum(4)"
+    ],
+    "forbidden_fragments": [
+      "code keyword values",
+      "code keyword open",
+      "values ["
+    ]
+  },
+  "oracle": {
+    "status": "pending_execution",
+    "expected_stages": [
+      "parse",
+      "link",
+      "validate",
+      "catalog_describe_semantic"
+    ],
+    "semantic_checks": [
+      "nested details.code has external enum size 4",
+      "details nesting is preserved",
+      "code values are not materialized"
+    ],
+    "model_outputs_observed": false
+  },
+  "retrieval": {
+    "kind": "not_required",
+    "query": null,
+    "expected": {
+      "values_in_model_input": false
+    }
+  }
+}

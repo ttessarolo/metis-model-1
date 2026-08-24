@@ -1,0 +1,529 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-maintenance-successor-probe.schema.json",
+  "title": "Metis Model 1 catalog maintenance successor probe",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "probe_id",
+    "status",
+    "authority_scope",
+    "upstream",
+    "model",
+    "cases",
+    "counts",
+    "gates",
+    "nonclaims",
+    "files",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "probe_id": {
+      "const": "catalog-maintenance/successor-probe-v1"
+    },
+    "status": {
+      "const": "static_pre_output_specification"
+    },
+    "authority_scope": {
+      "const": "public_synthetic_only"
+    },
+    "upstream": {
+      "$ref": "#/$defs/upstream"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "adapter_enabled",
+        "temperature",
+        "seed",
+        "max_tokens",
+        "max_repair_cycles"
+      ],
+      "properties": {
+        "family": {
+          "const": "Qwen3.8"
+        },
+        "adapter_enabled": {
+          "const": false
+        },
+        "temperature": {
+          "const": 0
+        },
+        "seed": {
+          "const": 17
+        },
+        "max_tokens": {
+          "const": 512
+        },
+        "max_repair_cycles": {
+          "const": 2
+        }
+      }
+    },
+    "cases": {
+      "const": [
+        {
+          "case_id": "author-audience-enum5",
+          "family": "F-1",
+          "mode": "author",
+          "construct": "enum_external_audience",
+          "difficulty": "basic",
+          "root_id": "root/successor-audience-enum5",
+          "template_id": "template/successor-audience-enum5",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/author-audience-enum5.json"
+        },
+        {
+          "case_id": "author-summary-open",
+          "family": "F-1",
+          "mode": "author",
+          "construct": "open_live_index_summary",
+          "difficulty": "basic",
+          "root_id": "root/successor-summary-open",
+          "template_id": "template/successor-summary-open",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/author-summary-open.json"
+        },
+        {
+          "case_id": "author-availability-inline",
+          "family": "F-1",
+          "mode": "author",
+          "construct": "tiny_stable_inline_availability",
+          "difficulty": "basic",
+          "root_id": "root/successor-availability-inline",
+          "template_id": "template/successor-availability-inline",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/author-availability-inline.json"
+        },
+        {
+          "case_id": "author-nested-code-enum4",
+          "family": "F-1",
+          "mode": "author",
+          "construct": "enum_external_nested_code",
+          "difficulty": "intermediate",
+          "root_id": "root/successor-nested-code-enum4",
+          "template_id": "template/successor-nested-code-enum4",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/author-nested-code-enum4.json"
+        },
+        {
+          "case_id": "edit-category-inline3-to-enum3",
+          "family": "F-2",
+          "mode": "edit",
+          "construct": "inline_to_external_category_enum",
+          "difficulty": "intermediate",
+          "root_id": "root/successor-category-inline3-edit",
+          "template_id": "template/successor-category-inline3-edit",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/edit-category-inline3-to-enum3.json"
+        },
+        {
+          "case_id": "edit-invalid-query-open",
+          "family": "F-2",
+          "mode": "edit",
+          "construct": "open_without_materialized_query_values",
+          "difficulty": "adversarial",
+          "root_id": "root/successor-query-open-edit",
+          "template_id": "template/successor-query-open-edit",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/edit-invalid-query-open.json"
+        },
+        {
+          "case_id": "repair-tags-unsynchronized-enum3",
+          "family": "F-3",
+          "mode": "repair",
+          "construct": "unsynchronized_tags_enum_no_invention",
+          "difficulty": "adversarial",
+          "root_id": "root/successor-tags-unsynchronized-repair",
+          "template_id": "template/successor-tags-unsynchronized-repair",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/repair-tags-unsynchronized-enum3.json"
+        },
+        {
+          "case_id": "edit-retrieval-curated-not-inline",
+          "family": "F-2",
+          "mode": "edit",
+          "construct": "retrieval_boundary_remove_inline",
+          "difficulty": "intermediate",
+          "root_id": "root/successor-retrieval-curated-edit",
+          "template_id": "template/successor-retrieval-curated-edit",
+          "fixture_path": "fixtures/catalog-maintenance/successor-v1/cases/edit-retrieval-curated-not-inline.json"
+        }
+      ]
+    },
+    "counts": {
+      "const": {
+        "cases": 8,
+        "distinct_roots": 8,
+        "distinct_templates": 8,
+        "source_lineages": 1,
+        "authors": 4,
+        "edits": 3,
+        "repairs": 1,
+        "gaps": 0
+      }
+    },
+    "gates": {
+      "const": {
+        "required_case_passes": "8/8",
+        "critical_failures_max": 0,
+        "invented_values_max": 0,
+        "legacy_inline_for_enum_or_open_max": 0,
+        "retrieval_errors_max": 0,
+        "model_outputs_before_seal": false,
+        "accuracy_claim": false,
+        "promotion_claim": false,
+        "training_authority": false
+      }
+    },
+    "nonclaims": {
+      "const": [
+        "no_accuracy_claim",
+        "no_promotion_claim",
+        "no_training_authority",
+        "no_tenant_dataset_authority",
+        "no_independent_accuracy_denominator",
+        "no_live_execution_attestation",
+        "nonpromotable"
+      ]
+    },
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^fixtures/catalog-maintenance/successor-v1/cases/[a-z0-9-]+\\.json$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "revision",
+        "tree",
+        "language_version"
+      ],
+      "properties": {
+        "repository": {
+          "const": "ares-matioska/metis"
+        },
+        "revision": {
+          "const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"
+        },
+        "tree": {
+          "const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"
+        },
+        "language_version": {
+          "const": "0.43"
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "evidence_role",
+        "case_id",
+        "status",
+        "upstream",
+        "family",
+        "mode",
+        "construct",
+        "difficulty",
+        "provenance",
+        "prompt",
+        "target",
+        "oracle",
+        "retrieval"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "evidence_role": {
+          "const": "catalog_probe_case_spec"
+        },
+        "case_id": {
+          "type": "string"
+        },
+        "status": {
+          "const": "sealed_pre_output_spec"
+        },
+        "upstream": {
+          "$ref": "#/$defs/upstreamNoRepo"
+        },
+        "family": {
+          "enum": [
+            "F-1",
+            "F-2",
+            "F-3"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "author",
+            "edit",
+            "repair"
+          ]
+        },
+        "construct": {
+          "type": "string",
+          "minLength": 1
+        },
+        "difficulty": {
+          "enum": [
+            "basic",
+            "intermediate",
+            "adversarial"
+          ]
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "semantic_root",
+            "template_id",
+            "lineage_component",
+            "parents"
+          ],
+          "properties": {
+            "semantic_root": {
+              "type": "string"
+            },
+            "template_id": {
+              "type": "string"
+            },
+            "lineage_component": {
+              "const": "public-synthetic-catalog-successor-v1"
+            },
+            "parents": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "prompt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "request",
+            "context_refs"
+          ],
+          "properties": {
+            "request": {
+              "type": "string"
+            },
+            "context_refs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "before_source": {
+              "type": "string"
+            },
+            "retrieved_value": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "catalog",
+                "field",
+                "value",
+                "source"
+              ],
+              "properties": {
+                "catalog": {
+                  "const": "video"
+                },
+                "field": {
+                  "const": "genre"
+                },
+                "value": {
+                  "const": "Curated"
+                },
+                "source": {
+                  "const": "public-synthetic per-field retrieval"
+                }
+              }
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expected_source",
+            "required_fragments",
+            "forbidden_fragments"
+          ],
+          "properties": {
+            "expected_source": {
+              "type": "string"
+            },
+            "required_fragments": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "forbidden_fragments": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "oracle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "expected_stages",
+            "semantic_checks",
+            "model_outputs_observed"
+          ],
+          "properties": {
+            "status": {
+              "const": "pending_execution"
+            },
+            "expected_stages": {
+              "const": [
+                "parse",
+                "link",
+                "validate",
+                "catalog_describe_semantic"
+              ]
+            },
+            "semantic_checks": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "model_outputs_observed": {
+              "const": false
+            }
+          }
+        },
+        "retrieval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "query",
+            "expected"
+          ],
+          "oneOf": [
+            {
+              "properties": {
+                "kind": { "const": "not_required" },
+                "query": { "const": null },
+                "expected": { "const": { "values_in_model_input": false } }
+              }
+            },
+            {
+              "properties": {
+                "kind": { "const": "public_synthetic_value" },
+                "query": {
+                  "const": {
+                    "operation": "values",
+                    "catalog": "video",
+                    "field": "genre"
+                  }
+                },
+                "expected": {
+                  "const": {
+                    "kind": "enum",
+                    "size": 1,
+                    "nature": "editorial",
+                    "value": "Curated",
+                    "source_receipt_query": "values-enum-editorial"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "kind": {
+              "enum": ["not_required", "public_synthetic_value"]
+            },
+            "query": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["operation", "catalog", "field"],
+                  "properties": {
+                    "operation": { "const": "values" },
+                    "catalog": { "const": "video" },
+                    "field": { "const": "genre" }
+                  }
+                }
+              ]
+            },
+            "expected": {
+              "type": "object",
+              "minProperties": 1
+            }
+          }
+        }
+      }
+    },
+    "upstreamNoRepo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "tree",
+        "language_version"
+      ],
+      "properties": {
+        "revision": {
+          "const": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2"
+        },
+        "tree": {
+          "const": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af"
+        },
+        "language_version": {
+          "const": "0.43"
+        }
+      }
+    }
+  }
+}

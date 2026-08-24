@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "evidence_role": "catalog_probe_case_spec",
+  "case_id": "edit-retrieval-curated-not-inline",
+  "status": "sealed_pre_output_spec",
+  "upstream": {
+    "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+    "language_version": "0.43"
+  },
+  "family": "F-2",
+  "mode": "edit",
+  "construct": "retrieval_boundary_remove_inline",
+  "difficulty": "intermediate",
+  "provenance": {
+    "semantic_root": "root/successor-retrieval-curated-edit",
+    "template_id": "template/successor-retrieval-curated-edit",
+    "lineage_component": "public-synthetic-catalog-successor-v1",
+    "parents": [
+      "public-synthetic/catalog-video/genre-curated-inline"
+    ]
+  },
+  "prompt": {
+    "request": "The public-synthetic catalog:values retrieval returned Curated for video.genre. Remove the inline Curated value, keep genre as an external bounded domain of cardinality 3, and preserve the existing summary open live-index field.",
+    "context_refs": [
+      "manifests/catalog-retrieval-execution-v1.json#values-enum-editorial",
+      "fixtures/catalog-maintenance/public-synthetic-v1/catalogs/aa-video.metis"
+    ],
+    "before_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    genre keyword enum(3) values [\"Curated\"]\n    summary keyword open\n  }\n}\n",
+    "retrieved_value": {
+      "catalog": "video",
+      "field": "genre",
+      "value": "Curated",
+      "source": "public-synthetic per-field retrieval"
+    }
+  },
+  "target": {
+    "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"public_video\"\n  id vid\n  fields {\n    vid keyword\n    genre keyword enum(3)\n    summary keyword open\n  }\n}\n",
+    "required_fragments": [
+      "genre keyword enum(3)",
+      "summary keyword open"
+    ],
+    "forbidden_fragments": [
+      "genre keyword enum(3) values",
+      "\"Curated\""
+    ]
+  },
+  "oracle": {
+    "status": "pending_execution",
+    "expected_stages": [
+      "parse",
+      "link",
+      "validate",
+      "catalog_describe_semantic"
+    ],
+    "semantic_checks": [
+      "genre enum size is 3 without inline values",
+      "summary keyword open is preserved",
+      "retrieved Curated is not materialized"
+    ],
+    "model_outputs_observed": false
+  },
+  "retrieval": {
+    "kind": "public_synthetic_value",
+    "query": {
+      "operation": "values",
+      "catalog": "video",
+      "field": "genre"
+    },
+    "expected": {
+      "kind": "enum",
+      "size": 1,
+      "nature": "editorial",
+      "value": "Curated",
+      "source_receipt_query": "values-enum-editorial"
+    }
+  }
+}
