@@ -102,6 +102,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--sample-seconds", type=float, default=1.0)
     parser.add_argument("--max-rss-gib", type=float, default=115.0)
+    parser.add_argument("--max-metal-gib", type=float, default=115.0)
     parser.add_argument("--max-monotonic-growth-gib", type=float, default=8.0)
     parser.add_argument("--min-metal-samples", type=int, default=0)
     parser.add_argument("command", nargs=argparse.REMAINDER)
@@ -120,7 +121,7 @@ def main() -> int:
     rss_samples: list[tuple[float, int]] = []
     output_lock = threading.Lock()
 
-    started = time.time()
+    started = time.monotonic()
     with log_path.open("w", encoding="utf-8") as log_handle:
         child = subprocess.Popen(
             command,
@@ -144,7 +145,10 @@ def main() -> int:
                     stop_reason.append("nonfinite_output")
                 match = METAL_MEMORY.search(line)
                 if match:
-                    metal_samples.append(float(match.group(1)))
+                    metal = float(match.group(1))
+                    metal_samples.append(metal)
+                    if metal > args.max_metal_gib:
+                        stop_reason.append("metal_limit")
 
         relay_thread = threading.Thread(target=relay, daemon=True)
         relay_thread.start()
@@ -153,7 +157,7 @@ def main() -> int:
         with telemetry_path.open("w", encoding="utf-8") as telemetry_handle:
             while child.poll() is None:
                 rss = _rss_tree(observed)
-                elapsed = time.time() - started
+                elapsed = time.monotonic() - started
                 max_rss = max(max_rss, rss)
                 rss_samples.append((elapsed, rss))
                 telemetry_handle.write(
@@ -200,7 +204,7 @@ def main() -> int:
         "command": command,
         "exit_code": exit_code,
         "stop_reason": stop_reason or None,
-        "duration_seconds": time.time() - started,
+        "duration_seconds": time.monotonic() - started,
         "samples": samples,
         "max_rss_bytes": max_rss,
         "max_rss_gib": max_rss / 1024**3,

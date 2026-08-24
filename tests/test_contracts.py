@@ -42,6 +42,7 @@ def test_repository_foundation_is_valid() -> None:
     assert "contract=manifests/catalog-maintenance-probe-evaluation-v1.json" in report.passes
     assert "contract=manifests/catalog-maintenance-probe-decision-v1.json" in report.passes
     assert "contract=manifests/catalog-maintenance-successor-probe-v1.json" in report.passes
+    assert "contract=manifests/initial-local-qlora-plan-v1.json" in report.passes
     assert "catalog-retrieval-refresh=public-synthetic/8-goldens/redacted" in report.passes
     assert (
         "catalog-maintenance-probe=8-cases/evaluated/diagnose-2-of-8/output-observed"

@@ -77,6 +77,10 @@ CONTRACT_PAIRS = (
         "schemas/catalog-maintenance-successor-probe.schema.json",
         "manifests/catalog-maintenance-successor-probe-v1.json",
     ),
+    (
+        "schemas/initial-local-qlora-plan.schema.json",
+        "manifests/initial-local-qlora-plan-v1.json",
+    ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
 )
 
@@ -138,6 +142,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/12-accuracy-99-execution-plan.md",
     "docs/16-accuracy-wave-catalog-domain-maintenance.md",
     "docs/17-catalog-prompt-cure-successor.md",
+    "docs/18-initial-local-qlora.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -168,10 +173,13 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/catalog-maintenance-probe-evaluation.schema.json",
     "schemas/catalog-maintenance-probe-decision.schema.json",
     "manifests/catalog-maintenance-successor-probe-v1.json",
+    "manifests/initial-local-qlora-plan-v1.json",
+    "manifests/initial-local-qlora-exclusions-v1.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",
     "schemas/catalog-maintenance-successor-decision.schema.json",
+    "schemas/initial-local-qlora-plan.schema.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-open.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json",
@@ -210,6 +218,10 @@ REQUIRED_FOUNDATION_PATHS = (
     "qualification/uv.lock",
     "qualification/verify_adapter.py",
     "qualification/verify_checkpoint.py",
+    "src/metis_model1/initial_local_qlora_dataset.py",
+    "src/metis_model1/initial_local_qlora_runtime.py",
+    "src/metis_model1/initial_local_qlora_b12.py",
+    "src/metis_model1/initial_local_qlora_train.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -281,6 +293,11 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_f6_human_review.py",
     "tests/test_f6_structural.py",
     "tests/test_maintenance_decision.py",
+    "tests/test_initial_local_qlora_contract.py",
+    "tests/test_initial_local_qlora_dataset.py",
+    "tests/test_initial_local_qlora_runtime.py",
+    "tests/test_initial_local_qlora_b12.py",
+    "tests/test_initial_local_qlora_train.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (

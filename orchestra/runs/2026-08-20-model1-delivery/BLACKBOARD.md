@@ -4425,3 +4425,65 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `NO_RETRAIN_PROMPT_CURE` relabel is allowed. Training, automatic QLoRA,
   promotion, global accuracy and another model run remain false; a future
   oracle-corrected evaluation requires a separately authorized fresh wave.
+- DONE — The user-authored bounded `fx` POC suggestion is isolated from the
+  concurrent upstream-seal note, committed as `7b68b33` and pushed non-force;
+  remote and local branch advance together without incorporating the unrelated
+  hunk.
+- DECISION — The user explicitly opens `INITIAL_LOCAL_QLORA_V1` to deliver one
+  real local fine-tuned adapter. This is a new bounded authority, not a relabel
+  of W5-XS `NO_TRAIN`, the successor `DIAGNOSE 4/8`, O-010 delta QLoRA or an
+  Accuracy-99 promotion. Public-synthetic dataset/oracles, local inference, one
+  rank-8 QLoRA, local packaging, tracked metadata commit/push and adapter-only
+  archival backup are in scope; live/tenant data, credentials, downloads,
+  privilege, base-weight upload and raw-output publication remain forbidden.
+- FACT — L0 preflight pins repository baseline `7b68b33`, catalog surface
+  `1f7eaae9...`, executable Metis implementation `5e112f91...`/tree
+  `41c7a2b6...`, Qwen3.8 checkpoint `3e6447f0...`, CPython `3.12.10`, MLX
+  `0.32.1`, MLX-VLM `0.6.15`, 128 GiB unified memory and 470 GiB free disk.
+  Existing W5-XS evidence is `11/12` and remains evaluation-only; no W5-XS
+  dataset or adapter exists. The four successor author cases are excluded as
+  underdetermined and contribute zero training/evaluation credit.
+- OPEN — Three disjoint Orchestra lanes now implement dataset, runtime and
+  adversarial contract surfaces. L0 will integrate and publish the exact
+  preimage before any dataset materialization, inference or optimizer step;
+  artifact output is fixed below `artifacts/initial-local-qlora-v1/` and Git
+  remains payload-free.
+- DONE — INITIAL_LOCAL_QLORA_V1 preimage cure audit: in=3 lanes, out=3,
+  distinct=3, gaps=0. L103 independently returns `PREIMAGE_READY` with P0=0 for
+  monotonic cumulative time, exact full-state checkpoint identities (including
+  retained step75), pre/live/post 8-GiB enforcement and sandbox launch. L104
+  verifies the reopened dev/selection/adapter-off/B12 chain after L0 cures the
+  portable-package semantic gap; L105 identifies and L0 cures the held-out
+  catalog-name mismatch and missing fresh archive restore.
+- FIX — The deterministic dataset now keeps the pinned oracle's required
+  `public.video` catalog in both splits while dev varies identifiers, indices,
+  field ordering and cardinality through three genuinely disjoint template
+  roots. Receipt verification reconstructs all 80 examples and their oracle,
+  source, prompt, provenance and split cross-links; inline catalog values remain
+  absent from every assistant target.
+- FIX — The supervisor verifies published Git preimage/remote identity before
+  execution, authorizes phases only from fixed reopened dev bundles, uses a
+  sterile network-denied sandbox plus real MLX/write-denial canary, measures
+  cumulative duration monotonically, enforces four-hour/110-GB/8-GiB/four-
+  checkpoint caps and binds the exact manifest/four payload records of every
+  retained checkpoint. No retry or alternate configuration exists.
+- FIX — Selection, training, adapter-off restore and B12 receipts are reopened
+  and recomputed before packaging. Portable package verification rejects a
+  self-consistent rehashed B12 critical-veto forgery, binds adapter config and
+  runtime lock, and the deterministic USTAR is safely restored in a fresh
+  directory with exact regular-file roster before S3 eligibility.
+- FACT — L0 independently reruns focused contract/dataset/runtime/B12/training/
+  foundation tests `64/64`, Ruff, formatting, foundation validation, CLI
+  routing and `git diff --check`: all green. Mandatory repository-wide
+  `make check` remains exactly constrained by inherited authority/pin debt:
+  `1207 passed, 102 failed, 1 skipped`; failures are confined to legacy Oracle,
+  W3 bridge and W3 qualifier gates requiring protected authority or checkout
+  `a2dde...` while the read-only Metis checkout is newer. No INITIAL_LOCAL_
+  QLORA_V1 focused test fails.
+- DECISION — Post-verdict archival identity is fixed to AWS account
+  `670565864033`, SSO profile `MetisModel1BackupWriter-670565864033`, region
+  `eu-west-1`, versioned private bucket `metis-model-1` and exactly one object
+  `metis-model1/<archive-sha256>/metis-model1-adapter.tar`. Prefix existence,
+  AES256/version metadata, fresh download hash and `verify-archive` are required;
+  no receipt, dataset, base, optimizer state, raw output, log or credential is
+  uploaded.
