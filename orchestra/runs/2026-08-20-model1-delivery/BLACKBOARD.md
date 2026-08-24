@@ -4179,3 +4179,8 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   focused catalog pin/retrieval/roster/decision/plan suite is `78/78`; no new
   maintenance file appears in the broad failures and no broad-green claim is
   made.
+- DONE — Text-only maintenance checkpoint
+  `e1fa11bb944c430b82a5d11a5f822d214256e49e` is committed and pushed
+  non-force to `codex/model1-local-99-foundation`; post-push `ls-remote` equals
+  local HEAD exactly. The unrelated concurrent `fx` note block remains only as
+  an unstaged worktree change and was not incorporated into this checkpoint.
