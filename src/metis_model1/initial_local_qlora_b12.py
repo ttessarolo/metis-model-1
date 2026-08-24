@@ -34,6 +34,7 @@ from metis_model1.initial_local_qlora_runtime import (
     _atomic_write,
     _canonical_hash,
     _evaluation_environment,
+    _metal_jit_sandbox_canary,
     _prefixed_sha256,
     _terminate_process_group,
     verify_adapter_off_restore_receipt,
@@ -418,6 +419,7 @@ def replay_b12(
     except RuntimeContractError as error:
         _fail(f"adapter-off restore receipt failed strict verification: {error}")
     validate_pinned_metis(metis_root)
+    _metal_jit_sandbox_canary()
     before_project = _git_identity(PROJECT_ROOT)
     before_metis = _git_identity(metis_root)
     output.mkdir(parents=True)

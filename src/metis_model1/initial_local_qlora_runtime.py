@@ -25,6 +25,34 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+
+def _darwin_user_cache_roots() -> tuple[str, ...]:
+    if sys.platform != "darwin":
+        return ()
+    try:
+        raw_text = subprocess.check_output(
+            ["/usr/bin/getconf", "DARWIN_USER_CACHE_DIR"],
+            text=True,
+            timeout=5,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        ).strip()
+        raw = Path(raw_text)
+        resolved = raw.resolve(strict=True)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError(f"cannot resolve the Darwin user cache root: {exc}") from exc
+    values = tuple(dict.fromkeys((str(raw), str(resolved))))
+    if (
+        len(values) != 2
+        or not raw.is_absolute()
+        or raw.name != "C"
+        or resolved.name != "C"
+        or not resolved.is_dir()
+        or any('"' in value or "\n" in value for value in values)
+    ):
+        raise RuntimeError("Darwin user cache aliases are unsafe or unexpected")
+    return values
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CHECKPOINT_PIN = PROJECT_ROOT / "qualification/checkpoint-pin.json"
 CHECKPOINT_REPORT = (
@@ -87,14 +115,26 @@ DATASET_FILES = {
 SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
 EVALUATION_CACHE_ROOT = DEFAULT_OUTPUT_ROOT / "evaluation-cache"
 _USER_ROOT = PROJECT_ROOT.parents[1]
+DARWIN_USER_CACHE_ROOTS = _darwin_user_cache_roots()
+DARWIN_METAL_CACHE_ROOTS = tuple(
+    str(Path(root) / name)
+    for root in DARWIN_USER_CACHE_ROOTS
+    for name in ("com.apple.metal", "com.apple.metalfe")
+)
+_METAL_CACHE_WRITE_RULES = " ".join(f'(subpath "{root}")' for root in DARWIN_METAL_CACHE_ROOTS)
+_METAL_CACHE_EXTENSION_RULES = " ".join(
+    f'(allow file-issue-extension (subpath "{root}"))' for root in DARWIN_USER_CACHE_ROOTS
+)
 EVALUATION_SANDBOX_POLICY = (
     "(version 1) (deny default) (deny network*) "
     "(allow process*) (allow file-read*) "
     f'(deny file-read* (subpath "{PROJECT_ROOT / ".env"}") '
     f'(subpath "{_USER_ROOT / ".aws"}") (subpath "{_USER_ROOT / ".ssh"}") '
     f'(subpath "{_USER_ROOT / "Library/Keychains"}")) '
-    f'(allow file-write* (subpath "{EVALUATION_CACHE_ROOT.resolve(strict=False)}") '
+    f"(allow file-write* {_METAL_CACHE_WRITE_RULES} "
+    f'(subpath "{EVALUATION_CACHE_ROOT.resolve(strict=False)}") '
     '(literal "/dev/null")) '
+    f"{_METAL_CACHE_EXTENSION_RULES} "
     "(allow sysctl-read) (allow mach-lookup) (allow iokit*) (allow ipc-posix-shm*)"
 )
 _BASE_CHECKPOINT_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -605,6 +645,53 @@ def _evaluation_environment() -> dict[str, str]:
         "PYTHONNOUSERSITE": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONHASHSEED": "0",
+    }
+
+
+def _metal_jit_sandbox_canary() -> dict[str, Any]:
+    if sys.platform != "darwin" or len(DARWIN_USER_CACHE_ROOTS) != 2:
+        _fail("Metal JIT sandbox requires both Darwin cache aliases")
+    for path in (
+        EVALUATION_CACHE_ROOT,
+        EVALUATION_CACHE_ROOT / "home",
+        EVALUATION_CACHE_ROOT / "tmp",
+    ):
+        path.mkdir(parents=True, exist_ok=True)
+    code = (
+        "import mlx.core as mx; "
+        "kernel=mx.fast.metal_kernel(name='metis_model1_jit_canary', "
+        "input_names=['x'], output_names=['y'], "
+        "source='uint i=thread_position_in_grid.x; y[i]=x[i]+T(2);'); "
+        "x=mx.ones((1,)); "
+        "y=kernel(inputs=[x], template=[('T',x.dtype)], grid=(1,1,1), "
+        "threadgroup=(1,1,1), output_shapes=[x.shape], output_dtypes=[x.dtype])[0]; "
+        "mx.eval(y); print(float(y[0]))"
+    )
+    try:
+        completed = subprocess.run(
+            [
+                str(SANDBOX_EXEC),
+                "-p",
+                EVALUATION_SANDBOX_POLICY,
+                str(PROJECT_ROOT / "qualification/.venv/bin/python"),
+                "-c",
+                code,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+            env=_evaluation_environment(),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _fail(f"Metal JIT sandbox canary could not execute: {exc}")
+    if completed.returncode != 0 or completed.stdout != "3.0\n" or completed.stderr:
+        _fail("Metal JIT sandbox canary failed")
+    return {
+        "status": "pass",
+        "policy_sha256": _canonical_hash(EVALUATION_SANDBOX_POLICY),
+        "darwin_cache_aliases": list(DARWIN_USER_CACHE_ROOTS),
+        "metal_cache_roots": list(DARWIN_METAL_CACHE_ROOTS),
     }
 
 
@@ -2722,6 +2809,7 @@ def main(argv: list[str] | None = None) -> int:
                 output=args.output,
             )
         else:
+            _metal_jit_sandbox_canary()
             cases = _jsonl_cases(args.requests)
             worker_command = [
                 str(SANDBOX_EXEC),

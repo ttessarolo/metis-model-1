@@ -4538,3 +4538,19 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   checkpoint steps empty. The freeze reports `model_outputs_observed=false`
   and `training_started=false`; it must be committed/pushed and reopened before
   baseline generation.
+- STOP — The first baseline worker reaches MLX model loading but fails before
+  its first token because the macOS sandbox denies the Metal compiler-service
+  module cache under `DARWIN_USER_CACHE_DIR`; no `base-dev` directory,
+  candidate, generation report, checkpoint or optimizer state is published.
+  The preceding relative-path invocation also stopped before worker creation.
+- FIX — L0 reproduces the exact failure with `mx.fast.metal_kernel` and keeps
+  the sandbox narrow: writes use only both canonical aliases of
+  `com.apple.metal`/`com.apple.metalfe`, while `file-issue-extension` is filtered
+  to their per-user Darwin `C` parent aliases. Network remains denied and
+  `.env`, AWS, SSH and Keychains remain unreadable. The old policy fails the JIT
+  canary; the cured evaluation
+  and training policies pass it, and evaluation/B12 now run the canary before
+  any model worker while training upgrades its existing Metal canary to an
+  actual custom-kernel compile. Runtime/train/B12 are freeze-bound, so the
+  failed cache-only run and prior freeze will be quarantined and a new published
+  zero-output freeze created before baseline restarts.

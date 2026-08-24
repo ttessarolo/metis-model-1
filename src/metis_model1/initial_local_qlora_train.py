@@ -23,6 +23,8 @@ if __package__ in {None, ""}:
 
 from metis_model1.initial_local_qlora_runtime import (
     CONFIG,
+    DARWIN_METAL_CACHE_ROOTS,
+    DARWIN_USER_CACHE_ROOTS,
     LIMITS,
     _canonical_hash,
     _check_checkpoint,
@@ -420,6 +422,10 @@ def _training_sandbox_policy(target: int) -> str:
         CHECKPOINT_ROOT,
     )
     allowed = " ".join(f'(subpath "{_sandbox_path(path)}")' for path in writable_subpaths)
+    metal_cache_allowed = " ".join(f'(subpath "{path}")' for path in DARWIN_METAL_CACHE_ROOTS)
+    metal_cache_extensions = " ".join(
+        f'(allow file-issue-extension (subpath "{path}"))' for path in DARWIN_USER_CACHE_ROOTS
+    )
     denied_prior = " ".join(
         f'(subpath "{_sandbox_path(CHECKPOINT_ROOT / f"step-{step:08d}")}")'
         for step in EXPECTED_CHECKPOINTS[target]
@@ -438,8 +444,10 @@ def _training_sandbox_policy(target: int) -> str:
         "(version 1) (deny default) (deny network*) "
         "(allow process*) (allow file-read*) "
         f"(deny file-read* {denied_reads}) "
-        f'(allow file-write* {allowed} (literal "{_sandbox_path(training_log)}") '
+        f"(allow file-write* {allowed} {metal_cache_allowed} "
+        f'(literal "{_sandbox_path(training_log)}") '
         '(literal "/dev/null")) '
+        f"{metal_cache_extensions} "
         "(allow sysctl-read) (allow mach-lookup) (allow iokit*) (allow ipc-posix-shm*)"
     )
     if denied_prior:
@@ -584,7 +592,12 @@ def _sandbox_canary(target: int, environment: dict[str, str]) -> dict[str, Any]:
         "blocked=False; "
         "\ntry:\n forbidden.write_text('forbidden')\n"
         "except PermissionError:\n blocked=True\n"
-        "x=mx.array([1.0,2.0]); value=float(mx.sum(x).item()); "
+        "kernel=mx.fast.metal_kernel(name='metis_model1_training_jit_canary', "
+        "input_names=['x'], output_names=['y'], "
+        "source='uint i=thread_position_in_grid.x; y[i]=x[i]+T(2);'); "
+        "x=mx.ones((1,)); y=kernel(inputs=[x], template=[('T',x.dtype)], "
+        "grid=(1,1,1), threadgroup=(1,1,1), output_shapes=[x.shape], "
+        "output_dtypes=[x.dtype])[0]; mx.eval(y); value=float(y[0]); "
         "sys.exit(0 if blocked and value == 3.0 else 7)"
     )
     completed = subprocess.run(

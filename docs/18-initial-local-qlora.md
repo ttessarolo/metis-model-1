@@ -92,6 +92,14 @@ virtualenv; whenever it needs qualification-runtime evidence it invokes the
 exact qualification interpreter as a bounded child, which rechecks its own
 prefix, Python version, package versions, lock and wrapper. The parent accepts
 only the exact one-line JSON proof with empty stderr and a 30-second timeout.
+On macOS, MLX custom kernels also require the Metal compiler service to issue a
+sandbox extension into the current user's Darwin cache. Evaluation, B12 and
+training therefore admit writes and `file-issue-extension` only for the two
+canonical aliases of that per-user cache: writes are restricted to
+`com.apple.metal` and `com.apple.metalfe`, while extension issuance is scoped to
+their `C` parent. Network access and credential/keychain reads remain denied. A
+real `mx.fast.metal_kernel` canary must pass inside each sandbox before a model
+worker or optimizer is launched.
 
 After dev is consumed, the independent terminal check replays the frozen B12
 once with the adapter and compares it only to its existing frozen base result.

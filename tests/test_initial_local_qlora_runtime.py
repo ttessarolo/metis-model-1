@@ -312,6 +312,15 @@ def test_exact_normalized_and_messages_reject_target_role():
         rt._messages({"messages": [{"role": "assistant", "content": "secret"}]})
 
 
+def test_metal_jit_sandbox_canary_uses_both_darwin_cache_aliases():
+    result = rt._metal_jit_sandbox_canary()
+    assert result["status"] == "pass"
+    assert result["darwin_cache_aliases"] == list(rt.DARWIN_USER_CACHE_ROOTS)
+    assert result["metal_cache_roots"] == list(rt.DARWIN_METAL_CACHE_ROOTS)
+    assert len(result["darwin_cache_aliases"]) == 2
+    assert len(result["metal_cache_roots"]) == 4
+
+
 def test_project_coordinator_requires_exact_qualification_runtime_proof(monkeypatch):
     pin = rt._json(rt.RUNTIME_PIN)
     expected = {
