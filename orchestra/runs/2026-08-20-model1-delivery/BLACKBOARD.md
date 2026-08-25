@@ -5336,3 +5336,23 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   rebuild and independently audit the zero-output T30-v2 freeze. Only a
   published freeze may authorize the single base+adapter inference; retraining
   remains closed unless the preregistered adjudication threshold is met.
+- DONE — Historical-receipt cure commit
+  `e968115f85a00a86cf56571fd07b32da03eacb7c` / tree
+  `09e528ec31adba9302a6f9eade73e668041ece9f` is exact at local HEAD, tracking
+  ref and direct origin. The fresh zero-output freeze is canonical self
+  `sha256:f4757d34c5e2b5ea87f4c33de87d240b55daa4a0fefa474dcde95907eb029751`,
+  raw `sha256:8f3eeb4b1e0f1b9c4404868907d089816636e111d472afaf97fb7cb17fdeda3d`.
+  Independent censuses close tasks `30/30/30 gaps=0`, families `5x6`, bound
+  inputs `32/32 distinct=32 gaps=0`, exact coverage `10/3/12/1/10`, and every
+  live byte/SHA/Git blob against the published preimage.
+- FACT — Freeze audits independently remeasure the clean ignored Metis clone,
+  grammar/stdlib overlay `8/8`, pinned Node, Python/MLX runtime, dataset
+  `64+16`, base payload `15/15`, selected step-50 adapter, package `11/11`, tar
+  `11/11`, eight live package members and the complete historical S3 receipt.
+  Run, evaluation and adjudication v2 are absent; output, training and delta
+  flags are false. Semantic audit returns `P0=0 P1=0 P2=0`; security audit
+  returns `P0=0 P1=0` plus the already recorded nonblocking future-policy P2.
+- OPEN — Commit and exactly publish the audited freeze. Only after the remote
+  branch reopens at that seal may the fixed run directory be created and the
+  one-shot base+adapter inference consume attempt
+  `gsl-t30-v2-20260825-attempt-01`; no retry or retraining is pre-authorized.
