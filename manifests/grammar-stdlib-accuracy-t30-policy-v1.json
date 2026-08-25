@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "policy_id": "grammar-stdlib-accuracy-t30-policy/v1",
+  "status": "ratified_before_t30_model_output",
+  "benchmark_id": "grammar-stdlib-accuracy-t30-v1",
+  "scope": "fresh_public_synthetic_grammar_stdlib_held_out",
+  "taxonomy": {
+    "authority": "global_metis_family_taxonomy",
+    "families": {
+      "F-1": {"mode":"author","kind":"author_source","task_mode":"source_output","automatic_authority":"pinned_oracle_required","secondary_human_review":null},
+      "F-2": {"mode":"edit","kind":"minimal_edit_source","task_mode":"source_output","automatic_authority":"pinned_oracle_required","secondary_human_review":"patch_minimality_required"},
+      "F-3": {"mode":"repair","kind":"diagnostic_repair","task_mode":"source_output","automatic_authority":"pinned_oracle_required","secondary_human_review":null},
+      "F-4": {"mode":"review","kind":"semantic_review","task_mode":"exact_json_review","automatic_authority":"pinned_review_oracle_required","secondary_human_review":null},
+      "F-5": {"mode":"migrate","kind":"migration_source","task_mode":"source_output","automatic_authority":null,"secondary_human_review":"migration_minimality_required"},
+      "F-6": {"mode":"explain","kind":"structural_explanation","task_mode":"exact_json_review","automatic_authority":null,"secondary_human_review":"structural_explanation_required"}
+    }
+  },
+  "roster": {
+    "tasks": 30,
+    "tasks_per_family": 5,
+    "automatic_tasks": 20,
+    "human_review_task_ids_expected": 15,
+    "human_review_families": ["F-2", "F-5", "F-6"],
+    "top_levels_required": 10,
+    "stdlib_members_required": 12,
+    "stdlib_settings_required": 1,
+    "rare_or_critical_construct_min_occurrences": 2,
+    "catalog_domain_family_reservations": ["F-1", "F-6"]
+  },
+  "automatic_gate": {
+    "adapter_semantic_min": 19,
+    "denominator": 20,
+    "family_min": 4,
+    "family_denominator": 5,
+    "families": ["F-1", "F-2", "F-3", "F-4"],
+    "critical_max": 0,
+    "paired_regressions_max": 0
+  },
+  "final_gate": {
+    "adapter_semantic_min": 29,
+    "denominator": 30,
+    "family_min": 4,
+    "family_denominator": 5,
+    "critical_max": 0,
+    "invented_symbol_max": 0,
+    "unauthorized_write_max": 0,
+    "retrieval_or_truth_failure_max": 0,
+    "tool_failure_max": 0,
+    "paired_regressions_max": 0,
+    "adapter_off_restore_required": true,
+    "final_success": {
+      "F-1": ["automatic_semantic_correct"],
+      "F-2": ["automatic_semantic_correct", "patch_minimality_accept"],
+      "F-3": ["automatic_semantic_correct"],
+      "F-4": ["automatic_semantic_correct"],
+      "F-5": ["oracle_mechanical_match", "migration_minimality_accept"],
+      "F-6": ["json_mechanical_match", "structural_explanation_accept"]
+    }
+  },
+  "coverage_gate": {
+    "credit_source": "final_successful_tasks_only",
+    "declared_metadata_alone_is_ineligible": true,
+    "top_levels": "all_10",
+    "stdlib_members": "all_12",
+    "stdlib_settings": ["time.timezone"]
+  },
+  "one_shot": {
+    "attempts": 1,
+    "worker_invocations": 2,
+    "requests_per_worker": 30,
+    "retries": 0,
+    "fixed_run_id": "t30-v1-20260825",
+    "attempt_nonce": "gsl-t30-v1-20260825-attempt-01",
+    "partial_outputs_preserved": true,
+    "partial_run_disposition": "permanent_stop_no_recovery_no_retry",
+    "preexisting_run_or_attempt_is_stop": true,
+    "local_threat_model": "cooperative_no_host_rollback_attestation"
+  },
+  "decision_policy": {
+    "pre_review_verdict": "GRAMMAR_STDLIB_T30_REVIEW_REQUIRED",
+    "passing_verdict": "GRAMMAR_STDLIB_T30_PASS_NO_RETRAIN",
+    "failing_verdict": "GRAMMAR_STDLIB_T30_DIAGNOSE",
+    "training_authorized": false,
+    "delta_qlora_authorized": false,
+    "dataset_authorized": false,
+    "promotion_authorized": false
+  },
+  "model_outputs_observed": false,
+  "training_authorized": false,
+  "delta_qlora_authorized": false,
+  "nonclaims": [
+    "not_accuracy99",
+    "not_population_accuracy",
+    "not_tenant_or_live_data_accuracy",
+    "not_training_data",
+    "no_training_authority",
+    "no_delta_qlora_authority",
+    "no_dataset_authority",
+    "no_promotion_authority",
+    "no_companion_vscode_or_windows_claim"
+  ],
+  "policy_sha256": "sha256:68291e19ba63df61e731e7ba265cae95f37c443e47ba2f454768827d88c8ecc8"
+}

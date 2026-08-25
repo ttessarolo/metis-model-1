@@ -5059,3 +5059,28 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   self is `sha256:1c17c12d...53eec`; decision is
   `GRAMMAR_STDLIB_D18_NO_RETRAIN`, retain adapter and proceed to fresh held-out
   T30 with only generic context cures.
+- FACT — T30 pre-output integration is now tracked in the project contract:
+  policy `manifests/grammar-stdlib-accuracy-t30-policy-v1.json`, fresh roster
+  `fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json`, retrieval context
+  `fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md`, runner and
+  focused tests. The policy covers the six global Metis families at five tasks
+  each and keeps all grammar top-levels plus the three stdlib modules, twelve
+  public members and `time.timezone` in scope.
+- FACT — A dry pinned-oracle T30 truth build is green at `30/30` distinct tasks;
+  the observed self-hash prefix is `sha256:febbde…`. This is pre-output status
+  only, not a sealed truth/freeze or an accuracy result. Model outputs remain
+  `0`; retraining, delta QLoRA, dataset derivation and promotion remain
+  unauthorized.
+- DONE — T30 truth materialized from the pinned Metis oracle:
+  `in=30 out=30 distinct=30 gaps=0`, five tasks per F-1...F-6, canonical
+  self-hash
+  `sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`.
+  L0 independently verified canonical bytes and the exact coverage union:
+  grammar top-levels `10/10`, standard-library members `12/12`, setting
+  `time.timezone` `1/1`. Model outputs remain `0`; training remains false.
+- FACT — Post-cure adversarial runner audit reports no residual P0/P1: invented
+  F4/F6 symbols are critical, adjudication performs a fresh raw-candidate
+  rescore, and truth/freeze/evaluation/adjudication publish O_EXCL/no-follow.
+- OPEN — Publish this T30 preimage, then generate and independently audit the
+  pre-output freeze before the single base/adapter run. No candidate, evidence
+  or adjudication claim may be written before that gate.

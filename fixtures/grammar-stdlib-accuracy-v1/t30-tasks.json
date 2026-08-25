@@ -1,0 +1,1368 @@
+{
+  "schema_version": 1,
+  "roster_id": "gsl_t30_public_synthetic_v1",
+  "policy_id": "grammar-stdlib-accuracy-t30-policy/v1",
+  "benchmark_id": "grammar-stdlib-accuracy-t30-v1",
+  "provenance": {
+    "kind": "public_synthetic",
+    "namespace": "gsl_t30",
+    "pin_revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "language_version": "0.43",
+    "source_validation": "pinned_oracle_required_before_truth",
+    "model_outputs_observed": false,
+    "training_input_allowed": false,
+    "delta_qlora_input_allowed": false
+  },
+  "tasks": [
+    {
+      "task_id": "gsl_t30_f1_01",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Author one complete Metis source document with an ambient clock and tenant timezone. Return only source.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_clock"
+      },
+      "coverage": {
+        "top_levels": [
+          "Tenant",
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.hour"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f1_01_independent",
+        "template": "gsl_t30_f1_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "expected_source": "metis 0.43\ntenant gsl_t30_tenant {}\nsettings gsl_t30_tenant.time { timezone \"Europe/Rome\" }\nendpoint gsl_t30_clock as \"gsl_t30_clock\" {\n  needs time\n  attributes open_now = time.hour >= 9\n}"
+    },
+    {
+      "task_id": "gsl_t30_f1_02",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Author a catalog with a bounded enum marker and same-catalog external editorial values. Return only source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f1_02_independent",
+        "template": "gsl_t30_f1_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "expected_source": "metis 0.43\ncatalog gsl_t30_video {\n  id id\n  fields { id keyword status keyword enum(3) title keyword open }\n}\nvalues gsl_t30_video { status editorial [\"draft\" \"ready\" \"published\"] }"
+    },
+    {
+      "task_id": "gsl_t30_f1_03",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Author a transformer exercising both codec members and all three text members. Return only source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "codec.decode",
+          "codec.encode",
+          "text.slugify",
+          "text.truncate",
+          "text.normalize"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f1_03_independent",
+        "template": "gsl_t30_f1_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "expected_source": "metis 0.43\ntransformer gsl_t30_text {\n  in request { title text raw text }\n  set decoded = std.codec.decode(\"url\", $raw)\n  set encoded = std.codec.encode(\"base64\", $raw)\n  set slug = std.text.slugify($title)\n  set short = std.text.truncate($title, 80)\n  set clean = std.text.normalize($title)\n  out response { decoded text encoded text slug text short text clean text }\n}"
+    },
+    {
+      "task_id": "gsl_t30_f1_04",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Author an endpoint with a named block and exact compact variant-to-block endpoint syntax, using the ambient instant.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_feed"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [
+          "time.now"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f1_04_independent",
+        "template": "gsl_t30_f1_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "expected_source": "metis 0.43\ncatalog gsl_t30_items { id id fields { id keyword } }\nendpoint gsl_t30_feed as \"gsl_t30_feed\" {\n  needs time\n  attributes fresh = time.now exists\n  block card { take 1 from @gsl_t30_items }\n  variant compact use block.card\n}"
+    },
+    {
+      "task_id": "gsl_t30_f1_05",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Author a preset, static list, and reusable named block over one synthetic catalog. Return only source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Preset",
+          "List",
+          "NamedBlock"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f1_05_independent",
+        "template": "gsl_t30_f1_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "expected_source": "metis 0.43\ncatalog gsl_t30_base { id id fields { id keyword } }\npreset gsl_t30_recent from @gsl_t30_base include where @id is \"1\"\nlist gsl_t30_labels static { \"first\" \"second\" }\nblock gsl_t30_card { take 1 from @gsl_t30_base }"
+    },
+    {
+      "task_id": "gsl_t30_f2_01",
+      "family": "F-2",
+      "kind": "minimal_edit_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Apply the single minimal edit repairing the missing ambient declaration; preserve every other token. Return only repaired source.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "non dichiara `needs time`"
+        ],
+        "target": "gsl_t30_calendar"
+      },
+      "coverage": {
+        "top_levels": [
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.month",
+          "time.day"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f2_01_independent",
+        "template": "gsl_t30_f2_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nendpoint gsl_t30_calendar as \"gsl_t30_calendar\" {\n  attributes usable = time.month >= 1 and time.day > 0\n}",
+      "expected_repaired_source": "metis 0.43\nendpoint gsl_t30_calendar as \"gsl_t30_calendar\" {\n  needs time\n  attributes usable = time.month >= 1 and time.day > 0\n}"
+    },
+    {
+      "task_id": "gsl_t30_f2_02",
+      "family": "F-2",
+      "kind": "minimal_edit_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Apply the single-member minimal edit from unknown text member to pinned member slugify. Return only repaired source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "`std.text.slug` non esiste"
+        ]
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "text.slugify"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f2_02_independent",
+        "template": "gsl_t30_f2_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ntransformer gsl_t30_slug {\n  in request { title text }\n  set slug = std.text.slug($title)\n  out response { slug text }\n}",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_t30_slug {\n  in request { title text }\n  set slug = std.text.slugify($title)\n  out response { slug text }\n}"
+    },
+    {
+      "task_id": "gsl_t30_f2_03",
+      "family": "F-2",
+      "kind": "minimal_edit_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair only the endpoint variant shorthand by inserting exact use syntax. Return only repaired source.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "parser",
+        "diagnostic_substrings": [
+          "but found: 'block'"
+        ],
+        "target": "gsl_t30_period_feed"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [
+          "time.hhmm"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f2_03_independent",
+        "template": "gsl_t30_f2_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ncatalog gsl_t30_period { id id fields { id keyword } }\nendpoint gsl_t30_period_feed as \"gsl_t30_period_feed\" {\n  needs time\n  attributes current_hhmm = time.hhmm >= 0\n  block row { take 1 from @gsl_t30_period }\n  variant compact block.row\n}",
+      "expected_repaired_source": "metis 0.43\ncatalog gsl_t30_period { id id fields { id keyword } }\nendpoint gsl_t30_period_feed as \"gsl_t30_period_feed\" {\n  needs time\n  attributes current_hhmm = time.hhmm >= 0\n  block row { take 1 from @gsl_t30_period }\n  variant compact use block.row\n}"
+    },
+    {
+      "task_id": "gsl_t30_f2_04",
+      "family": "F-2",
+      "kind": "minimal_edit_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair the enum marker by adding its declared cardinality, preserving the external values. Return only repaired source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "parser",
+        "diagnostic_substrings": [
+          "Expecting token of type '('"
+        ]
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f2_04_independent",
+        "template": "gsl_t30_f2_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ncatalog gsl_t30_status { id id fields { id keyword status keyword enum } }\nvalues gsl_t30_status { status editorial [\"queued\" \"live\" \"retired\"] }",
+      "expected_repaired_source": "metis 0.43\ncatalog gsl_t30_status { id id fields { id keyword status keyword enum(3) } }\nvalues gsl_t30_status { status editorial [\"queued\" \"live\" \"retired\"] }"
+    },
+    {
+      "task_id": "gsl_t30_f2_05",
+      "family": "F-2",
+      "kind": "minimal_edit_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair only the ambient member spelling from time.weekdays to time.weekday. Return only repaired source.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "`time.weekdays` non esiste"
+        ]
+      },
+      "coverage": {
+        "top_levels": [
+          "Property"
+        ],
+        "stdlib_members": [
+          "time.weekday"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f2_05_independent",
+        "template": "gsl_t30_f2_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nproperty gsl_t30_weekday { needs time attributes named = time.weekdays is \"Monday\" }",
+      "expected_repaired_source": "metis 0.43\nproperty gsl_t30_weekday { needs time attributes named = time.weekday is \"Monday\" }"
+    },
+    {
+      "task_id": "gsl_t30_f3_01",
+      "family": "F-3",
+      "kind": "diagnostic_repair",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Pinned diagnostic marker: non dichiara `needs time`. Add only the missing ambient capability and return repaired source only.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "non dichiara `needs time`"
+        ],
+        "target": "gsl_t30_diag_clock"
+      },
+      "coverage": {
+        "top_levels": [
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.hour"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f3_01_independent",
+        "template": "gsl_t30_f3_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nendpoint gsl_t30_diag_clock as \"gsl_t30_diag_clock\" { attributes is_open = time.hour >= 9 }",
+      "expected_repaired_source": "metis 0.43\nendpoint gsl_t30_diag_clock as \"gsl_t30_diag_clock\" { needs time attributes is_open = time.hour >= 9 }"
+    },
+    {
+      "task_id": "gsl_t30_f3_02",
+      "family": "F-3",
+      "kind": "diagnostic_repair",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Pinned diagnostic marker: Modulo stdLib sconosciuto: `std.foo`. Repair only the module and return source only.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "Modulo stdLib sconosciuto: `std.foo`"
+        ]
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "text.slugify"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f3_02_independent",
+        "template": "gsl_t30_f3_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ntransformer gsl_t30_diag_module { in request { title text } set slug = std.foo.slugify($title) out response { slug text } }",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_t30_diag_module { in request { title text } set slug = std.text.slugify($title) out response { slug text } }"
+    },
+    {
+      "task_id": "gsl_t30_f3_03",
+      "family": "F-3",
+      "kind": "diagnostic_repair",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Pinned diagnostic marker: `std.codec.nope` non esiste. Repair only the member and return source only.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "`std.codec.nope` non esiste"
+        ]
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "codec.decode"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f3_03_independent",
+        "template": "gsl_t30_f3_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ntransformer gsl_t30_diag_codec { in request { raw text } set decoded = std.codec.nope(\"url\", $raw) out response { decoded text } }",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_t30_diag_codec { in request { raw text } set decoded = std.codec.decode(\"url\", $raw) out response { decoded text } }"
+    },
+    {
+      "task_id": "gsl_t30_f3_04",
+      "family": "F-3",
+      "kind": "diagnostic_repair",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Pinned diagnostic marker: `time.fractional_seconds` non esiste. Repair only the member and return source only.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "`time.fractional_seconds` non esiste"
+        ],
+        "target": "gsl_t30_diag_fraction"
+      },
+      "coverage": {
+        "top_levels": [
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.fractional_second"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f3_04_independent",
+        "template": "gsl_t30_f3_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nendpoint gsl_t30_diag_fraction as \"gsl_t30_diag_fraction\" { needs time attributes precise = time.fractional_seconds > 0 }",
+      "expected_repaired_source": "metis 0.43\nendpoint gsl_t30_diag_fraction as \"gsl_t30_diag_fraction\" { needs time attributes precise = time.fractional_second > 0 }"
+    },
+    {
+      "task_id": "gsl_t30_f3_05",
+      "family": "F-3",
+      "kind": "diagnostic_repair",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Pinned diagnostic marker: non dichiara `needs time`. Retain the weekday expression, add only the missing capability, and return source only.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": [
+          "non dichiara `needs time`"
+        ],
+        "target": "gsl_t30_diag_weekday"
+      },
+      "coverage": {
+        "top_levels": [
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.weekday"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f3_05_independent",
+        "template": "gsl_t30_f3_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nendpoint gsl_t30_diag_weekday as \"gsl_t30_diag_weekday\" { attributes named = time.weekday is \"Monday\" }",
+      "expected_repaired_source": "metis 0.43\nendpoint gsl_t30_diag_weekday as \"gsl_t30_diag_weekday\" { needs time attributes named = time.weekday is \"Monday\" }"
+    },
+    {
+      "task_id": "gsl_t30_f4_01",
+      "family": "F-4",
+      "kind": "semantic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "pinned_review_oracle_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,status,top_levels,stdlib_members,stdlib_settings,endpoint. No other keys. Set contract exactly to \"metis-semantic-signature/v2\" and status exactly to \"ok\". The three arrays use source first-use order. endpoint is an object with keys, in this order, count,requested,selected; use null for requested and selected when there is no endpoint. Add variant only when the source contains a variant, after selected. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_semantic_feed",
+        "exact_contract": "metis-semantic-signature/v2"
+      },
+      "coverage": {
+        "top_levels": [
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.now"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f4_01_independent",
+        "template": "gsl_t30_f4_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\nsettings gsl_t30_semantic.time { timezone \"UTC\" }\nendpoint gsl_t30_semantic_feed as \"gsl_t30_semantic_feed\" { needs time attributes fresh = time.now exists }",
+      "expected_json": {
+        "contract": "metis-semantic-signature/v2",
+        "status": "ok",
+        "top_levels": [
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.now"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ],
+        "endpoint": {
+          "count": 1,
+          "requested": "gsl_t30_semantic_feed",
+          "selected": "gsl_t30_semantic_feed"
+        }
+      }
+    },
+    {
+      "task_id": "gsl_t30_f4_02",
+      "family": "F-4",
+      "kind": "semantic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "pinned_review_oracle_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,status,top_levels,stdlib_members,stdlib_settings,endpoint. No other keys. Set contract exactly to \"metis-semantic-signature/v2\" and status exactly to \"ok\". The three arrays use source first-use order. endpoint is an object with keys, in this order, count,requested,selected; use null for requested and selected when there is no endpoint. Add variant only when the source contains a variant, after selected. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-semantic-signature/v2"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f4_02_independent",
+        "template": "gsl_t30_f4_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ncatalog gsl_t30_semantic_catalog { id id fields { id keyword status keyword enum(3) } }\nvalues gsl_t30_semantic_catalog { status editorial [\"new\" \"held\" \"closed\"] }",
+      "expected_json": {
+        "contract": "metis-semantic-signature/v2",
+        "status": "ok",
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": [],
+        "endpoint": {
+          "count": 0,
+          "requested": null,
+          "selected": null
+        }
+      }
+    },
+    {
+      "task_id": "gsl_t30_f4_03",
+      "family": "F-4",
+      "kind": "semantic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "pinned_review_oracle_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,status,top_levels,stdlib_members,stdlib_settings,endpoint. No other keys. Set contract exactly to \"metis-semantic-signature/v2\" and status exactly to \"ok\". The three arrays use source first-use order. endpoint is an object with keys, in this order, count,requested,selected; use null for requested and selected when there is no endpoint. Add variant only when the source contains a variant, after selected. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-semantic-signature/v2"
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "codec.decode",
+          "codec.encode",
+          "text.slugify",
+          "text.truncate",
+          "text.normalize"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f4_03_independent",
+        "template": "gsl_t30_f4_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ntransformer gsl_t30_semantic_transform { in request { title text raw text } set a = std.codec.decode(\"url\", $raw) set b = std.codec.encode(\"base64\", $raw) set c = std.text.slugify($title) set d = std.text.truncate($title, 40) set e = std.text.normalize($title) out response { a text b text c text d text e text } }",
+      "expected_json": {
+        "contract": "metis-semantic-signature/v2",
+        "status": "ok",
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "codec.decode",
+          "codec.encode",
+          "text.slugify",
+          "text.truncate",
+          "text.normalize"
+        ],
+        "stdlib_settings": [],
+        "endpoint": {
+          "count": 0,
+          "requested": null,
+          "selected": null
+        }
+      }
+    },
+    {
+      "task_id": "gsl_t30_f4_04",
+      "family": "F-4",
+      "kind": "semantic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "pinned_review_oracle_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,status,top_levels,stdlib_members,stdlib_settings,endpoint. No other keys. Set contract exactly to \"metis-semantic-signature/v2\" and status exactly to \"ok\". The three arrays use source first-use order. endpoint is an object with keys, in this order, count,requested,selected; use null for requested and selected when there is no endpoint. Add variant only when the source contains a variant, after selected. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_semantic_window",
+        "exact_contract": "metis-semantic-signature/v2"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [
+          "time.month",
+          "time.day",
+          "time.hour",
+          "time.hhmm"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f4_04_independent",
+        "template": "gsl_t30_f4_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ncatalog gsl_t30_semantic_rows { id id fields { id keyword } }\nendpoint gsl_t30_semantic_window as \"gsl_t30_semantic_window\" { needs time attributes is_valid = time.month >= 1 and time.day > 0 and time.hour >= 0 and time.hhmm >= 0 block row { take 1 from @gsl_t30_semantic_rows } variant compact use block.row }",
+      "expected_json": {
+        "contract": "metis-semantic-signature/v2",
+        "status": "ok",
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [
+          "time.month",
+          "time.day",
+          "time.hour",
+          "time.hhmm"
+        ],
+        "stdlib_settings": [],
+        "endpoint": {
+          "count": 1,
+          "requested": "gsl_t30_semantic_window",
+          "selected": "gsl_t30_semantic_window",
+          "variant": "compact"
+        }
+      }
+    },
+    {
+      "task_id": "gsl_t30_f4_05",
+      "family": "F-4",
+      "kind": "semantic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "pinned_review_oracle_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,status,top_levels,stdlib_members,stdlib_settings,endpoint. No other keys. Set contract exactly to \"metis-semantic-signature/v2\" and status exactly to \"ok\". The three arrays use source first-use order. endpoint is an object with keys, in this order, count,requested,selected; use null for requested and selected when there is no endpoint. Add variant only when the source contains a variant, after selected. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_semantic_main",
+        "exact_contract": "metis-semantic-signature/v2"
+      },
+      "coverage": {
+        "top_levels": [
+          "Tenant",
+          "SettingsDecl",
+          "Property",
+          "Transformer",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.weekday",
+          "text.slugify",
+          "time.fractional_second",
+          "time.now"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f4_05_independent",
+        "template": "gsl_t30_f4_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ntenant gsl_t30_semantic_world {}\nsettings gsl_t30_semantic_world.time { timezone \"America/Los_Angeles\" }\nproperty gsl_t30_semantic_policy { needs time attributes active = time.weekday is \"Tuesday\" }\ntransformer gsl_t30_semantic_slug { in request { title text } set slug = std.text.slugify($title) out response { slug text } }\nendpoint gsl_t30_semantic_main as \"gsl_t30_semantic_main\" { needs time attributes exact = time.fractional_second >= 0 and time.now exists }",
+      "expected_json": {
+        "contract": "metis-semantic-signature/v2",
+        "status": "ok",
+        "top_levels": [
+          "Tenant",
+          "SettingsDecl",
+          "Property",
+          "Transformer",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.weekday",
+          "text.slugify",
+          "time.fractional_second",
+          "time.now"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ],
+        "endpoint": {
+          "count": 1,
+          "requested": "gsl_t30_semantic_main",
+          "selected": "gsl_t30_semantic_main"
+        }
+      }
+    },
+    {
+      "task_id": "gsl_t30_f5_01",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the verbose variant block to canonical compact endpoint syntax with smallest human-reviewed edit; return source only.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_migrate_feed"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f5_01_independent",
+        "template": "gsl_t30_f5_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ncatalog gsl_t30_migrate_rows { id id fields { id keyword } }\nendpoint gsl_t30_migrate_feed as \"gsl_t30_migrate_feed\" { block row { take 1 from @gsl_t30_migrate_rows } variants { compact { use block.row } } }",
+      "expected_repaired_source": "metis 0.43\ncatalog gsl_t30_migrate_rows { id id fields { id keyword } }\nendpoint gsl_t30_migrate_feed as \"gsl_t30_migrate_feed\" { block row { take 1 from @gsl_t30_migrate_rows } variant compact use block.row }"
+    },
+    {
+      "task_id": "gsl_t30_f5_02",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the bounded inline enum to canonical external per-field values, preserving all values and field identity; return source only.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f5_02_independent",
+        "template": "gsl_t30_f5_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ncatalog gsl_t30_migrate_status { id id fields { id keyword status keyword values [\"queued\" \"running\" \"done\"] } }",
+      "expected_repaired_source": "metis 0.43\ncatalog gsl_t30_migrate_status { id id fields { id keyword status keyword enum(3) } }\nvalues gsl_t30_migrate_status { status editorial [\"queued\" \"running\" \"done\"] }"
+    },
+    {
+      "task_id": "gsl_t30_f5_03",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate this property to an explicit ambient capability declaration while preserving its expression; return source only.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Property"
+        ],
+        "stdlib_members": [
+          "time.hour"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f5_03_independent",
+        "template": "gsl_t30_f5_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nproperty gsl_t30_migrate_hours { attributes is_open = time.hour >= 8 }",
+      "expected_repaired_source": "metis 0.43\nproperty gsl_t30_migrate_hours { needs time attributes is_open = time.hour >= 8 }"
+    },
+    {
+      "task_id": "gsl_t30_f5_04",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the transformer to the pinned pure text member, preserving I/O shape and field names; return source only.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "text.normalize"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f5_04_independent",
+        "template": "gsl_t30_f5_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\ntransformer gsl_t30_migrate_text { in request { label text } set clean = std.text.slugify($label) out response { clean text } }",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_t30_migrate_text { in request { label text } set clean = std.text.normalize($label) out response { clean text } }"
+    },
+    {
+      "task_id": "gsl_t30_f5_05",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate to exact compact variant syntax while retaining timezone and clock expressions; return source only.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_migrate_main"
+      },
+      "coverage": {
+        "top_levels": [
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.hour",
+          "time.weekday"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f5_05_independent",
+        "template": "gsl_t30_f5_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "before_source": "metis 0.43\nsettings gsl_t30_migrate_world.time { timezone \"Asia/Tokyo\" }\nendpoint gsl_t30_migrate_main as \"gsl_t30_migrate_main\" { needs time attributes { is_open = time.hour >= 7 named_day = time.weekday is \"Friday\" } variants { main empty } }",
+      "expected_repaired_source": "metis 0.43\nsettings gsl_t30_migrate_world.time { timezone \"Asia/Tokyo\" }\nendpoint gsl_t30_migrate_main as \"gsl_t30_migrate_main\" { needs time attributes { is_open = time.hour >= 7 named_day = time.weekday is \"Friday\" } variant main empty }"
+    },
+    {
+      "task_id": "gsl_t30_f6_01",
+      "family": "F-6",
+      "kind": "structural_explanation",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,top_levels,declarations,stdlib_members,stdlib_settings,relationships. No other keys. Set contract exactly to \"metis-structural-explanation/v1\". Arrays use source first-use order. declarations is an array of objects with exactly keys kind,name, in declaration first-use order; kind must be one of Tenant,SettingsDecl,Catalog,ValueSet,Property,Preset,List,Transformer,NamedBlock,Endpoint. relationships is an array in source first-use order; each value must be one of these finite labels: settings-configures-timezone, endpoint-declares-needs-time, property-declares-needs-time, pure-stdlib-call, no-ambient-needs, valueset-belongs-to-catalog, endpoint-owns-block, variant-selects-block, external-enum-domain. Omit catalog_fields unless this prompt explicitly requests it. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-structural-explanation/v1"
+      },
+      "coverage": {
+        "top_levels": [
+          "Tenant",
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "stdlib_members": [
+          "time.hour"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f6_01_independent",
+        "template": "gsl_t30_f6_01_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ntenant gsl_t30_structure_tenant {}\nsettings gsl_t30_structure_tenant.time { timezone \"UTC\" }\nendpoint gsl_t30_structure_clock as \"gsl_t30_structure_clock\" { needs time attributes is_open = time.hour >= 9 }",
+      "expected_json": {
+        "contract": "metis-structural-explanation/v1",
+        "top_levels": [
+          "Tenant",
+          "SettingsDecl",
+          "Endpoint"
+        ],
+        "declarations": [
+          {
+            "kind": "Tenant",
+            "name": "gsl_t30_structure_tenant"
+          },
+          {
+            "kind": "SettingsDecl",
+            "name": "gsl_t30_structure_tenant.time"
+          },
+          {
+            "kind": "Endpoint",
+            "name": "gsl_t30_structure_clock"
+          }
+        ],
+        "stdlib_members": [
+          "time.hour"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ],
+      "relationships": [
+        "settings-configures-timezone",
+        "endpoint-declares-needs-time"
+      ]
+      }
+    },
+    {
+      "task_id": "gsl_t30_f6_02",
+      "family": "F-6",
+      "kind": "structural_explanation",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,top_levels,declarations,stdlib_members,stdlib_settings,relationships. No other keys. Set contract exactly to \"metis-structural-explanation/v1\". Arrays use source first-use order. declarations is an array of objects with exactly keys kind,name, in declaration first-use order; kind must be one of Tenant,SettingsDecl,Catalog,ValueSet,Property,Preset,List,Transformer,NamedBlock,Endpoint. relationships is an array in source first-use order; each value must be one of these finite labels: settings-configures-timezone, endpoint-declares-needs-time, property-declares-needs-time, pure-stdlib-call, no-ambient-needs, valueset-belongs-to-catalog, endpoint-owns-block, variant-selects-block, external-enum-domain. This prompt explicitly requests catalog_fields, placed after declarations. catalog_fields is an array in source field order; each object has keys name,domain, and size only when domain is external-enum. domain must be one of implicit,external-enum,open. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-structural-explanation/v1"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f6_02_independent",
+        "template": "gsl_t30_f6_02_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ncatalog gsl_t30_structure_catalog { id id fields { id keyword status keyword enum(3) title keyword open } }\nvalues gsl_t30_structure_catalog { status editorial [\"draft\" \"ready\" \"archived\"] }",
+      "expected_json": {
+        "contract": "metis-structural-explanation/v1",
+        "top_levels": [
+          "Catalog",
+          "ValueSet"
+        ],
+        "declarations": [
+          {
+            "kind": "Catalog",
+            "name": "gsl_t30_structure_catalog"
+          },
+          {
+            "kind": "ValueSet",
+            "name": "gsl_t30_structure_catalog"
+          }
+        ],
+        "catalog_fields": [
+          {
+            "name": "id",
+            "domain": "implicit"
+          },
+          {
+            "name": "status",
+            "domain": "external-enum",
+            "size": 3
+          },
+          {
+            "name": "title",
+            "domain": "open"
+          }
+        ],
+        "stdlib_members": [],
+        "stdlib_settings": [],
+      "relationships": [
+        "external-enum-domain",
+        "valueset-belongs-to-catalog"
+      ]
+      }
+    },
+    {
+      "task_id": "gsl_t30_f6_03",
+      "family": "F-6",
+      "kind": "structural_explanation",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,top_levels,declarations,stdlib_members,stdlib_settings,relationships. No other keys. Set contract exactly to \"metis-structural-explanation/v1\". Arrays use source first-use order. declarations is an array of objects with exactly keys kind,name, in declaration first-use order; kind must be one of Tenant,SettingsDecl,Catalog,ValueSet,Property,Preset,List,Transformer,NamedBlock,Endpoint. relationships is an array in source first-use order; each value must be one of these finite labels: settings-configures-timezone, endpoint-declares-needs-time, property-declares-needs-time, pure-stdlib-call, no-ambient-needs, valueset-belongs-to-catalog, endpoint-owns-block, variant-selects-block, external-enum-domain. Omit catalog_fields unless this prompt explicitly requests it. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-structural-explanation/v1"
+      },
+      "coverage": {
+        "top_levels": [
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "codec.decode",
+          "text.truncate",
+          "text.normalize"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f6_03_independent",
+        "template": "gsl_t30_f6_03_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ntransformer gsl_t30_structure_transform { in request { title text raw text } set decoded = std.codec.decode(\"url\", $raw) set short = std.text.truncate($title, 60) set clean = std.text.normalize($title) out response { decoded text short text clean text } }",
+      "expected_json": {
+        "contract": "metis-structural-explanation/v1",
+        "top_levels": [
+          "Transformer"
+        ],
+        "declarations": [
+          {
+            "kind": "Transformer",
+            "name": "gsl_t30_structure_transform"
+          }
+        ],
+        "stdlib_members": [
+          "codec.decode",
+          "text.truncate",
+          "text.normalize"
+        ],
+        "stdlib_settings": [],
+      "relationships": [
+        "pure-stdlib-call",
+        "no-ambient-needs"
+      ]
+      }
+    },
+    {
+      "task_id": "gsl_t30_f6_04",
+      "family": "F-6",
+      "kind": "structural_explanation",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,top_levels,declarations,stdlib_members,stdlib_settings,relationships. No other keys. Set contract exactly to \"metis-structural-explanation/v1\". Arrays use source first-use order. declarations is an array of objects with exactly keys kind,name, in declaration first-use order; kind must be one of Tenant,SettingsDecl,Catalog,ValueSet,Property,Preset,List,Transformer,NamedBlock,Endpoint. relationships is an array in source first-use order; each value must be one of these finite labels: settings-configures-timezone, endpoint-declares-needs-time, property-declares-needs-time, pure-stdlib-call, no-ambient-needs, valueset-belongs-to-catalog, endpoint-owns-block, variant-selects-block, external-enum-domain. Omit catalog_fields unless this prompt explicitly requests it. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "endpoint",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "target": "gsl_t30_structure_feed",
+        "exact_contract": "metis-structural-explanation/v1"
+      },
+      "coverage": {
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "stdlib_members": [
+          "time.now",
+          "time.hhmm"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f6_04_independent",
+        "template": "gsl_t30_f6_04_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\ncatalog gsl_t30_structure_rows { id id fields { id keyword } }\nendpoint gsl_t30_structure_feed as \"gsl_t30_structure_feed\" { needs time attributes fresh = time.now exists and time.hhmm >= 0 block row { take 1 from @gsl_t30_structure_rows } variant compact use block.row }",
+      "expected_json": {
+        "contract": "metis-structural-explanation/v1",
+        "top_levels": [
+          "Catalog",
+          "Endpoint",
+          "NamedBlock"
+        ],
+        "declarations": [
+          {
+            "kind": "Catalog",
+            "name": "gsl_t30_structure_rows"
+          },
+          {
+            "kind": "Endpoint",
+            "name": "gsl_t30_structure_feed"
+          },
+          {
+            "kind": "NamedBlock",
+            "name": "row"
+          }
+        ],
+        "stdlib_members": [
+          "time.now",
+          "time.hhmm"
+        ],
+        "stdlib_settings": [],
+      "relationships": [
+        "endpoint-declares-needs-time",
+        "endpoint-owns-block",
+        "variant-selects-block"
+      ]
+      }
+    },
+    {
+      "task_id": "gsl_t30_f6_05",
+      "family": "F-6",
+      "kind": "structural_explanation",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Return exactly one JSON object with keys, in this order: contract,top_levels,declarations,stdlib_members,stdlib_settings,relationships. No other keys. Set contract exactly to \"metis-structural-explanation/v1\". Arrays use source first-use order. declarations is an array of objects with exactly keys kind,name, in declaration first-use order; kind must be one of Tenant,SettingsDecl,Catalog,ValueSet,Property,Preset,List,Transformer,NamedBlock,Endpoint. relationships is an array in source first-use order; each value must be one of these finite labels: settings-configures-timezone, endpoint-declares-needs-time, property-declares-needs-time, pure-stdlib-call, no-ambient-needs, valueset-belongs-to-catalog, endpoint-owns-block, variant-selects-block, external-enum-domain. Omit catalog_fields unless this prompt explicitly requests it. Derive all values from the source; do not add keys.",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "exact_contract": "metis-structural-explanation/v1"
+      },
+      "coverage": {
+        "top_levels": [
+          "SettingsDecl",
+          "Catalog",
+          "Property",
+          "Preset",
+          "List",
+          "Transformer"
+        ],
+        "stdlib_members": [
+          "time.day",
+          "time.month",
+          "time.fractional_second",
+          "codec.encode",
+          "text.slugify"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ]
+      },
+      "provenance_roots": {
+        "independent": "gsl_t30_f6_05_independent",
+        "template": "gsl_t30_f6_05_template"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "delta_qlora_input_allowed": false,
+      "training_label_eligible": false,
+      "input_source": "metis 0.43\nsettings gsl_t30_structure_world.time { timezone \"Europe/Paris\" }\ncatalog gsl_t30_structure_media { id id fields { id keyword } }\nproperty gsl_t30_structure_policy { needs time attributes { day_value = time.day >= 1 month_value = time.month >= 1 precise = time.fractional_second >= 0 } }\npreset gsl_t30_structure_preset from @gsl_t30_structure_media include where @id is \"1\"\nlist gsl_t30_structure_labels static { \"one\" \"two\" }\ntransformer gsl_t30_structure_encode { in request { raw text } set encoded = std.codec.encode(\"base64\", $raw) set slug = std.text.slugify($raw) out response { encoded text slug text } }",
+      "expected_json": {
+        "contract": "metis-structural-explanation/v1",
+        "top_levels": [
+          "SettingsDecl",
+          "Catalog",
+          "Property",
+          "Preset",
+          "List",
+          "Transformer"
+        ],
+        "declarations": [
+          {
+            "kind": "SettingsDecl",
+            "name": "gsl_t30_structure_world.time"
+          },
+          {
+            "kind": "Catalog",
+            "name": "gsl_t30_structure_media"
+          },
+          {
+            "kind": "Property",
+            "name": "gsl_t30_structure_policy"
+          },
+          {
+            "kind": "Preset",
+            "name": "gsl_t30_structure_preset"
+          },
+          {
+            "kind": "List",
+            "name": "gsl_t30_structure_labels"
+          },
+          {
+            "kind": "Transformer",
+            "name": "gsl_t30_structure_encode"
+          }
+        ],
+        "stdlib_members": [
+          "time.day",
+          "time.month",
+          "time.fractional_second",
+          "codec.encode",
+          "text.slugify"
+        ],
+        "stdlib_settings": [
+          "time.timezone"
+        ],
+        "relationships": [
+          "settings-configures-timezone",
+          "property-declares-needs-time",
+          "pure-stdlib-call",
+          "no-ambient-needs"
+        ]
+      }
+    }
+  ]
+}

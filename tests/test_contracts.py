@@ -15,6 +15,7 @@ from metis_model1.contracts import (
     validate_artifact_store_policy_contract,
     validate_benchmark_plan_contract,
     validate_foundation,
+    validate_grammar_stdlib_t30_preoutput_contract,
     validate_hyperparameter_grid_contract,
     validate_instance,
     validate_qualification_contract,
@@ -208,6 +209,72 @@ def test_accuracy_target_schema_rejects_post_result_registration() -> None:
     errors = validate_instance(target, schema)
 
     assert any("True was expected" in error for error in errors)
+
+
+def test_grammar_stdlib_t30_preoutput_contract_is_fail_closed() -> None:
+    assert validate_grammar_stdlib_t30_preoutput_contract(repository_root()) == []
+
+
+def test_grammar_stdlib_t30_preoutput_contract_rejects_model_output_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repository_root()
+    original = contracts.load_json
+
+    def drifted(path):
+        value = original(path)
+        if path.name == "grammar-stdlib-accuracy-t30-policy-v1.json":
+            value = deepcopy(value)
+            value["model_outputs_observed"] = True
+        return value
+
+    monkeypatch.setattr(contracts, "load_json", drifted)
+
+    assert "T30 pre-output policy model_outputs_observed is not fail-closed" in (
+        validate_grammar_stdlib_t30_preoutput_contract(root)
+    )
+
+
+def test_grammar_stdlib_t30_preoutput_contract_rejects_roster_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repository_root()
+    original = contracts.load_json
+
+    def drifted(path):
+        value = original(path)
+        if path.name == "t30-tasks.json":
+            value = deepcopy(value)
+            value["tasks"][1]["task_id"] = value["tasks"][0]["task_id"]
+        return value
+
+    monkeypatch.setattr(contracts, "load_json", drifted)
+
+    assert "T30 roster task IDs are not exactly thirty distinct tasks" in (
+        validate_grammar_stdlib_t30_preoutput_contract(root)
+    )
+
+
+def test_grammar_stdlib_t30_preoutput_contract_rejects_out_of_order_stage(
+    tmp_path,
+) -> None:
+    root = repository_root()
+    for relative in (
+        "fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "tests/test_grammar_stdlib_t30.py",
+    ):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v1.json"
+    freeze_path.write_text("{}", encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_preoutput_contract(tmp_path)
+
+    assert "T30 phase freeze is present before its predecessor" in errors
 
 
 def test_artifact_store_policy_is_ratified_and_budgeted() -> None:

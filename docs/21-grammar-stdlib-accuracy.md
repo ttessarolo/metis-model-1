@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 CLOSED NO_RETRAIN — FRESH HELD-OUT T30 CONSTRUCTION ACTIVE**.
+Status: **D18 CLOSED NO_RETRAIN — T30 PRE-OUTPUT TRUTH MATERIALIZED (30/30)**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -209,6 +209,28 @@ context gap, training-eligible failures are zero. The terminal D18 decision is
 generic retrieval instructions, and test them on fresh held-out T30 tasks.
 
 ### G2 — decision and held-out T30
+
+The T30 pre-output contract is now tracked at the following paths:
+
+- `manifests/grammar-stdlib-accuracy-t30-policy-v1.json` — ratified one-shot
+  policy, thresholds and explicit nonclaims;
+- `fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json` and
+  `fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md` — fresh
+  public-synthetic roster and retrieval-owned grammar/stdlib context;
+- `src/metis_model1/grammar_stdlib_t30.py` and
+  `tests/test_grammar_stdlib_t30.py` — sealed truth/freeze/run/evidence
+  implementation and focused contract tests.
+
+The pinned-oracle truth is materialized at `30/30` distinct tasks with canonical
+self-hash
+`sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`.
+L0 independently verified canonical bytes, counts and the exact coverage union.
+This remains pre-output evidence: the preimage must be published and the freeze
+generated/audited before inference. Model output is still `0`, and retraining,
+delta QLoRA, dataset derivation and promotion remain unauthorized. The
+denominator explicitly includes all ten top-level grammar alternatives, all
+three Metis standard-library modules, all twelve public members and
+`time.timezone`.
 
 If D18 does not establish delta eligibility, the current adapter is retained
 and a fresh held-out `T30` is sealed and run without retraining. If D18 does

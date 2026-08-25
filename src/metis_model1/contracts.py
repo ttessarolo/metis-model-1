@@ -4,6 +4,8 @@ import hashlib
 import json
 import subprocess
 import tomllib
+from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -227,6 +229,12 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/demo-accuracy-v2/tasks.json",
     "fixtures/grammar-stdlib-accuracy-v1/d18-tasks.json",
     "fixtures/grammar-stdlib-accuracy-v1/reference-context.md",
+    # T30 fixed inputs. Later stage manifests are validated conditionally by
+    # validate_grammar_stdlib_t30_preoutput_contract as they materialize.
+    "fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json",
+    "fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md",
+    "manifests/grammar-stdlib-accuracy-t30-policy-v1.json",
+    "manifests/grammar-stdlib-accuracy-t30-truth-v1.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -253,6 +261,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/grammar_stdlib_oracle.py",
     "src/metis_model1/grammar_stdlib_accuracy.py",
     "src/metis_model1/grammar_stdlib_accuracy_recovery.py",
+    "src/metis_model1/grammar_stdlib_t30.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -337,6 +346,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_grammar_stdlib_tasks.py",
     "tests/test_grammar_stdlib_accuracy.py",
     "tests/test_grammar_stdlib_accuracy_recovery.py",
+    "tests/test_grammar_stdlib_t30.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -1518,6 +1528,433 @@ def validate_accuracy_uplift_plan_contract(root: Path) -> list[str]:
         return [f"accuracy-uplift plan unreadable: {type(error).__name__}: {error}"]
 
 
+def validate_grammar_stdlib_t30_preoutput_contract(root: Path) -> list[str]:
+    """Validate T30's static roster and any materialized phase manifests.
+
+    The later truth/freeze/evaluation/adjudication files are optional while
+    T30 is being constructed.  Once one is present, however, its predecessor,
+    identity, self-hash, claims and hash links are checked without invoking
+    Metis, Git, a model or training.
+    """
+
+    required = (
+        "fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "tests/test_grammar_stdlib_t30.py",
+    )
+    errors = [
+        f"T30 pre-output path is missing: {path}"
+        for path in required
+        if not (root / path).is_file()
+    ]
+    if errors:
+        return errors
+
+    try:
+        policy = load_json(root / required[2])
+    except Exception as error:  # noqa: BLE001 - contract boundary fails closed
+        return [f"T30 pre-output policy unreadable: {type(error).__name__}: {error}"]
+
+    try:
+        roster = load_json(root / required[0])
+        reference = (root / required[1]).read_text(encoding="utf-8")
+    except Exception as error:  # noqa: BLE001 - contract boundary fails closed
+        return [f"T30 pre-output roster/context unreadable: {type(error).__name__}: {error}"]
+
+    expected_nonclaims = {
+        "not_accuracy99",
+        "not_population_accuracy",
+        "not_tenant_or_live_data_accuracy",
+        "not_training_data",
+        "no_training_authority",
+        "no_delta_qlora_authority",
+        "no_dataset_authority",
+        "no_promotion_authority",
+        "no_companion_vscode_or_windows_claim",
+    }
+    expected_identity = {
+        "schema_version": 1,
+        "policy_id": "grammar-stdlib-accuracy-t30-policy/v1",
+        "status": "ratified_before_t30_model_output",
+        "benchmark_id": "grammar-stdlib-accuracy-t30-v1",
+        "model_outputs_observed": False,
+        "training_authorized": False,
+        "delta_qlora_authorized": False,
+    }
+    for key, expected in expected_identity.items():
+        if policy.get(key) != expected:
+            errors.append(f"T30 pre-output policy {key} is not fail-closed")
+    if set(policy.get("nonclaims", ())) != expected_nonclaims:
+        errors.append("T30 pre-output policy nonclaims contain drift")
+    decision_policy = policy.get("decision_policy")
+    if not isinstance(decision_policy, dict) or any(
+        decision_policy.get(key) is not False
+        for key in (
+            "training_authorized",
+            "delta_qlora_authorized",
+            "dataset_authorized",
+            "promotion_authorized",
+        )
+    ):
+        errors.append("T30 pre-output decision policy is not fail-closed")
+
+    policy_roster = policy.get("roster")
+    if not isinstance(policy_roster, dict) or {
+        "tasks": policy_roster.get("tasks") if isinstance(policy_roster, dict) else None,
+        "tasks_per_family": policy_roster.get("tasks_per_family")
+        if isinstance(policy_roster, dict)
+        else None,
+        "automatic_tasks": policy_roster.get("automatic_tasks")
+        if isinstance(policy_roster, dict)
+        else None,
+        "stdlib_members_required": policy_roster.get("stdlib_members_required")
+        if isinstance(policy_roster, dict)
+        else None,
+        "stdlib_settings_required": policy_roster.get("stdlib_settings_required")
+        if isinstance(policy_roster, dict)
+        else None,
+    } != {
+        "tasks": 30,
+        "tasks_per_family": 5,
+        "automatic_tasks": 20,
+        "stdlib_members_required": 12,
+        "stdlib_settings_required": 1,
+    }:
+        errors.append("T30 pre-output roster arithmetic contains drift")
+
+    one_shot = policy.get("one_shot")
+    if not isinstance(one_shot, dict) or any(
+        one_shot.get(key) != expected
+        for key, expected in {
+            "attempts": 1,
+            "worker_invocations": 2,
+            "requests_per_worker": 30,
+            "retries": 0,
+            "fixed_run_id": "t30-v1-20260825",
+            "attempt_nonce": "gsl-t30-v1-20260825-attempt-01",
+            "partial_run_disposition": "permanent_stop_no_recovery_no_retry",
+        }.items()
+    ):
+        errors.append("T30 pre-output one-shot contract contains drift")
+
+    body = {key: value for key, value in policy.items() if key != "policy_sha256"}
+    try:
+        canonical = json.dumps(
+            body,
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError):
+        canonical = None
+    if canonical is None or policy.get("policy_sha256") != (
+        "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+    ):
+        errors.append("T30 pre-output policy self-hash contains drift")
+
+    expected_top_levels = {
+        "Tenant",
+        "Catalog",
+        "Property",
+        "Endpoint",
+        "Preset",
+        "List",
+        "Transformer",
+        "NamedBlock",
+        "SettingsDecl",
+        "ValueSet",
+    }
+    expected_stdlib_members = {
+        "time.now",
+        "time.month",
+        "time.day",
+        "time.hour",
+        "time.hhmm",
+        "time.weekday",
+        "time.fractional_second",
+        "codec.decode",
+        "codec.encode",
+        "text.slugify",
+        "text.truncate",
+        "text.normalize",
+    }
+    expected_settings = {"time.timezone"}
+    expected_taxonomy = {
+        "F-1": ("author_source", "source_output", "pinned_oracle_required"),
+        "F-2": ("minimal_edit_source", "source_output", "pinned_oracle_required"),
+        "F-3": ("diagnostic_repair", "source_output", "pinned_oracle_required"),
+        "F-4": ("semantic_review", "exact_json_review", "pinned_review_oracle_required"),
+        "F-5": ("migration_source", "source_output", "human_review_required"),
+        "F-6": ("structural_explanation", "exact_json_review", "human_review_required"),
+    }
+    if not isinstance(roster, dict) or set(roster) != {
+        "schema_version",
+        "roster_id",
+        "policy_id",
+        "benchmark_id",
+        "provenance",
+        "tasks",
+    }:
+        errors.append("T30 roster top-level contract contains drift")
+        tasks: list[Any] = []
+    else:
+        if (
+            roster.get("schema_version") != 1
+            or roster.get("roster_id") != "gsl_t30_public_synthetic_v1"
+            or roster.get("policy_id") != "grammar-stdlib-accuracy-t30-policy/v1"
+            or roster.get("benchmark_id") != "grammar-stdlib-accuracy-t30-v1"
+        ):
+            errors.append("T30 roster identity contains drift")
+        provenance = roster.get("provenance")
+        if not isinstance(provenance, dict) or any(
+            provenance.get(key) != expected
+            for key, expected in {
+                "kind": "public_synthetic",
+                "namespace": "gsl_t30",
+                "pin_revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+                "language_version": "0.43",
+                "source_validation": "pinned_oracle_required_before_truth",
+                "model_outputs_observed": False,
+                "training_input_allowed": False,
+                "delta_qlora_input_allowed": False,
+            }.items()
+        ):
+            errors.append("T30 roster provenance contains drift")
+        tasks = roster.get("tasks")
+    if not isinstance(tasks, list) or len(tasks) != 30:
+        errors.append("T30 roster must contain exactly 30 tasks")
+        tasks = []
+    task_ids = [task.get("task_id") for task in tasks if isinstance(task, dict)]
+    if len(task_ids) != 30 or len(set(task_ids)) != 30:
+        errors.append("T30 roster task IDs are not exactly thirty distinct tasks")
+    family_counts = Counter(task.get("family") for task in tasks if isinstance(task, dict))
+    if any(family_counts.get(family, 0) != 5 for family in expected_taxonomy):
+        errors.append("T30 roster family census is not exactly five per family")
+    declared_top_levels: set[str] = set()
+    declared_stdlib_members: set[str] = set()
+    declared_settings: set[str] = set()
+    for task in tasks:
+        if not isinstance(task, dict):
+            errors.append("T30 roster contains a non-object task")
+            continue
+        family = task.get("family")
+        expected = expected_taxonomy.get(family)
+        if (
+            expected is None
+            or (
+                task.get("kind"),
+                task.get("task_mode"),
+                task.get("authority_tier"),
+            )
+            != expected
+        ):
+            errors.append(f"T30 task taxonomy drift: {task.get('task_id')}")
+        if any(
+            task.get(key) is not expected_value
+            for key, expected_value in {
+                "model_outputs_observed": False,
+                "training_input_allowed": False,
+                "delta_qlora_input_allowed": False,
+                "training_label_eligible": False,
+            }.items()
+        ):
+            errors.append(f"T30 task authority drift: {task.get('task_id')}")
+        coverage = task.get("coverage")
+        if not isinstance(coverage, dict) or set(coverage) != {
+            "top_levels",
+            "stdlib_members",
+            "stdlib_settings",
+        }:
+            errors.append(f"T30 task coverage shape drift: {task.get('task_id')}")
+            continue
+        for coverage_field, target, universe in (
+            ("top_levels", declared_top_levels, expected_top_levels),
+            ("stdlib_members", declared_stdlib_members, expected_stdlib_members),
+            ("stdlib_settings", declared_settings, expected_settings),
+        ):
+            values = coverage.get(coverage_field)
+            if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                errors.append(f"T30 task coverage values drift: {task.get('task_id')}")
+                continue
+            target.update(values)
+            if not set(values).issubset(universe):
+                errors.append(f"T30 task coverage escapes denominator: {task.get('task_id')}")
+    if declared_top_levels != expected_top_levels:
+        errors.append("T30 roster top-level union is not exactly the ten-element denominator")
+    if declared_stdlib_members != expected_stdlib_members:
+        errors.append(
+            "T30 roster stdlib-member union is not exactly the twelve-element denominator"
+        )
+    if declared_settings != expected_settings:
+        errors.append("T30 roster stdlib-setting union is not exactly time.timezone")
+    required_context_markers = (
+        "# Metis 0.43 grammar and standard-library reference\n",
+        "## Top-level skeletons",
+        "## Standard-library registry",
+        "## Generic repair cues",
+        "time.timezone",
+        "variant <variant> use block.<block>",
+        "`<variant> block...` is forbidden",
+    )
+    if any(marker not in reference for marker in required_context_markers):
+        errors.append("T30 reference context is missing a required grammar/stdlib marker")
+
+    def phase_hash(value: Mapping[str, Any], field: str) -> bool:
+        body = {key: item for key, item in value.items() if key != field}
+        try:
+            encoded = json.dumps(
+                body,
+                allow_nan=False,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        except (TypeError, ValueError):
+            return False
+        return value.get(field) == "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
+
+    phase_paths = (
+        root / "manifests/grammar-stdlib-accuracy-t30-truth-v1.json",
+        root / "manifests/grammar-stdlib-accuracy-t30-freeze-v1.json",
+        root / "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        root / "manifests/grammar-stdlib-accuracy-t30-adjudication-v1.json",
+    )
+    present = [path.is_file() or path.is_symlink() for path in phase_paths]
+    phase_names = ("truth", "freeze", "evaluation", "adjudication")
+    for index, is_present in enumerate(present):
+        if is_present and not all(present[:index]):
+            errors.append(f"T30 phase {phase_names[index]} is present before its predecessor")
+    phases: list[dict[str, Any] | None] = [None] * len(phase_paths)
+    for index, (path, is_present) in enumerate(zip(phase_paths, present, strict=True)):
+        if not is_present or not all(present[:index]):
+            continue
+        try:
+            value = load_json(path)
+        except Exception as error:  # noqa: BLE001 - phase boundary fails closed
+            errors.append(f"T30 {phase_names[index]} manifest unreadable: {type(error).__name__}")
+            continue
+        if not isinstance(value, dict) or not phase_hash(value, phase_names[index] + "_sha256"):
+            errors.append(f"T30 {phase_names[index]} self-hash is invalid")
+        phases[index] = value
+
+    truth = phases[0]
+    if truth is not None:
+        if any(
+            truth.get(key) != expected
+            for key, expected in {
+                "schema_version": 1,
+                "truth_id": "grammar-stdlib-accuracy-t30-truth/v1",
+                "status": "truth_fixed_before_model_output",
+                "authority_tier": "automatic",
+                "benchmark_id": "grammar-stdlib-accuracy-t30-v1",
+                "semantic_signature_contract": "metis-semantic-signature/v2",
+                "model_outputs_observed": False,
+                "training_authorized": False,
+                "delta_qlora_authorized": False,
+                "nonclaims": policy["nonclaims"],
+            }.items()
+        ):
+            errors.append("T30 truth identity/status/claims contain drift")
+        counts = truth.get("counts")
+        if (
+            not isinstance(counts, dict)
+            or counts.get("tasks_in") != 30
+            or counts.get("tasks_out") != 30
+            or counts.get("tasks_distinct") != 30
+            or counts.get("gaps") != 0
+        ):
+            errors.append("T30 truth counts are not 30/30/30 with zero gaps")
+        if truth.get("policy_sha256") != policy.get("policy_sha256"):
+            errors.append("T30 truth does not link the ratified policy")
+        for key, target in (
+            ("tasks_file_sha256", root / required[0]),
+            ("reference_context_sha256", root / required[1]),
+        ):
+            if truth.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
+                errors.append(f"T30 truth {key} does not link its input")
+
+    freeze = phases[1]
+    if freeze is not None:
+        if any(
+            freeze.get(key) != expected
+            for key, expected in {
+                "schema_version": 1,
+                "freeze_id": "grammar-stdlib-accuracy-t30-freeze/v1",
+                "status": "frozen_before_model_output",
+                "authority_tier": "automatic",
+                "truth_sha256": truth.get("truth_sha256") if truth else None,
+                "policy_sha256": policy.get("policy_sha256"),
+                "model_outputs_observed": False,
+                "training_authorized": False,
+                "delta_qlora_authorized": False,
+                "nonclaims": policy["nonclaims"],
+            }.items()
+        ):
+            errors.append("T30 freeze identity/status/claims or truth linkage contain drift")
+        for key, target in (
+            ("tasks_file_sha256", root / required[0]),
+            ("reference_context_sha256", root / required[1]),
+            ("policy_file_sha256", root / required[2]),
+        ):
+            if freeze.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
+                errors.append(f"T30 freeze {key} does not link its input")
+
+    evaluation = phases[2]
+    if evaluation is not None:
+        if any(
+            evaluation.get(key) != expected
+            for key, expected in {
+                "schema_version": 1,
+                "evidence_id": "grammar-stdlib-accuracy-t30-evaluation/v1",
+                "status": "verified_local_cooperative",
+                "authority_tier": "diagnostic_only",
+                "model_outputs_observed": True,
+                "training_authorized": False,
+                "delta_qlora_authorized": False,
+                "nonclaims": policy["nonclaims"],
+            }.items()
+        ):
+            errors.append("T30 evaluation identity/status/claims contain drift")
+        execution = evaluation.get("execution")
+        if not isinstance(execution, dict) or execution.get("freeze_sha256") != freeze.get(
+            "freeze_sha256"
+        ):
+            errors.append("T30 evaluation does not link the preceding freeze")
+        elif (
+            execution.get("freeze_file_sha256")
+            != "sha256:" + hashlib.sha256(phase_paths[1].read_bytes()).hexdigest()
+        ):
+            errors.append("T30 evaluation freeze file hash linkage contains drift")
+
+    adjudication = phases[3]
+    if adjudication is not None:
+        if any(
+            adjudication.get(key) != expected
+            for key, expected in {
+                "schema_version": 1,
+                "adjudication_id": "grammar-stdlib-accuracy-t30-adjudication/v1",
+                "status": "final_local_adjudication",
+                "authority_tier": "L0_frontier_human_review",
+                "evaluation_sha256": evaluation.get("evaluation_sha256") if evaluation else None,
+                "freeze_sha256": freeze.get("freeze_sha256") if freeze else None,
+                "model_outputs_observed": True,
+                "training_authorized": False,
+                "delta_qlora_authorized": False,
+                "nonclaims": policy["nonclaims"],
+            }.items()
+        ):
+            errors.append("T30 adjudication identity/status/claims or linkage contain drift")
+        if (
+            adjudication.get("evaluation_file_sha256")
+            != "sha256:" + hashlib.sha256(phase_paths[2].read_bytes()).hexdigest()
+        ):
+            errors.append("T30 adjudication evaluation file hash linkage contains drift")
+    return errors
+
+
 def validate_hyperparameter_grid_contract(root: Path) -> list[str]:
     grid, schema_errors = _validate_standalone_contract_schema(
         root,
@@ -2370,6 +2807,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     else:
         plan_status = load_json(root / "manifests/accuracy-uplift-plan.json")["status"]
         report.passes.append(f"accuracy-uplift=D18/64+16/T30/{plan_status.replace('_', '-')}")
+
+    t30_preoutput_errors = validate_grammar_stdlib_t30_preoutput_contract(root)
+    if t30_preoutput_errors:
+        report.errors.extend(t30_preoutput_errors)
+    else:
+        report.passes.append("grammar-stdlib-t30=pre-output/30-tasks/no-model-output/no-training")
 
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)
     if hyperparameter_errors:

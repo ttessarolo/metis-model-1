@@ -202,6 +202,19 @@ benchmark 600/563, O-003, grid e multi-seed non sono cancellati: costituiscono
 il backlog separato `ACCURACY99_PROMOTION`. Non bloccano XS0-XS4 e non ricevono
 claim di chiusura dal relativo esito.
 
+### Stato corrente della wave grammar + standard library
+
+La chiusura D18 è `NO_RETRAIN`. Il successore T30 è nella fase pre-output: il
+truth canonico del roster pubblico-sintetico è materializzato e verificato a
+`30/30` task distinti (`sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`),
+con copertura osservata dei dieci top-level della grammatica, dei tre moduli
+stdlib, dei dodici membri pubblici e di `time.timezone`. La policy, il roster e
+il truth sono tracciati nei manifest/fixture dedicati e il runner/test è parte
+della fondazione. Non esistono ancora output di modello T30; training, delta
+QLoRA, dataset e promotion restano esclusi. Il prossimo gate è pubblicare il
+preimage e generare/auditare il freeze prima di una sola esecuzione
+base/adapter.
+
 Inferenza, Node/Metis, dati/materializzazione e training richiedono il mandato
 W5-XS esplicito. Network/download, privilegi, live ARES, upload, promotion,
 commit e push restano esclusi.
