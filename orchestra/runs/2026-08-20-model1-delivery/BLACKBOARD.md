@@ -4871,3 +4871,99 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   truth/freeze/evidence; raw candidates remain ignored and are not training
   data. `DEMO_ACCURACY_V2` is closed and published at 12/12 base plus 12/12
   adapter with `NO_RETRAIN`, under all previously recorded nonclaims.
+- DECISION — The user opens the next accuracy direction explicitly from the
+  Metis grammar and requires the Metis standard library to be first-class in
+  the coverage denominator. This is a new public-synthetic successor wave; it
+  never rewrites INITIAL_LOCAL_QLORA_V1, B12 or DEMO_ACCURACY_V1/V2 and no
+  prior benchmark output becomes training input.
+- FACT — L135-L137 and L0 independently establish the starting gap. The
+  initial adapter saw train64 only in F-1/F-2/F-3 catalog-domain templates;
+  grammar-wide constructs and stdlib are absent from weight supervision. The
+  executable Metis pin exposes grammar productions=172, top-level
+  alternatives=10, stdlib modules=3, public members=12 and settings=1. Current
+  Metis HEAD `c1aca0f629ec96a5ea1f52eea5b4561d0c41f6b5` has grammar and stdlib
+  blobs byte-identical to the already qualified implementation pin
+  `5e112f9148f40e7e792052e896c5a9efe8eaf0a2`; unrelated current changes and
+  four pre-existing untracked paths remain excluded.
+- DECISION — The minimum path is pin/inventory -> fresh D18 grammar+stdlib
+  diagnosis -> paired base/current-adapter evaluation -> `NO_RETRAIN` when the
+  declared construct gates remain green. A T30 holdout and a new 64+16 delta
+  dataset open only if independently adjudicated genuine failures meet the
+  preregistered multi-family/multi-root threshold. Model output, optimizer
+  steps and training remain false until a Git-published pre-output seal binds
+  the new roster, oracle, runtime and artifact directory.
+- FACT — L0 expands the grammar/stdlib overlay from three descriptive blobs to
+  an exact eight-entry closure: handwritten grammar, generated grammar, stdlib
+  registry, version, guard evaluator, corpus-validation test, time-rule test
+  and compiler-regression test. All eight blob OIDs are identical at executable
+  pin `5e112f9` and observed HEAD `c1aca0f`; the Git-object census is valid with
+  grammar `172/172`, top-level `10/10`, stdlib modules `3/3`, members `12/12`
+  and settings `1/1`.
+- STOP — The first delegated D18 integration was not sealable: fixture v2 and
+  evaluator v1 were incompatible, JSON repairs were not oracle-checked, all
+  tasks used source mode so IR/compiler evidence was zero, and the evidence
+  path could bypass part of the published-freeze lineage. It receives no model,
+  accuracy or training credit.
+- FIX — The corrected D18 v2 roster is exactly `in=18 out=18 distinct=18
+  gaps=0`, `3` per F-1...F-6, source/JSON `12/6`, top-level `10/10`, stdlib
+  members `12/12`, setting `1/1`, with globally disjoint public-synthetic roots.
+  Expected, invalid, repaired and review-input sources are all replayed through
+  the pinned oracle before truth; seven endpoint cases bind IR/compiler evidence.
+  Human-review tasks remain ineligible for automatic delta selection.
+- FIX — The common inference context is now a separately tracked compact Metis
+  0.43 grammar+stdlib reference. It contains no D18 namespace, tenant payload,
+  historical output or answer; its bytes and all task message hashes enter the
+  pre-output truth/freeze. Base and adapter therefore receive identical
+  retrieval-owned language knowledge rather than relying on memorized play
+  examples.
+- FACT — The first pre-audit D18 truth closed `in=18 out=18 distinct=18 gaps=0`, families
+  `3/3/3/3/3/3`, source/JSON `12/6`, top-level `10/10`, stdlib members `12/12`
+  and setting `1/1`. Seven distinct tasks bind non-null endpoint IR across
+  expected, repaired or review-input sources. Truth self-hash is
+  `sha256:ed15c0537953874abf4e9085a28bc5c5da9cf9028a5123ceef80613fde1c848f`;
+  an independent full oracle reconstruction returned byte-identical truth.
+  Model outputs observed=false, training=false and delta=false. This truth was
+  superseded before any output by the semantic-v2 cure recorded below and is
+  not the current preimage authority.
+- FIX — The reusable oracle session materializes one immutable Git archive and
+  runner for the roster while preserving per-request sandbox/caps/canonical
+  evidence and exit-time tooling/node_modules/external-checkout invariants.
+  This reduces repeated archive overhead without weakening the one-shot API or
+  increasing byte limits.
+- FIX — Final preimage audit supersedes the first D18 truth `ed15c053...`
+  before any model output. Six JSON review prompts now declare their exact
+  schema and bounded values; F-4 receives the actual pinned diagnostic marker.
+  Only F-1/F-2/F-3 have automatic semantic authority, while F-4 is
+  diagnostic-only and F-5/F-6 remain human-review; review formatting cannot
+  enter delta arithmetic. The freeze roster also binds the transitive
+  `demo_accuracy.py` helper.
+- FIX — `metis-semantic-signature/v2` replaces raw layout-sensitive scoring.
+  It keeps grammar features, literals, ordered constructs and resolved
+  reference identity; removes only enumerated Langium/CST metadata; removes
+  only `file`/`line` inside IR provenance; compares sorted diagnostic
+  filename/code/severity/message multisets without ranges; and binds endpoint,
+  mode and failure kind. A live pinned source-with-warning plus endpoint-IR
+  metamorphic replay changes raw AST/IR/diagnostic hashes for CRLF/blank lines
+  but preserves the semantic signature; changing `time.hour >= 9` to `>= 10`
+  changes it.
+- FIX — The final semantic audit rejects two parser-valid legacy ValueSet
+  examples before seal. Both ValueSet slots now exercise the ratified bounded
+  domain surface as a catalog skeleton `status keyword enum(1)` paired with the
+  external per-field `status editorial ["synthetic"]` value-set; no inline or
+  id-field surrogate is treated as canonical.
+- DONE — The corrected semantic-v2 D18 truth closes `in=18 out=18 distinct=18
+  gaps=0`, source/JSON `12/6`, top-level `10/10`, stdlib members `12/12`, and
+  setting `1/1`; seven tasks bind semantic endpoint IR. Truth self-hash is
+  `sha256:0dff3f9279b00d50b3d7d544e0932bf7dcb02f3f26cd2608df2eae5b1048a542`.
+  L0 independently reconstructs all 18 oracle records byte-identically.
+  Focused grammar/stdlib/contracts, live metamorphic, foundation `67/0`, Ruff,
+  format and diff gates are green; model outputs, training and delta remain
+  false. Git publication and freeze remain pending.
+- FACT — Final independent preimage audit returns P0=0/P1=0. Its sole P2 was a
+  stale diagnostics docstring and is cured without changing behavior. The
+  complete required `make check` reaches `1331 passed, 102 failed, 1 skipped,
+  3 warnings`; all 102 failures remain the inherited protected Oracle31, W3
+  bridge25 and W3 qualifier46 groups, with zero grammar/stdlib failure.
+  Focused grammar/stdlib/contracts are `70/70`, foundation is `67/0`, and
+  Ruff/format/diff are green. This records a truthful broad red, not a global
+  green claim; the D18 preimage is ready for exact commit/push before freeze.

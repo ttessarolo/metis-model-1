@@ -1,0 +1,552 @@
+{
+  "schema_version": 2,
+  "roster_id": "gsl_d18_public_synthetic_v2",
+  "provenance": {
+    "kind": "public_synthetic",
+    "namespace": "gsl_d18",
+    "pin_revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+    "language_version": "0.43",
+    "source_validation": "pinned_oracle_required_before_truth",
+    "model_outputs_observed": false,
+    "training_input_allowed": false
+  },
+  "tasks": [
+    {
+      "task_id": "gsl_d18_f1_01",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return one document containing exactly: catalog gsl_d18.video with id declaration `id id` and a fields block containing `id number` plus bounded-domain skeleton `status keyword enum(1)`; values gsl_d18.video with external value-set entry `status editorial [\"synthetic\"]`; and settings gsl_d18.time with timezone \"UTC\".",
+      "expected_source": "metis 0.43\ncatalog gsl_d18.video {\n  id id\n  fields {\n    id number\n    status keyword enum(1)\n  }\n}\nvalues gsl_d18.video {\n  status editorial [\"synthetic\"]\n}\nsettings gsl_d18.time {\n  timezone \"UTC\"\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Catalog", "ValueSet", "SettingsDecl"],
+        "stdlib_members": [],
+        "stdlib_settings": ["time.timezone"]
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f1_01",
+        "template": "gsl_d18_template_f1_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f1_02",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return one document containing empty tenant gsl_d18.world and endpoint gsl_d18.clock aliased as \"gsl_d18_clock\"; the endpoint must declare needs time and attribute hour_open = time.hour >= 9.",
+      "expected_source": "metis 0.43\ntenant gsl_d18.world {}\nendpoint gsl_d18.clock as \"gsl_d18_clock\" {\n  needs time\n  attributes hour_open = time.hour >= 9\n}\n",
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.clock",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Tenant", "Endpoint"],
+        "stdlib_members": ["time.hour"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f1_02",
+        "template": "gsl_d18_template_f1_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f1_03",
+      "family": "F-1",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return transformer gsl_d18.slug with `in request { title text }`, `set slug = std.text.slugify($title)`, and `out response { slug text }`.",
+      "expected_source": "metis 0.43\ntransformer gsl_d18.slug {\n  in request { title text }\n  set slug = std.text.slugify($title)\n  out response { slug text }\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Transformer"],
+        "stdlib_members": ["text.slugify"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f1_03",
+        "template": "gsl_d18_template_f1_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f2_01",
+      "family": "F-2",
+      "kind": "repair_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair the missing ambient capability declaration for the three clock operands.",
+      "before_source": "metis 0.43\nendpoint gsl_d18.calendar as \"gsl_d18_calendar\" {\n  attributes {\n    now_present = time.now is \"2026-08-25T00:00:00Z\"\n    month_ready = time.month >= 1\n    day_ready = time.day >= 1\n  }\n}\n",
+      "expected_source": "metis 0.43\nendpoint gsl_d18.calendar as \"gsl_d18_calendar\" {\n  needs time\n  attributes {\n    now_present = time.now is \"2026-08-25T00:00:00Z\"\n    month_ready = time.month >= 1\n    day_ready = time.day >= 1\n  }\n}\n",
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.calendar",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["non dichiara `needs time`"]
+      },
+      "coverage": {
+        "top_levels": ["Endpoint"],
+        "stdlib_members": ["time.now", "time.month", "time.day"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f2_01",
+        "template": "gsl_d18_template_f2_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f2_02",
+      "family": "F-2",
+      "kind": "repair_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair the missing ambient capability declaration for the remaining clock operands.",
+      "before_source": "metis 0.43\nendpoint gsl_d18.period as \"gsl_d18_period\" {\n  attributes {\n    hhmm_ready = time.hhmm >= 0\n    weekday_ready = time.weekday is \"monday\"\n    fraction_ready = time.fractional_second >= 0\n  }\n}\n",
+      "expected_source": "metis 0.43\nendpoint gsl_d18.period as \"gsl_d18_period\" {\n  needs time\n  attributes {\n    hhmm_ready = time.hhmm >= 0\n    weekday_ready = time.weekday is \"monday\"\n    fraction_ready = time.fractional_second >= 0\n  }\n}\n",
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.period",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["non dichiara `needs time`"]
+      },
+      "coverage": {
+        "top_levels": ["Endpoint"],
+        "stdlib_members": [
+          "time.hhmm",
+          "time.weekday",
+          "time.fractional_second"
+        ],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f2_02",
+        "template": "gsl_d18_template_f2_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f2_03",
+      "family": "F-2",
+      "kind": "repair_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Repair an unknown pure codec member with std.codec.decode.",
+      "before_source": "metis 0.43\ntransformer gsl_d18.decoder {\n  in request { raw text }\n  set decoded = std.codec.nope(\"url\", $raw)\n  out response { decoded text }\n}\n",
+      "expected_source": "metis 0.43\ntransformer gsl_d18.decoder {\n  in request { raw text }\n  set decoded = std.codec.decode(\"url\", $raw)\n  out response { decoded text }\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["`std.codec.nope` non esiste"]
+      },
+      "coverage": {
+        "top_levels": ["Transformer"],
+        "stdlib_members": ["codec.decode"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f2_03",
+        "template": "gsl_d18_template_f2_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f3_01",
+      "family": "F-3",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return exactly catalog gsl_d18.video with id field `id number` and `label keyword values list.labels`; static list gsl_d18.labels containing only \"synthetic\"; and transformer gsl_d18.compact with title input, `set compact = std.text.truncate($title, 12)`, and compact text output.",
+      "expected_source": "metis 0.43\ncatalog gsl_d18.video {\n  id id\n  fields {\n    id number\n    label keyword values list.labels\n  }\n}\nlist gsl_d18.labels static { \"synthetic\" }\ntransformer gsl_d18.compact {\n  in request { title text }\n  set compact = std.text.truncate($title, 12)\n  out response { compact text }\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Catalog", "List", "Transformer"],
+        "stdlib_members": ["text.truncate"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f3_01",
+        "template": "gsl_d18_template_f3_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f3_02",
+      "family": "F-3",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return exactly catalog gsl_d18.video with `id id` and field `id number`; intentionally unused preset gsl_d18.featured from @video that includes where @id >= 1; and transformer gsl_d18.normalized with title input, `set normalized = std.text.normalize($title)`, and normalized text output. The preset must remain unused so the pinned dead-code warning is preserved.",
+      "expected_source": "metis 0.43\ncatalog gsl_d18.video {\n  id id\n  fields id number\n}\npreset gsl_d18.featured from @video include where @id >= 1\ntransformer gsl_d18.normalized {\n  in request { title text }\n  set normalized = std.text.normalize($title)\n  out response { normalized text }\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": [],
+        "expected_diagnostic_substrings": ["`preset gsl_d18.featured` non è mai usato"]
+      },
+      "coverage": {
+        "top_levels": ["Catalog", "Preset", "Transformer"],
+        "stdlib_members": ["text.normalize"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f3_02",
+        "template": "gsl_d18_template_f3_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f3_03",
+      "family": "F-3",
+      "kind": "author_source",
+      "task_mode": "source_output",
+      "authority_tier": "pinned_oracle_required",
+      "prompt": "Return exactly catalog gsl_d18.video with `id id` and field `id number`; block gsl_d18_card taking 1 from @video; endpoint gsl_d18.panel aliased as \"gsl_d18_panel\" whose rail variant uses block.gsl_d18_card; and transformer gsl_d18.encoder with raw input, `set encoded = std.codec.encode(\"url\", $raw)`, and encoded text output.",
+      "expected_source": "metis 0.43\ncatalog gsl_d18.video {\n  id id\n  fields id number\n}\nblock gsl_d18_card {\n  take 1 from @video\n}\nendpoint gsl_d18.panel as \"gsl_d18_panel\" {\n  variant rail use block.gsl_d18_card\n}\ntransformer gsl_d18.encoder {\n  in request { raw text }\n  set encoded = std.codec.encode(\"url\", $raw)\n  out response { encoded text }\n}\n",
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.panel",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Catalog", "NamedBlock", "Endpoint", "Transformer"],
+        "stdlib_members": ["codec.encode"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f3_03",
+        "template": "gsl_d18_template_f3_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f4_01",
+      "family": "F-4",
+      "kind": "diagnostic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "diagnostic_only",
+      "prompt": "The pinned Metis oracle reports a diagnostic containing 'non dichiara `needs time`' for this endpoint. Return exactly one JSON object with exactly the keys `classification`, `diagnostic_substrings`, and `training_label_eligible`. Set `classification` to `diagnostic_only`, set `training_label_eligible` to false, and set `diagnostic_substrings` to a one-item array containing exactly the reported marker.",
+      "before_source": "metis 0.43\nendpoint gsl_d18.missing_time as \"gsl_d18_missing_time\" {\n  attributes hour_open = time.hour >= 9\n}\n",
+      "expected_repaired_source": "metis 0.43\nendpoint gsl_d18.missing_time as \"gsl_d18_missing_time\" {\n  needs time\n  attributes hour_open = time.hour >= 9\n}\n",
+      "expected_json": {
+        "classification": "diagnostic_only",
+        "diagnostic_substrings": ["non dichiara `needs time`"],
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.missing_time",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["non dichiara `needs time`"]
+      },
+      "coverage": {
+        "top_levels": ["Endpoint"],
+        "stdlib_members": ["time.hour"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f4_01",
+        "template": "gsl_d18_template_f4_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f4_02",
+      "family": "F-4",
+      "kind": "diagnostic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "diagnostic_only",
+      "prompt": "The pinned Metis oracle reports a diagnostic containing '`std.codec.nope` non esiste' for this transformer. Return exactly one JSON object with exactly the keys `classification`, `diagnostic_substrings`, and `training_label_eligible`. Set `classification` to `diagnostic_only`, set `training_label_eligible` to false, and set `diagnostic_substrings` to a one-item array containing exactly the reported marker.",
+      "before_source": "metis 0.43\ntransformer gsl_d18.bad_codec {\n  in request { raw text }\n  set decoded = std.codec.nope(\"url\", $raw)\n  out response { decoded text }\n}\n",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_d18.bad_codec {\n  in request { raw text }\n  set decoded = std.codec.decode(\"url\", $raw)\n  out response { decoded text }\n}\n",
+      "expected_json": {
+        "classification": "diagnostic_only",
+        "diagnostic_substrings": ["`std.codec.nope` non esiste"],
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["`std.codec.nope` non esiste"]
+      },
+      "coverage": {
+        "top_levels": ["Transformer"],
+        "stdlib_members": ["codec.decode"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f4_02",
+        "template": "gsl_d18_template_f4_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f4_03",
+      "family": "F-4",
+      "kind": "diagnostic_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "diagnostic_only",
+      "prompt": "The pinned Metis oracle reports a diagnostic containing '`time` è una capability AMBIENTALE' for this transformer. Return exactly one JSON object with exactly the keys `classification`, `diagnostic_substrings`, and `training_label_eligible`. Set `classification` to `diagnostic_only`, set `training_label_eligible` to false, and set `diagnostic_substrings` to a one-item array containing exactly the reported marker.",
+      "before_source": "metis 0.43\ntransformer gsl_d18.bad_ambient {\n  in request { raw text }\n  set observed = std.time.now()\n  out response { observed text }\n}\n",
+      "expected_repaired_source": "metis 0.43\ntransformer gsl_d18.bad_ambient {\n  in request { raw text }\n  set observed = std.text.normalize($raw)\n  out response { observed text }\n}\n",
+      "expected_json": {
+        "classification": "diagnostic_only",
+        "diagnostic_substrings": ["`time` è una capability AMBIENTALE"],
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["`time` è una capability AMBIENTALE"]
+      },
+      "coverage": {
+        "top_levels": ["Transformer"],
+        "stdlib_members": ["time.now"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f4_03",
+        "template": "gsl_d18_template_f4_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f5_01",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the current endpoint without changing its name, alias, attribute, comparison, or literal: add only the ambient capability declaration required by time.weekday.",
+      "before_source": "metis 0.43\nendpoint gsl_d18.legacy_weekday as \"gsl_d18_legacy_weekday\" {\n  attributes weekday_allowed = time.weekday is \"monday\"\n}\n",
+      "expected_source": "metis 0.43\nendpoint gsl_d18.legacy_weekday as \"gsl_d18_legacy_weekday\" {\n  needs time\n  attributes weekday_allowed = time.weekday is \"monday\"\n}\n",
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.legacy_weekday",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["non dichiara `needs time`"]
+      },
+      "coverage": {
+        "top_levels": ["Endpoint"],
+        "stdlib_members": ["time.weekday"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f5_01",
+        "template": "gsl_d18_template_f5_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f5_02",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the current property without changing its name: remove the invalid `needs codec` declaration because codec is a pure stdlib module and leave an empty property body.",
+      "before_source": "metis 0.43\nproperty gsl_d18.legacy_codec {\n  needs codec\n}\n",
+      "expected_source": "metis 0.43\nproperty gsl_d18.legacy_codec {}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "validation",
+        "diagnostic_substrings": ["`codec` è un modulo PURO"]
+      },
+      "coverage": {
+        "top_levels": ["Property"],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f5_02",
+        "template": "gsl_d18_template_f5_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f5_03",
+      "family": "F-5",
+      "kind": "migration_source",
+      "task_mode": "source_output",
+      "authority_tier": "human_review_required",
+      "prompt": "Migrate the current legacy decoder without changing transformer gsl_d18.legacy_decoder or its request/response fields: replace only `decode url $raw` with the canonical std.codec.decode call using codec literal \"url\".",
+      "before_source": "metis 0.43\ntransformer gsl_d18.legacy_decoder {\n  in request { raw text }\n  set decoded = decode url $raw\n  out response { decoded text }\n}\n",
+      "expected_source": "metis 0.43\ntransformer gsl_d18.legacy_decoder {\n  in request { raw text }\n  set decoded = std.codec.decode(\"url\", $raw)\n  out response { decoded text }\n}\n",
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": "parser",
+        "diagnostic_substrings": ["Expecting token of type '}' but found `url`."]
+      },
+      "coverage": {
+        "top_levels": ["Transformer"],
+        "stdlib_members": ["codec.decode"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f5_03",
+        "template": "gsl_d18_template_f5_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f6_01",
+      "family": "F-6",
+      "kind": "structural_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Route the canonical bounded-domain pairing `status keyword enum(1)` plus the external per-field status value-set for review of the requested public-synthetic structural intent. Return exactly one JSON object with exactly the keys `classification`, `review_scope`, and `training_label_eligible`. Set `classification` to `human_review_required`, set `training_label_eligible` to false, and select exactly one `review_scope` from `structural_intent`, `capability_ownership`, or `semantic_minimality` according to the requested review.",
+      "input_source": "metis 0.43\ncatalog gsl_d18.video {\n  id id\n  fields {\n    id number\n    status keyword enum(1)\n  }\n}\nvalues gsl_d18.video {\n  status editorial [\"synthetic\"]\n}\n",
+      "expected_json": {
+        "classification": "human_review_required",
+        "review_scope": "structural_intent",
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Catalog", "ValueSet"],
+        "stdlib_members": [],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f6_01",
+        "template": "gsl_d18_template_f6_01"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f6_02",
+      "family": "F-6",
+      "kind": "structural_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Route the property-level ambient declaration for review of the requested ownership boundary. Return exactly one JSON object with exactly the keys `classification`, `review_scope`, and `training_label_eligible`. Set `classification` to `human_review_required`, set `training_label_eligible` to false, and select exactly one `review_scope` from `structural_intent`, `capability_ownership`, or `semantic_minimality` according to the requested review.",
+      "input_source": "metis 0.43\nproperty gsl_d18.review_policy {\n  needs time\n  attributes month_ready = time.month >= 1\n}\n",
+      "expected_json": {
+        "classification": "human_review_required",
+        "review_scope": "capability_ownership",
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "source",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Property"],
+        "stdlib_members": ["time.month"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f6_02",
+        "template": "gsl_d18_template_f6_02"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    },
+    {
+      "task_id": "gsl_d18_f6_03",
+      "family": "F-6",
+      "kind": "structural_review",
+      "task_mode": "exact_json_review",
+      "authority_tier": "human_review_required",
+      "prompt": "Route this endpoint for review of whether its time capability use is semantically minimal. Return exactly one JSON object with exactly the keys `classification`, `review_scope`, and `training_label_eligible`. Set `classification` to `human_review_required`, set `training_label_eligible` to false, and select exactly one `review_scope` from `structural_intent`, `capability_ownership`, or `semantic_minimality` according to the requested review.",
+      "input_source": "metis 0.43\nendpoint gsl_d18.precision as \"gsl_d18_precision\" {\n  needs time\n  attributes fraction_ready = time.fractional_second >= 0\n}\n",
+      "expected_json": {
+        "classification": "human_review_required",
+        "review_scope": "semantic_minimality",
+        "training_label_eligible": false
+      },
+      "oracle": {
+        "mode": "endpoint",
+        "target": "gsl_d18.precision",
+        "input_status": "pinned_oracle_required_before_truth",
+        "input_failure_kind": null,
+        "diagnostic_substrings": []
+      },
+      "coverage": {
+        "top_levels": ["Endpoint"],
+        "stdlib_members": ["time.fractional_second"],
+        "stdlib_settings": []
+      },
+      "provenance_roots": {
+        "independent": "gsl_d18_provenance_f6_03",
+        "template": "gsl_d18_template_f6_03"
+      },
+      "model_outputs_observed": false,
+      "training_input_allowed": false,
+      "training_label_eligible": false
+    }
+  ]
+}

@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "pin_id": "grammar-stdlib/2026-08-25-v1",
+  "repository": "ares-matioska/metis",
+  "revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
+  "tree": "41c7a2b6890fa42d8123bd93f6560d0b9bfae8af",
+  "language_version": "0.43",
+  "grammar": {
+    "path": "tooling/src/language/metis.langium",
+    "blob_oid": "c4bacc5428dcdfab17b3396761800a6ce8f0c4aa",
+    "sha256": "4458f5a59ab51003662ad609c2c543df7ced96b49ff911825bf551f9b9983331",
+    "bytes": 57626,
+    "lines": 928,
+    "production_count": 172,
+    "returns_count": 17,
+    "infers_count": 15,
+    "terminal_count": 11,
+    "hidden_terminal_count": 4,
+    "top_level_alternatives": [
+      "Tenant", "Catalog", "Property", "Endpoint", "Preset", "List",
+      "Transformer", "NamedBlock<true>", "SettingsDecl", "ValueSet"
+    ],
+    "production_names": [
+      "Model", "TopLevel", "SettingsDecl", "SettingsName", "SettingsGroupName", "SettingsPair", "SettingsKey",
+      "PreviewInputDecl", "PreviewChoice", "SettingsLink", "Tenant", "TenantSection", "ParamsDecl", "ParamEntry",
+      "CardinalityParam", "CardinalityExpr", "CardinalityCoalesce", "CardinalityAdd", "CardinalityMul", "CardinalityUnary",
+      "CardinalityPrimary", "CardinalityAtom", "Setting", "ScaleDecl", "ScaleLabel", "AlternativeLabel", "ServicesDecl",
+      "ServiceDef", "ServiceItem", "RestDef", "GrpcDef", "SecretDef", "RouteDef", "Route", "RouteItem", "ExpectsDef",
+      "ResponseDef", "ResponseStep", "InOut", "ProtoField", "ProvidersDecl", "ProviderEntry", "PersonasDecl", "PersonaDecl",
+      "PersonaInput", "Catalog", "SimilarityProfile", "Field", "FieldValues", "ValueSet", "ValueSetEntry", "FieldMember",
+      "ContributorsBlock", "SearchContributor", "QualifiedFieldName", "ContributorIntentName", "FieldType", "FieldMod",
+      "MatchProfile", "ProfileKnob", "Projection", "ProjName", "Property", "Endpoint", "FamilyMember", "EndpointMember",
+      "InputDecl", "InputField", "NeedsDecl", "ContextDecl", "ContextNode", "AttributesDecl", "Attribute", "Pipeline",
+      "PipelineOptOut", "VariantsBlock", "VariantMember", "BlocksDecl", "BlockParamDecl", "EndpointRef", "ViewAllTarget",
+      "EndpointCapableValue", "BlockMember", "BlockTakeAssign", "BlockParam", "ScheduleDecl", "ScheduleWindow", "UseBlocks",
+      "UseBlock", "BlockInstance", "BlockArg", "MetaDecl", "MetaEntry", "MetaEntryPair", "MetaPair", "MetaPairKey",
+      "Preset", "List", "ListEntry", "Transformer", "ViewDecl", "TransformerMember", "InViewDecl", "OutViewDecl",
+      "UsingDecl", "CapabilityRef", "SourceDecl", "SetStmt", "StdCall", "ExpiresStmt", "TakeAssign", "CallStmt", "MergeStmt",
+      "DropStmt", "Take", "Source", "TakeClause", "IncludeClause", "ExcludeClause", "PromoteClause", "OrderClause",
+      "OrderLevel", "OrderCriterion", "GroupByClause", "GroupMember", "GroupOrder", "GroupLimit", "AtMostClause", "HavingClause",
+      "SkipClause", "ReturnFlow", "FallbackDecl", "MaterializedFallbackDecl", "FlowStep", "LimitQuantity", "LimitScope",
+      "Condition", "OrCondition", "AndCondition", "PrimaryCondition", "GuardBlock", "AnyAllGroup", "AlternativeRef",
+      "MatchCondition", "UsingCondition", "PresetUse", "IdsCondition", "SimilarContentCondition", "FieldCondition", "ValueElse",
+      "BinaryOp", "CompareOp", "Guard", "OrGuard", "AndGuard", "NotGuard", "PrimaryGuard", "Value", "NonStringValue",
+      "Operand", "ScopedField", "BoundField", "ContextPath", "ScaleRef", "QualifiedName", "QualifiedNamePart", "IdName",
+      "TypeName", "SimpleTypeName", "SimilarityProfileName", "FieldName", "BareName"
+    ],
+    "terminal_names": ["DATETIME", "TIME", "DURATION", "ID", "NUMBER", "STRING", "FSTRING", "WS", "DOC_COMMENT", "ML_COMMENT", "SL_COMMENT"],
+    "construct_groups": {
+      "catalog_field_surface": {
+        "count": 17,
+        "productions": ["Catalog", "SimilarityProfile", "Field", "FieldValues", "ValueSet", "ValueSetEntry", "FieldMember", "ContributorsBlock", "SearchContributor", "QualifiedFieldName", "ContributorIntentName", "FieldType", "FieldMod", "MatchProfile", "ProfileKnob", "Projection", "ProjName"]
+      },
+      "catalog_reference_helpers": {
+        "count": 3,
+        "productions": ["FieldName", "ScopedField", "BoundField"]
+      },
+      "value_expression_surface": {
+        "count": 6,
+        "productions": ["ValueElse", "Value", "NonStringValue", "Operand", "ContextPath", "ScaleRef"]
+      },
+      "tenant_declaration_sections": {
+        "count": 35,
+        "productions": ["Tenant", "TenantSection", "ParamsDecl", "ParamEntry", "CardinalityParam", "CardinalityExpr", "CardinalityCoalesce", "CardinalityAdd", "CardinalityMul", "CardinalityUnary", "CardinalityPrimary", "CardinalityAtom", "Setting", "ScaleDecl", "ScaleLabel", "AlternativeLabel", "ServicesDecl", "ServiceDef", "ServiceItem", "RestDef", "GrpcDef", "SecretDef", "RouteDef", "Route", "RouteItem", "ExpectsDef", "ResponseDef", "ResponseStep", "InOut", "ProtoField", "ProvidersDecl", "ProviderEntry", "PersonasDecl", "PersonaDecl", "PersonaInput"]
+      },
+      "property_endpoint_shared": {
+        "count": 10,
+        "productions": ["FamilyMember", "ParamsDecl", "InputDecl", "InputField", "ContextDecl", "ContextNode", "AttributesDecl", "Attribute", "Pipeline", "NeedsDecl"]
+      },
+      "property_endpoint_direct": {
+        "count": 3,
+        "productions": ["Property", "Endpoint", "EndpointMember"]
+      },
+      "endpoint_body_surface": {
+        "count": 22,
+        "productions": ["PipelineOptOut", "VariantsBlock", "VariantMember", "BlocksDecl", "BlockParamDecl", "EndpointRef", "ViewAllTarget", "EndpointCapableValue", "BlockMember", "BlockTakeAssign", "BlockParam", "ScheduleDecl", "ScheduleWindow", "UseBlocks", "UseBlock", "BlockInstance", "BlockArg", "MetaDecl", "MetaEntry", "MetaEntryPair", "MetaPair", "MetaPairKey"]
+      }
+    }
+  },
+  "stdlib": {
+    "path": "tooling/src/language/stdlib-schema.ts",
+    "blob_oid": "f9288522970c16e282e750b3c31e64db19256731",
+    "sha256": "06a0473a5d30bcb1b962a98cb94d64eb0039ba3a6f87b480080dff98f8329a96",
+    "bytes": 6070,
+    "lines": 96,
+    "module_count": 3,
+    "member_count": 12,
+    "setting_count": 1,
+    "public_exports": ["StdlibNature", "StdlibMemberSpec", "StdlibModuleSpec", "STDLIB_MODULES", "STDLIB_SETTINGS", "STDLIB_BY_NAME", "stdlibMembers"],
+    "inventory": {
+      "module_count": 3,
+      "member_count": 12,
+      "setting_count": 1,
+      "modules": [
+        {
+          "name": "time",
+          "nature": "ambient",
+          "members": [
+            {"name": "now", "type": "string"},
+            {"name": "month", "type": "number"},
+            {"name": "day", "type": "number"},
+            {"name": "hour", "type": "number"},
+            {"name": "hhmm", "type": "number"},
+            {"name": "weekday", "type": "string"},
+            {"name": "fractional_second", "type": "number"}
+          ],
+          "settings": [{"group": "time", "key": "timezone", "type": "string", "default": "UTC"}]
+        },
+        {
+          "name": "codec",
+          "nature": "pure",
+          "members": [
+            {"name": "decode", "type": "string"},
+            {"name": "encode", "type": "string"}
+          ],
+          "settings": []
+        },
+        {
+          "name": "text",
+          "nature": "pure",
+          "members": [
+            {"name": "slugify", "type": "string"},
+            {"name": "truncate", "type": "string"},
+            {"name": "normalize", "type": "string"}
+          ],
+          "settings": []
+        }
+      ]
+    }
+  },
+  "version_evidence": {
+    "path": "tooling/src/language/version.ts",
+    "blob_oid": "1c88a8ec7f237abb4d639378864d8682db81fe7b",
+    "sha256": "c42389e84edc7c3977c71e3b4592c9b35c050522abdf1af13928f5a0e6cc3300",
+    "bytes": 619,
+    "lines": 7,
+    "declared_language_version": "0.43"
+  },
+  "comparison": {
+    "revision": "c1aca0f629ec96a5ea1f52eea5b4561d0c41f6b5",
+    "tree": "fca6e0eebe341d134c06efc16a003582ef4f9fe7",
+    "same_evidence_blobs": true
+  },
+  "policy": {
+    "git_objects_only": true,
+    "worktree_payloads_excluded": true,
+    "untracked_worktree_excluded": true,
+    "credentials_and_env_excluded": true,
+    "no_model_execution": true,
+    "no_training_authority": true,
+    "no_external_writes": true
+  },
+  "nonclaims": [
+    "no_tenant_payload",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim",
+    "no_runtime_parity_claim",
+    "nonpromotable"
+  ],
+  "evidence": [
+    {"id": "grammar", "path": "tooling/src/language/metis.langium", "blob_oid": "c4bacc5428dcdfab17b3396761800a6ce8f0c4aa", "sha256": "4458f5a59ab51003662ad609c2c543df7ced96b49ff911825bf551f9b9983331"},
+    {"id": "generated_grammar", "path": "tooling/src/language/generated/grammar.ts", "blob_oid": "c80ca4223389fd79f1fb2172b25caffcc2e0e2ff", "sha256": "50af35c5e23f6e766f40b04538227174f820eaec6df49f4f8c255b6214ca15cb"},
+    {"id": "stdlib", "path": "tooling/src/language/stdlib-schema.ts", "blob_oid": "f9288522970c16e282e750b3c31e64db19256731", "sha256": "06a0473a5d30bcb1b962a98cb94d64eb0039ba3a6f87b480080dff98f8329a96"},
+    {"id": "version", "path": "tooling/src/language/version.ts", "blob_oid": "1c88a8ec7f237abb4d639378864d8682db81fe7b", "sha256": "c42389e84edc7c3977c71e3b4592c9b35c050522abdf1af13928f5a0e6cc3300"},
+    {"id": "guard_eval", "path": "tooling/src/compiler/guard-eval.ts", "blob_oid": "13ec4d118097fe896a89bbcb82f64b21f4429081", "sha256": "3108dd09344ff8844eee09f71ef376059794a27bc7cc35998fcc467df0484364"},
+    {"id": "corpus_validation_test", "path": "tooling/test/corpus-validation.ts", "blob_oid": "5c82f8a9a547ccc645dcfbf1ad42d58ba0800def", "sha256": "191bd276145a24c4d79e1c7ae78d7e8b406da467b861bed12bde4d7eaa021598"},
+    {"id": "time_test", "path": "tooling/test/time-rule.ts", "blob_oid": "b1588b2a7aa458a31c19fe65493ad30f7e117c07", "sha256": "d93fffc54421c0e1b4e3d45e1d11be616132b82e59e936fc858097880cdb8bf1"},
+    {"id": "compiler_regression_test", "path": "tooling/test/compiler-regression.ts", "blob_oid": "75c048759e2bb456b6a8aea659ca5f22f7dd0538", "sha256": "3d4ec64e75cb4b726eb6b338b3b9e0ac439e451ca47bcc042590c69a410467aa"}
+  ]
+}

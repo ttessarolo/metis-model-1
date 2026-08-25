@@ -2,8 +2,8 @@
 
 Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; accuracy
 catalog-domain della demo Mac chiusa dal successor fresco a 12/12 base e adapter;
-direzione Mac Companion/VS Code ratificata ma non implementata — 25 agosto
-2026**.
+wave grammar+standard-library aperta in costruzione pre-output; direzione Mac
+Companion/VS Code ratificata ma non implementata — 25 agosto 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -60,6 +60,9 @@ sempre quattro livelli epistemici:
 21. [`20-demo-accuracy-closure.md`](20-demo-accuracy-closure.md) — gate fresco
     paired base/adapter, diagnosi V1 e chiusura V2 dell'accuracy catalog-domain
     circoscritta della demo Mac.
+22. [`21-grammar-stdlib-accuracy.md`](21-grammar-stdlib-accuracy.md) — copertura
+    guidata dalla grammatica e dalla standard library, D18/T30 e percorso
+    `NO_RETRAIN`/delta senza riuso degli output storici.
 
 ## Tesi operativa
 

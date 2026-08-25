@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/grammar-stdlib-pin.schema.json",
+  "title": "Git-object-bound Metis grammar and stdlib census pin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pin_id", "repository", "revision", "tree", "language_version", "grammar", "stdlib", "version_evidence", "comparison", "policy", "nonclaims", "evidence"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "pin_id": {"const": "grammar-stdlib/2026-08-25-v1"},
+    "repository": {"const": "ares-matioska/metis"},
+    "revision": {"$ref": "#/$defs/oid"},
+    "tree": {"$ref": "#/$defs/oid"},
+    "language_version": {"const": "0.43"},
+    "grammar": {"$ref": "#/$defs/grammar"},
+    "stdlib": {"$ref": "#/$defs/stdlib"},
+    "version_evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "blob_oid", "sha256", "bytes", "lines", "declared_language_version"],
+      "properties": {
+        "path": {"const": "tooling/src/language/version.ts"},
+        "blob_oid": {"$ref": "#/$defs/oid"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "const": 619},
+        "lines": {"type": "integer", "const": 7},
+        "declared_language_version": {"const": "0.43"}
+      }
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision", "tree", "same_evidence_blobs"],
+      "properties": {
+        "revision": {"$ref": "#/$defs/oid"},
+        "tree": {"$ref": "#/$defs/oid"},
+        "same_evidence_blobs": {"const": true}
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["git_objects_only", "worktree_payloads_excluded", "untracked_worktree_excluded", "credentials_and_env_excluded", "no_model_execution", "no_training_authority", "no_external_writes"],
+      "properties": {
+        "git_objects_only": {"const": true},
+        "worktree_payloads_excluded": {"const": true},
+        "untracked_worktree_excluded": {"const": true},
+        "credentials_and_env_excluded": {"const": true},
+        "no_model_execution": {"const": true},
+        "no_training_authority": {"const": true},
+        "no_external_writes": {"const": true}
+      }
+    },
+    "nonclaims": {"type": "array", "const": ["no_tenant_payload", "no_model_output", "no_training_authority", "no_accuracy_claim", "no_runtime_parity_claim", "nonpromotable"]},
+    "evidence": {
+      "type": "array", "minItems": 8, "maxItems": 8,
+      "items": {"$ref": "#/$defs/evidence"}
+    }
+  },
+  "$defs": {
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "path", "blob_oid", "sha256"],
+      "properties": {
+        "id": {"enum": ["grammar", "generated_grammar", "stdlib", "version", "guard_eval", "corpus_validation_test", "time_test", "compiler_regression_test"]},
+        "path": {"type": "string", "pattern": "^[^/].*"},
+        "blob_oid": {"$ref": "#/$defs/oid"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "grammar": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "blob_oid", "sha256", "bytes", "lines", "production_count", "returns_count", "infers_count", "terminal_count", "hidden_terminal_count", "top_level_alternatives", "production_names", "terminal_names", "construct_groups"],
+      "properties": {
+        "path": {"const": "tooling/src/language/metis.langium"},
+        "blob_oid": {"$ref": "#/$defs/oid"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "const": 57626},
+        "lines": {"type": "integer", "const": 928},
+        "production_count": {"const": 172},
+        "returns_count": {"const": 17},
+        "infers_count": {"const": 15},
+        "terminal_count": {"const": 11},
+        "hidden_terminal_count": {"const": 4},
+        "top_level_alternatives": {"type": "array", "const": ["Tenant", "Catalog", "Property", "Endpoint", "Preset", "List", "Transformer", "NamedBlock<true>", "SettingsDecl", "ValueSet"]},
+        "production_names": {"type": "array", "minItems": 172, "maxItems": 172, "items": {"type": "string", "minLength": 1}},
+        "terminal_names": {"type": "array", "const": ["DATETIME", "TIME", "DURATION", "ID", "NUMBER", "STRING", "FSTRING", "WS", "DOC_COMMENT", "ML_COMMENT", "SL_COMMENT"]},
+        "construct_groups": {
+          "type": "object", "additionalProperties": false,
+          "required": ["catalog_field_surface", "catalog_reference_helpers", "value_expression_surface", "tenant_declaration_sections", "property_endpoint_shared", "property_endpoint_direct", "endpoint_body_surface"],
+          "properties": {
+            "catalog_field_surface": {"$ref": "#/$defs/construct_group"},
+            "catalog_reference_helpers": {"$ref": "#/$defs/construct_group"},
+            "value_expression_surface": {"$ref": "#/$defs/construct_group"},
+            "tenant_declaration_sections": {"$ref": "#/$defs/construct_group"},
+            "property_endpoint_shared": {"$ref": "#/$defs/construct_group"},
+            "property_endpoint_direct": {"$ref": "#/$defs/construct_group"},
+            "endpoint_body_surface": {"$ref": "#/$defs/construct_group"}
+          }
+        }
+      }
+    },
+    "construct_group": {
+      "type": "object", "additionalProperties": false,
+      "required": ["count", "productions"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "productions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "stdlib_member": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "type": {"enum": ["string", "number"]}}
+    },
+    "stdlib_setting": {
+      "type": "object", "additionalProperties": false,
+      "required": ["group", "key", "type", "default"],
+      "properties": {"group": {"type": "string", "minLength": 1}, "key": {"type": "string", "minLength": 1}, "type": {"enum": ["string", "number"]}, "default": {"type": "string"}}
+    },
+    "stdlib_module": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "nature", "members", "settings"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "nature": {"enum": ["ambient", "pure"]},
+        "members": {"type": "array", "items": {"$ref": "#/$defs/stdlib_member"}},
+        "settings": {"type": "array", "items": {"$ref": "#/$defs/stdlib_setting"}}
+      }
+    },
+    "stdlib": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "blob_oid", "sha256", "bytes", "lines", "module_count", "member_count", "setting_count", "public_exports", "inventory"],
+      "properties": {
+        "path": {"const": "tooling/src/language/stdlib-schema.ts"},
+        "blob_oid": {"$ref": "#/$defs/oid"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "const": 6070},
+        "lines": {"type": "integer", "const": 96},
+        "module_count": {"const": 3},
+        "member_count": {"const": 12},
+        "setting_count": {"const": 1},
+        "public_exports": {"const": ["StdlibNature", "StdlibMemberSpec", "StdlibModuleSpec", "STDLIB_MODULES", "STDLIB_SETTINGS", "STDLIB_BY_NAME", "stdlibMembers"]},
+        "inventory": {
+          "type": "object", "additionalProperties": false,
+          "required": ["module_count", "member_count", "setting_count", "modules"],
+          "properties": {
+            "module_count": {"const": 3},
+            "member_count": {"const": 12},
+            "setting_count": {"const": 1},
+            "modules": {"type": "array", "const": [{"name": "time", "nature": "ambient", "members": [{"name": "now", "type": "string"}, {"name": "month", "type": "number"}, {"name": "day", "type": "number"}, {"name": "hour", "type": "number"}, {"name": "hhmm", "type": "number"}, {"name": "weekday", "type": "string"}, {"name": "fractional_second", "type": "number"}], "settings": [{"group": "time", "key": "timezone", "type": "string", "default": "UTC"}]}, {"name": "codec", "nature": "pure", "members": [{"name": "decode", "type": "string"}, {"name": "encode", "type": "string"}], "settings": []}, {"name": "text", "nature": "pure", "members": [{"name": "slugify", "type": "string"}, {"name": "truncate", "type": "string"}, {"name": "normalize", "type": "string"}], "settings": []}]}
+          }
+        }
+      }
+    }
+  }
+}
