@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 SEMANTIC-V2 TRUTH FIXED — TRANSITIVE PREIMAGE CURE PENDING; MODEL OUTPUT AND TRAINING FALSE**.
+Status: **D18 ZERO-OUTPUT FREEZE FIXED — PUBLICATION PENDING; MODEL OUTPUT AND TRAINING FALSE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -140,6 +140,15 @@ The current pre-output truth is `18/18`, has self-hash
 binds all ten top levels, all twelve standard-library members and the
 `time.timezone` setting, and records zero model outputs and zero training or
 delta authority.
+
+The audited zero-output freeze binds published preimage commit
+`4c0b32a03b5159e33f9b2c6955ffbc85e5c9e5f9`, tree
+`d472c02b1993fefb60504c023f5af183d9aa7595`, and 21 exact input records,
+including the transitive catalog-retrieval module and catalog pin
+manifest/schema used to construct the grammar/stdlib snapshot. Its self-hash is
+`sha256:730fb0ab6954652666ebd1b6d86bc82d392c55e214ff83be3f0c35d976b4df02`.
+The fixed ignored run directory is absent. This freeze itself must be committed,
+pushed and exactly reopened before either base or adapter may generate a token.
 
 ### G2 — decision and held-out T30
 

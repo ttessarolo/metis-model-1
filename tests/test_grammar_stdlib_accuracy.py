@@ -54,6 +54,27 @@ def test_bound_paths_include_transitive_snapshot_inputs() -> None:
     assert len(d18.BOUND_PATHS) == 21
 
 
+def test_materialized_freeze_is_zero_output_and_binds_the_published_preimage() -> None:
+    freeze = json.loads(d18.FREEZE_PATH.read_text(encoding="utf-8"))
+    assert freeze["freeze_sha256"] == d18.canonical_hash(
+        {key: value for key, value in freeze.items() if key != "freeze_sha256"}
+    )
+    assert freeze["preimage_commit"] == "4c0b32a03b5159e33f9b2c6955ffbc85e5c9e5f9"
+    assert freeze["preimage_tree"] == "d472c02b1993fefb60504c023f5af183d9aa7595"
+    assert freeze["truth_sha256"] == (
+        "sha256:0dff3f9279b00d50b3d7d544e0932bf7dcb02f3f26cd2608df2eae5b1048a542"
+    )
+    assert freeze["semantic_signature_contract"] == d18.SEMANTIC_SIGNATURE_CONTRACT
+    assert [item["path"] for item in freeze["bound_inputs"]] == list(d18.BOUND_PATHS)
+    assert len(freeze["bound_inputs"]) == 21
+    assert freeze["model_outputs_observed"] is False
+    assert freeze["training_authorized"] is False
+    assert freeze["delta_qlora_authorized"] is False
+    run_dir = d18.PROJECT_ROOT / freeze["run_dir"]
+    assert not run_dir.exists()
+    assert not run_dir.is_symlink()
+
+
 def _task(
     task_id: str,
     family: str,

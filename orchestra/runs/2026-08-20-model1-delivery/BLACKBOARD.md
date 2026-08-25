@@ -4986,3 +4986,20 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   path and are nonblocking. The exact roster is `21/21` distinct. Focused D18
   is `71/71`, foundation `67/0`, and
   Ruff/format/diff are green; outputs, training and delta remain zero/false.
+- FACT — Corrected preimage commit
+  `4c0b32a03b5159e33f9b2c6955ffbc85e5c9e5f9`, tree
+  `d472c02b1993fefb60504c023f5af183d9aa7595`, is pushed and exactly reopened
+  clean. Fresh zero-output freeze self
+  `sha256:730fb0ab6954652666ebd1b6d86bc82d392c55e214ff83be3f0c35d976b4df02`
+  (file `sha256:ca9d5f6561a142656e7d4ae12bfb26c81aa413c6b88462549af10c6b4ba72fd3`)
+  binds the exact 21-input roster, truth `0dff3f92`, semantic-v2,
+  Python3.12.10/MLX0.32.1, base `3e6447f` and adapter `5e65a0b4` at step50.
+  The fixed run directory remains absent and output/training/delta are false;
+  independent freeze audit and exact publication/reopen precede inference.
+- DONE — Two independent fresh-freeze audits return P0=0/P1=0/P2=0:
+  self-hash, exact remote preimage/tree, `21/21` Git blob/byte/SHA records,
+  truth/tasks/reference, live Python/MLX/base/adapter identities, grammar/stdlib
+  overlay and external checkout invariants all match. Run directory is absent
+  and ignored; outputs/training/delta remain false. Focused D18/contracts are
+  `72/72`, foundation `67/0`, and Ruff/format/diff are green. Exact freeze
+  commit/push/reopen is the sole remaining prerequisite to inference.
