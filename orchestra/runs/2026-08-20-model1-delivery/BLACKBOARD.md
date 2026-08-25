@@ -5084,3 +5084,31 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - OPEN — Publish this T30 preimage, then generate and independently audit the
   pre-output freeze before the single base/adapter run. No candidate, evidence
   or adjudication claim may be written before that gate.
+- STOP — First T30 freeze construction stopped before manifest/run creation:
+  the historical QLoRA verifier compared old `contracts.py` bytes to the
+  legitimately evolved live tree. Freeze absent, fixed run absent, model calls
+  `0`; the one-shot inference attempt was not consumed.
+- FIX — T30 now separates historical and live evidence. The 28 historical
+  training inputs are derived from the trainer source at Git preimage
+  `66e4def…` and replayed there; the freeze is byte-exact at its recorded
+  execution head. Current base/adapter/dataset plus dev bundles base, step25,
+  step50 and restored are independently reopened. The package verifies at
+  `11/11`; its eight payload-backed members are byte-equal to live payloads,
+  receipts and runtime lock, then anchored to backup preimage, archive and the
+  fully validated versioned S3 receipt.
+- FACT — Live replay result after the cure: base `6/16`, step25 `16/16`, step50
+  `16/16`, restored `6/16`; base/restored candidates are both 4,690 bytes with
+  exact hash `sha256:74a6e30e…`. Adapter step50 remains
+  `sha256:5e65a0b4…`; package `sha256:79ef33e8…`; archive
+  `sha256:5df66661…`. No training or model generation occurred.
+- FIX — Final adversarial pre-freeze cures bind the complete base checkpoint
+  identity (revision, config, weight count, payload count, tree and verification
+  report), normalize malformed/missing historical evidence into the T30 error
+  boundary, invoke the complete existing S3 receipt verifier, and use
+  `O_NOFOLLOW` plus pre/post descriptor and path identities for archive/member
+  reads. The reproduced forged-AWS and path-swap bypasses now fail closed.
+- DONE — Both independent post-cure audits close with `P0=0`, `P1=0`;
+  the runner audit also closes its complete assigned scope at `P2=0`. Focused
+  T30 tests are `in=25 out=25 distinct=25 gaps=0`; Ruff, format and the combined
+  contract/T30 suite are green at `59/59`. The real historical replay remains
+  `28/28` with exact adapter-off restoration and package verification `11/11`.

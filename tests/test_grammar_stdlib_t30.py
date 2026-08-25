@@ -7,6 +7,7 @@ Metis oracle checkout.
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -127,6 +128,7 @@ def test_source_contains_no_training_dataset_optimizer_or_promotion_path() -> No
     assert 'delta_qlora_authorized": False' in source
     assert "mlx_lm.lora" not in source
     assert "train(" not in source
+    assert "verify_adapter_off_restore_receipt(" not in source
 
 
 def test_exact_thirty_five_per_family_taxonomy_and_coverage() -> None:
@@ -251,6 +253,201 @@ def test_generation_matches_the_only_worker_implementation() -> None:
         "max_tokens": 512,
     } == t30.GENERATION
     assert "src/metis_model1/demo_accuracy.py" in t30.BOUND_PATHS
+    assert "src/metis_model1/initial_local_qlora_backup.py" in t30.BOUND_PATHS
+    assert "src/metis_model1/initial_local_qlora_train.py" in t30.BOUND_PATHS
+    assert "manifests/initial-local-qlora-backup-preimage-v1.json" in t30.BOUND_PATHS
+
+
+def test_historical_bound_roster_is_extracted_from_preimage_source() -> None:
+    source = b'BOUND_INPUTS = ("old/contracts.py", "old/runtime.py")\n'
+    assert t30._historical_bound_input_roster(source) == (
+        "old/contracts.py",
+        "old/runtime.py",
+    )
+    with pytest.raises(t30.GrammarStdlibT30Error, match="roster drift"):
+        t30._historical_bound_input_roster(
+            b'BOUND_INPUTS = ("old/contracts.py", "old/contracts.py")\n'
+        )
+
+
+def test_historical_freeze_replays_git_preimage_not_live_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preimage = "a" * 40
+    tree = "b" * 40
+    trainer_path = "src/metis_model1/initial_local_qlora_train.py"
+    trainer_source = b'BOUND_INPUTS = ("old/contracts.py", "old/runtime.py")\n'
+    historical = {
+        trainer_path: trainer_source,
+        "old/contracts.py": b"historical contracts\n",
+        "old/runtime.py": b"historical runtime\n",
+    }
+    base_checkpoint = {
+        "revision": "base-revision",
+        "config_sha256": "base-config",
+        "weights": 3,
+        "payload_files": 15,
+        "tree_metadata_sha256": "base-tree",
+        "verification_report_sha256": "sha256:" + "e" * 64,
+    }
+    value = {
+        "schema_version": 2,
+        "status": "refrozen_after_base_before_training",
+        "wave": "INITIAL_LOCAL_QLORA_V1",
+        "preimage_commit": preimage,
+        "preimage_tree": tree,
+        "preimage_published": True,
+        "remote_head_at_freeze": preimage,
+        "model_outputs_observed": True,
+        "training_started": False,
+        "model_replay_allowed": False,
+        "network": "denied_during_model_and_optimizer_execution",
+        "config": t30.trainer.CONFIG,
+        "limits": t30.trainer.LIMITS,
+        "runtime": {"runtime": "pinned"},
+        "dataset_receipt_sha256": "sha256:" + "c" * 64,
+        "baseline_origin": {"base_dev": {"score": 6}},
+        "checkpoint": base_checkpoint,
+        "checkpoint_report_sha256": base_checkpoint["verification_report_sha256"],
+        "bound_inputs": {
+            path: t30.raw_hash(raw) for path, raw in historical.items() if path != trainer_path
+        },
+    }
+
+    def pinned(_root, *args, text=True):
+        if args[:2] == ("rev-parse", f"{preimage}^{{tree}}"):
+            return tree
+        if args[:3] == ("merge-base", "--is-ancestor", preimage):
+            return ""
+        if args[0] == "show":
+            relative = args[1].split(":", 1)[1]
+            return historical[relative]
+        raise AssertionError(args)
+
+    monkeypatch.setattr(t30, "_pinned_git", pinned)
+    assert (
+        t30._verify_historical_training_freeze(
+            value,
+            dataset={"receipt_sha256": "sha256:" + "c" * 64},
+            runtime={"runtime": "pinned"},
+            base_checkpoint=base_checkpoint,
+        )
+        == 2
+    )
+    for field in (
+        "config_sha256",
+        "tree_metadata_sha256",
+        "verification_report_sha256",
+    ):
+        value["checkpoint"] = {**base_checkpoint, field: "drift"}
+        with pytest.raises(t30.GrammarStdlibT30Error, match="contract drift"):
+            t30._verify_historical_training_freeze(
+                value,
+                dataset={"receipt_sha256": "sha256:" + "c" * 64},
+                runtime={"runtime": "pinned"},
+                base_checkpoint=base_checkpoint,
+            )
+    value["checkpoint"] = base_checkpoint
+    value["checkpoint_report_sha256"] = "sha256:" + "f" * 64
+    with pytest.raises(t30.GrammarStdlibT30Error, match="contract drift"):
+        t30._verify_historical_training_freeze(
+            value,
+            dataset={"receipt_sha256": "sha256:" + "c" * 64},
+            runtime={"runtime": "pinned"},
+            base_checkpoint=base_checkpoint,
+        )
+    value["checkpoint_report_sha256"] = base_checkpoint["verification_report_sha256"]
+    baseline_origin = value.pop("baseline_origin")
+    with pytest.raises(t30.GrammarStdlibT30Error, match="contract drift"):
+        t30._verify_historical_training_freeze(
+            value,
+            dataset={"receipt_sha256": "sha256:" + "c" * 64},
+            runtime={"runtime": "pinned"},
+            base_checkpoint=base_checkpoint,
+        )
+    value["baseline_origin"] = baseline_origin
+    value["bound_inputs"]["old/runtime.py"] = "sha256:" + "d" * 64
+    with pytest.raises(t30.GrammarStdlibT30Error, match="differs at preimage"):
+        t30._verify_historical_training_freeze(
+            value,
+            dataset={"receipt_sha256": "sha256:" + "c" * 64},
+            runtime={"runtime": "pinned"},
+            base_checkpoint=base_checkpoint,
+        )
+
+
+def test_historical_document_rejects_raw_or_self_hash_drift(tmp_path: Path) -> None:
+    body = {"schema_version": 1, "status": "verified"}
+    value = {**body, "receipt_sha256": t30.canonical_hash(body)}
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(value, allow_nan=False, sort_keys=True) + "\n", encoding="utf-8")
+    assert t30._historical_document(path, "receipt", "receipt_sha256")[0] == value
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(t30.GrammarStdlibT30Error, match="canonical historical"):
+        t30._historical_document(path, "receipt", "receipt_sha256")
+    with pytest.raises(t30.GrammarStdlibT30Error, match="cannot reopen"):
+        t30._historical_document(tmp_path / "absent.json", "absent", "receipt_sha256")
+
+
+def test_package_backup_anchor_compares_all_payload_backed_members() -> None:
+    assert t30.PACKAGE_LIVE_MEMBERS == {
+        "dataset-receipt.json": t30.DATASET_RECEIPT_PATH,
+        "training-receipt.json": t30.qlora.DEFAULT_TRAINING_RECEIPT,
+        "selection-receipt.json": t30.qlora.DEFAULT_SELECTION_RECEIPT,
+        "evaluation-receipt.json": t30.B12_RECEIPT_PATH,
+        "restore-receipt.json": t30.qlora.DEFAULT_RESTORE_RECEIPT,
+        "adapter_config.json": t30.ADAPTER_PATH / "adapter_config.json",
+        "adapters.safetensors": t30.ADAPTER_PATH / "adapters.safetensors",
+        "runtime.lock": t30.PROJECT_ROOT / "qualification/uv.lock",
+    }
+
+
+def test_complete_s3_receipt_verifier_is_bound_and_errors_are_normalized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, _raw = t30._historical_document(
+        t30.BACKUP_RECEIPT_PATH, "remote backup receipt", "receipt_sha256"
+    )
+    monkeypatch.setattr(
+        t30.backup,
+        "verify_receipt",
+        lambda *, require_published_remote: deepcopy(receipt),
+    )
+    assert t30._verified_backup_receipt(receipt) == receipt
+    forged = deepcopy(receipt)
+    forged["aws"]["account_id"] = "000000000000"
+    with pytest.raises(t30.GrammarStdlibT30Error, match="differs"):
+        t30._verified_backup_receipt(forged)
+
+    def rejected(*, require_published_remote: bool):
+        raise t30.backup.BackupContractError("receipt drift")
+
+    monkeypatch.setattr(t30.backup, "verify_receipt", rejected)
+    with pytest.raises(t30.GrammarStdlibT30Error, match="complete S3"):
+        t30._verified_backup_receipt(receipt)
+
+
+def test_regular_file_comparison_rejects_path_swap_race(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    package = tmp_path / "package"
+    live = tmp_path / "live"
+    package.write_bytes(b"same bytes")
+    live.write_bytes(b"same bytes")
+    real_read = t30.os.read
+    swapped = False
+
+    def racing_read(descriptor: int, count: int) -> bytes:
+        nonlocal swapped
+        if not swapped:
+            swapped = True
+            live.unlink()
+            live.symlink_to(package)
+        return real_read(descriptor, count)
+
+    monkeypatch.setattr(t30.os, "read", racing_read)
+    with pytest.raises(t30.GrammarStdlibT30Error, match="changed while reading"):
+        t30._regular_files_equal(package, live)
 
 
 def test_f4_review_truth_is_derived_from_pinned_ast_inventory() -> None:

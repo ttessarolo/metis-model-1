@@ -232,6 +232,18 @@ denominator explicitly includes all ten top-level grammar alternatives, all
 three Metis standard-library modules, all twelve public members and
 `time.timezone`.
 
+The T30 freeze reopens the historical adapter lineage without comparing old
+training-source blobs to the evolving live worktree. It derives the original
+28-file roster from the trainer source at its recorded Git preimage, verifies
+every historical blob there, and requires the training freeze to be byte-exact
+at its recorded execution commit. Separately it replays the current base,
+step-25, selected step-50 and adapter-off-restored dev bundles. The portable
+package is verified internally at `11/11`; its eight payload-backed members are
+byte-equal to the live dataset, adapter, receipts and runtime lock. The package
+is also anchored to the tracked backup preimage, archive hash and fully checked
+versioned S3 receipt. This preserves historical immutability while permitting
+later source and contract maintenance.
+
 If D18 does not establish delta eligibility, the current adapter is retained
 and a fresh held-out `T30` is sealed and run without retraining. If D18 does
 establish eligibility, T30 is sealed before any derived dataset is built and

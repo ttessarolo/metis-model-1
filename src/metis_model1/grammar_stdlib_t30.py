@@ -10,6 +10,8 @@ the single sealed adapter pass performed by :func:`run`.
 from __future__ import annotations
 
 import argparse
+import ast
+import hashlib
 import json
 import os
 import stat
@@ -23,7 +25,9 @@ from metis_model1 import catalog_maintenance_pin as catalog_pin
 from metis_model1 import demo_accuracy as safe
 from metis_model1 import grammar_stdlib_accuracy as d18
 from metis_model1 import grammar_stdlib_oracle as oracle
+from metis_model1 import initial_local_qlora_backup as backup
 from metis_model1 import initial_local_qlora_runtime as qlora
+from metis_model1 import initial_local_qlora_train as trainer
 from metis_model1.catalog_maintenance_probe import _extract_source
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +44,22 @@ RUN_RELATIVE = f"artifacts/grammar-stdlib-accuracy/t30/{RUN_ID}"
 ATTEMPT_NONCE = "gsl-t30-v1-20260825-attempt-01"
 ADAPTER_PATH = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v2/checkpoints/step-00000050"
 DATASET_RECEIPT_PATH = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/dataset/receipt.json"
+BACKUP_PREIMAGE_PATH = PROJECT_ROOT / "manifests/initial-local-qlora-backup-preimage-v1.json"
+PACKAGE_DIR = qlora.DEFAULT_OUTPUT_ROOT / "package"
+ARCHIVE_PATH = qlora.DEFAULT_OUTPUT_ROOT / "metis-model1-adapter.tar"
+ARCHIVE_RECEIPT_PATH = qlora.DEFAULT_OUTPUT_ROOT / "metis-model1-adapter-archive.json"
+BACKUP_RECEIPT_PATH = qlora.DEFAULT_OUTPUT_ROOT / "metis-model1-adapter-backup-receipt.json"
+B12_RECEIPT_PATH = qlora.DEFAULT_OUTPUT_ROOT / "b12-adapter/receipt.json"
+PACKAGE_LIVE_MEMBERS = {
+    "dataset-receipt.json": DATASET_RECEIPT_PATH,
+    "training-receipt.json": qlora.DEFAULT_TRAINING_RECEIPT,
+    "selection-receipt.json": qlora.DEFAULT_SELECTION_RECEIPT,
+    "evaluation-receipt.json": B12_RECEIPT_PATH,
+    "restore-receipt.json": qlora.DEFAULT_RESTORE_RECEIPT,
+    "adapter_config.json": ADAPTER_PATH / "adapter_config.json",
+    "adapters.safetensors": ADAPTER_PATH / "adapters.safetensors",
+    "runtime.lock": PROJECT_ROOT / "qualification/uv.lock",
+}
 DEFAULT_METIS_ROOT = d18.DEFAULT_METIS_ROOT
 DEFAULT_NODE = d18.DEFAULT_NODE
 QUALIFICATION_PYTHON = d18.QUALIFICATION_PYTHON
@@ -120,6 +140,7 @@ BOUND_PATHS = (
     "fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md",
     "manifests/grammar-stdlib-accuracy-t30-policy-v1.json",
     "manifests/grammar-stdlib-accuracy-t30-truth-v1.json",
+    "manifests/initial-local-qlora-backup-preimage-v1.json",
     "manifests/catalog-maintenance-pin-v1.json",
     "manifests/grammar-stdlib-pin-v1.json",
     "src/metis_model1/grammar_stdlib_t30.py",
@@ -127,7 +148,9 @@ BOUND_PATHS = (
     "src/metis_model1/grammar_stdlib_accuracy.py",
     "src/metis_model1/grammar_stdlib_oracle.py",
     "src/metis_model1/grammar_stdlib_coverage.py",
+    "src/metis_model1/initial_local_qlora_backup.py",
     "src/metis_model1/initial_local_qlora_runtime.py",
+    "src/metis_model1/initial_local_qlora_train.py",
     "src/metis_model1/catalog_maintenance_pin.py",
     "src/metis_model1/catalog_maintenance_probe.py",
     "src/metis_model1/catalog_retrieval.py",
@@ -980,31 +1003,569 @@ def _published(remote: str) -> tuple[str, str, str]:
     return head, str(_pinned_git(PROJECT_ROOT, "rev-parse", "HEAD^{tree}")), remote_ref
 
 
+def _historical_document(
+    path: Path, label: str, self_hash_field: str
+) -> tuple[dict[str, Any], bytes]:
+    """Reopen one historical JSON receipt without replaying it against live sources."""
+
+    try:
+        raw = safe._read_regular(path, label, 16 * 1024 * 1024)
+    except safe.DemoAccuracyError as error:
+        raise GrammarStdlibT30Error(f"cannot reopen {label}") from error
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            parse_constant=lambda item: (_ for _ in ()).throw(ValueError(item)),
+        )
+        canonical = (json.dumps(value, allow_nan=False, sort_keys=True) + "\n").encode()
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+        raise GrammarStdlibT30Error(f"{label} is not strict JSON") from error
+    if not isinstance(value, dict) or raw != canonical:
+        raise GrammarStdlibT30Error(f"{label} is not one canonical historical document")
+    _self_hash(value, self_hash_field)
+    return value, raw
+
+
+def _historical_bound_input_roster(source: bytes) -> tuple[str, ...]:
+    try:
+        tree = ast.parse(source.decode("utf-8"))
+    except (UnicodeDecodeError, SyntaxError) as error:
+        raise GrammarStdlibT30Error("historical trainer source is not parseable") from error
+    matches: list[Any] = []
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and any(
+            isinstance(target, ast.Name) and target.id == "BOUND_INPUTS"
+            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        ):
+            try:
+                matches.append(ast.literal_eval(node.value))
+            except (TypeError, ValueError) as error:
+                raise GrammarStdlibT30Error(
+                    "historical trainer BOUND_INPUTS is not literal"
+                ) from error
+    if (
+        len(matches) != 1
+        or not isinstance(matches[0], tuple)
+        or not matches[0]
+        or any(not isinstance(item, str) or not item for item in matches[0])
+        or len(set(matches[0])) != len(matches[0])
+    ):
+        raise GrammarStdlibT30Error("historical trainer BOUND_INPUTS roster drift")
+    return matches[0]
+
+
+def _verify_historical_training_freeze(
+    value: Mapping[str, Any],
+    *,
+    dataset: Mapping[str, Any],
+    runtime: Mapping[str, Any],
+    base_checkpoint: Mapping[str, Any],
+) -> int:
+    """Verify old source bytes at their Git preimage, never against today's tree."""
+
+    bound = value.get("bound_inputs")
+    preimage = value.get("preimage_commit")
+    baseline_origin = value.get("baseline_origin")
+    expected_checkpoint = dict(base_checkpoint)
+    if (
+        value.get("schema_version") != 2
+        or value.get("status") != "refrozen_after_base_before_training"
+        or value.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or value.get("preimage_published") is not True
+        or value.get("remote_head_at_freeze") != preimage
+        or value.get("model_outputs_observed") is not True
+        or value.get("training_started") is not False
+        or value.get("model_replay_allowed") is not False
+        or value.get("network") != "denied_during_model_and_optimizer_execution"
+        or value.get("config") != trainer.CONFIG
+        or value.get("limits") != trainer.LIMITS
+        or value.get("runtime") != runtime
+        or value.get("dataset_receipt_sha256") != dataset.get("receipt_sha256")
+        or not isinstance(baseline_origin, Mapping)
+        or value.get("checkpoint") != expected_checkpoint
+        or value.get("checkpoint_report_sha256")
+        != expected_checkpoint.get("verification_report_sha256")
+        or not isinstance(preimage, str)
+        or not isinstance(bound, Mapping)
+    ):
+        raise GrammarStdlibT30Error("historical training freeze contract drift")
+    if str(_pinned_git(PROJECT_ROOT, "rev-parse", f"{preimage}^{{tree}}")) != value.get(
+        "preimage_tree"
+    ):
+        raise GrammarStdlibT30Error("historical training freeze tree drift")
+    _pinned_git(PROJECT_ROOT, "merge-base", "--is-ancestor", preimage, "HEAD")
+    trainer_relative = "src/metis_model1/initial_local_qlora_train.py"
+    trainer_source = _pinned_git(PROJECT_ROOT, "show", f"{preimage}:{trainer_relative}", text=False)
+    if not isinstance(trainer_source, bytes):
+        raise GrammarStdlibT30Error("historical trainer source is unavailable")
+    roster = _historical_bound_input_roster(trainer_source)
+    if set(bound) != set(roster):
+        raise GrammarStdlibT30Error("historical training bound-input roster drift")
+    for relative in roster:
+        historical = _pinned_git(PROJECT_ROOT, "show", f"{preimage}:{relative}", text=False)
+        if not isinstance(historical, bytes) or raw_hash(historical) != bound[relative]:
+            raise GrammarStdlibT30Error(
+                f"historical training bound input differs at preimage: {relative}"
+            )
+    return len(roster)
+
+
+def _verify_historical_phase_chain(training: Mapping[str, Any], freeze: Mapping[str, Any]) -> None:
+    evidence = training.get("evidence")
+    phases = evidence.get("phases") if isinstance(evidence, Mapping) else None
+    if (
+        not isinstance(phases, list)
+        or any(not isinstance(row, Mapping) for row in phases)
+        or [row.get("step") for row in phases] != [25, 50]
+    ):
+        raise GrammarStdlibT30Error("historical training phase roster drift")
+    for row in phases:
+        step = int(row["step"])
+        marker_path = trainer.RUN_ROOT / f"phase-step{step}-started.json"
+        receipt_path = trainer.RUN_ROOT / f"phase-step{step}-receipt.json"
+        marker, marker_raw = _historical_document(
+            marker_path, f"historical step{step} marker", "marker_sha256"
+        )
+        receipt, receipt_raw = _historical_document(
+            receipt_path, f"historical step{step} receipt", "receipt_sha256"
+        )
+        retained = receipt.get("retained_checkpoints")
+        if not isinstance(retained, list) or any(
+            not isinstance(item, Mapping) for item in retained
+        ):
+            raise GrammarStdlibT30Error(f"historical training step{step} receipt shape drift")
+        if (
+            raw_hash(marker_raw) != row.get("marker_sha256")
+            or marker.get("marker_sha256") != row.get("marker_self_sha256")
+            or raw_hash(receipt_raw) != row.get("phase_receipt_sha256")
+            or receipt.get("receipt_sha256") != row.get("phase_receipt_self_sha256")
+            or marker.get("target_step") != step
+            or receipt.get("target_step") != step
+            or marker.get("freeze_sha256") != freeze.get("freeze_sha256")
+            or receipt.get("freeze_sha256") != freeze.get("freeze_sha256")
+            or marker.get("continuation_authority_sha256")
+            != row.get("continuation_authority_sha256")
+            or receipt.get("continuation_authority_sha256")
+            != row.get("continuation_authority_sha256")
+            or receipt.get("telemetry_summary_sha256") != row.get("telemetry_summary_sha256")
+            or [
+                {
+                    "global_step": item.get("global_step"),
+                    "manifest_sha256": item.get("manifest_sha256"),
+                    "checkpoint_sha256": item.get("checkpoint_sha256"),
+                }
+                for item in retained
+            ]
+            != row.get("retained_checkpoints")
+        ):
+            raise GrammarStdlibT30Error(f"historical training step{step} lineage drift")
+
+
+def _opened_regular(path: Path) -> tuple[int, os.stat_result]:
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if not isinstance(nofollow, int):
+        raise GrammarStdlibT30Error("O_NOFOLLOW is required for package verification")
+    descriptor = -1
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | nofollow)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise GrammarStdlibT30Error(f"package/live member is unsafe: {path}")
+        return descriptor, metadata
+    except OSError as error:
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise GrammarStdlibT30Error(f"cannot safely open package/live member: {path}") from error
+
+
+def _stable_open_identity(path: Path, descriptor: int, before: os.stat_result) -> None:
+    try:
+        after = os.fstat(descriptor)
+        named = path.lstat()
+    except OSError as error:
+        raise GrammarStdlibT30Error(f"package/live member changed while reading: {path}") from error
+    fields = ("st_dev", "st_ino", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if (
+        any(getattr(before, field) != getattr(after, field) for field in fields)
+        or stat.S_ISLNK(named.st_mode)
+        or not stat.S_ISREG(named.st_mode)
+        or named.st_nlink != 1
+        or any(getattr(before, field) != getattr(named, field) for field in fields)
+    ):
+        raise GrammarStdlibT30Error(f"package/live member changed while reading: {path}")
+
+
+def _regular_files_equal(left: Path, right: Path) -> bool:
+    descriptors: list[int] = []
+    try:
+        left_fd, left_before = _opened_regular(left)
+        descriptors.append(left_fd)
+        right_fd, right_before = _opened_regular(right)
+        descriptors.append(right_fd)
+        equal = left_before.st_size == right_before.st_size
+        while equal:
+            left_chunk = os.read(left_fd, 8 * 1024 * 1024)
+            right_chunk = os.read(right_fd, 8 * 1024 * 1024)
+            if left_chunk != right_chunk:
+                equal = False
+                break
+            if not left_chunk:
+                break
+        _stable_open_identity(left, left_fd, left_before)
+        _stable_open_identity(right, right_fd, right_before)
+        return equal
+    except OSError as error:
+        raise GrammarStdlibT30Error("cannot compare package and live member") from error
+    finally:
+        for descriptor in descriptors:
+            os.close(descriptor)
+
+
+def _streaming_hash(path: Path) -> tuple[int, str]:
+    descriptor = -1
+    try:
+        descriptor, metadata = _opened_regular(path)
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 8 * 1024 * 1024):
+            digest.update(chunk)
+        _stable_open_identity(path, descriptor, metadata)
+        return metadata.st_size, "sha256:" + digest.hexdigest()
+    except OSError as error:
+        raise GrammarStdlibT30Error("cannot hash package archive") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _verified_backup_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        verified = backup.verify_receipt(require_published_remote=False)
+    except (backup.BackupContractError, OSError) as error:
+        raise GrammarStdlibT30Error("complete S3 backup receipt verification failed") from error
+    if verified != value:
+        raise GrammarStdlibT30Error("S3 backup receipt differs from complete verification")
+    return verified
+
+
+def _verify_package_backup_anchor() -> dict[str, Any]:
+    package = qlora.verify_package(PACKAGE_DIR)
+    for package_name, live_path in PACKAGE_LIVE_MEMBERS.items():
+        if not _regular_files_equal(PACKAGE_DIR / package_name, live_path):
+            raise GrammarStdlibT30Error(f"package member differs from live payload: {package_name}")
+
+    preimage, preimage_raw = _historical_document(
+        BACKUP_PREIMAGE_PATH, "backup preimage", "preimage_sha256"
+    )
+    archive_receipt, archive_receipt_raw = _historical_document(
+        ARCHIVE_RECEIPT_PATH, "archive receipt", "receipt_sha256"
+    )
+    backup_receipt, backup_receipt_raw = _historical_document(
+        BACKUP_RECEIPT_PATH, "remote backup receipt", "receipt_sha256"
+    )
+    _verified_backup_receipt(backup_receipt)
+    archive_bytes, archive_sha256 = _streaming_hash(ARCHIVE_PATH)
+    archive = {
+        "bytes": archive_bytes,
+        "path": str(ARCHIVE_PATH.relative_to(PROJECT_ROOT)),
+        "sha256": archive_sha256,
+    }
+    publication_head = backup_receipt.get("publication_head")
+    preimage_fresh = preimage.get("fresh_restore")
+    archive_fresh = archive_receipt.get("fresh_restore")
+    archive_payload = archive_receipt.get("archive")
+    backup_download = backup_receipt.get("download")
+    backup_fresh = backup_receipt.get("fresh_restore")
+    backup_head = backup_receipt.get("head")
+    if any(
+        not isinstance(item, Mapping)
+        for item in (
+            preimage_fresh,
+            archive_fresh,
+            archive_payload,
+            backup_download,
+            backup_fresh,
+            backup_head,
+        )
+    ):
+        raise GrammarStdlibT30Error("backup/package nested receipt shape drift")
+    if (
+        preimage.get("schema_version") != 1
+        or preimage.get("preimage_id") != "initial-local-qlora-s3-backup-preimage/v1"
+        or preimage.get("status") != "prepared_before_s3_transfer"
+        or preimage.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or preimage.get("package_sha256") != package.get("package_sha256")
+        or preimage.get("archive") != archive
+        or preimage.get("archive_receipt")
+        != {
+            "path": str(ARCHIVE_RECEIPT_PATH.relative_to(PROJECT_ROOT)),
+            "bytes": len(archive_receipt_raw),
+            "sha256": raw_hash(archive_receipt_raw),
+            "self_sha256": archive_receipt.get("receipt_sha256"),
+        }
+        or preimage_fresh
+        != {
+            "global_step": package.get("global_step"),
+            "member_count": package.get("files"),
+            "package_files": package.get("files"),
+            "package_sha256": package.get("package_sha256"),
+            "package_status": package.get("status"),
+            "status": "fresh_restore_verified",
+            "verdict": package.get("verdict"),
+        }
+        or archive_fresh.get("status") != "fresh_restore_verified"
+        or archive_fresh.get("package") != package
+    ):
+        raise GrammarStdlibT30Error("tracked backup preimage/package anchor drift")
+    preimage_commit = preimage.get("preimage_commit")
+    if (
+        not isinstance(preimage_commit, str)
+        or str(_pinned_git(PROJECT_ROOT, "rev-parse", f"{preimage_commit}^{{tree}}"))
+        != preimage.get("preimage_tree")
+        or not isinstance(publication_head, str)
+    ):
+        raise GrammarStdlibT30Error("backup publication Git identity drift")
+    _pinned_git(PROJECT_ROOT, "merge-base", "--is-ancestor", preimage_commit, publication_head)
+    _pinned_git(PROJECT_ROOT, "merge-base", "--is-ancestor", publication_head, "HEAD")
+    published_preimage = _pinned_git(
+        PROJECT_ROOT,
+        "show",
+        f"{publication_head}:{BACKUP_PREIMAGE_PATH.relative_to(PROJECT_ROOT)}",
+        text=False,
+    )
+    if published_preimage != preimage_raw:
+        raise GrammarStdlibT30Error("backup preimage differs at publication head")
+    if (
+        archive_receipt.get("schema_version") != 1
+        or archive_receipt.get("status") != "sealed"
+        or archive_receipt.get("package_sha256") != package.get("package_sha256")
+        or archive_payload.get("bytes") != archive_bytes
+        or archive_payload.get("sha256") != archive_sha256
+        or backup_receipt.get("schema_version") != 1
+        or backup_receipt.get("status") != "uploaded_versioned_restore_verified"
+        or backup_receipt.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or backup_receipt.get("preimage_file_sha256") != raw_hash(preimage_raw)
+        or backup_receipt.get("preimage_self_sha256") != preimage.get("preimage_sha256")
+        or backup_receipt.get("package_sha256") != package.get("package_sha256")
+        or backup_receipt.get("archive") != {"bytes": archive_bytes, "sha256": archive_sha256}
+        or backup_download.get("bytes") != archive_bytes
+        or backup_download.get("sha256") != archive_sha256
+        or not isinstance(backup_download.get("version_id"), str)
+        or not backup_download["version_id"]
+        or backup_fresh != preimage_fresh
+        or backup_receipt.get("put_attempts") != 1
+        or backup_receipt.get("raw_process_output_retained") is not False
+        or backup_head.get("current_version_matches") is not True
+    ):
+        raise GrammarStdlibT30Error("remote backup receipt/package anchor drift")
+    return {
+        "package_sha256": package["package_sha256"],
+        "package_files": package["files"],
+        "archive_bytes": archive_bytes,
+        "archive_sha256": archive_sha256,
+        "archive_receipt_sha256": raw_hash(archive_receipt_raw),
+        "archive_receipt_self_sha256": archive_receipt["receipt_sha256"],
+        "backup_preimage_sha256": raw_hash(preimage_raw),
+        "backup_preimage_self_sha256": preimage["preimage_sha256"],
+        "backup_receipt_sha256": raw_hash(backup_receipt_raw),
+        "backup_receipt_self_sha256": backup_receipt["receipt_sha256"],
+        "backup_publication_head": publication_head,
+        "remote_version_id": backup_download["version_id"],
+        "live_package_members_exact": True,
+    }
+
+
+def _verify_historical_adapter_chain(
+    *,
+    dataset: Mapping[str, Any],
+    runtime: Mapping[str, Any],
+    base_identity: Mapping[str, Any],
+    base_checkpoint: Mapping[str, Any],
+    adapter_identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Replay payload/dev evidence while checking old source evidence at its old commit."""
+
+    freeze, freeze_raw = _historical_document(
+        trainer.FREEZE_PATH, "historical training freeze", "freeze_sha256"
+    )
+    historical_bound_inputs = _verify_historical_training_freeze(
+        freeze,
+        dataset=dataset,
+        runtime=runtime,
+        base_checkpoint=base_checkpoint,
+    )
+    training, training_raw = _historical_document(
+        qlora.DEFAULT_TRAINING_RECEIPT,
+        "historical training receipt",
+        "training_sha256",
+    )
+    reuse, reuse_raw = _historical_document(
+        trainer.REUSE_RECEIPT_PATH,
+        "historical baseline reuse receipt",
+        "receipt_sha256",
+    )
+    evidence = training.get("evidence")
+    adapter = adapter_identity.get("adapter")
+    baseline_origin = freeze.get("baseline_origin")
+    if not isinstance(baseline_origin, Mapping):
+        raise GrammarStdlibT30Error("historical baseline origin shape drift")
+    try:
+        adapter_config_sha256 = raw_hash(
+            safe._read_regular(ADAPTER_PATH / "adapter_config.json", "adapter config")
+        )
+    except safe.DemoAccuracyError as error:
+        raise GrammarStdlibT30Error("cannot reopen historical adapter config") from error
+    if (
+        training.get("schema_version") != 1
+        or training.get("status") != "verified"
+        or training.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or training.get("mode") != "single_config_no_retry_qlora"
+        or training.get("dataset_receipt_sha256") != dataset.get("receipt_sha256")
+        or not isinstance(evidence, Mapping)
+        or not isinstance(adapter, Mapping)
+        or evidence.get("freeze_file_sha256") != raw_hash(freeze_raw)
+        or evidence.get("freeze_self_sha256") != freeze.get("freeze_sha256")
+        or evidence.get("baseline_reuse_receipt_file_sha256") != raw_hash(reuse_raw)
+        or evidence.get("baseline_reuse_receipt_self_sha256") != reuse.get("receipt_sha256")
+        or evidence.get("baseline_origin_sha256") != canonical_hash(baseline_origin)
+        or evidence.get("preimage_commit") != freeze.get("preimage_commit")
+        or evidence.get("checkpoint")
+        != {
+            "global_step": adapter.get("global_step"),
+            "model_revision": base_identity.get("base_revision"),
+            "manifest_sha256": adapter.get("manifest_sha256"),
+            "adapter_sha256": adapter.get("adapter_sha256"),
+            "adapter_config_sha256": adapter_config_sha256,
+        }
+    ):
+        raise GrammarStdlibT30Error("historical training receipt lineage drift")
+    execution_head = evidence.get("published_execution_head")
+    if not isinstance(execution_head, str):
+        raise GrammarStdlibT30Error("historical training execution head is invalid")
+    _pinned_git(
+        PROJECT_ROOT,
+        "merge-base",
+        "--is-ancestor",
+        str(freeze["preimage_commit"]),
+        execution_head,
+    )
+    _pinned_git(PROJECT_ROOT, "merge-base", "--is-ancestor", execution_head, "HEAD")
+    published_freeze = _pinned_git(
+        PROJECT_ROOT,
+        "show",
+        f"{execution_head}:{trainer.FREEZE_PATH.relative_to(PROJECT_ROOT)}",
+        text=False,
+    )
+    if published_freeze != freeze_raw:
+        raise GrammarStdlibT30Error("historical training freeze differs at execution head")
+    _verify_historical_phase_chain(training, freeze)
+
+    selection, selection_raw = _historical_document(
+        qlora.DEFAULT_SELECTION_RECEIPT,
+        "historical selection receipt",
+        "selection_sha256",
+    )
+    base_bundle = qlora._verified_dev_bundle(
+        "base", dataset_receipt=DATASET_RECEIPT_PATH, adapter=None
+    )
+    gate_bundles = [
+        qlora._verified_dev_bundle(
+            f"step{step}",
+            dataset_receipt=DATASET_RECEIPT_PATH,
+            adapter=trainer.CHECKPOINT_ROOT / f"step-{step:08d}",
+        )
+        for step in (25, 50)
+    ]
+    if (
+        selection.get("schema_version") != 1
+        or selection.get("status") != "selected"
+        or selection.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or selection.get("selection_surface") != "frozen_dev16_only"
+        or selection.get("b12_observed") is not False
+        or selection.get("selected_step") != adapter.get("global_step")
+        or selection.get("checkpoint_manifest_sha256") != adapter.get("manifest_sha256")
+        or selection.get("adapter_sha256") != adapter.get("adapter_sha256")
+        or selection.get("model_revision") != base_identity.get("base_revision")
+        or selection.get("dataset_receipt_sha256") != dataset.get("receipt_sha256")
+        or selection.get("training_receipt_sha256") != raw_hash(training_raw)
+        or selection.get("training_self_sha256") != training.get("training_sha256")
+        or selection.get("base_evidence") != base_bundle
+        or selection.get("gate_evidence") != gate_bundles
+        or selection.get("base_semantic_correct") != base_bundle["score"]
+        or selection.get("selected_semantic_correct") != gate_bundles[-1]["score"]
+        or selection.get("evidence_roster_sha256")
+        != canonical_hash({"base": base_bundle, "gates": gate_bundles})
+    ):
+        raise GrammarStdlibT30Error("historical selection receipt lineage drift")
+
+    restore, restore_raw = _historical_document(
+        qlora.DEFAULT_RESTORE_RECEIPT,
+        "historical adapter-off restore receipt",
+        "restore_sha256",
+    )
+    restored_bundle = qlora._verified_dev_bundle(
+        "restored", dataset_receipt=DATASET_RECEIPT_PATH, adapter=None
+    )
+    candidate_match = dict(base_bundle["files"]["candidates"])
+    candidate_match["path"] = restored_bundle["files"]["candidates"]["path"]
+    if (
+        restore.get("schema_version") != 1
+        or restore.get("status") != "verified"
+        or restore.get("wave") != "INITIAL_LOCAL_QLORA_V1"
+        or restore.get("mode") != "adapter_off_exact_restore"
+        or restore.get("dataset_receipt_sha256") != dataset.get("receipt_sha256")
+        or restore.get("selection_receipt_sha256") != raw_hash(selection_raw)
+        or restore.get("selection_self_sha256") != selection.get("selection_sha256")
+        or restore.get("selected_step") != selection.get("selected_step")
+        or restore.get("adapter_sha256") != adapter.get("adapter_sha256")
+        or restore.get("initial_base_evidence") != base_bundle
+        or restore.get("restored_base_evidence") != restored_bundle
+        or restore.get("exact_candidate_restore") is not True
+        or restored_bundle["files"]["candidates"] != candidate_match
+    ):
+        raise GrammarStdlibT30Error("historical adapter-off restore lineage drift")
+    return {
+        "verification": "historical_preimage_plus_live_payload_and_dev_replay",
+        "path": str(qlora.DEFAULT_RESTORE_RECEIPT.relative_to(PROJECT_ROOT)),
+        "bytes": len(restore_raw),
+        "sha256": raw_hash(restore_raw),
+        "restore_sha256": restore["restore_sha256"],
+        "selection_receipt_sha256": raw_hash(selection_raw),
+        "selection_self_sha256": selection["selection_sha256"],
+        "training_receipt_sha256": raw_hash(training_raw),
+        "training_self_sha256": training["training_sha256"],
+        "training_freeze_sha256": raw_hash(freeze_raw),
+        "training_freeze_self_sha256": freeze["freeze_sha256"],
+        "training_preimage_commit": freeze["preimage_commit"],
+        "historical_bound_inputs": historical_bound_inputs,
+        "historical_git_replay": True,
+        "selected_step": restore["selected_step"],
+        "adapter_sha256": restore["adapter_sha256"],
+        "initial_candidate_sha256": base_bundle["files"]["candidates"]["sha256"],
+        "restored_candidate_sha256": restored_bundle["files"]["candidates"]["sha256"],
+        "exact_candidate_restore": True,
+    }
+
+
 def _runtime_identities() -> dict[str, Any]:
     dataset = qlora._check_receipt(DATASET_RECEIPT_PATH)
-    restore = qlora.verify_adapter_off_restore_receipt(
-        qlora.DEFAULT_RESTORE_RECEIPT,
-        adapter=ADAPTER_PATH,
-        dataset_receipt=DATASET_RECEIPT_PATH,
-        selection_receipt=qlora.DEFAULT_SELECTION_RECEIPT,
-    )
-    restore_raw = safe._read_regular(
-        qlora.DEFAULT_RESTORE_RECEIPT, "adapter-off restore receipt", 8 * 1024 * 1024
-    )
+    runtime = qlora._check_runtime()
+    base_checkpoint = qlora._check_checkpoint(qlora.BASE_CHECKPOINT)
+    base = qlora.evaluation_identity(qlora.BASE_CHECKPOINT, None)
+    adapter = qlora.evaluation_identity(qlora.BASE_CHECKPOINT, ADAPTER_PATH)
+    package_backup = _verify_package_backup_anchor()
     return {
-        "runtime": qlora._check_runtime(),
-        "base": qlora.evaluation_identity(qlora.BASE_CHECKPOINT, None),
-        "adapter": qlora.evaluation_identity(qlora.BASE_CHECKPOINT, ADAPTER_PATH),
+        "runtime": runtime,
+        "base": base,
+        "adapter": adapter,
         "dataset": dataset,
-        "adapter_off_restore": {
-            "path": str(qlora.DEFAULT_RESTORE_RECEIPT.relative_to(PROJECT_ROOT)),
-            "bytes": len(restore_raw),
-            "sha256": raw_hash(restore_raw),
-            "restore_sha256": restore["restore_sha256"],
-            "selected_step": restore["selected_step"],
-            "adapter_sha256": restore["adapter_sha256"],
-            "exact_candidate_restore": restore["exact_candidate_restore"],
-        },
+        "adapter_off_restore": _verify_historical_adapter_chain(
+            dataset=dataset,
+            runtime=runtime,
+            base_identity=base,
+            base_checkpoint=base_checkpoint,
+            adapter_identity=adapter,
+        ),
+        "package_backup": package_backup,
         "worker_process_isolation": "base_and_adapter_run_in_separate_fresh_processes",
     }
 
