@@ -14,6 +14,7 @@ import ast
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from collections import Counter
@@ -64,10 +65,48 @@ DEFAULT_METIS_ROOT = d18.DEFAULT_METIS_ROOT
 DEFAULT_NODE = d18.DEFAULT_NODE
 QUALIFICATION_PYTHON = d18.QUALIFICATION_PYTHON
 BENCHMARK_ID = "grammar-stdlib-accuracy-t30-v1"
+POLICY_ID = "grammar-stdlib-accuracy-t30-policy/v1"
+TRUTH_ID = "grammar-stdlib-accuracy-t30-truth/v1"
+FREEZE_ID = "grammar-stdlib-accuracy-t30-freeze/v1"
+EVIDENCE_ID = "grammar-stdlib-accuracy-t30-evaluation/v1"
+ADJUDICATION_ID = "grammar-stdlib-accuracy-t30-adjudication/v1"
+HUMAN_REVIEW_ID = "grammar-stdlib-accuracy-t30-human-review/v1"
+ROSTER_ID = "gsl_t30_public_synthetic_v1"
+PROVENANCE_NAMESPACE = "gsl_t30"
+TASK_ID_PREFIX = "gsl_t30_"
+FRESHNESS_NAMESPACE = b"gsl_t30"
+PRE_REVIEW_VERDICT = "GRAMMAR_STDLIB_T30_REVIEW_REQUIRED"
+PASS_VERDICT = "GRAMMAR_STDLIB_T30_PASS_NO_RETRAIN"
+DIAGNOSE_VERDICT = "GRAMMAR_STDLIB_T30_DIAGNOSE"
+F4_REVIEW_CONTRACT = d18.SEMANTIC_SIGNATURE_CONTRACT
+F6_REVIEW_CONTRACT = "metis-structural-explanation/v1"
+TASK_COUNT = 30
+TASKS_PER_FAMILY = 5
+HUMAN_REVIEW_COUNT = 15
 FAMILIES = tuple(f"F-{number}" for number in range(1, 7))
 TOP_LEVELS = d18.TOP_LEVELS
 STDLIB_MEMBERS = d18.STDLIB_MEMBERS
 STDLIB_SETTINGS = d18.STDLIB_SETTINGS
+STDLIB_MODULES: set[str] = set()
+INTERACTION_CLASSES: set[str] = set()
+COVERAGE_FIELDS = ("top_levels", "stdlib_members", "stdlib_settings")
+MODEL_JSON_COVERAGE_FIELDS = ("top_levels", "stdlib_members", "stdlib_settings")
+F4_ENDPOINT_SHAPE = "legacy_optional_variant"
+F6_ALWAYS_CATALOG_FIELDS = False
+CATALOG_INLINE_DOMAIN_SUPPORTED = False
+REQUIRE_CATALOG_DOMAIN_SIZE = False
+STRUCTURAL_FIRST_USE_DEDUP = False
+REQUIRE_EXACT_REVIEW_CONTRACT = False
+# V1 predates the explicit surface/serialization contract.  The successor
+# enables this switch without retroactively changing its terminal evidence.
+KNOWN_SURFACE_ALIASES_ARE_CONTRACT_MISMATCH = False
+CLASSIFY_SOURCE_SYMBOL_FAILURES = False
+CONTRACT_MISMATCH_FAILURE_CODE = "json_contract_mismatch"
+# Successors may bind earlier terminal evidence and include its task/truth
+# material in the freshness denominator.  Empty defaults preserve V1 exactly.
+PREDECESSOR_TERMINAL_EVALUATION: dict[str, Any] | None = None
+ADDITIONAL_FRESHNESS_TASK_PATHS: tuple[Path, ...] = ()
+ADDITIONAL_FRESHNESS_TRUTH_PATHS: tuple[Path, ...] = ()
 RELATIONSHIP_LABELS = {
     "settings-configures-timezone",
     "endpoint-declares-needs-time",
@@ -134,6 +173,62 @@ NONCLAIMS = [
     "no_promotion_authority",
     "no_companion_vscode_or_windows_claim",
 ]
+POLICY_ROSTER = {
+    "tasks": TASK_COUNT,
+    "tasks_per_family": TASKS_PER_FAMILY,
+    "automatic_tasks": 20,
+    "human_review_task_ids_expected": HUMAN_REVIEW_COUNT,
+    "human_review_families": ["F-2", "F-5", "F-6"],
+    "top_levels_required": 10,
+    "stdlib_members_required": 12,
+    "stdlib_settings_required": 1,
+    "rare_or_critical_construct_min_occurrences": 2,
+    "catalog_domain_family_reservations": ["F-1", "F-6"],
+}
+POLICY_COVERAGE_GATE = {
+    "credit_source": "final_successful_tasks_only",
+    "declared_metadata_alone_is_ineligible": True,
+    "top_levels": "all_10",
+    "stdlib_members": "all_12",
+    "stdlib_settings": ["time.timezone"],
+}
+POLICY_EXTRA_CONTRACT: dict[str, Any] = {}
+FINAL_COVERAGE_GATE_NAMES = {
+    "top_levels": "coverage_all_10_top_levels",
+    "stdlib_members": "coverage_all_12_stdlib_members",
+    "stdlib_settings": "coverage_time_timezone",
+}
+REFERENCE_HEADING = "# Metis 0.43 grammar and standard-library reference\n"
+REFERENCE_REQUIRED_MARKERS = {
+    "tenant sample.world",
+    "catalog sample.video",
+    "property sample.policy",
+    "endpoint sample.feed",
+    "preset sample.recent",
+    "list sample.labels",
+    "transformer sample.slug",
+    "block sample_card",
+    "settings sample.time",
+    "values sample.video",
+    "time.now",
+    "time.month",
+    "time.day",
+    "time.hour",
+    "time.hhmm",
+    "time.fractional_second",
+    "time.weekday",
+    "time.timezone",
+    "std.codec.decode",
+    "std.codec.encode",
+    "std.text.slugify",
+    "std.text.truncate",
+    "std.text.normalize",
+    "keyword enum(N)",
+    "keyword open",
+    "variant <variant> use block.<block>",
+}
+REFERENCE_FORBIDDEN_MARKERS = {"gsl_d18", "play-prod", "play-demo"}
+REFERENCE_PROVENANCE_MARKER = "not tenant data and not a training example"
 # Explicitly includes the T30 implementation so code drift invalidates its seal.
 BOUND_PATHS = (
     "fixtures/grammar-stdlib-accuracy-v1/t30-tasks.json",
@@ -198,7 +293,7 @@ def _policy() -> tuple[dict[str, Any], bytes]:
     _self_hash(value, "policy_sha256")
     expected = {
         "schema_version": 1,
-        "policy_id": "grammar-stdlib-accuracy-t30-policy/v1",
+        "policy_id": POLICY_ID,
         "status": "ratified_before_t30_model_output",
         "benchmark_id": BENCHMARK_ID,
     }
@@ -211,18 +306,7 @@ def _policy() -> tuple[dict[str, Any], bytes]:
         for key in ("model_outputs_observed", "training_authorized", "delta_qlora_authorized")
     ):
         raise GrammarStdlibT30Error("ratified T30 policy authority drift")
-    if value.get("roster") != {
-        "tasks": 30,
-        "tasks_per_family": 5,
-        "automatic_tasks": 20,
-        "human_review_task_ids_expected": 15,
-        "human_review_families": ["F-2", "F-5", "F-6"],
-        "top_levels_required": 10,
-        "stdlib_members_required": 12,
-        "stdlib_settings_required": 1,
-        "rare_or_critical_construct_min_occurrences": 2,
-        "catalog_domain_family_reservations": ["F-1", "F-6"],
-    }:
+    if value.get("roster") != POLICY_ROSTER:
         raise GrammarStdlibT30Error("ratified T30 roster policy drift")
     if value.get("automatic_gate") != {
         "adapter_semantic_min": THRESHOLDS["automatic_semantic_total_min"],
@@ -256,18 +340,14 @@ def _policy() -> tuple[dict[str, Any], bytes]:
         },
     }:
         raise GrammarStdlibT30Error("ratified T30 final gate drift")
-    if value.get("coverage_gate") != {
-        "credit_source": "final_successful_tasks_only",
-        "declared_metadata_alone_is_ineligible": True,
-        "top_levels": "all_10",
-        "stdlib_members": "all_12",
-        "stdlib_settings": ["time.timezone"],
-    }:
+    if value.get("coverage_gate") != POLICY_COVERAGE_GATE:
         raise GrammarStdlibT30Error("ratified T30 coverage gate drift")
+    if any(value.get(key) != item for key, item in POLICY_EXTRA_CONTRACT.items()):
+        raise GrammarStdlibT30Error("ratified T30 successor contract drift")
     if value.get("decision_policy") != {
-        "pre_review_verdict": "GRAMMAR_STDLIB_T30_REVIEW_REQUIRED",
-        "passing_verdict": "GRAMMAR_STDLIB_T30_PASS_NO_RETRAIN",
-        "failing_verdict": "GRAMMAR_STDLIB_T30_DIAGNOSE",
+        "pre_review_verdict": PRE_REVIEW_VERDICT,
+        "passing_verdict": PASS_VERDICT,
+        "failing_verdict": DIAGNOSE_VERDICT,
         "training_authorized": False,
         "delta_qlora_authorized": False,
         "dataset_authorized": False,
@@ -278,7 +358,7 @@ def _policy() -> tuple[dict[str, Any], bytes]:
     if one_shot != {
         "attempts": 1,
         "worker_invocations": 2,
-        "requests_per_worker": 30,
+        "requests_per_worker": TASK_COUNT,
         "retries": 0,
         "fixed_run_id": RUN_ID,
         "attempt_nonce": ATTEMPT_NONCE,
@@ -340,6 +420,94 @@ def _task_keys(task: Mapping[str, Any]) -> set[str]:
     return keys
 
 
+def _coverage_domains() -> dict[str, set[str]]:
+    domains = {
+        "top_levels": TOP_LEVELS,
+        "stdlib_members": STDLIB_MEMBERS,
+        "stdlib_settings": STDLIB_SETTINGS,
+        "stdlib_modules": STDLIB_MODULES,
+        "interaction_classes": INTERACTION_CLASSES,
+    }
+    if len(COVERAGE_FIELDS) != len(set(COVERAGE_FIELDS)) or any(
+        field not in domains for field in COVERAGE_FIELDS
+    ):
+        raise GrammarStdlibT30Error("T30 coverage-field configuration drift")
+    return {field: domains[field] for field in COVERAGE_FIELDS}
+
+
+def _empty_coverage() -> dict[str, list[str]]:
+    return {field: [] for field in COVERAGE_FIELDS}
+
+
+def _declared_interaction_classes(task: Mapping[str, Any]) -> list[str]:
+    if "interaction_classes" not in COVERAGE_FIELDS:
+        return []
+    coverage = task.get("coverage")
+    if not isinstance(coverage, Mapping):
+        raise GrammarStdlibT30Error("T30 interaction coverage is unavailable")
+    values = coverage.get("interaction_classes")
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise GrammarStdlibT30Error("T30 interaction coverage is invalid")
+    return list(values)
+
+
+def _scenario_interactions(task: Mapping[str, Any]) -> set[str]:
+    """Derive model-facing stdlib boundary scenarios from sealed task sources.
+
+    Interaction coverage is not an AST declaration census: several scenarios
+    deliberately begin with invalid or warning-only source.  The task earns the
+    declared scenario only after its candidate succeeds, but preregistration
+    must first prove that the scenario is present in the frozen input/target.
+    """
+
+    before = str(task.get("before_source", ""))
+    valid = "\n".join(
+        str(task[field])
+        for field in ("input_source", "expected_source", "expected_repaired_source")
+        if isinstance(task.get(field), str)
+    )
+    allowed_members = {tuple(member.split(".", 1)) for member in STDLIB_MEMBERS if "." in member}
+    valid_time = re.search(r"(?<!std\.)\btime\.[A-Za-z_][A-Za-z0-9_]*\b", valid)
+    before_time = re.search(r"(?<!std\.)\btime\.[A-Za-z_][A-Za-z0-9_]*\b", before)
+    valid_pure = re.search(r"\bstd\.(?:codec|text)\.[A-Za-z_][A-Za-z0-9_]*\b", valid)
+    result: set[str] = set()
+    if valid_time and re.search(r"\bneeds\s+time\b", valid):
+        result.add("ambient-valid-needs-time")
+    if re.search(r"\bstd\.time\.[A-Za-z_][A-Za-z0-9_]*\b", before):
+        result.add("ambient-invalid-std-namespace")
+    if before_time and not re.search(r"\bneeds\s+time\b", before):
+        result.add("ambient-missing-needs")
+    if valid_pure and not re.search(r"\bneeds\s+(?:codec|text)\b", valid):
+        result.add("pure-valid-no-needs")
+    if re.search(r"\bneeds\s+(?:codec|text)\b", before):
+        result.add("pure-invalid-needs")
+    modules = re.findall(r"\bstd\.([A-Za-z_][A-Za-z0-9_]*)\.", before)
+    if any(module not in {"time", "codec", "text"} for module in modules):
+        result.add("unknown-stdlib-module")
+    references = re.findall(r"\b(?:std\.)?(time|codec|text)\.([A-Za-z_][A-Za-z0-9_]*)\b", before)
+    if any((module, member) not in allowed_members for module, member in references):
+        result.add("unknown-stdlib-member")
+    needs = re.findall(r"\bneeds\s+([A-Za-z_][A-Za-z0-9_]*)\b", before)
+    if any(capability not in {"time", "codec", "text"} for capability in needs):
+        result.add("unknown-needs-capability")
+    if re.search(r"\bsettings\s+[^\s{]+\.time\s*\{[^}]*\btimezone\b", valid, re.S):
+        result.add("timezone-setting-valid")
+    if re.search(r"\bsettings\s+[^\s{]+\.time\s*\{", before) and not re.search(
+        r"\btimezone\b", before
+    ):
+        result.add("timezone-setting-invalid-key")
+    return result
+
+
+def _validate_interaction_coverage(task: Mapping[str, Any]) -> None:
+    declared = set(_declared_interaction_classes(task))
+    missing = declared - _scenario_interactions(task)
+    if missing:
+        raise GrammarStdlibT30Error(
+            f"T30 interaction coverage has no source scenario: {sorted(missing)[0]}"
+        )
+
+
 def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Validate exactly five independently rooted held-out tasks per family."""
 
@@ -354,15 +522,15 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         raise GrammarStdlibT30Error("T30 roster field set differs from fixed contract")
     if (
         manifest.get("schema_version") != 1
-        or manifest.get("roster_id") != "gsl_t30_public_synthetic_v1"
-        or manifest.get("policy_id") != "grammar-stdlib-accuracy-t30-policy/v1"
+        or manifest.get("roster_id") != ROSTER_ID
+        or manifest.get("policy_id") != POLICY_ID
         or manifest.get("benchmark_id") != BENCHMARK_ID
     ):
         raise GrammarStdlibT30Error("T30 roster identity differs from fixed contract")
     provenance = manifest.get("provenance")
     if not isinstance(provenance, Mapping) or provenance != {
         "kind": "public_synthetic",
-        "namespace": "gsl_t30",
+        "namespace": PROVENANCE_NAMESPACE,
         "pin_revision": "5e112f9148f40e7e792052e896c5a9efe8eaf0a2",
         "language_version": "0.43",
         "source_validation": "pinned_oracle_required_before_truth",
@@ -372,7 +540,7 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
     }:
         raise GrammarStdlibT30Error("T30 roster provenance is not pre-output public synthetic")
     rows = manifest.get("tasks")
-    if not isinstance(rows, list) or len(rows) != 30:
+    if not isinstance(rows, list) or len(rows) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 roster must contain exactly thirty tasks")
     result: list[dict[str, Any]] = []
     ids: set[str] = set()
@@ -384,7 +552,7 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         task_id, family = row.get("task_id"), row.get("family")
         if (
             not isinstance(task_id, str)
-            or not task_id.startswith("gsl_t30_")
+            or not task_id.startswith(TASK_ID_PREFIX)
             or task_id in ids
             or family not in FAMILIES
             or row.get("kind") != TASK_KINDS[family]
@@ -425,39 +593,62 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
             raise GrammarStdlibT30Error("T30 oracle specification is invalid")
         if specification.get("input_status") != "pinned_oracle_required_before_truth":
             raise GrammarStdlibT30Error("T30 oracle is not pinned")
+        if (
+            REQUIRE_EXACT_REVIEW_CONTRACT
+            and family in {"F-4", "F-6"}
+            and (
+                specification.get("exact_contract")
+                != (F4_REVIEW_CONTRACT if family == "F-4" else F6_REVIEW_CONTRACT)
+            )
+        ):
+            raise GrammarStdlibT30Error("T30 exact review contract is not pinned")
         coverage, provenance_roots = row.get("coverage"), row.get("provenance_roots")
+        coverage_domains = _coverage_domains()
         if (
             not isinstance(coverage, Mapping)
-            or set(coverage) != {"top_levels", "stdlib_members", "stdlib_settings"}
-            or not all(isinstance(coverage.get(key), list) for key in coverage)
-            or not set(coverage["top_levels"]).issubset(TOP_LEVELS)
-            or not set(coverage["stdlib_members"]).issubset(STDLIB_MEMBERS)
-            or not set(coverage["stdlib_settings"]).issubset(STDLIB_SETTINGS)
+            or set(coverage) != set(COVERAGE_FIELDS)
+            or not all(isinstance(coverage.get(key), list) for key in COVERAGE_FIELDS)
+            or any(
+                any(not isinstance(item, str) for item in coverage[key])
+                or len(coverage[key]) != len(set(coverage[key]))
+                or not set(coverage[key]).issubset(allowed)
+                for key, allowed in coverage_domains.items()
+            )
             or not isinstance(provenance_roots, Mapping)
             or set(provenance_roots) != {"independent", "template"}
             or not all(
-                isinstance(value, str) and value.startswith("gsl_t30_")
+                isinstance(value, str) and value.startswith(PROVENANCE_NAMESPACE)
                 for value in provenance_roots.values()
             )
             or provenance_roots["independent"] == provenance_roots["template"]
         ):
             raise GrammarStdlibT30Error("T30 coverage or provenance roots are invalid")
+        _validate_interaction_coverage(row)
+        if "timezone-setting-invalid-key" in _declared_interaction_classes(row) and (
+            not isinstance(row.get("before_source"), str)
+            or not isinstance(row.get("expected_repaired_source"), str)
+            or specification.get("input_failure_kind") is not None
+            or not isinstance(specification.get("diagnostic_substrings"), list)
+            or not specification["diagnostic_substrings"]
+            or any(
+                not isinstance(marker, str) or not marker
+                for marker in specification["diagnostic_substrings"]
+            )
+        ):
+            raise GrammarStdlibT30Error("T30 warning-only timezone repair contract is invalid")
         ids.add(task_id)
         roots.add(str(provenance_roots["independent"]))
         templates.add(str(provenance_roots["template"]))
         result.append(dict(row))
-    if Counter(item["family"] for item in result) != Counter({family: 5 for family in FAMILIES}):
+    if Counter(item["family"] for item in result) != Counter(
+        {family: TASKS_PER_FAMILY for family in FAMILIES}
+    ):
         raise GrammarStdlibT30Error("T30 family census must be exactly five per family")
-    if roots & templates or len(roots) != 30 or len(templates) != 30:
+    if roots & templates or len(roots) != TASK_COUNT or len(templates) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 provenance roots are not globally disjoint")
-    if {value for task in result for value in task["coverage"]["top_levels"]} != TOP_LEVELS:
-        raise GrammarStdlibT30Error("T30 top-level denominator drift")
-    if {value for task in result for value in task["coverage"]["stdlib_members"]} != STDLIB_MEMBERS:
-        raise GrammarStdlibT30Error("T30 standard-library member denominator drift")
-    if {
-        value for task in result for value in task["coverage"]["stdlib_settings"]
-    } != STDLIB_SETTINGS:
-        raise GrammarStdlibT30Error("T30 standard-library setting denominator drift")
+    for field, denominator in _coverage_domains().items():
+        if {value for task in result for value in task["coverage"][field]} != denominator:
+            raise GrammarStdlibT30Error(f"T30 {field} denominator drift")
     return result
 
 
@@ -472,43 +663,11 @@ def _reference_context() -> tuple[str, bytes]:
         reference = raw.decode("utf-8")
     except UnicodeDecodeError as error:
         raise GrammarStdlibT30Error("T30 reference context is not UTF-8") from error
-    required_markers = {
-        "tenant sample.world",
-        "catalog sample.video",
-        "property sample.policy",
-        "endpoint sample.feed",
-        "preset sample.recent",
-        "list sample.labels",
-        "transformer sample.slug",
-        "block sample_card",
-        "settings sample.time",
-        "values sample.video",
-        "time.now",
-        "time.month",
-        "time.day",
-        "time.hour",
-        "time.hhmm",
-        "time.fractional_second",
-        "time.weekday",
-        "time.timezone",
-        "std.codec.decode",
-        "std.codec.encode",
-        "std.text.slugify",
-        "std.text.truncate",
-        "std.text.normalize",
-        "keyword enum(N)",
-        "keyword open",
-        "variant <variant> use block.<block>",
-    }
-    forbidden_markers = {"gsl_d18", "play-prod", "play-demo", "tenant data", "training example"}
     if (
-        not reference.startswith("# Metis 0.43 grammar and standard-library reference\n")
-        or any(marker not in reference for marker in required_markers)
-        or any(
-            marker in reference
-            for marker in forbidden_markers - {"tenant data", "training example"}
-        )
-        or "not tenant data and not a training example" not in reference
+        not reference.startswith(REFERENCE_HEADING)
+        or any(marker not in reference for marker in REFERENCE_REQUIRED_MARKERS)
+        or any(marker in reference for marker in REFERENCE_FORBIDDEN_MARKERS)
+        or REFERENCE_PROVENANCE_MARKER not in reference
     ):
         raise GrammarStdlibT30Error("T30 reference context drift or D18 contamination")
     return reference, raw
@@ -591,6 +750,8 @@ def _validate_source_envelope(
     session: oracle.GrammarStdlibOracleSession,
     *,
     expected_ok: bool,
+    expected_diagnostic_markers: tuple[str, ...] = (),
+    require_no_diagnostics: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate once and retain the pinned AST needed by review/coverage truth."""
 
@@ -600,6 +761,20 @@ def _validate_source_envelope(
         if expected_ok:
             if result["status"] != "ok":
                 raise GrammarStdlibT30Error(f"expected input rejected by oracle: {task['task_id']}")
+            diagnostics = d18._diagnostic_text(envelope)
+            missing = [
+                marker
+                for marker in expected_diagnostic_markers
+                if not any(marker in text for text in diagnostics)
+            ]
+            if missing:
+                raise GrammarStdlibT30Error(
+                    f"expected warning marker is absent for {task['task_id']}"
+                )
+            if require_no_diagnostics and diagnostics:
+                raise GrammarStdlibT30Error(
+                    f"expected repaired source retains diagnostics: {task['task_id']}"
+                )
         else:
             if result["status"] != "invalid":
                 raise GrammarStdlibT30Error(f"invalid input accepted by oracle: {task['task_id']}")
@@ -641,6 +816,21 @@ def _unique(values: Iterator[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def _structural_first_use(values: list[Any]) -> list[Any]:
+    """Deduplicate exact structural records only for contracts that require it."""
+
+    if not STRUCTURAL_FIRST_USE_DEDUP:
+        return values
+    result: list[Any] = []
+    seen: set[str] = set()
+    for value in values:
+        identity = canonical_hash(value)
+        if identity not in seen:
+            seen.add(identity)
+            result.append(value)
+    return result
+
+
 def _coverage_from_inventory(inventory: Any) -> dict[str, list[str]]:
     nodes = list(_ast_nodes(inventory))
     top_levels = _unique(
@@ -674,17 +864,28 @@ def _coverage_from_inventory(inventory: Any) -> dict[str, list[str]]:
             for child in _ast_nodes(node)
         ):
             settings.append("time.timezone")
-    result = {
+    modules = _unique(member.split(".", 1)[0] for member in members)
+    if settings and "time" not in modules:
+        modules.append("time")
+    base = {
         "top_levels": top_levels,
         "stdlib_members": members,
         "stdlib_settings": list(dict.fromkeys(settings)),
+        "stdlib_modules": modules,
+        "interaction_classes": [],
     }
-    if (
-        not set(result["top_levels"]).issubset(TOP_LEVELS)
-        or not set(result["stdlib_members"]).issubset(STDLIB_MEMBERS)
-        or not set(result["stdlib_settings"]).issubset(STDLIB_SETTINGS)
+    result = {field: base[field] for field in COVERAGE_FIELDS}
+    if any(
+        not set(result[field]).issubset(allowed) for field, allowed in _coverage_domains().items()
     ):
         raise GrammarStdlibT30Error("pinned AST coverage escaped the T30 denominator")
+    return result
+
+
+def _coverage_for_task(task: Mapping[str, Any], inventory: Any) -> dict[str, list[str]]:
+    result = _coverage_from_inventory(inventory)
+    if "interaction_classes" in COVERAGE_FIELDS:
+        result["interaction_classes"] = _declared_interaction_classes(task)
     return result
 
 
@@ -698,7 +899,7 @@ def _declarations_from_inventory(inventory: Any) -> list[dict[str, str]]:
         if not isinstance(name, str) or not name:
             raise GrammarStdlibT30Error("pinned AST declaration identity is unavailable")
         result.append({"kind": kind, "name": name})
-    return result
+    return _structural_first_use(result)
 
 
 def _contains_node(node: Mapping[str, Any], kind: str, **fields: Any) -> bool:
@@ -762,17 +963,29 @@ def _catalog_fields(inventory: Any) -> list[dict[str, Any]]:
         if marker is None:
             result.append({"name": name, "domain": "implicit"})
         elif isinstance(marker, Mapping) and marker.get("$type") == "EnumMarker":
-            result.append({"name": name, "domain": "external-enum", "size": marker.get("size")})
+            size = marker.get("size")
+            if REQUIRE_CATALOG_DOMAIN_SIZE and (
+                not isinstance(size, int) or isinstance(size, bool) or size < 0
+            ):
+                raise GrammarStdlibT30Error("catalog enum size is outside the structural contract")
+            result.append({"name": name, "domain": "external-enum", "size": size})
         elif isinstance(marker, Mapping) and marker.get("$type") == "OpenMarker":
             result.append({"name": name, "domain": "open"})
+        elif (
+            CATALOG_INLINE_DOMAIN_SUPPORTED
+            and isinstance(marker, Mapping)
+            and marker.get("$type") == "InlineValues"
+            and isinstance(marker.get("items"), list)
+        ):
+            result.append({"name": name, "domain": "inline", "size": len(marker["items"])})
         else:
             raise GrammarStdlibT30Error("catalog field domain is outside the structural contract")
-    return result
+    return _structural_first_use(result)
 
 
 def _f4_review_target(task: Mapping[str, Any], envelope: Mapping[str, Any]) -> dict[str, Any]:
     result = envelope["result"]
-    coverage = _coverage_from_inventory(result["ast"]["inventory"])
+    coverage = _coverage_for_task(task, result["ast"]["inventory"])
     mode = str(task["oracle"]["mode"])
     requested = None if mode == "source" else str(task["oracle"]["target"])
     endpoint: dict[str, Any] = {
@@ -785,35 +998,45 @@ def _f4_review_target(task: Mapping[str, Any], envelope: Mapping[str, Any]) -> d
         for node in _ast_nodes(result["ast"]["inventory"])
         if node.get("$type") == "VariantDecl" and isinstance(node.get("name"), str)
     ]
-    if len(variants) > 1:
-        raise GrammarStdlibT30Error("F4 review target has ambiguous variants")
-    if variants:
-        endpoint["variant"] = variants[0]
+    if STRUCTURAL_FIRST_USE_DEDUP:
+        variants = _unique(iter(variants))
+    if F4_ENDPOINT_SHAPE == "explicit_mode_variants":
+        endpoint = {
+            "count": result["endpoint"]["count"],
+            "mode": mode,
+            "requested": requested,
+            "selected": None if mode == "source" else result["endpoint"]["name"],
+            "variants": variants,
+        }
+    elif F4_ENDPOINT_SHAPE == "legacy_optional_variant":
+        if len(variants) > 1:
+            raise GrammarStdlibT30Error("F4 review target has ambiguous variants")
+        if variants:
+            endpoint["variant"] = variants[0]
+    else:
+        raise GrammarStdlibT30Error("F4 endpoint contract configuration drift")
     return {
-        "contract": d18.SEMANTIC_SIGNATURE_CONTRACT,
+        "contract": F4_REVIEW_CONTRACT,
         "status": result["status"],
-        **coverage,
+        **{field: coverage[field] for field in MODEL_JSON_COVERAGE_FIELDS},
         "endpoint": endpoint,
     }
 
 
 def _f6_review_target(task: Mapping[str, Any], envelope: Mapping[str, Any]) -> dict[str, Any]:
     inventory = envelope["result"]["ast"]["inventory"]
-    coverage = _coverage_from_inventory(inventory)
+    coverage = _coverage_for_task(task, inventory)
     result: dict[str, Any] = {
-        "contract": "metis-structural-explanation/v1",
+        "contract": F6_REVIEW_CONTRACT,
         "top_levels": coverage["top_levels"],
         "declarations": _declarations_from_inventory(inventory),
     }
-    if "catalog_fields" in task["expected_json"]:
+    if F6_ALWAYS_CATALOG_FIELDS or "catalog_fields" in task["expected_json"]:
         result["catalog_fields"] = _catalog_fields(inventory)
-    result.update(
-        {
-            "stdlib_members": coverage["stdlib_members"],
-            "stdlib_settings": coverage["stdlib_settings"],
-            "relationships": _relationships_from_inventory(inventory),
-        }
-    )
+    for field in MODEL_JSON_COVERAGE_FIELDS:
+        if field != "top_levels":
+            result[field] = coverage[field]
+    result["relationships"] = _relationships_from_inventory(inventory)
     return result
 
 
@@ -838,6 +1061,54 @@ def _task_content_root(task: Mapping[str, Any]) -> str:
     )
 
 
+def _predecessor_terminal_diagnosis() -> dict[str, Any] | None:
+    contract = PREDECESSOR_TERMINAL_EVALUATION
+    if contract is None:
+        return None
+    if set(contract) != {
+        "path",
+        "relative_path",
+        "evidence_id",
+        "evaluation_sha256",
+        "verdict",
+        "disposition",
+    }:
+        raise GrammarStdlibT30Error("predecessor terminal-evaluation configuration drift")
+    path = contract["path"]
+    relative_path = contract["relative_path"]
+    if (
+        not isinstance(path, Path)
+        or not isinstance(relative_path, str)
+        or not relative_path
+        or Path(relative_path).is_absolute()
+        or ".." in Path(relative_path).parts
+    ):
+        raise GrammarStdlibT30Error("predecessor evaluation path is invalid")
+    value, raw = _load(path, "predecessor T30 evaluation")
+    _self_hash(value, "evaluation_sha256")
+    decision = value.get("decision")
+    if (
+        value.get("evidence_id") != contract["evidence_id"]
+        or value.get("evaluation_sha256") != contract["evaluation_sha256"]
+        or value.get("status") != "verified_local_cooperative"
+        or not isinstance(decision, Mapping)
+        or decision.get("verdict") != contract["verdict"]
+        or value.get("model_outputs_observed") is not True
+        or value.get("training_authorized") is not False
+        or value.get("delta_qlora_authorized") is not False
+        or contract["disposition"] != "terminal_diagnosis_no_promotion"
+    ):
+        raise GrammarStdlibT30Error("predecessor evaluation is not terminal diagnosis")
+    return {
+        "path": relative_path,
+        "bytes": len(raw),
+        "file_sha256": raw_hash(raw),
+        "evaluation_sha256": value["evaluation_sha256"],
+        "verdict": decision["verdict"],
+        "disposition": contract["disposition"],
+    }
+
+
 def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
     _manifest, tasks, task_raw = load_tasks()
     _reference, reference_raw = _reference_context()
@@ -848,6 +1119,9 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
     ) as session:
         pin = dict(session.pin_identity)
         for task in tasks:
+            warning_only_timezone_repair = (
+                "timezone-setting-invalid-key" in _declared_interaction_classes(task)
+            )
             content_root = _task_content_root(task)
             target: dict[str, Any] = {
                 "kind": task["task_mode"],
@@ -860,13 +1134,18 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
                 "repaired": None,
             }
             if task.get("before_source") is not None:
-                target["before"] = _validate_source(
+                target["before"], _before_envelope = _validate_source_envelope(
                     task,
                     str(task["before_source"]),
                     metis_root,
                     node_path,
                     session,
                     expected_ok=task["oracle"]["input_failure_kind"] is None,
+                    expected_diagnostic_markers=(
+                        tuple(task["oracle"]["diagnostic_substrings"])
+                        if warning_only_timezone_repair
+                        else ()
+                    ),
                 )
             input_envelope: dict[str, Any] | None = None
             if task.get("input_source") is not None:
@@ -879,13 +1158,14 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
                     expected_ok=True,
                 )
             if task.get("expected_repaired_source") is not None:
-                target["repaired"] = _validate_source(
+                target["repaired"], _repaired_envelope = _validate_source_envelope(
                     task,
                     str(task["expected_repaired_source"]),
                     metis_root,
                     node_path,
                     session,
                     expected_ok=True,
+                    require_no_diagnostics=warning_only_timezone_repair,
                 )
             if task["task_mode"] == "source_output":
                 target["expected"], expected_envelope = _validate_source_envelope(
@@ -895,9 +1175,10 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
                     node_path,
                     session,
                     expected_ok=True,
+                    require_no_diagnostics=warning_only_timezone_repair,
                 )
-                target["expected_coverage"] = _coverage_from_inventory(
-                    expected_envelope["result"]["ast"]["inventory"]
+                target["expected_coverage"] = _coverage_for_task(
+                    task, expected_envelope["result"]["ast"]["inventory"]
                 )
             else:
                 if input_envelope is None:
@@ -912,8 +1193,8 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
                         f"review target is not derived from pinned AST: {task['task_id']}"
                     )
                 target["expected_json_sha256"] = canonical_hash(derived)
-                target["expected_coverage"] = _coverage_from_inventory(
-                    input_envelope["result"]["ast"]["inventory"]
+                target["expected_coverage"] = _coverage_for_task(
+                    task, input_envelope["result"]["ast"]["inventory"]
                 )
             if target["expected_coverage"] != task["coverage"]:
                 raise GrammarStdlibT30Error(
@@ -930,7 +1211,7 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
             )
     body: dict[str, Any] = {
         "schema_version": 1,
-        "truth_id": "grammar-stdlib-accuracy-t30-truth/v1",
+        "truth_id": TRUTH_ID,
         "status": "truth_fixed_before_model_output",
         "authority_tier": "automatic",
         "benchmark_id": BENCHMARK_ID,
@@ -942,11 +1223,11 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
         "generation": GENERATION,
         "thresholds": THRESHOLDS,
         "counts": {
-            "tasks_in": 30,
-            "tasks_out": 30,
-            "tasks_distinct": 30,
+            "tasks_in": TASK_COUNT,
+            "tasks_out": TASK_COUNT,
+            "tasks_distinct": TASK_COUNT,
             "gaps": 0,
-            "families": {family: 5 for family in FAMILIES},
+            "families": {family: TASKS_PER_FAMILY for family in FAMILIES},
         },
         "tasks": records,
         "model_outputs_observed": False,
@@ -954,6 +1235,9 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
         "delta_qlora_authorized": False,
         "nonclaims": NONCLAIMS,
     }
+    predecessor = _predecessor_terminal_diagnosis()
+    if predecessor is not None:
+        body["predecessor_terminal_diagnosis"] = predecessor
     _assert_disjoint(tasks, body)
     body["truth_sha256"] = canonical_hash(body)
     return body
@@ -1585,22 +1869,44 @@ def _assert_disjoint(tasks: list[Mapping[str, Any]], truth: Mapping[str, Any]) -
     """T30 must not reuse D18 identifiers, prompts/messages or semantic targets."""
     _d18_manifest, d18_tasks, _d18_raw = d18.load_tasks()
     d18_truth, _raw = d18._load(d18.TRUTH_PATH, "D18 truth")
-    d18_ids = {str(row["task_id"]) for row in d18_tasks} | {
-        str(row["task_id"]) for row in d18_truth["tasks"]
+    prior_tasks: list[Mapping[str, Any]] = list(d18_tasks)
+    prior_truths: list[Mapping[str, Any]] = [d18_truth]
+    for path in ADDITIONAL_FRESHNESS_TASK_PATHS:
+        value, _extra_raw = _load(path, f"freshness tasks {path.name}")
+        rows = value.get("tasks")
+        if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
+            raise GrammarStdlibT30Error("freshness task roster is invalid")
+        prior_tasks.extend(rows)
+    for path in ADDITIONAL_FRESHNESS_TRUTH_PATHS:
+        value, _extra_raw = _load(path, f"freshness truth {path.name}")
+        _self_hash(value, "truth_sha256")
+        rows = value.get("tasks")
+        if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
+            raise GrammarStdlibT30Error("freshness truth roster is invalid")
+        prior_truths.append(value)
+    prior_ids = {str(row["task_id"]) for row in prior_tasks} | {
+        str(row["task_id"]) for value in prior_truths for row in value["tasks"]
     }
-    if d18_ids & {str(row["task_id"]) for row in tasks}:
+    if prior_ids & {str(row["task_id"]) for row in tasks}:
         raise GrammarStdlibT30Error("T30 task identifiers overlap D18")
     d18_messages = {d18.canonical_hash(d18.build_messages(row)) for row in d18_tasks}
+    prior_truth_messages = {
+        str(target["messages_sha256"])
+        for value in prior_truths[1:]
+        for row in value["tasks"]
+        if isinstance((target := row.get("target")), Mapping)
+        and isinstance(target.get("messages_sha256"), str)
+    }
     messages = {canonical_hash(build_messages(row)) for row in tasks}
-    if d18_messages & messages:
+    if (d18_messages | prior_truth_messages) & messages:
         raise GrammarStdlibT30Error("T30 messages overlap D18")
     content_roots = [_task_content_root(row) for row in tasks]
     declared_roots = [item["target"].get("content_root_sha256") for item in truth["tasks"]]
     if any(value is not None for value in declared_roots) and declared_roots != content_roots:
         raise GrammarStdlibT30Error("T30 truth content roots differ from its roster")
-    if len(content_roots) != 30 or len(set(content_roots)) != 30:
+    if len(content_roots) != TASK_COUNT or len(set(content_roots)) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 content-derived roots are not distinct")
-    if set(content_roots) & {_task_content_root(row) for row in d18_tasks}:
+    if set(content_roots) & {_task_content_root(row) for row in prior_tasks}:
         raise GrammarStdlibT30Error("T30 content-derived root overlaps D18")
 
     def semantic_hashes(value: Mapping[str, Any]) -> set[str]:
@@ -1614,7 +1920,7 @@ def _assert_disjoint(tasks: list[Mapping[str, Any]], truth: Mapping[str, Any]) -
                 hashes.add(str(target["expected_json_sha256"]))
         return hashes
 
-    if semantic_hashes(truth) & semantic_hashes(d18_truth):
+    if semantic_hashes(truth) & {item for prior in prior_truths for item in semantic_hashes(prior)}:
         raise GrammarStdlibT30Error("T30 semantic targets overlap D18")
     tracked = str(_pinned_git(PROJECT_ROOT, "ls-files", "fixtures")).splitlines()
     historical = [
@@ -1628,7 +1934,7 @@ def _assert_disjoint(tasks: list[Mapping[str, Any]], truth: Mapping[str, Any]) -
     ]
     for path in historical:
         raw = _pinned_git(PROJECT_ROOT, "show", f"HEAD:{path}", text=False)
-        if not isinstance(raw, bytes) or b"gsl_t30" in raw:
+        if not isinstance(raw, bytes) or FRESHNESS_NAMESPACE in raw:
             raise GrammarStdlibT30Error("T30 namespace overlaps a historical fixture")
     qlora._check_receipt(DATASET_RECEIPT_PATH)
     for split in ("train.jsonl", "dev.jsonl"):
@@ -1637,7 +1943,7 @@ def _assert_disjoint(tasks: list[Mapping[str, Any]], truth: Mapping[str, Any]) -
             f"verified training split {split}",
             64 * 1024 * 1024,
         )
-        if b"gsl_t30" in raw:
+        if FRESHNESS_NAMESPACE in raw:
             raise GrammarStdlibT30Error("T30 namespace overlaps frozen train/dev")
 
 
@@ -1658,7 +1964,7 @@ def build_freeze(remote: str, metis_root: Path, node_path: Path) -> dict[str, An
     _assert_disjoint(tasks, truth_value)
     body: dict[str, Any] = {
         "schema_version": 1,
-        "freeze_id": "grammar-stdlib-accuracy-t30-freeze/v1",
+        "freeze_id": FREEZE_ID,
         "status": "frozen_before_model_output",
         "authority_tier": "automatic",
         "preimage_commit": head,
@@ -1683,6 +1989,9 @@ def build_freeze(remote: str, metis_root: Path, node_path: Path) -> dict[str, An
         "delta_qlora_authorized": False,
         "nonclaims": NONCLAIMS,
     }
+    predecessor = _predecessor_terminal_diagnosis()
+    if predecessor is not None:
+        body["predecessor_terminal_diagnosis"] = predecessor
     body["freeze_sha256"] = canonical_hash(body)
     return body
 
@@ -1738,10 +2047,13 @@ def _verify_freeze(value: Mapping[str, Any], head: str) -> Path:
         "nonclaims",
         "freeze_sha256",
     }
+    predecessor = _predecessor_terminal_diagnosis()
+    if predecessor is not None:
+        required.add("predecessor_terminal_diagnosis")
     if (
         set(value) != required
         or value.get("schema_version") != 1
-        or value.get("freeze_id") != "grammar-stdlib-accuracy-t30-freeze/v1"
+        or value.get("freeze_id") != FREEZE_ID
         or value.get("status") != "frozen_before_model_output"
         or value.get("authority_tier") != "automatic"
         or value.get("run_id") != RUN_ID
@@ -1754,6 +2066,7 @@ def _verify_freeze(value: Mapping[str, Any], head: str) -> Path:
         or value.get("training_authorized") is not False
         or value.get("delta_qlora_authorized") is not False
         or value.get("nonclaims") != NONCLAIMS
+        or (predecessor is not None and value.get("predecessor_terminal_diagnosis") != predecessor)
     ):
         raise GrammarStdlibT30Error("freeze is not a T30 pre-output seal")
     if (
@@ -1783,6 +2096,10 @@ def _verify_frozen_inputs(
         or raw_hash(task_raw) != value.get("tasks_file_sha256")
         or raw_hash(reference_raw) != value.get("reference_context_sha256")
         or _runtime_identities() != value.get("runtime_identities")
+        or (
+            (predecessor := _predecessor_terminal_diagnosis()) is not None
+            and truth_value.get("predecessor_terminal_diagnosis") != predecessor
+        )
     ):
         raise GrammarStdlibT30Error("frozen T30 inputs drifted")
     _assert_disjoint(tasks, truth_value)
@@ -1808,9 +2125,242 @@ def _json_key_order_matches(value: Any, expected: Any) -> bool:
     return True
 
 
-def _review_json_contract_failure(task: Mapping[str, Any], value: Any) -> str | None:
+_TOP_LEVEL_SURFACE_ALIASES = {
+    "tenant": "Tenant",
+    "catalog": "Catalog",
+    "property": "Property",
+    "endpoint": "Endpoint",
+    "preset": "Preset",
+    "list": "List",
+    "transformer": "Transformer",
+    "block": "NamedBlock",
+    "settings": "SettingsDecl",
+    "values": "ValueSet",
+}
+
+
+def _vocabulary_classification(field: str, items: list[str], allowed: set[str]) -> str | None:
+    aliases: dict[str, str] = {}
+    wrong_nature: set[str] = set()
+    if field == "top_levels":
+        aliases = _TOP_LEVEL_SURFACE_ALIASES
+    elif field == "stdlib_members":
+        aliases = {f"std.{item}": item for item in allowed if not item.startswith("time.")}
+        wrong_nature = {f"std.{item}" for item in allowed if item.startswith("time.")}
+    elif field == "stdlib_settings":
+        aliases = {"timezone": "time.timezone", "settings.timezone": "time.timezone"}
+    elif field == "stdlib_modules":
+        aliases = {f"std.{item}": item for item in allowed}
+    if len(items) != len(set(items)):
+        return CONTRACT_MISMATCH_FAILURE_CODE
+    mismatch = False
+    for item in items:
+        if item in allowed:
+            continue
+        if item in wrong_nature:
+            return "stdlib_nature_mismatch"
+        if aliases.get(item) in allowed:
+            mismatch = True
+            continue
+        return "invented_symbol"
+    return CONTRACT_MISMATCH_FAILURE_CODE if mismatch else None
+
+
+def _known_task_symbol_strings(task: Mapping[str, Any]) -> set[str]:
+    source = "\n".join(
+        str(task[field])
+        for field in ("input_source", "before_source")
+        if isinstance(task.get(field), str)
+    )
+    identifiers = set(re.findall(r"@?[A-Za-z_][A-Za-z0-9_.]*", source))
+    identifiers.update(item.removeprefix("@") for item in tuple(identifiers))
+    identifiers.update(re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', source))
+    return identifiers
+
+
+def _same_items_out_of_order(value: list[Any], expected: Any) -> bool:
+    if not isinstance(expected, list) or len(value) != len(expected):
+        return False
+    left = [canonical_hash(item) for item in value]
+    right = [canonical_hash(item) for item in expected]
+    return left != right and Counter(left) == Counter(right)
+
+
+def _review_json_contract_failure_with_aliases(task: Mapping[str, Any], value: Any) -> str | None:
     if not isinstance(value, Mapping):
-        return "json_contract_mismatch"
+        return CONTRACT_MISMATCH_FAILURE_CODE
+    expected_json = task.get("expected_json")
+    if not isinstance(expected_json, Mapping):
+        raise GrammarStdlibT30Error("sealed review JSON is unavailable")
+    alias_mismatch = list(value) != list(expected_json)
+    alias_mismatch |= value.get("contract") != expected_json.get("contract")
+    if task["family"] == "F-4":
+        alias_mismatch |= value.get("status") != expected_json.get("status")
+    coverage_domains = _coverage_domains()
+    for key in MODEL_JSON_COVERAGE_FIELDS:
+        items = value.get(key)
+        if not isinstance(items, list) or any(not isinstance(item, str) for item in items):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        failure = _vocabulary_classification(key, items, coverage_domains[key])
+        if failure not in {None, CONTRACT_MISMATCH_FAILURE_CODE}:
+            return failure
+        alias_mismatch |= failure == CONTRACT_MISMATCH_FAILURE_CODE
+        alias_mismatch |= _same_items_out_of_order(items, expected_json.get(key))
+    if task["family"] == "F-6":
+        declarations = value.get("declarations")
+        relationships = value.get("relationships")
+        if not isinstance(declarations, list) or any(
+            not isinstance(item, Mapping)
+            or set(item) != {"kind", "name"}
+            or not isinstance(item.get("kind"), str)
+            or not isinstance(item.get("name"), str)
+            or not item["name"]
+            for item in declarations
+        ):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        if len(declarations) != len({canonical_hash(item) for item in declarations}):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        alias_mismatch |= _same_items_out_of_order(declarations, expected_json.get("declarations"))
+        expected_declarations = expected_json.get("declarations", [])
+        expected_names = {
+            item["name"] for item in expected_declarations if isinstance(item, Mapping)
+        }
+        expected_named_blocks = {
+            item["name"]
+            for item in expected_declarations
+            if isinstance(item, Mapping) and item.get("kind") == "NamedBlock"
+        }
+        known_task_symbols = _known_task_symbol_strings(task)
+        for item in declarations:
+            kind = str(item["kind"])
+            classification = _vocabulary_classification("top_levels", [kind], TOP_LEVELS)
+            if classification == "invented_symbol":
+                return classification
+            alias_mismatch |= classification == CONTRACT_MISMATCH_FAILURE_CODE
+            name = str(item["name"])
+            if name not in expected_names:
+                if (
+                    name.startswith("block.")
+                    and name.removeprefix("block.") in expected_named_blocks
+                ) or name in known_task_symbols:
+                    alias_mismatch = True
+                else:
+                    return "invented_symbol"
+        if not isinstance(relationships, list) or any(
+            not isinstance(item, str) for item in relationships
+        ):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        if len(relationships) != len(set(relationships)):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        alias_mismatch |= _same_items_out_of_order(
+            relationships, expected_json.get("relationships")
+        )
+        if not set(relationships).issubset(RELATIONSHIP_LABELS):
+            alias_mismatch = True
+        fields = value.get("catalog_fields")
+        allowed_domains = {"implicit", "external-enum", "open"}
+        if CATALOG_INLINE_DOMAIN_SUPPORTED:
+            allowed_domains.add("inline")
+        domain_aliases = {"none": "implicit", "enum": "external-enum", "values": "inline"}
+        expected_fields = {
+            item["name"]
+            for item in expected_json.get("catalog_fields", [])
+            if isinstance(item, Mapping)
+        }
+        if fields is not None:
+            if not isinstance(fields, list) or any(
+                not isinstance(item, Mapping) for item in fields
+            ):
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            if len(fields) != len({canonical_hash(item) for item in fields}):
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            alias_mismatch |= _same_items_out_of_order(fields, expected_json.get("catalog_fields"))
+            for item in fields:
+                domain = item.get("domain")
+                if not isinstance(domain, str):
+                    return CONTRACT_MISMATCH_FAILURE_CODE
+                if domain not in allowed_domains:
+                    if (
+                        domain_aliases.get(domain) in allowed_domains
+                        or domain in known_task_symbols
+                    ):
+                        alias_mismatch = True
+                    else:
+                        return "invented_symbol"
+                canonical_domain = domain_aliases.get(domain, domain)
+                required_keys = (
+                    {"name", "domain", "size"}
+                    if canonical_domain in {"inline", "external-enum"}
+                    else {"name", "domain"}
+                )
+                if set(item) != required_keys:
+                    return CONTRACT_MISMATCH_FAILURE_CODE
+                if canonical_domain in {"inline", "external-enum"} and (
+                    not isinstance(item.get("size"), int)
+                    or isinstance(item.get("size"), bool)
+                    or item["size"] < 0
+                ):
+                    return CONTRACT_MISMATCH_FAILURE_CODE
+                name = item.get("name")
+                if not isinstance(name, str) or not name:
+                    return CONTRACT_MISMATCH_FAILURE_CODE
+                if name not in expected_fields:
+                    if name in known_task_symbols:
+                        alias_mismatch = True
+                    else:
+                        return "invented_symbol"
+    if task["family"] == "F-4":
+        endpoint = value.get("endpoint")
+        expected_endpoint = expected_json["endpoint"]
+        if not isinstance(endpoint, Mapping):
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        alias_mismatch |= list(endpoint) != list(expected_endpoint)
+        count = endpoint.get("count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return CONTRACT_MISMATCH_FAILURE_CODE
+        known_names = {
+            item
+            for key in ("requested", "selected")
+            if isinstance((item := expected_endpoint.get(key)), str)
+        }
+        known_names.update(_known_task_symbol_strings(task))
+        for key in ("requested", "selected"):
+            item = endpoint.get(key)
+            if item is not None and not isinstance(item, str):
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            if item is not None and item != expected_endpoint.get(key):
+                if item in known_names:
+                    alias_mismatch = True
+                else:
+                    return "invented_symbol"
+        if F4_ENDPOINT_SHAPE == "explicit_mode_variants":
+            mode = endpoint.get("mode")
+            if mode not in {"source", "endpoint"}:
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            variants = endpoint.get("variants")
+            expected_variants = expected_endpoint.get("variants")
+            if not isinstance(variants, list) or any(
+                not isinstance(item, str) for item in variants
+            ):
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            if len(variants) != len(set(variants)):
+                return CONTRACT_MISMATCH_FAILURE_CODE
+            if not isinstance(expected_variants, list):
+                raise GrammarStdlibT30Error("sealed F4 variants contract is invalid")
+            alias_mismatch |= _same_items_out_of_order(variants, expected_variants)
+            if not set(variants).issubset(set(expected_variants)):
+                if set(variants).issubset(_known_task_symbol_strings(task)):
+                    alias_mismatch = True
+                else:
+                    return "invented_symbol"
+    return CONTRACT_MISMATCH_FAILURE_CODE if alias_mismatch else None
+
+
+def _review_json_contract_failure(task: Mapping[str, Any], value: Any) -> str | None:
+    if KNOWN_SURFACE_ALIASES_ARE_CONTRACT_MISMATCH:
+        return _review_json_contract_failure_with_aliases(task, value)
+    if not isinstance(value, Mapping):
+        return CONTRACT_MISMATCH_FAILURE_CODE
     for key, allowed in (
         ("top_levels", TOP_LEVELS),
         ("stdlib_members", STDLIB_MEMBERS),
@@ -1818,7 +2368,7 @@ def _review_json_contract_failure(task: Mapping[str, Any], value: Any) -> str | 
     ):
         items = value.get(key)
         if not isinstance(items, list) or any(not isinstance(item, str) for item in items):
-            return "json_contract_mismatch"
+            return CONTRACT_MISMATCH_FAILURE_CODE
         if not set(items).issubset(allowed):
             return "invented_symbol"
     if task["family"] == "F-6":
@@ -1859,7 +2409,7 @@ def _review_json_contract_failure(task: Mapping[str, Any], value: Any) -> str | 
         endpoint = value.get("endpoint")
         expected_endpoint = task["expected_json"]["endpoint"]
         if not isinstance(endpoint, Mapping):
-            return "json_contract_mismatch"
+            return CONTRACT_MISMATCH_FAILURE_CODE
         for key in ("requested", "selected", "variant"):
             item = endpoint.get(key)
             if item is not None and item != expected_endpoint.get(key):
@@ -1867,12 +2417,104 @@ def _review_json_contract_failure(task: Mapping[str, Any], value: Any) -> str | 
     return None
 
 
-def _coverage_from_review_json(value: Mapping[str, Any]) -> dict[str, list[str]]:
-    return {
-        "top_levels": list(value["top_levels"]),
-        "stdlib_members": list(value["stdlib_members"]),
-        "stdlib_settings": list(value["stdlib_settings"]),
+def _coverage_from_review_json(
+    task: Mapping[str, Any], value: Mapping[str, Any]
+) -> dict[str, list[str]]:
+    result = _empty_coverage()
+    for field in MODEL_JSON_COVERAGE_FIELDS:
+        result[field] = list(value[field])
+    if "stdlib_modules" in COVERAGE_FIELDS:
+        result["stdlib_modules"] = _unique(
+            member.removeprefix("std.").split(".", 1)[0] for member in result["stdlib_members"]
+        )
+        if result["stdlib_settings"] and "time" not in result["stdlib_modules"]:
+            result["stdlib_modules"].append("time")
+    if "interaction_classes" in COVERAGE_FIELDS:
+        result["interaction_classes"] = _declared_interaction_classes(task)
+    return result
+
+
+def _source_code_only(source: str) -> str:
+    """Mask literals/comments before deterministic stdlib surface inspection."""
+
+    def mask(match: re.Match[str]) -> str:
+        return "".join("\n" if char == "\n" else " " for char in match.group(0))
+
+    value = re.sub(r'"(?:\\.|[^"\\])*"', mask, source)
+    value = re.sub(r"//[^\n]*|/\*.*?\*/", mask, value, flags=re.S)
+    return value
+
+
+def _declaration_bodies(
+    source: str, kinds: tuple[str, ...], *, name_suffix: str | None = None
+) -> Iterator[str]:
+    pattern = re.compile(
+        rf"\b(?:{'|'.join(re.escape(kind) for kind in kinds)})\s+"
+        r"(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\b"
+    )
+    for match in pattern.finditer(source):
+        if name_suffix is not None and not match.group("name").endswith(name_suffix):
+            continue
+        opening = source.find("{", match.end())
+        if opening < 0:
+            continue
+        depth = 0
+        for index in range(opening, len(source)):
+            if source[index] == "{":
+                depth += 1
+            elif source[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    yield source[opening + 1 : index]
+                    break
+
+
+def _source_symbol_failure(source: str) -> str | None:
+    """Classify only deterministic registry/nature errors; leave all else to the oracle."""
+
+    code = _source_code_only(source)
+    known_by_module = {
+        module: {
+            member
+            for item in STDLIB_MEMBERS
+            if "." in item
+            for candidate_module, member in [item.split(".", 1)]
+            if candidate_module == module
+        }
+        for module in ("time", "codec", "text")
     }
+    pure_references = re.findall(
+        r"\bstd\.([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b", code
+    )
+    ambient_references = re.findall(r"(?<![A-Za-z0-9_.])time\.([A-Za-z_][A-Za-z0-9_]*)\b", code)
+    capabilities = re.findall(r"\bneeds\s+([A-Za-z_][A-Za-z0-9_]*)\b", code)
+
+    if any(module not in known_by_module for module, _member in pure_references):
+        return "invented_symbol"
+    if any(
+        member not in known_by_module[module]
+        for module, member in pure_references
+        if module in known_by_module
+    ):
+        return "invented_symbol"
+    if any(member not in known_by_module["time"] for member in ambient_references):
+        return "invented_symbol"
+    if any(capability not in known_by_module for capability in capabilities):
+        return "invented_symbol"
+    for body in _declaration_bodies(code, ("settings",), name_suffix=".time"):
+        keys = re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", body)
+        if any(key != "timezone" for key in keys):
+            return "invented_symbol"
+    if any(module == "time" for module, _member in pure_references) or any(
+        capability in {"codec", "text"} for capability in capabilities
+    ):
+        return "stdlib_nature_mismatch"
+    for body in _declaration_bodies(code, ("endpoint", "property")):
+        if re.search(r"(?<![A-Za-z0-9_.])time\.[A-Za-z_][A-Za-z0-9_]*\b", body) and not re.search(
+            r"\bneeds\s+time\b", body
+        ):
+            return "ambient_capability_mismatch"
+    return None
 
 
 def score_candidate(
@@ -1887,31 +2529,34 @@ def score_candidate(
         raise GrammarStdlibT30Error("empty worker candidate")
     failure: str | None = None
     observed: dict[str, Any] | None = None
-    observed_coverage = {"top_levels": [], "stdlib_members": [], "stdlib_settings": []}
+    observed_coverage = _empty_coverage()
     if task["task_mode"] == "source_output":
         source, failure = _extract_source(text)
         if source is not None:
-            try:
-                with oracle.grammar_stdlib_oracle_session(
-                    metis_root=metis_root, node_path=node_path
-                ) as session:
-                    observed, envelope = _validate_source_envelope(
-                        task,
-                        source,
-                        metis_root,
-                        node_path,
-                        session,
-                        expected_ok=True,
-                    )
-                    observed_coverage = _coverage_from_inventory(
-                        envelope["result"]["ast"]["inventory"]
-                    )
-            except (
-                GrammarStdlibT30Error,
-                d18.GrammarStdlibAccuracyError,
-                oracle.GrammarStdlibOracleError,
-            ):
-                failure = "grammar_stdlib_oracle_rejected_candidate"
+            if CLASSIFY_SOURCE_SYMBOL_FAILURES and failure is None:
+                failure = _source_symbol_failure(source)
+            if failure is None:
+                try:
+                    with oracle.grammar_stdlib_oracle_session(
+                        metis_root=metis_root, node_path=node_path
+                    ) as session:
+                        observed, envelope = _validate_source_envelope(
+                            task,
+                            source,
+                            metis_root,
+                            node_path,
+                            session,
+                            expected_ok=True,
+                        )
+                        observed_coverage = _coverage_for_task(
+                            task, envelope["result"]["ast"]["inventory"]
+                        )
+                except (
+                    GrammarStdlibT30Error,
+                    d18.GrammarStdlibAccuracyError,
+                    oracle.GrammarStdlibOracleError,
+                ):
+                    failure = "grammar_stdlib_oracle_rejected_candidate"
         correct = failure is None and observed == truth_task["target"].get("expected")
     else:
         value, failure = safe._extract_json(text)
@@ -1931,19 +2576,21 @@ def score_candidate(
             and value is not None
             and not _json_key_order_matches(value, task["expected_json"])
         ):
-            failure = "json_contract_mismatch"
+            failure = CONTRACT_MISMATCH_FAILURE_CODE
         if isinstance(value, Mapping) and failure not in {
             "invented_symbol",
-            "json_contract_mismatch",
+            "stdlib_nature_mismatch",
+            CONTRACT_MISMATCH_FAILURE_CODE,
         }:
-            observed_coverage = _coverage_from_review_json(value)
+            observed_coverage = _coverage_from_review_json(task, value)
         observed = None if value is None else {"json": value, "json_sha256": canonical_hash(value)}
     automatic = task["family"] in {"F-1", "F-2", "F-3", "F-4"}
     semantic_correct: bool | None = correct if automatic else None
     if task["task_mode"] == "exact_json_review" and failure not in {
         None,
         "invented_symbol",
-        "json_contract_mismatch",
+        "stdlib_nature_mismatch",
+        CONTRACT_MISMATCH_FAILURE_CODE,
     }:
         failure = "json_format_mismatch"
     elif not correct and failure is None:
@@ -1953,7 +2600,7 @@ def score_candidate(
         "semantic_mismatch",
         "human_review_mismatch",
         "json_format_mismatch",
-        "json_contract_mismatch",
+        CONTRACT_MISMATCH_FAILURE_CODE,
     }
     return {
         "task_id": task["task_id"],
@@ -1975,13 +2622,13 @@ def score_candidate(
 
 
 def summarize(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
-    if len(rows) > 30:
+    if len(rows) > TASK_COUNT:
         raise GrammarStdlibT30Error("T30 observation roster is oversized")
     return {
-        "tasks_in": 30,
+        "tasks_in": TASK_COUNT,
         "tasks_out": len(rows),
         "tasks_distinct": len({row["task_id"] for row in rows}),
-        "gaps": 30 - len(rows),
+        "gaps": TASK_COUNT - len(rows),
         "semantic_correct": sum(row["semantic_correct"] is True for row in rows),
         "semantic_denominator": sum(row["semantic_correct"] is not None for row in rows),
         "provisional_exact_match": sum(bool(row["mechanical_match"]) for row in rows),
@@ -2020,8 +2667,8 @@ def gate_arithmetic(
     base: list[Mapping[str, Any]], adapter: list[Mapping[str, Any]]
 ) -> dict[str, Any]:
     if (
-        len(base) != 30
-        or len(adapter) != 30
+        len(base) != TASK_COUNT
+        or len(adapter) != TASK_COUNT
         or [row["task_id"] for row in base] != [row["task_id"] for row in adapter]
     ):
         raise GrammarStdlibT30Error("paired T30 roster differs")
@@ -2061,14 +2708,12 @@ def gate_arithmetic(
         "unauthorized_tool_retrieval_veto": not any(
             row["failure_code"] in veto_codes for row in adapter
         ),
-        "complete": right["gaps"] == 0 and right["tasks_distinct"] == 30,
+        "complete": right["gaps"] == 0 and right["tasks_distinct"] == TASK_COUNT,
         "no_paired_regression": not regressions and not mechanical_regressions,
     }
     pending = [row["task_id"] for row in adapter if row["final_human_review_required"]]
     return {
-        "verdict": "GRAMMAR_STDLIB_T30_REVIEW_REQUIRED"
-        if all(gates.values())
-        else "GRAMMAR_STDLIB_T30_DIAGNOSE",
+        "verdict": PRE_REVIEW_VERDICT if all(gates.values()) else DIAGNOSE_VERDICT,
         "authority_tier": "diagnostic_only",
         "base": left,
         "adapter": right,
@@ -2247,8 +2892,8 @@ def _prepare_run(
         "head": head,
         "tree": tree,
         "freeze_sha256": freeze_value["freeze_sha256"],
-        "base_requests": 30,
-        "adapter_requests": 30,
+        "base_requests": TASK_COUNT,
+        "adapter_requests": TASK_COUNT,
         "requests_sha256": canonical_hash(requests),
         "request_ids_sha256": canonical_hash([row["request_id"] for row in requests]),
         "base_worker_command": _worker_command(False),
@@ -2300,8 +2945,8 @@ def _attempt_receipt(
         or value.get("head") != head
         or value.get("tree") != tree
         or value.get("freeze_sha256") != freeze_value.get("freeze_sha256")
-        or value.get("base_requests") != 30
-        or value.get("adapter_requests") != 30
+        or value.get("base_requests") != TASK_COUNT
+        or value.get("adapter_requests") != TASK_COUNT
         or value.get("requests_sha256") != canonical_hash(requests)
         or value.get("request_ids_sha256")
         != canonical_hash([row["request_id"] for row in requests])
@@ -2340,7 +2985,7 @@ def _worker_command(adapter: bool) -> list[str]:
 
 
 def _verify_responses(tasks: list[Mapping[str, Any]], rows: list[Mapping[str, Any]]) -> None:
-    if len(tasks) != 30 or len(rows) != 30:
+    if len(tasks) != TASK_COUNT or len(rows) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 worker response count differs")
     for task, row in zip(tasks, rows, strict=True):
         if (
@@ -2367,7 +3012,7 @@ def _candidates(tasks: list[Mapping[str, Any]], rows: list[Mapping[str, Any]]) -
 def _read_candidates(path: Path, tasks: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     raw = safe._read_regular(path, "T30 candidates", 32 * 1024 * 1024)
     lines = raw.splitlines()
-    if len(lines) != 30:
+    if len(lines) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 candidate count differs")
     result: list[dict[str, Any]] = []
     for task, line in zip(tasks, lines, strict=True):
@@ -2654,7 +3299,7 @@ def _evaluation_document(
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "schema_version": 1,
-        "evidence_id": "grammar-stdlib-accuracy-t30-evaluation/v1",
+        "evidence_id": EVIDENCE_ID,
         "status": "verified_local_cooperative",
         "authority_tier": "diagnostic_only",
         "execution": {
@@ -2740,12 +3385,12 @@ def _load_review_receipt(path: Path, evaluation: Mapping[str, Any]) -> tuple[dic
             "reviews",
         }
         or value.get("schema_version") != 1
-        or value.get("review_id") != "grammar-stdlib-accuracy-t30-human-review/v1"
+        or value.get("review_id") != HUMAN_REVIEW_ID
         or value.get("authority_tier") != "human_review_required"
         or value.get("reviewer_role") != "L0_frontier_coordinator"
         or value.get("evaluation_sha256") != evaluation.get("evaluation_sha256")
         or not isinstance(value.get("reviews"), list)
-        or len(value["reviews"]) != 15
+        or len(value["reviews"]) != HUMAN_REVIEW_COUNT
     ):
         raise GrammarStdlibT30Error("T30 human review receipt contract drift")
     if [row.get("task_id") for row in value["reviews"]] != required_ids:
@@ -2791,7 +3436,7 @@ def _final_adjudication(
 ) -> dict[str, Any]:
     review_by_id = {row["task_id"]: row for row in reviews["reviews"]}
     rows = evaluation["observations"]["adapter"]
-    if not isinstance(rows, list) or len(rows) != 30:
+    if not isinstance(rows, list) or len(rows) != TASK_COUNT:
         raise GrammarStdlibT30Error("T30 adapter evidence roster is incomplete")
     final_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -2810,11 +3455,13 @@ def _final_adjudication(
         coverage = row.get("observed_coverage")
         if (
             not isinstance(coverage, Mapping)
-            or set(coverage) != {"top_levels", "stdlib_members", "stdlib_settings"}
-            or not all(isinstance(coverage.get(key), list) for key in coverage)
-            or not set(coverage["top_levels"]).issubset(TOP_LEVELS)
-            or not set(coverage["stdlib_members"]).issubset(STDLIB_MEMBERS)
-            or not set(coverage["stdlib_settings"]).issubset(STDLIB_SETTINGS)
+            or set(coverage) != set(COVERAGE_FIELDS)
+            or not all(isinstance(coverage.get(key), list) for key in COVERAGE_FIELDS)
+            or any(
+                any(not isinstance(item, str) for item in coverage[field])
+                or not set(coverage[field]).issubset(allowed)
+                for field, allowed in _coverage_domains().items()
+            )
         ):
             raise GrammarStdlibT30Error("T30 observed coverage is invalid")
         final_rows.append(
@@ -2831,15 +3478,8 @@ def _final_adjudication(
         )
     successful = [row for row in final_rows if row["success"]]
     coverage = {
-        "top_levels": sorted(
-            {value for row in successful for value in row["observed_coverage"]["top_levels"]}
-        ),
-        "stdlib_members": sorted(
-            {value for row in successful for value in row["observed_coverage"]["stdlib_members"]}
-        ),
-        "stdlib_settings": sorted(
-            {value for row in successful for value in row["observed_coverage"]["stdlib_settings"]}
-        ),
+        field: sorted({value for row in successful for value in row["observed_coverage"][field]})
+        for field in COVERAGE_FIELDS
     }
     family = {
         name: sum(row["success"] for row in final_rows if row["family"] == name)
@@ -2852,7 +3492,7 @@ def _final_adjudication(
         "family_floor_4_of_5": all(
             family[name] >= THRESHOLDS["family_semantic_min"] for name in FAMILIES
         ),
-        "human_reviews_complete": len(review_by_id) == 15
+        "human_reviews_complete": len(review_by_id) == HUMAN_REVIEW_COUNT
         and all(row["decision"] in {"ACCEPT", "REJECT"} for row in reviews["reviews"]),
         "critical_veto_clear": prior["adapter"]["critical_failure"] == 0,
         "no_paired_regression": not prior["paired_regressions"]
@@ -2861,21 +3501,19 @@ def _final_adjudication(
         "automatic_gate": prior["gates"]["automatic_semantic_total"]
         and prior["gates"]["automatic_semantic_denominator"]
         and prior["gates"]["automatic_family_floor"],
-        "coverage_all_10_top_levels": set(coverage["top_levels"]) == TOP_LEVELS,
-        "coverage_all_12_stdlib_members": set(coverage["stdlib_members"]) == STDLIB_MEMBERS,
-        "coverage_time_timezone": set(coverage["stdlib_settings"]) == STDLIB_SETTINGS,
         "adapter_off_exact_restore": restore.get("exact_candidate_restore") is True,
     }
-    verdict = (
-        "GRAMMAR_STDLIB_T30_PASS_NO_RETRAIN"
-        if all(gates.values())
-        else "GRAMMAR_STDLIB_T30_DIAGNOSE"
-    )
+    coverage_gates = {
+        FINAL_COVERAGE_GATE_NAMES[field]: set(coverage[field]) == denominator
+        for field, denominator in _coverage_domains().items()
+    }
+    gates = {**gates, **coverage_gates}
+    verdict = PASS_VERDICT if all(gates.values()) else DIAGNOSE_VERDICT
     return {
         "verdict": verdict,
         "authority_tier": "local_held_out_grammar_stdlib",
         "semantic_correct": len(successful),
-        "semantic_denominator": 30,
+        "semantic_denominator": TASK_COUNT,
         "family": family,
         "coverage": coverage,
         "gates": gates,
@@ -2937,7 +3575,7 @@ def adjudicate(args: argparse.Namespace) -> int:
     decision = _final_adjudication(evaluation, reviews, freeze_value)
     body = {
         "schema_version": 1,
-        "adjudication_id": "grammar-stdlib-accuracy-t30-adjudication/v1",
+        "adjudication_id": ADJUDICATION_ID,
         "status": "final_local_adjudication",
         "authority_tier": "L0_frontier_human_review",
         "evaluation_sha256": evaluation["evaluation_sha256"],

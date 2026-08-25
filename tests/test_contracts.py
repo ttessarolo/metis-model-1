@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from copy import deepcopy
@@ -16,6 +17,7 @@ from metis_model1.contracts import (
     validate_benchmark_plan_contract,
     validate_foundation,
     validate_grammar_stdlib_t30_preoutput_contract,
+    validate_grammar_stdlib_t30_successor_contract,
     validate_hyperparameter_grid_contract,
     validate_instance,
     validate_qualification_contract,
@@ -55,6 +57,7 @@ def test_repository_foundation_is_valid() -> None:
     )
     assert any(item.startswith("catalog-maintenance-successor-evidence=") for item in report.passes)
     assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
+    assert any(item.startswith("grammar-stdlib-t30-v2=truth/") for item in report.passes)
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
@@ -275,6 +278,93 @@ def test_grammar_stdlib_t30_preoutput_contract_rejects_out_of_order_stage(
     errors = validate_grammar_stdlib_t30_preoutput_contract(tmp_path)
 
     assert "T30 phase freeze is present before its predecessor" in errors
+
+
+def test_grammar_stdlib_t30_successor_contract_is_fail_closed() -> None:
+    assert validate_grammar_stdlib_t30_successor_contract(repository_root()) == []
+
+
+def test_grammar_stdlib_t30_successor_rejects_out_of_order_stage(tmp_path) -> None:
+    root = repository_root()
+    for relative in (
+        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "src/metis_model1/grammar_stdlib_t30_successor.py",
+        "tests/test_grammar_stdlib_t30_successor.py",
+    ):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json"
+    freeze_path.write_text("{}", encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v2 phase freeze is present before its predecessor" in errors
+
+
+def test_grammar_stdlib_t30_successor_rejects_policy_self_hash_drift(tmp_path) -> None:
+    root = repository_root()
+    static_paths = (
+        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "src/metis_model1/grammar_stdlib_t30_successor.py",
+        "tests/test_grammar_stdlib_t30_successor.py",
+    )
+    for relative in static_paths:
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
+    policy_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-policy-v2.json"
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    policy["scope"] = "forged-after-ratification"
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert any("policy_sha256 does not match canonical body" in error for error in errors)
+
+
+def test_grammar_stdlib_t30_successor_rejects_rehashed_truth_input_drift(tmp_path) -> None:
+    root = repository_root()
+    for relative in (
+        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "src/metis_model1/grammar_stdlib_t30_successor.py",
+        "tests/test_grammar_stdlib_t30_successor.py",
+    ):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v2.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["tasks_file_sha256"] = "sha256:" + "0" * 64
+    body = {key: value for key, value in truth.items() if key != "truth_sha256"}
+    truth["truth_sha256"] = hashlib.sha256(
+        json.dumps(
+            body,
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    truth["truth_sha256"] = "sha256:" + truth["truth_sha256"]
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v2 truth tasks_file_sha256 does not link its input" in errors
 
 
 def test_artifact_store_policy_is_ratified_and_budgeted() -> None:

@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "policy_id": "grammar-stdlib-accuracy-t30-policy/v2",
+  "status": "ratified_before_t30_model_output",
+  "benchmark_id": "grammar-stdlib-accuracy-t30-v2",
+  "roster_id": "gsl_t30_public_synthetic_v2",
+  "scope": "fresh_public_synthetic_grammar_stdlib_held_out_v2",
+  "predecessor": {
+    "benchmark_id": "grammar-stdlib-accuracy-t30-v1",
+    "evaluation_path": "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+    "evaluation_self_sha256": "sha256:e6e4d4d015c8086203c81a69800a3a14c136c01d3c66304d99df74b84349f0ac",
+    "disposition": "terminal_diagnosis_no_promotion",
+    "rescore_allowed": false,
+    "model_replay_allowed": false,
+    "task_or_output_reuse_allowed": false,
+    "promotion_credit": false
+  },
+  "taxonomy": {
+    "authority": "global_metis_family_taxonomy",
+    "families": {
+      "F-1": {
+        "mode": "author",
+        "kind": "author_source",
+        "task_mode": "source_output",
+        "automatic_authority": "pinned_oracle_required",
+        "secondary_human_review": null
+      },
+      "F-2": {
+        "mode": "edit",
+        "kind": "minimal_edit_source",
+        "task_mode": "source_output",
+        "automatic_authority": "pinned_oracle_required",
+        "secondary_human_review": "patch_minimality_required"
+      },
+      "F-3": {
+        "mode": "repair",
+        "kind": "diagnostic_repair",
+        "task_mode": "source_output",
+        "automatic_authority": "pinned_oracle_required",
+        "secondary_human_review": null
+      },
+      "F-4": {
+        "mode": "review",
+        "kind": "semantic_review",
+        "task_mode": "exact_json_review",
+        "automatic_authority": "pinned_review_oracle_required",
+        "secondary_human_review": null
+      },
+      "F-5": {
+        "mode": "migrate",
+        "kind": "migration_source",
+        "task_mode": "source_output",
+        "automatic_authority": null,
+        "secondary_human_review": "migration_minimality_required"
+      },
+      "F-6": {
+        "mode": "explain",
+        "kind": "structural_explanation",
+        "task_mode": "exact_json_review",
+        "automatic_authority": null,
+        "secondary_human_review": "structural_explanation_required"
+      }
+    }
+  },
+  "roster": {
+    "tasks": 30,
+    "tasks_per_family": 5,
+    "automatic_tasks": 20,
+    "human_review_task_ids_expected": 15,
+    "human_review_families": [
+      "F-2",
+      "F-5",
+      "F-6"
+    ],
+    "namespace": "gsl_t30v2",
+    "task_id_prefix": "gsl_t30v2_",
+    "top_levels_required": 10,
+    "stdlib_modules_required": 3,
+    "stdlib_members_required": 12,
+    "stdlib_settings_required": 1,
+    "interaction_classes_required": 10,
+    "rare_or_critical_construct_min_occurrences": 2,
+    "catalog_domain_family_reservations": [
+      "F-1",
+      "F-6"
+    ]
+  },
+  "serialization_contracts": {
+    "surface_to_ast": {
+      "tenant": "Tenant",
+      "catalog": "Catalog",
+      "property": "Property",
+      "endpoint": "Endpoint",
+      "preset": "Preset",
+      "list": "List",
+      "transformer": "Transformer",
+      "block": "NamedBlock",
+      "settings": "SettingsDecl",
+      "values": "ValueSet"
+    },
+    "named_block_traversal": "recursive_source_preorder_exact_item_first_use_dedup",
+    "stdlib_registry_id_normalization": {
+      "ambient": "time.member_to_time.member",
+      "pure": "std.module.member_to_module.member"
+    },
+    "array_order": "recursive_source_preorder_exact_item_first_use_dedup",
+    "F-4": {
+      "contract": "metis-source-review/v1",
+      "root_keys": [
+        "contract",
+        "status",
+        "top_levels",
+        "stdlib_members",
+        "stdlib_settings",
+        "endpoint"
+      ],
+      "endpoint_keys": [
+        "count",
+        "mode",
+        "requested",
+        "selected",
+        "variants"
+      ],
+      "endpoint_modes": [
+        "source",
+        "endpoint"
+      ],
+      "variants_always_array": true,
+      "requested_semantics": "oracle_request_target_or_null_in_source_mode",
+      "selected_semantics": "compiler_selected_target_or_null_in_source_mode"
+    },
+    "F-6": {
+      "contract": "metis-structural-explanation/v2",
+      "root_keys": [
+        "contract",
+        "top_levels",
+        "declarations",
+        "catalog_fields",
+        "stdlib_members",
+        "stdlib_settings",
+        "relationships"
+      ],
+      "catalog_fields_always_array": true,
+      "catalog_field_domains": [
+        "implicit",
+        "inline",
+        "external-enum",
+        "open"
+      ],
+      "catalog_field_size_required_for": [
+        "inline",
+        "external-enum"
+      ],
+      "catalog_field_literal_values_serialized": false,
+      "relationship_order": "top_level_source_order_then_ratified_within_declaration_tie_order",
+      "relationship_cardinality": "each_label_at_most_once"
+    }
+  },
+  "symbol_classification": {
+    "known_surface_alias_in_json": {
+      "failure_code": "contract_mismatch",
+      "invented_symbol": false,
+      "examples": [
+        "endpoint_instead_of_Endpoint",
+        "std.codec.decode_instead_of_codec.decode"
+      ]
+    },
+    "known_symbol_wrong_nature": {
+      "failure_code": "stdlib_nature_mismatch",
+      "invented_symbol": false,
+      "critical": true,
+      "examples": [
+        "std.time.now",
+        "needs codec",
+        "needs text"
+      ]
+    },
+    "missing_ambient_capability": {
+      "failure_code": "ambient_capability_mismatch",
+      "invented_symbol": false,
+      "critical": true,
+      "example": "time.hour_without_needs_time"
+    },
+    "unknown_pinned_identity": {
+      "failure_code": "invented_symbol",
+      "invented_symbol": true,
+      "critical": true,
+      "applies_to": [
+        "grammar_ast_label",
+        "stdlib_module",
+        "stdlib_member",
+        "stdlib_setting",
+        "needs_capability"
+      ]
+    }
+  },
+  "automatic_gate": {
+    "adapter_semantic_min": 19,
+    "denominator": 20,
+    "family_min": 4,
+    "family_denominator": 5,
+    "families": [
+      "F-1",
+      "F-2",
+      "F-3",
+      "F-4"
+    ],
+    "critical_max": 0,
+    "paired_regressions_max": 0
+  },
+  "final_gate": {
+    "adapter_semantic_min": 29,
+    "denominator": 30,
+    "family_min": 4,
+    "family_denominator": 5,
+    "critical_max": 0,
+    "invented_symbol_max": 0,
+    "unauthorized_write_max": 0,
+    "retrieval_or_truth_failure_max": 0,
+    "tool_failure_max": 0,
+    "paired_regressions_max": 0,
+    "adapter_off_restore_required": true,
+    "final_success": {
+      "F-1": [
+        "automatic_semantic_correct"
+      ],
+      "F-2": [
+        "automatic_semantic_correct",
+        "patch_minimality_accept"
+      ],
+      "F-3": [
+        "automatic_semantic_correct"
+      ],
+      "F-4": [
+        "automatic_semantic_correct"
+      ],
+      "F-5": [
+        "oracle_mechanical_match",
+        "migration_minimality_accept"
+      ],
+      "F-6": [
+        "json_mechanical_match",
+        "structural_explanation_accept"
+      ]
+    }
+  },
+  "coverage_gate": {
+    "credit_source": "final_successful_tasks_only",
+    "declared_metadata_alone_is_ineligible": true,
+    "failed_task_coverage_is_ineligible": true,
+    "minimum_successful_occurrences_each": 1,
+    "observed_union_must_equal_required_set": true,
+    "top_levels": [
+      "Tenant",
+      "Catalog",
+      "Property",
+      "Endpoint",
+      "Preset",
+      "List",
+      "Transformer",
+      "NamedBlock",
+      "SettingsDecl",
+      "ValueSet"
+    ],
+    "stdlib_modules": [
+      "time",
+      "codec",
+      "text"
+    ],
+    "stdlib_members": [
+      "time.now",
+      "time.month",
+      "time.day",
+      "time.hour",
+      "time.hhmm",
+      "time.weekday",
+      "time.fractional_second",
+      "codec.decode",
+      "codec.encode",
+      "text.slugify",
+      "text.truncate",
+      "text.normalize"
+    ],
+    "stdlib_settings": [
+      "time.timezone"
+    ],
+    "interaction_classes": [
+      "ambient-valid-needs-time",
+      "ambient-invalid-std-namespace",
+      "ambient-missing-needs",
+      "pure-valid-no-needs",
+      "pure-invalid-needs",
+      "unknown-stdlib-module",
+      "unknown-stdlib-member",
+      "unknown-needs-capability",
+      "timezone-setting-valid",
+      "timezone-setting-invalid-key"
+    ],
+    "timezone_setting_invalid_key_input_semantics": "parser_valid_warning_only_allowed_under_pin_then_repaired_to_warning_free_time.timezone"
+  },
+  "one_shot": {
+    "attempts": 1,
+    "worker_invocations": 2,
+    "requests_per_worker": 30,
+    "retries": 0,
+    "fixed_run_id": "t30-v2-20260825",
+    "attempt_nonce": "gsl-t30-v2-20260825-attempt-01",
+    "partial_outputs_preserved": true,
+    "partial_run_disposition": "permanent_stop_no_recovery_no_retry",
+    "preexisting_run_or_attempt_is_stop": true,
+    "local_threat_model": "cooperative_no_host_rollback_attestation"
+  },
+  "decision_policy": {
+    "pre_review_verdict": "GRAMMAR_STDLIB_T30_V2_REVIEW_REQUIRED",
+    "passing_verdict": "GRAMMAR_STDLIB_T30_V2_PASS_NO_RETRAIN",
+    "failing_verdict": "GRAMMAR_STDLIB_T30_V2_DIAGNOSE",
+    "training_authorized": false,
+    "delta_qlora_authorized": false,
+    "dataset_authorized": false,
+    "promotion_authorized": false
+  },
+  "reference_context": {
+    "path": "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+    "generic_only": true,
+    "task_answers_present": false,
+    "tenant_or_live_data_present": false,
+    "grammar_top_levels": 10,
+    "stdlib_modules": 3,
+    "stdlib_members": 12,
+    "stdlib_settings": 1
+  },
+  "model_outputs_observed": false,
+  "training_authorized": false,
+  "delta_qlora_authorized": false,
+  "nonclaims": [
+    "not_accuracy99",
+    "not_population_accuracy",
+    "not_tenant_or_live_data_accuracy",
+    "not_training_data",
+    "no_training_authority",
+    "no_delta_qlora_authority",
+    "no_dataset_authority",
+    "no_promotion_authority",
+    "no_v1_rescore_or_promotion",
+    "no_companion_vscode_or_windows_claim"
+  ],
+  "policy_sha256": "sha256:169414ccb36b2d9c29b173a124296d97534bf9d97c52bfbae7709b7ef0d6ac74"
+}

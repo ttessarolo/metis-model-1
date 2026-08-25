@@ -28,6 +28,8 @@ un sistema che, su task Metis ben definiti:
 - migrazioni fra versioni o forme canoniche quando esiste un oracle verificabile;
 - spiegazione di AST/IR e comportamento compilato, se il riferimento deriva dal
   toolchain corrente;
+- uso, diagnosi e migrazione della standard library Metis corrente, incluse le
+  regole che distinguono capability ambient, funzioni pure e setting;
 - integrazione locale su Apple Silicon attraverso MLX.
 
 ### Escluso dalla prima release
@@ -64,6 +66,7 @@ adapter Metis.
 | D-011 | Dati e artefatti local-only per default | Il corpus Metis può essere proprietario | Ogni upload o distribuzione richiede autorizzazione separata |
 | D-012 | Nessun peso o dataset voluminoso in Git | Mantiene il repository ispezionabile e sicuro | Git contiene manifest, config, report e checksum, non i payload |
 | D-013 | Direzione prodotto: Companion locale Mac + estensione Metis VS Code | Giulia e la redazione devono usare Model 1 sui workspace reali con inferenza locale, toolchain e controllo umano | La demo usa MLX su Mac; le wave preservano adapter separato, retrieval-owned state e patch verificabili. Protocollo e distribuzione restano O-008/O-009; Windows si valuta solo dopo l'approvazione |
+| D-014 | Grammatica e standard library Metis sono autorità accoppiate di primo livello | I soli esempi play-prod/play-demo non coprono tutto ciò che il linguaggio sa esprimere | Ogni wave di accuracy o manutenzione pinna entrambe, misura costrutti, membri, setting e interazioni; prova prima l'adapter esistente e ritara i pesi solo su fallimenti genuini |
 
 La direzione D-013 è specificata in
 [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md).
@@ -116,8 +119,8 @@ di ogni tenant.
 
 Ordine di autorità per costruire esempi ed emettere verdetti:
 
-1. grammatica, validator, compiler, IR e test/oracle eseguibili del commit Metis
-   dichiarato;
+1. grammatica, registro e setting della standard library, validator, compiler,
+   IR e test/oracle eseguibili del commit Metis dichiarato;
 2. sorgenti `.metis` correnti e validati nel medesimo commit;
 3. decisioni e specifiche esplicitamente marcate come correnti;
 4. documentazione storica, soltanto come contesto e mai come train truth implicita.

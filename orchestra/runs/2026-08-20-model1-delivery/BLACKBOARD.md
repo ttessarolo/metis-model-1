@@ -5170,3 +5170,66 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   read-only external Metis checkout is tracked-dirty. The exact T30/contracts
   suite is independently green `59/59` against the clean byte-pinned clone.
   No external checkout mutation is authorized or performed.
+- FACT — T30-v2 static authority is now explicit before output: fresh namespace
+  `gsl_t30v2`, roster `30=5x6`, fully determined F1 targets, exact F4
+  `metis-source-review/v1` and F6 `metis-structural-explanation/v2` contracts,
+  terminal non-promotable T30-v1 predecessor and policy self
+  `sha256:169414ccb36b2d9c29b173a124296d97534bf9d97c52bfbae7709b7ef0d6ac74`.
+  Training, delta QLoRA, dataset use, rescore and promotion remain false.
+- FACT — The v2 roster declares the exact successful-task denominators required
+  by D-014: grammar top-levels `10/10`, standard-library modules `3/3`, public
+  members `12/12`, setting `time.timezone` `1/1`, and interaction classes
+  `10/10`, each preregistered at least twice. Pinned single-task replay withdrew
+  the only roster P0 as stale (`status=ok`, diagnostics empty).
+- FIX — Independent implementation audit found and the runner cured all P1s
+  before truth: F4 source mode now forces `selected=null`; v2 uses first-use
+  dedup for variants/declarations/catalog fields; `std.time` and pure modules
+  in `needs` are critical `stdlib_nature_mismatch`; missing ambient `needs` is
+  `ambient_capability_mismatch`; unknown module/member/capability/`.time` setting
+  is critical `invented_symbol`; known surface aliases stay noncritical
+  `contract_mismatch`. Post-cure audit returns `P0=0 P1=0`; v1+v2 focused tests
+  are green.
+- FACT — The complete 1,382-byte generic reference skeleton is parser- and
+  validator-clean under pinned Metis/Node (`parserErrors=[] diagnostics=[]`).
+  Full AST JSON materialization of that combined tutorial source exceeds the
+  current runner representation (`Invalid string length`); this is not used by
+  truth construction, whose smaller sealed task sources are individually
+  oracle-validated, and does not authorize a toolchain or external-repo change.
+- OPEN — Before materializing truth, add retained tiny-inline domain coverage to
+  a successful F6 structural task, rebuild all `30/30` targets against the clean
+  pinned clone, then publish and independently reopen truth/preimage. Model
+  outputs remain `0`; the fixed v2 run directory and freeze remain absent.
+- DONE — The inline cure and complete pinned rebuild close
+  `in=30 out=30 distinct=30 gaps=0`, exactly five per F-1...F-6. F6_02 now
+  serializes source-order domains `implicit`, `external-enum(2)`, `inline(2)`,
+  `open`; its JSON omits both inline literals. Delegated candidate and L0
+  materialization independently agree on truth self
+  `sha256:3c4139c0d763e131be7c18332af2c5a8dd847865db4097e1b98c53823647f216`.
+  Canonical recomputation, input links, predecessor, counts and static contract
+  are green; model outputs remain `0`, training/delta false.
+- FACT — The first concurrent L0 materialization stopped with one Oracle timeout
+  before any manifest was written; the overlapping delegated rebuild completed
+  green. A second isolated L0 pass produced the exact independently predicted
+  truth hash. This is an oracle construction retry, not a consumed one-shot
+  model attempt; freeze and fixed run remain absent.
+- OPEN — Run the complete repository gate, independently audit the tracked
+  truth/preimage, then commit, push and exactly reopen it. Only after that may
+  the pre-output freeze be built and audited; no base/adapter inference is yet
+  authorized by a published freeze.
+- FACT — The complete preimage gate reports foundation `69/0`, pilot, Ruff and
+  format green. Broad pytest is `1386 passed, 114 failed, 1 skipped, 3 errors`:
+  every non-pass is confined to historical catalog retrieval, D18 or protected
+  Oracle/bridge/qualifier runtime tests; the catalog fixture incurred a
+  `120s` sandboxed Node timeout under host load. No T30-v2 or contract test
+  fails. The exact T30-v1/v2 plus repository-contract suite is independently
+  green `81/81` against the clean byte-pinned clone.
+- DONE — Independent truth/preimage audit closes `P0=0 P1=0 P2=0`: policy,
+  truth and terminal-v1 hashes reopen exactly; `30/30/30`, `5x6`, all
+  `10/3/12/1/10` coverage denominators and each minimum occurrence recompute;
+  F6 covers implicit/external-enum/inline/open without literal-value JSON;
+  grammar/stdlib pin plus all eight overlay hashes are exact. Freeze-readiness
+  review finds no deterministic blocker and confirms that exact preimage
+  commit, push and remote reopen must precede creation of the v2 freeze.
+- OPEN — Commit and push this truth preimage, reopen the exact remote commit,
+  then build and independently audit the zero-output v2 freeze. The fixed run
+  directory remains absent; model calls, training and delta QLoRA remain zero.

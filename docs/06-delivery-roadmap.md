@@ -204,21 +204,36 @@ claim di chiusura dal relativo esito.
 
 ### Stato corrente della wave grammar + standard library
 
-La chiusura D18 è `NO_RETRAIN`. Il successore T30 ha completato il sigillo
-pre-output: il truth canonico del roster pubblico-sintetico è verificato a
-`30/30` task distinti (`sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`),
-con copertura osservata dei dieci top-level della grammatica, dei tre moduli
-stdlib, dei dodici membri pubblici e di `time.timezone`. La policy, il roster e
-il truth sono tracciati nei manifest/fixture dedicati. Il freeze canonico
-`sha256:cb8d5cd4c9899ae55f964096c29621f0754d37093f105527473db3e7f50f9703`
-lega il preimage pubblicato `a4d6e681…`, 26 input correnti, la lineage storica
-`28/28`, il package `11/11` e il ripristino adapter-off esatto. Non esistono
-ancora output di modello T30; training, delta QLoRA, dataset e promotion restano
-esclusi. Il prossimo gate è una sola esecuzione base/adapter sul run già fissato.
+La chiusura D18 è `NO_RETRAIN`. T30-v1 è stato consumato una sola volta con
+`30/30` output base e `30/30` adapter e resta immutabilmente
+`GRAMMAR_STDLIB_T30_DIAGNOSE`: entrambi ottengono `10/20` sui gate automatici,
+senza regressioni accoppiate. Il risultato non è un'accuracy utilizzabile:
+F1 confrontava authoring libero con identificatori e letterali non dichiarati;
+F4/F6 richiedevano una serializzazione AST/stdlib non esposta al modello e
+classificavano alias legittimi come simboli inventati. F2/F3, determinati, sono
+`10/10`. Il manifest diagnostico è pubblicato con self-hash
+`sha256:e6e4d4d015c8086203c81a69800a3a14c136c01d3c66304d99df74b84349f0ac`;
+non viene rescored né promosso retroattivamente.
 
-Il mandato corrente autorizza soltanto l'inferenza T30 locale sigillata e i suoi
-receipt. Training, nuovi download, privilegi, live ARES, upload di payload e
-promotion restano esclusi.
+Il percorso attivo è un T30-v2 interamente fresco, ancora `30=5x6`, che espone
+prima dell'output il contratto JSON completo e rende deterministici i task di
+authoring. Oltre ai dieci top-level della grammatica, v2 gatizza esplicitamente
+i tre moduli standard-library, i dodici membri, `time.timezone` e le interazioni
+fra capability ambient, funzioni pure, namespace e `needs`. Si prova l'adapter
+esistente con una sola coppia base/adapter; training e delta QLoRA si aprono
+soltanto se fallimenti genuini superano la soglia già ratificata.
+
+Il truth v2 è fissato dal toolchain pinned a `30/30` task distinti, zero gap e
+cinque task per famiglia, self-hash
+`sha256:3c4139c0d763e131be7c18332af2c5a8dd847865db4097e1b98c53823647f216`.
+Include anche la serializzazione strutturale delle quattro forme di dominio
+catalogo, compreso l'inline minuscolo con sola taglia. Non esiste ancora un
+freeze v2 né output di modello: pubblicazione del preimage e sigillo restano i
+prossimi gate obbligatori.
+
+Il mandato corrente autorizza costruzione, sigillo e inferenza locale T30-v2.
+Nuovi download, privilegi, live ARES, upload di payload e promotion restano
+esclusi; il repository Metis esterno resta strettamente read-only.
 
 ## 8. Aggiornamento continuo
 

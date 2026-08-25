@@ -235,6 +235,12 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/grammar-stdlib-accuracy-v1/t30-reference-context.md",
     "manifests/grammar-stdlib-accuracy-t30-policy-v1.json",
     "manifests/grammar-stdlib-accuracy-t30-truth-v1.json",
+    "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+    # Fresh T30-v2 successor. Later phase manifests are validated conditionally.
+    "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+    "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+    "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+    "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -262,6 +268,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/grammar_stdlib_accuracy.py",
     "src/metis_model1/grammar_stdlib_accuracy_recovery.py",
     "src/metis_model1/grammar_stdlib_t30.py",
+    "src/metis_model1/grammar_stdlib_t30_successor.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -347,6 +354,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_grammar_stdlib_accuracy.py",
     "tests/test_grammar_stdlib_accuracy_recovery.py",
     "tests/test_grammar_stdlib_t30.py",
+    "tests/test_grammar_stdlib_t30_successor.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -1955,6 +1963,263 @@ def validate_grammar_stdlib_t30_preoutput_contract(root: Path) -> list[str]:
     return errors
 
 
+def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
+    """Validate the fresh T30-v2 grammar/stdlib chain without invoking Metis.
+
+    The successor engine owns the detailed roster and policy grammar.  This
+    repository-level gate reuses that exact contract against ``root`` and then
+    checks the append-only truth/freeze/evaluation/adjudication phase chain.
+    """
+
+    required = (
+        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "src/metis_model1/grammar_stdlib_t30_successor.py",
+        "tests/test_grammar_stdlib_t30_successor.py",
+    )
+    errors = [
+        f"T30-v2 contract path is missing: {path}"
+        for path in required
+        if not (root / path).is_file()
+    ]
+    if errors:
+        return errors
+
+    try:
+        from metis_model1 import grammar_stdlib_t30 as t30
+        from metis_model1 import grammar_stdlib_t30_successor as successor
+
+        with successor.successor_configuration():
+            t30.TASKS_PATH = root / required[0]
+            t30.REFERENCE_PATH = root / required[1]
+            t30.POLICY_PATH = root / required[2]
+            policy, _policy_raw = t30._policy()
+            _manifest, tasks, _tasks_raw = t30.load_tasks()
+            t30._reference_context()
+            expected = {
+                "schema_version": 1,
+                "benchmark_id": t30.BENCHMARK_ID,
+                "nonclaims": t30.NONCLAIMS,
+            }
+            expected_ids = {
+                "truth": ("truth_id", t30.TRUTH_ID),
+                "freeze": ("freeze_id", t30.FREEZE_ID),
+                "evaluation": ("evidence_id", t30.EVIDENCE_ID),
+                "adjudication": ("adjudication_id", t30.ADJUDICATION_ID),
+            }
+    except Exception as error:  # noqa: BLE001 - static contract boundary fails closed
+        return [f"T30-v2 static contract unreadable: {type(error).__name__}: {error}"]
+
+    predecessor_path = root / required[3]
+    try:
+        predecessor_value = load_json(predecessor_path)
+        predecessor_raw = predecessor_path.read_bytes()
+        predecessor_body = {
+            key: value for key, value in predecessor_value.items() if key != "evaluation_sha256"
+        }
+        predecessor_self_hash = (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(
+                    predecessor_body,
+                    allow_nan=False,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+        )
+        predecessor_policy = policy["predecessor"]
+        predecessor_decision = predecessor_value.get("decision")
+        if (
+            predecessor_value.get("evaluation_sha256") != predecessor_self_hash
+            or predecessor_value.get("evaluation_sha256")
+            != predecessor_policy["evaluation_self_sha256"]
+            or predecessor_value.get("evidence_id") != "grammar-stdlib-accuracy-t30-evaluation/v1"
+            or predecessor_value.get("status") != "verified_local_cooperative"
+            or not isinstance(predecessor_decision, dict)
+            or predecessor_decision.get("verdict") != "GRAMMAR_STDLIB_T30_DIAGNOSE"
+            or predecessor_value.get("model_outputs_observed") is not True
+            or predecessor_value.get("training_authorized") is not False
+            or predecessor_value.get("delta_qlora_authorized") is not False
+        ):
+            errors.append("T30-v2 predecessor is not the terminal T30-v1 diagnosis")
+        predecessor = {
+            "path": required[3],
+            "bytes": len(predecessor_raw),
+            "file_sha256": "sha256:" + hashlib.sha256(predecessor_raw).hexdigest(),
+            "evaluation_sha256": predecessor_value.get("evaluation_sha256"),
+            "verdict": predecessor_decision.get("verdict")
+            if isinstance(predecessor_decision, dict)
+            else None,
+            "disposition": "terminal_diagnosis_no_promotion",
+        }
+    except Exception as error:  # noqa: BLE001 - predecessor boundary fails closed
+        errors.append(f"T30-v2 predecessor unreadable: {type(error).__name__}: {error}")
+        predecessor = None
+
+    coverage_counts = {
+        field: Counter(value for task in tasks for value in task["coverage"][field])
+        for field in (
+            "top_levels",
+            "stdlib_modules",
+            "stdlib_members",
+            "stdlib_settings",
+            "interaction_classes",
+        )
+    }
+    if any(
+        count < policy["roster"]["rare_or_critical_construct_min_occurrences"]
+        for counts in coverage_counts.values()
+        for count in counts.values()
+    ):
+        errors.append("T30-v2 declared grammar/stdlib coverage has an occurrence below two")
+    if policy.get("predecessor", {}).get("disposition") != "terminal_diagnosis_no_promotion":
+        errors.append("T30-v2 policy does not make the T30-v1 diagnosis non-promotable")
+
+    phase_paths = {
+        "truth": root / "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
+        "freeze": root / "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json",
+        "evaluation": root / "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
+        "adjudication": root / "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json",
+    }
+    phase_names = tuple(phase_paths)
+    present = [phase_paths[name].is_file() for name in phase_names]
+    for index, is_present in enumerate(present):
+        if is_present and not all(present[:index]):
+            errors.append(f"T30-v2 phase {phase_names[index]} is present before its predecessor")
+
+    phases: dict[str, dict[str, Any]] = {}
+    for index, name in enumerate(phase_names):
+        if not present[index] or not all(present[:index]):
+            continue
+        try:
+            value = load_json(phase_paths[name])
+            field = name + "_sha256"
+            body = {key: item for key, item in value.items() if key != field}
+            if (
+                value.get(field)
+                != "sha256:"
+                + hashlib.sha256(
+                    json.dumps(
+                        body,
+                        allow_nan=False,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest()
+            ):
+                errors.append(f"T30-v2 {name} self-hash is invalid")
+            phases[name] = value
+        except Exception as error:  # noqa: BLE001 - phase boundary fails closed
+            errors.append(f"T30-v2 {name} manifest unreadable: {type(error).__name__}: {error}")
+
+    truth = phases.get("truth")
+    if truth is not None:
+        identity = {
+            **expected,
+            expected_ids["truth"][0]: expected_ids["truth"][1],
+            "status": "truth_fixed_before_model_output",
+            "authority_tier": "automatic",
+            "model_outputs_observed": False,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        }
+        if any(truth.get(key) != value for key, value in identity.items()):
+            errors.append("T30-v2 truth identity/status/claims contain drift")
+        counts = truth.get("counts")
+        if not isinstance(counts, dict) or {
+            key: counts.get(key) for key in ("tasks_in", "tasks_out", "tasks_distinct", "gaps")
+        } != {"tasks_in": 30, "tasks_out": 30, "tasks_distinct": 30, "gaps": 0}:
+            errors.append("T30-v2 truth counts are not 30/30/30 with zero gaps")
+        if truth.get("policy_sha256") != policy.get("policy_sha256"):
+            errors.append("T30-v2 truth does not link the ratified policy")
+        for key, target in (
+            ("tasks_file_sha256", root / required[0]),
+            ("reference_context_sha256", root / required[1]),
+        ):
+            if truth.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
+                errors.append(f"T30-v2 truth {key} does not link its input")
+        if truth.get("predecessor_terminal_diagnosis") != predecessor:
+            errors.append("T30-v2 truth does not bind the terminal T30-v1 diagnosis")
+
+    freeze = phases.get("freeze")
+    if freeze is not None:
+        identity = {
+            "schema_version": 1,
+            expected_ids["freeze"][0]: expected_ids["freeze"][1],
+            "status": "frozen_before_model_output",
+            "authority_tier": "automatic",
+            "truth_sha256": truth.get("truth_sha256") if truth else None,
+            "policy_sha256": policy.get("policy_sha256"),
+            "nonclaims": expected["nonclaims"],
+            "model_outputs_observed": False,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        }
+        if any(freeze.get(key) != value for key, value in identity.items()):
+            errors.append("T30-v2 freeze identity/status/claims or linkage contain drift")
+        for key, target in (
+            ("tasks_file_sha256", root / required[0]),
+            ("reference_context_sha256", root / required[1]),
+            ("policy_file_sha256", root / required[2]),
+        ):
+            if freeze.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
+                errors.append(f"T30-v2 freeze {key} does not link its input")
+
+    evaluation = phases.get("evaluation")
+    if evaluation is not None:
+        identity = {
+            "schema_version": 1,
+            expected_ids["evaluation"][0]: expected_ids["evaluation"][1],
+            "status": "verified_local_cooperative",
+            "authority_tier": "diagnostic_only",
+            "nonclaims": expected["nonclaims"],
+            "model_outputs_observed": True,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        }
+        if any(evaluation.get(key) != value for key, value in identity.items()):
+            errors.append("T30-v2 evaluation identity/status/claims contain drift")
+        execution = evaluation.get("execution")
+        if not isinstance(execution, dict) or execution.get("freeze_sha256") != (
+            freeze.get("freeze_sha256") if freeze else None
+        ):
+            errors.append("T30-v2 evaluation does not link the preceding freeze")
+        elif (
+            execution.get("freeze_file_sha256")
+            != "sha256:" + hashlib.sha256(phase_paths["freeze"].read_bytes()).hexdigest()
+        ):
+            errors.append("T30-v2 evaluation freeze file hash linkage contains drift")
+
+    adjudication = phases.get("adjudication")
+    if adjudication is not None:
+        identity = {
+            "schema_version": 1,
+            expected_ids["adjudication"][0]: expected_ids["adjudication"][1],
+            "status": "final_local_adjudication",
+            "authority_tier": "L0_frontier_human_review",
+            "evaluation_sha256": evaluation.get("evaluation_sha256") if evaluation else None,
+            "freeze_sha256": freeze.get("freeze_sha256") if freeze else None,
+            "nonclaims": expected["nonclaims"],
+            "model_outputs_observed": True,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        }
+        if any(adjudication.get(key) != value for key, value in identity.items()):
+            errors.append("T30-v2 adjudication identity/status/claims or linkage contain drift")
+        if (
+            adjudication.get("evaluation_file_sha256")
+            != "sha256:" + hashlib.sha256(phase_paths["evaluation"].read_bytes()).hexdigest()
+        ):
+            errors.append("T30-v2 adjudication evaluation file hash linkage contains drift")
+    return errors
+
+
 def validate_hyperparameter_grid_contract(root: Path) -> list[str]:
     grid, schema_errors = _validate_standalone_contract_schema(
         root,
@@ -2812,7 +3077,26 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     if t30_preoutput_errors:
         report.errors.extend(t30_preoutput_errors)
     else:
-        report.passes.append("grammar-stdlib-t30=pre-output/30-tasks/no-model-output/no-training")
+        report.passes.append("grammar-stdlib-t30-v1=terminal-diagnosis/no-training")
+
+    t30_successor_errors = validate_grammar_stdlib_t30_successor_contract(root)
+    if t30_successor_errors:
+        report.errors.extend(t30_successor_errors)
+    else:
+        successor_phases = (
+            "truth",
+            "freeze",
+            "evaluation",
+            "adjudication",
+        )
+        latest = "static"
+        for phase in successor_phases:
+            if (root / f"manifests/grammar-stdlib-accuracy-t30-{phase}-v2.json").is_file():
+                latest = phase
+        report.passes.append(
+            f"grammar-stdlib-t30-v2={latest}/30-fresh/10-top-levels/"
+            "3-modules/12-members/10-interactions/no-training"
+        )
 
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)
     if hyperparameter_errors:
