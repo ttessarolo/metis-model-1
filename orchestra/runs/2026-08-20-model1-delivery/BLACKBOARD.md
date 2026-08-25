@@ -5393,3 +5393,39 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   its terminal manifest. After that, use only a generic grouped-attributes
   prompt/retrieval cure and fresh held-out maintenance evidence; do not retry,
   relabel or train on T30-v2.
+- DONE — Evaluation/review commit
+  `391f07884e607ffc1533501471e4675002004963` is exact at local HEAD,
+  tracking ref and direct origin. A second complete runtime/Oracle rescore
+  reproduced the evaluation byte-for-value before writing final adjudication
+  self `sha256:43c345ffd8106f7319fdc521280cf9c644299de3db44181e9844d8845f823015`,
+  raw `sha256:7bab68c501b35d7ea057f32bbe6be4717487dc412be5d29137a16387407d2034`.
+  It binds all `15/15` reviews, adapter semantic `29/30`, families
+  `4+5+5+5+5+5`, exact successful coverage `10/3/12/1/10`, complete and
+  adapter-off restore gates true, while the critical and paired-regression
+  vetoes remain false. Final verdict is
+  `GRAMMAR_STDLIB_T30_V2_DIAGNOSE`; training/delta authority is false.
+- DECISION — The minimum compatible cure changes no weights, grammar, stdlib,
+  Oracle or target. A fresh generic retrieval rule states that compact
+  `attributes` is valid for exactly one assignment and a group of two or more
+  assignments requires braces. Formal closure requires a fresh T30-v3
+  `30=5x6` successor because messages, review receipts and successful coverage
+  cannot be inherited or relabeled. It retains the exact grammar top-level,
+  stdlib module/member/setting and interaction denominators and adds at least
+  two independently rooted F-1 multi-attribute groups.
+- OPEN — Independently audit, commit, push and exactly reopen the terminal v2
+  adjudication. Then build the deterministic fresh v3 roster/context/policy,
+  regenerate pinned truth, and publish its zero-output freeze before the sole
+  base+adapter comparison. T30-v2 output remains permanently nontraining.
+- FACT — Final publication audit is `P0=0 P1=0 P2=0`; the tracked human-review
+  receipt is `8870` bytes with raw
+  `sha256:6fd59e5e70b83806bf93eee74d74d6905b56814543d3a18cedc7a748a6be7047`,
+  exactly matching the adjudication link. Focused T30/contracts are green,
+  foundation is `69/0`, pilot/lint/format/diff checks are green. Mandatory
+  `make check` completes broad pytest at `1390 passed, 127 failed, 1 skipped`;
+  last-failed census is historical D18 `1`, protected Oracle `31`, bridge `25`
+  and qualifier `70`. No T30-v2, adjudication, contract-phase or other modified
+  path fails; the additional qualifier reds versus the prior host snapshot are
+  protected-broker/Node supervision outcomes, not accuracy regressions.
+- DONE — The terminal v2 adjudication, phase-aware foundation regression, docs
+  and active Orchestra evidence are commit-ready. The next write is their exact
+  commit/push/reopen; no v3 file or model output is mixed into this boundary.

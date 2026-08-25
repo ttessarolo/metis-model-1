@@ -1,6 +1,7 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 CLOSED NO_RETRAIN — T30-v1 DIAGNOSED — T30-v2 TRUTH FIXED**.
+Status: **D18 CLOSED NO_RETRAIN — T30-v1 DIAGNOSED — T30-v2 CLOSED 29/30
+DIAGNOSE — PROMPT-ONLY T30-v3 CURE ACTIVE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -284,8 +285,23 @@ It binds the terminal non-promotable v1 diagnosis, policy
 the complete grammar/stdlib reference and the fresh roster. F6 structurally
 exercises `implicit`, `external-enum`, retained tiny `inline` and `open` catalog
 domains while serializing size but never inline literal values. Model outputs,
-training and delta QLoRA remain zero/false; preimage publication and freeze are
-still required before inference.
+training and delta QLoRA were zero/false at truth construction.
+
+The published one-shot T30-v2 run is complete at base `30/30` and adapter
+`30/30` outputs with zero gaps. After all fifteen preregistered F-2/F-5/F-6
+human reviews, base is `30/30` and the adapter is `29/30`: F-1 is `4/5`, while
+F-2 through F-6 are each `5/5`. The twenty-nine successful adapter tasks still
+cover all ten grammar top levels, all three standard-library modules, all
+twelve public members, `time.timezone`, and all ten interaction classes.
+
+The sole failure is a paired base-green adapter regression on one F-1 author
+task: three endpoint attributes were emitted after an unbraced `attributes`
+keyword. The pinned grammar permits that compact form only for one assignment,
+so the second assignment is rejected. This is one genuine model root, not
+retrieval, prompt-target or Oracle drift. Final adjudication self
+`sha256:43c345ffd8106f7319fdc521280cf9c644299de3db44181e9844d8845f823015`
+therefore preserves `GRAMMAR_STDLIB_T30_V2_DIAGNOSE`; the critical and paired-
+regression vetoes cannot be waived by the otherwise green score.
 
 Delta eligibility requires at least three genuine, reproducible,
 oracle-correctable semantic failures across at least two task families and two
@@ -309,8 +325,11 @@ This is a bounded product-coverage result, not the separate 600-task/563-root
 
 ### G3 — conditional delta QLoRA
 
-Only after a valid fresh T30-v2 adjudication establishes delta eligibility may
-a delta dataset be created. It must use new public-synthetic roots,
+T30-v2 establishes only one task, one family and one independent failure root,
+below the ratified `3 tasks / 2 families / 2 roots` threshold. It authorizes no
+dataset or optimizer step. Only after a future valid fresh adjudication
+establishes delta eligibility may a delta dataset be created. It must use new
+public-synthetic roots,
 accepted-by-oracle targets, an independent dev split, and a small stable replay
 set that is not derived from D18, T30-v1 or T30-v2. Selection uses dev only. The
 existing adapter remains the rollback; full retraining and base-weight fusion
@@ -335,10 +354,13 @@ retrieval-owned and are never memorized merely to improve a benchmark score.
 
 ## Current authority boundary
 
-At this document state D18 is closed as `NO_RETRAIN` and T30-v1 is closed as an
-immutable benchmark-contract diagnosis. Its outputs remain ignored and
-ineligible for training. Fresh T30-v2 truth is fixed, but its preimage and
-freeze are not yet published. The only active accuracy path is seal, one base
-pass and one adapter pass for that exact truth. No optimizer step, dataset
-derivation, checkpoint, packaging update, S3 write, external Metis mutation or
-promotion is authorized.
+At this document state D18 is closed as `NO_RETRAIN`; T30-v1 and T30-v2 are
+immutable benchmark diagnoses. Their outputs remain ignored and ineligible for
+training. The only active accuracy path is a fresh T30-v3 successor using the
+same pinned grammar, standard library, base and adapter plus one generic
+retrieval instruction: unbraced `attributes` is allowed for exactly one
+assignment, while two or more assignments require a braced group. T30-v3 must
+re-demonstrate the complete `10/3/12/1/10` grammar/stdlib denominator and may
+not replay or relabel a v2 task. No optimizer step, dataset derivation,
+checkpoint, package or S3 payload change, external Metis mutation, Companion,
+Windows work or population-accuracy promotion is authorized.
