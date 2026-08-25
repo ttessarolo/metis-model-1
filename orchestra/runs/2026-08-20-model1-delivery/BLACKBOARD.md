@@ -5128,3 +5128,45 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   require Metis `a2dde…` while the read-only checkout is `c1aca…`, and W3
   bridge/qualifier tests fail closed without the unregistered protected broker.
   Focused T30 plus integration remains `59/59`; no failure names a T30 file.
+- FACT — Freeze commit `f7c0fe9c52c50dcfd00918d86cac476198873245` is
+  pushed and exactly reopened. The first execution attempt stopped before its
+  receipt because the read-only Metis checkout acquired unrelated tracked
+  edits; the nonce and model-call budget remained unconsumed. L0 preserved that
+  repository byte-for-byte and executed against ignored clean clone
+  `artifacts/t30-metis-clean-c1aca0f6` at the same pinned commit and tree.
+- FACT — The sole T30-v1 attempt then completed exactly one base pass and one
+  selected-adapter pass: `in=30 out=30 distinct=30 gaps=0` per side. Base bytes
+  are `12036`, raw `sha256:871e2be0…`; adapter bytes are `9778`, raw
+  `sha256:ddb8bfad…`; report self is `sha256:4bfa8be5…`. Adapter-off restoration,
+  package `11/11`, historical inputs `28/28`, grammar pin and the complete
+  standard-library pin all reopen exactly. No training or retry occurred.
+- STOP — Immutable T30-v1 automatic result is
+  `GRAMMAR_STDLIB_T30_DIAGNOSE`: base=adapter `10/20`, F1/F2/F3/F4
+  `0/5,5/5,5/5,0/5`, provisional F5 `3/5`, F6 `0/5`, paired regressions `0`.
+  Evidence self is
+  `sha256:e6e4d4d015c8086203c81a69800a3a14c136c01d3c66304d99df74b84349f0ac`.
+  Training and delta QLoRA remain false.
+- FACT — Three independent read-only diagnosis lanes plus L0 separate benchmark
+  defects from model behavior. F1 compares open authoring prompts with hidden
+  exact identifiers/literals; F4/F6 require undisclosed AST-class names and
+  registry IDs while showing only legal Metis surface names; ten supposed
+  `invented_symbol` vetoes are therefore serialization aliases, not invented
+  grammar or stdlib symbols. Determined F2/F3 are `10/10`. F5 exposes one real
+  syntax omission plus one missing retrieval cue; the demonstrated genuine
+  failures remain below the ratified delta threshold.
+- DECISION — T30-v1 is terminal diagnostic evidence and will not be rescored or
+  post-hoc promoted. Accuracy closure proceeds with one fully fresh T30-v2,
+  retaining the `30=5x6`, base/adapter, `29/30`, family `4/5`, zero-critical and
+  zero-regression gates. Before output, v2 must publish the complete JSON
+  serialization contract, make F1 targets fully determined, correct the generic
+  grammar cues, and add explicit successful-task gates for all `10` grammar
+  top-levels, `3` stdlib modules, `12` members, `time.timezone`, and the missing
+  stdlib-nature boundary interactions (`std.time`, pure modules in `needs`, and
+  unknown capability in `needs`). Existing adapter is tested first; no retrain.
+- RISK — Publication `make check` remains broad-red: foundation `68/0`, pilot,
+  Ruff and format are green; pytest is `1378 passed, 103 failed, 1 skipped`.
+  The inherited protected Oracle/bridge/qualifier groups account for the known
+  `102`; one additional historical D18 layout test now fails because the
+  read-only external Metis checkout is tracked-dirty. The exact T30/contracts
+  suite is independently green `59/59` against the clean byte-pinned clone.
+  No external checkout mutation is authorized or performed.
