@@ -5356,3 +5356,40 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   branch reopens at that seal may the fixed run directory be created and the
   one-shot base+adapter inference consume attempt
   `gsl-t30-v2-20260825-attempt-01`; no retry or retraining is pre-authorized.
+- DONE — Freeze commit `f69749adef4dec6dc7e66a7c397eb9b6b867f41a` /
+  tree `eab6855a8f514839dd0e541769647aaae64f9240` was pushed, reopened and
+  consumed exactly once. Base and adapter each returned `30/30` distinct
+  candidates with zero gaps; report self
+  `sha256:fdfa55c1970ec2a027db66571e0bfa0f51bad801f5cf1a0b021191414d7d1d5a`
+  binds base raw
+  `sha256:b609f5c7fb6a290a007851252be6adb5172ef268aa4d382b062630c1904bb37d`
+  and adapter raw
+  `sha256:f75563f1ab67f539d2b34b4c82bceabfd83c1863c3978e82f30e59f5c257f9a8`.
+  Automatic scoring is base `20/20`, adapter `19/20`; the sole paired critical
+  regression is `gsl_t30v2_f1_01`, where the adapter omits the required braces
+  around a three-member `attributes` group. Pinned replay accepts the sealed
+  target and rejects the adapter at the second member, so this is one genuine
+  model root rather than prompt, retrieval or Oracle drift.
+- DONE — Three bounded read-only Orchestra reviews plus direct L0 sampling
+  accept all preregistered judgments: F-2 edit minimality `10/10`, F-5
+  migration minimality `10/10`, and F-6 structural grammar/catalog/stdlib
+  explanations `10/10`. The explicit review receipt binds all `15/15` adapter
+  candidate hashes to evaluation self
+  `sha256:1ca9a340f39b52ed3f813a659dc36bc48b5c96ce1620240b8d8814381cfc4120`.
+  Final arithmetic is adapter `29/30`, family F-1 `4/5` and F-2 through F-6
+  `5/5`; successful tasks still cover grammar top-levels `10/10`, stdlib
+  modules `3/3`, members `12/12`, `time.timezone` `1/1` and interactions
+  `10/10`.
+- FACT — Fresh independent rescore writes canonical evaluation raw
+  `sha256:4d535df4c47aee2d92aed2bfc8dea517bce06a7bb4086381023270a94cc0944a`.
+  The honest final expectation remains `GRAMMAR_STDLIB_T30_V2_DIAGNOSE`:
+  `critical_veto_clear` and `no_paired_regression` are false even though all
+  denominators and human reviews pass. The one-task/one-family/one-root defect
+  is below the ratified `3 tasks / 2 families / 2 roots` delta threshold and
+  no T30 output is an eligible training input or label; training and delta
+  QLoRA remain false.
+- OPEN — Publish and exactly reopen the evaluation plus L0 review receipt,
+  then execute the fail-closed adjudication against a fresh rescore and publish
+  its terminal manifest. After that, use only a generic grouped-attributes
+  prompt/retrieval cure and fresh held-out maintenance evidence; do not retry,
+  relabel or train on T30-v2.

@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "review_id": "grammar-stdlib-accuracy-t30-human-review/v2",
+  "authority_tier": "human_review_required",
+  "reviewer_role": "L0_frontier_coordinator",
+  "evaluation_sha256": "sha256:1ca9a340f39b52ed3f813a659dc36bc48b5c96ce1620240b8d8814381cfc4120",
+  "reviews": [
+    {
+      "task_id": "gsl_t30v2_f2_01",
+      "family": "F-2",
+      "review_kind": "patch_minimality_required",
+      "candidate_sha256": "sha256:32bad71119d38fc8d50aedc182a8dd4ba99841ca204c87043b1dace86eeeb63c",
+      "decision": "ACCEPT",
+      "rationale_code": "F2_PATCH_ONLY_NEEDS_TIME_INSERT",
+      "rationale": "The extracted candidate adds only `needs time` as the first endpoint member; every pre-existing Metis token remains unchanged, and the pinned semantic and IR target matches.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f2_02",
+      "family": "F-2",
+      "review_kind": "patch_minimality_required",
+      "candidate_sha256": "sha256:91576163889c4c05bd55c984f3ba5baaf109eea5659643f893abfadf43c02bd9",
+      "decision": "ACCEPT",
+      "rationale_code": "F2_PATCH_ONLY_AMBIENT_CATEGORY_REPAIR",
+      "rationale": "The extracted candidate changes only the invalid ambient spelling `std.time.now()` to `time.now`; transformer, I/O, set target, and all other tokens remain unchanged.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f2_03",
+      "family": "F-2",
+      "review_kind": "patch_minimality_required",
+      "candidate_sha256": "sha256:a428c0d425cccf59314b90761443561a195571dd85d2fe714993b94ed42e0e51",
+      "decision": "ACCEPT",
+      "rationale_code": "F2_PATCH_ONLY_PURE_NEEDS_REMOVAL",
+      "rationale": "The extracted candidate removes only `needs codec`; the empty endpoint and complete transformer with its codec decode call remain token-identical apart from whitespace.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f2_04",
+      "family": "F-2",
+      "review_kind": "patch_minimality_required",
+      "candidate_sha256": "sha256:24c0bea13f4cbfc564ed9f25648ff5c5114b74cc15307f26785eaf426917597a",
+      "decision": "ACCEPT",
+      "rationale_code": "F2_PATCH_ONLY_TIMEZONE_KEY_REPAIR",
+      "rationale": "The extracted candidate replaces only the unknown key `zone` with `timezone`; the settings name and IANA value remain unchanged and diagnostics are warning-free.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f2_05",
+      "family": "F-2",
+      "review_kind": "patch_minimality_required",
+      "candidate_sha256": "sha256:6eef1e2ae73e7a3486975deb6d07825beb69b7bbf8347845351b100b5851b300",
+      "decision": "ACCEPT",
+      "rationale_code": "F2_PATCH_ONLY_CAPABILITY_REPAIR",
+      "rationale": "The extracted candidate replaces only `foo` with `time` in the needs declaration; the property identity and `time.day` predicate remain unchanged.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f5_01",
+      "family": "F-5",
+      "review_kind": "migration_minimality_required",
+      "candidate_sha256": "sha256:5b255e8e0856e9ff1b2e3670508b8aded2532e8965d85b4e78fb96105c090cb9",
+      "decision": "ACCEPT",
+      "rationale_code": "F5_MIGRATION_ONLY_COMPACT_VARIANT",
+      "rationale": "The extracted candidate replaces only the verbose variants block with the requested compact variant form; catalog, endpoint, block, take cardinality, and source order remain unchanged.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f5_02",
+      "family": "F-5",
+      "review_kind": "migration_minimality_required",
+      "candidate_sha256": "sha256:5a905ced264027a6420615afe90090cae720edf4a96932fbffbb9eacf95be62e",
+      "decision": "ACCEPT",
+      "rationale_code": "F5_MIGRATION_ONLY_EXTERNAL_ENUM",
+      "rationale": "The extracted candidate changes only `stage` to `enum(3)` and appends its exact editorial value set; field identity, values, order, cardinality, and `job_key` are preserved.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f5_03",
+      "family": "F-5",
+      "review_kind": "migration_minimality_required",
+      "candidate_sha256": "sha256:6dd4bb9c73f26ffd31c5897cca17e4e3cb8bb00488884eae62e81586a8d9f38a",
+      "decision": "ACCEPT",
+      "rationale_code": "F5_MIGRATION_ONLY_NEEDS_TIME",
+      "rationale": "The extracted candidate changes only `needs chronos` to `needs time`; the property, `time.month` predicate, literal, order, and every other token are preserved.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f5_04",
+      "family": "F-5",
+      "review_kind": "migration_minimality_required",
+      "candidate_sha256": "sha256:8da4f174e43042027b8efe153e58cd3a9f5eb3676beb54af83c5459c0d15ef96",
+      "decision": "ACCEPT",
+      "rationale_code": "F5_MIGRATION_ONLY_REGISTRY_NAMES",
+      "rationale": "The extracted candidate performs exactly the two requested registry substitutions; transformer fields, set targets, statement order, and all other source tokens remain unchanged.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f5_05",
+      "family": "F-5",
+      "review_kind": "migration_minimality_required",
+      "candidate_sha256": "sha256:d4d5b10c8a026904505266bda0e1e1c60ebd15e0a60ed65b45001f17a0ecc10c",
+      "decision": "ACCEPT",
+      "rationale_code": "F5_MIGRATION_ONLY_AMBIENT_REFERENCE",
+      "rationale": "The extracted candidate changes only `std.time.now()` to `time.now`; transformer request and response fields, set target, and statement order remain unchanged.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f6_01",
+      "family": "F-6",
+      "review_kind": "structural_explanation_required",
+      "candidate_sha256": "sha256:891dafd0ced4090d6c195136e118c89b2cdb486b9e7167dbbb5614822a5f0a7a",
+      "decision": "ACCEPT",
+      "rationale_code": "F6_STRUCTURE_EXACT_CLOCK_CONTRACT",
+      "rationale": "The parsed JSON exactly matches the sealed v2 structural contract, declaration order, normalized time members and setting, published relationships, and the required empty catalog field inventory.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f6_02",
+      "family": "F-6",
+      "review_kind": "structural_explanation_required",
+      "candidate_sha256": "sha256:62e86ac16a19abb190c077af59152232531847b92b8d04d0c13f1a18b17899d7",
+      "decision": "ACCEPT",
+      "rationale_code": "F6_STRUCTURE_EXACT_CATALOG_DOMAINS",
+      "rationale": "The parsed JSON exactly preserves declaration and field order, represents implicit, external-enum, inline, and open domains with correct sizes, and exposes no catalog literal values.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f6_03",
+      "family": "F-6",
+      "review_kind": "structural_explanation_required",
+      "candidate_sha256": "sha256:84e82adb2305ece0f31ea4c04516d435134c0f9160b865ff6573ac696f911120",
+      "decision": "ACCEPT",
+      "rationale_code": "F6_STRUCTURE_EXACT_PURE_STDLIB",
+      "rationale": "The parsed JSON exactly matches the sealed transformer structure, normalized codec and text members, first-trigger deduplication, and pure-call relationships without adding ambient capability claims.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f6_04",
+      "family": "F-6",
+      "review_kind": "structural_explanation_required",
+      "candidate_sha256": "sha256:345949a799feb6322e8e99ced5cba78f4242468607ab2011fc9ded3a5b432947",
+      "decision": "ACCEPT",
+      "rationale_code": "F6_STRUCTURE_EXACT_NESTED_BLOCK",
+      "rationale": "The parsed JSON exactly records the endpoint-owned NamedBlock in recursive source order, the catalog inventory, normalized time members, and only the published relationships.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    },
+    {
+      "task_id": "gsl_t30v2_f6_05",
+      "family": "F-6",
+      "review_kind": "structural_explanation_required",
+      "candidate_sha256": "sha256:14658f268631028e87ef638c660a05e12b9f0a57ce0c820f604c55a5143ec455",
+      "decision": "ACCEPT",
+      "rationale_code": "F6_STRUCTURE_EXACT_FULL_DOCUMENT",
+      "rationale": "The parsed JSON exactly inventories all recursive declarations and catalog fields, preserves first-trigger order for standard-library members and relationships, and binds the timezone setting without aliases.",
+      "source": "direct_candidate_and_pinned_truth_review"
+    }
+  ]
+}
