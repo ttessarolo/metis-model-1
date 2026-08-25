@@ -249,6 +249,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/grammar_stdlib_coverage.py",
     "src/metis_model1/grammar_stdlib_oracle.py",
     "src/metis_model1/grammar_stdlib_accuracy.py",
+    "src/metis_model1/grammar_stdlib_accuracy_recovery.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -332,6 +333,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_grammar_stdlib_oracle.py",
     "tests/test_grammar_stdlib_tasks.py",
     "tests/test_grammar_stdlib_accuracy.py",
+    "tests/test_grammar_stdlib_accuracy_recovery.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (

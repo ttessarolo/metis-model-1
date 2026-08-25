@@ -70,9 +70,9 @@ def test_materialized_freeze_is_zero_output_and_binds_the_published_preimage() -
     assert freeze["model_outputs_observed"] is False
     assert freeze["training_authorized"] is False
     assert freeze["delta_qlora_authorized"] is False
-    run_dir = d18.PROJECT_ROOT / freeze["run_dir"]
-    assert not run_dir.exists()
-    assert not run_dir.is_symlink()
+    # The committed freeze records its historical pre-output state.  Once that
+    # exact seal is consumed, current run presence belongs to run/recovery gates.
+    assert freeze["run_dir"] == "artifacts/grammar-stdlib-accuracy/d18/d18-v1-20260825"
 
 
 def _task(

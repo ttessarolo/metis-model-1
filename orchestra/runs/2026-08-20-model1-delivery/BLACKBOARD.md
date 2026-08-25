@@ -5003,3 +5003,36 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   and ignored; outputs/training/delta remain false. Focused D18/contracts are
   `72/72`, foundation `67/0`, and Ruff/format/diff are green. Exact freeze
   commit/push/reopen is the sole remaining prerequisite to inference.
+- FACT — Freeze publication commit
+  `b36ff5b7768ab8337f82bd271d26a2f2c6afe14d`, tree
+  `ed472ea564abff79d56fc1cb59ea995b894d7449`, is pushed and exactly reopened.
+  Its single D18 consumption completes base18 and adapter18 generation and
+  scoring, then stops before report publication when final `_verify_bound`
+  executes `/usr/bin/git show` and exceeds its 60-second timeout while severe
+  host memory pressure is also observed. The timeout is evidence; memory
+  pressure is context, not a proven cause. This is an operational
+  post-generation failure, not a model semantic verdict; training and delta
+  remain false.
+- FACT — Independent partial-run audit closes exactly two regular single-link
+  mode0600 files and no report/extra: base `18/18`, 4,716 bytes,
+  `sha256:256b65c346978e3dd01db368d51157dccd20f8fc50c5144afec3ea1a1bd54c38`;
+  adapter `18/18`, 4,359 bytes,
+  `sha256:2b254555a1cb991fb59fda39b29ac1b43ae7d1a0fd5feaf6c2b1e4dd22e951cd`.
+  Both carry the exact ordered D18 task roster with canonical row schema.
+- DECISION — Preserve the partial run and publish a separately sealed recovery
+  sidecar before touching it. The sidecar permits only exact candidate rescore
+  against the pinned grammar/stdlib oracle and one no-clobber `report.json`;
+  model replay/additional calls, deletion, alternate Git, training and delta are
+  forbidden. The result is labelled recovered candidate replay and normal D18
+  evidence must independently rescore it.
+- DONE — The zero-model recovery implementation is ready for publication after
+  two independent lineage audits return P0=0/P1=0/P2=0 and a third review
+  closes the post-write candidate TOCTOU finding. It pins Apple Git, `origin` and
+  `refs/heads/codex/model1-local-99-foundation`; proves the sidecar and original
+  freeze were already exact blobs in the recorded recovery preimage; rechecks
+  publication, lineage and candidates after scoring; and rejects pre-existing
+  report output. Focused grammar/stdlib/contracts are `87/87`, foundation is
+  `67/0`, and Ruff/format/diff are green. A repeat Apple-Git timeout remains an
+  explicit operational STOP with no fallback or false green. This authorizes
+  only commit/push/reopen of the implementation preimage, then creation and
+  independent audit of a still-zero-additional-call recovery freeze.

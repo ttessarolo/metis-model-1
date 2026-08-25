@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 ZERO-OUTPUT FREEZE FIXED — PUBLICATION PENDING; MODEL OUTPUT AND TRAINING FALSE**.
+Status: **D18 CANDIDATES COMPLETE — SEALED ZERO-MODEL REPORT RECOVERY PENDING; TRAINING FALSE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -147,8 +147,29 @@ The audited zero-output freeze binds published preimage commit
 including the transitive catalog-retrieval module and catalog pin
 manifest/schema used to construct the grammar/stdlib snapshot. Its self-hash is
 `sha256:730fb0ab6954652666ebd1b6d86bc82d392c55e214ff83be3f0c35d976b4df02`.
-The fixed ignored run directory is absent. This freeze itself must be committed,
-pushed and exactly reopened before either base or adapter may generate a token.
+The fixed ignored run directory was absent when the seal was created. The
+freeze was then committed, pushed and exactly reopened before either base or
+adapter generated a token.
+
+The freeze was published and consumed once. Both 18-row candidate files were
+written, then the original process stopped before `report.json` when its final
+bound-input recheck timed out executing the pinned Apple Git while severe host
+memory pressure was also observed. The timeout is the recorded failure; the
+memory condition is operational context, not a proven root cause. The partial
+run contains exactly those two regular, single-link files:
+
+- base: 4,716 bytes,
+  `sha256:256b65c346978e3dd01db368d51157dccd20f8fc50c5144afec3ea1a1bd54c38`;
+- adapter: 4,359 bytes,
+  `sha256:2b254555a1cb991fb59fda39b29ac1b43ae7d1a0fd5feaf6c2b1e4dd22e951cd`.
+
+Recovery is an exact candidate replay, not a second inference and not a clean
+retroactive attestation of the interrupted process. A separately published
+sidecar must bind the original freeze, all 21 inputs, both candidate files and
+the still-absent report; it authorizes only pinned-oracle rescoring and the
+single no-clobber publication of `report.json`. It forbids model replay,
+training, delta authorization and alternate Git implementations. Normal D18
+evidence must then independently rescore the completed report.
 
 ### G2 — decision and held-out T30
 
