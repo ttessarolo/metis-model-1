@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 CANDIDATES COMPLETE — SEALED ZERO-MODEL REPORT RECOVERY PENDING; TRAINING FALSE**.
+Status: **D18 ZERO-MODEL RECOVERY FREEZE FIXED — PUBLICATION PENDING; TRAINING FALSE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -170,6 +170,17 @@ the still-absent report; it authorizes only pinned-oracle rescoring and the
 single no-clobber publication of `report.json`. It forbids model replay,
 training, delta authorization and alternate Git implementations. Normal D18
 evidence must then independently rescore the completed report.
+
+The recovery implementation preimage is published as commit
+`baf10f565ac6246b9fa682aac1c2e67c176c6a5b`, tree
+`13b11351a0091a13e4291119f6cc65de30a25085`. The materialized recovery freeze
+has canonical self-hash
+`sha256:440f706f9152cc11a9d4790e38ffde47ec301beab1676be8d5267977af0bbfd0`
+and raw file hash
+`sha256:e4d64014afc34d949075b7ddb91e1325e4aee56ffc9e727503a9382533c059bb`.
+Two independent audits return P0=0/P1=0/P2=0. The seal must itself be
+committed, pushed and exactly reopened before the zero-model rescore may write
+the previously absent report.
 
 ### G2 — decision and held-out T30
 

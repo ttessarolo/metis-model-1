@@ -5036,3 +5036,11 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   explicit operational STOP with no fallback or false green. This authorizes
   only commit/push/reopen of the implementation preimage, then creation and
   independent audit of a still-zero-additional-call recovery freeze.
+- DONE — Recovery implementation preimage `baf10f565ac6246b9fa682aac1c2e67c176c6a5b`,
+  tree `13b11351a0091a13e4291119f6cc65de30a25085`, is pushed and exactly
+  reopened. The materialized recovery seal has self `sha256:440f706f...bbfd0`
+  and raw `sha256:e4d64014...c059bb`; it binds the original 21-input freeze,
+  sidecar-at-preimage and exact base18/adapter18 candidates while report remains
+  absent. Two independent audits return P0=0/P1=0/P2=0. Model replay is false,
+  additional calls are zero and training/delta remain false; exact seal
+  commit/push/reopen is the only prerequisite to candidate rescoring.

@@ -92,6 +92,58 @@ def test_recovery_source_has_no_worker_or_model_command() -> None:
     assert 'additional_model_calls": 0' in source
 
 
+def test_materialized_recovery_freeze_binds_published_preimage_and_candidates() -> None:
+    raw = recovery.RECOVERY_FREEZE_PATH.read_bytes()
+    value = json.loads(raw)
+
+    assert recovery.raw_hash(raw) == (
+        "sha256:e4d64014afc34d949075b7ddb91e1325e4aee56ffc9e727503a9382533c059bb"
+    )
+    assert value["recovery_freeze_sha256"] == recovery.canonical_hash(
+        {key: item for key, item in value.items() if key != "recovery_freeze_sha256"}
+    )
+    assert value["recovery_freeze_sha256"] == (
+        "sha256:440f706f9152cc11a9d4790e38ffde47ec301beab1676be8d5267977af0bbfd0"
+    )
+    assert value["preimage_commit"] == "baf10f565ac6246b9fa682aac1c2e67c176c6a5b"
+    assert value["preimage_tree"] == "13b11351a0091a13e4291119f6cc65de30a25085"
+    assert value["remote"] == recovery.ORIGINAL_REMOTE
+    assert value["remote_ref"] == recovery.ORIGINAL_REMOTE_REF
+    assert value["original_freeze_sha256"] == recovery.ORIGINAL_FREEZE_SELF_SHA256
+    assert len(value["original_bound_inputs"]) == 21
+    assert value["recovery_bound_inputs"] == [
+        {
+            "path": recovery.RECOVERY_SIDE_CAR_PATH,
+            "bytes": 25225,
+            "sha256": ("sha256:ca736f7a51c17920d0ce1e174b8f086695388ade2fcc44a41cf3bea27deabeaa"),
+            "git_blob_oid": "55e4d3dce770ed5318a109700422b6743887d879",
+        }
+    ]
+    assert value["candidate_inputs"] == [
+        {
+            "path": recovery.FIXED_CANDIDATE_RELATIVES[0],
+            "bytes": 4716,
+            "sha256": recovery.FIXED_CANDIDATE_HASHES[recovery.FIXED_CANDIDATE_RELATIVES[0]],
+            "rows": 18,
+            "mode": 0o600,
+        },
+        {
+            "path": recovery.FIXED_CANDIDATE_RELATIVES[1],
+            "bytes": 4359,
+            "sha256": recovery.FIXED_CANDIDATE_HASHES[recovery.FIXED_CANDIDATE_RELATIVES[1]],
+            "rows": 18,
+            "mode": 0o600,
+        },
+    ]
+    assert value["source_failure"] == recovery.SOURCE_FAILURE
+    assert value["model_outputs_observed"] is True
+    assert value["candidate_origin_attested"] is False
+    assert value["model_replay"] is False
+    assert value["additional_model_calls"] == 0
+    assert value["training_authorized"] is False
+    assert value["delta_qlora_authorized"] is False
+
+
 def test_recovery_freeze_is_self_hashed_and_explicitly_no_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
