@@ -93,6 +93,34 @@ literal structural scaffold. The smallest lawful next action is therefore a
 generic prompt/retrieval cure plus a separately sealed fresh successor roster,
 not rescoring V1 and not training on its outputs.
 
+## Fresh successor V2
+
+V2 keeps the same 12-task/family/output-kind arithmetic, thresholds, pinned
+retrieval, model identities, runtime, and semantic oracle. It changes only:
+
+- a generic source-system rule saying that catalog and `fields` are literal
+  brace-delimited blocks and that `index` takes a double-quoted string;
+- a fresh `demoacc_v2_` task/identifier namespace, with new cardinalities and
+  values, scanned against train64, dev16, B12, and the consumed V1 roster;
+- V2-specific truth/freeze/evidence IDs, authority, verdict, and ignored run
+  directory.
+
+The prompt cure contains no catalog name, task identifier, expected value,
+cardinality, field order, or complete target. V1 remains the immutable terminal
+diagnosis. V2 uses the same pass predicate and may prove only the same bounded
+catalog-domain Mac demo accuracy claim.
+
+The successor restores the V1 default configuration on every exit path; the
+terminal V1 evidence remains reproducible from its published historical commit.
+V2 runs as:
+
+```bash
+uv run python -m metis_model1.demo_accuracy_successor truth
+uv run python -m metis_model1.demo_accuracy_successor freeze
+uv run python -m metis_model1.demo_accuracy_successor run
+uv run python -m metis_model1.demo_accuracy_successor evidence
+```
+
 ## Training decision
 
 Delta QLoRA remains prohibited by default. Its adjudication threshold is met

@@ -297,9 +297,32 @@ def test_freeze_lineage_requires_preoutput_flags_tree_and_ancestor(
     preimage = "1" * 40
     tree = "2" * 40
     freeze = {
+        "schema_version": 1,
+        "freeze_id": demo.FREEZE_ID,
         "status": "frozen_before_model_output",
+        "authority_scope": demo.EXECUTION_AUTHORITY_SCOPE,
+        "remote": "origin",
+        "remote_ref": "refs/heads/codex/test",
+        "bound_inputs": [],
+        "truth_sha256": "sha256:" + "3" * 64,
+        "tasks_file_sha256": "sha256:" + "4" * 64,
+        "runtime": {},
+        "identities": {},
+        "sandbox_policy_sha256": demo.canonical_hash(demo.qlora.EVALUATION_SANDBOX_POLICY),
+        "generation": demo.GENERATION,
+        "thresholds": demo.THRESHOLDS,
+        "counts": {
+            "tasks_in": 12,
+            "tasks_out": 12,
+            "tasks_distinct": 12,
+            "gaps": 0,
+            "families": {family: 2 for family in demo.FAMILIES},
+        },
+        "run_dir": str(demo.RUN_DIR.relative_to(demo.PROJECT_ROOT)),
         "model_outputs_observed": False,
         "training_authorized": False,
+        "nonclaims": demo.NONCLAIMS,
+        "freeze_sha256": "sha256:" + "5" * 64,
         "preimage_commit": preimage,
         "preimage_tree": tree,
     }

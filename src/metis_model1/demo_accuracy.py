@@ -45,6 +45,18 @@ B12_ROSTER = PROJECT_ROOT / "artifacts/w5-xs/2026-08-24-delivery/b12-roster-v2.j
 DEFAULT_METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
 DEFAULT_NODE = Path("/Users/tommasotessarolo/.local/bin/node")
 QUALIFICATION_PYTHON = PROJECT_ROOT / "qualification/.venv/bin/python"
+BENCHMARK_ID = "demo-accuracy-v1"
+TASK_ID_PREFIX = "demoacc_"
+SOURCE_PREFIX = "public-synthetic/demoacc/"
+TASK_AUTHORITY_SCOPE = "public_synthetic_catalog_domain_only"
+EXECUTION_AUTHORITY_SCOPE = "public_synthetic_catalog_domain_mac_demo_accuracy_only"
+TRUTH_ID = "demo-accuracy-truth/v1"
+FREEZE_ID = "demo-accuracy-freeze/v1"
+EVIDENCE_ID = "demo-accuracy-evaluation/v1"
+PASS_VERDICT = "DEMO_ACCURACY_V1_PASS"
+DIAGNOSE_VERDICT = "DEMO_ACCURACY_V1_DIAGNOSE"
+FRESHNESS_NAMESPACE = b"demoacc_"
+FRESHNESS_SOURCE_PATHS = (DATASET_TRAIN, DATASET_DEV, B12_ROSTER)
 FAMILIES = tuple(f"F-{number}" for number in range(1, 7))
 OUTPUT_KINDS = {"metis_source", "json"}
 THRESHOLDS = {
@@ -199,9 +211,9 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         raise DemoAccuracyError("task manifest keys differ from the fixed contract")
     if (
         manifest.get("schema_version") != 1
-        or manifest.get("benchmark_id") != "demo-accuracy-v1"
+        or manifest.get("benchmark_id") != BENCHMARK_ID
         or manifest.get("status") != "pre_output"
-        or manifest.get("authority_scope") != "public_synthetic_catalog_domain_only"
+        or manifest.get("authority_scope") != TASK_AUTHORITY_SCOPE
         or manifest.get("model_outputs_observed") is not False
         or manifest.get("generation") != GENERATION
         or manifest.get("thresholds") != THRESHOLDS
@@ -220,12 +232,12 @@ def validate_tasks(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
         output_kind = raw_task.get("output_kind")
         if (
             not isinstance(task_id, str)
-            or not task_id.startswith("demoacc_")
+            or not task_id.startswith(TASK_ID_PREFIX)
             or task_id in seen
             or family not in FAMILIES
             or output_kind not in OUTPUT_KINDS
             or not isinstance(raw_task.get("source"), str)
-            or not raw_task["source"].startswith("public-synthetic/demoacc/")
+            or not raw_task["source"].startswith(SOURCE_PREFIX)
             or not isinstance(raw_task.get("prompt"), str)
             or not raw_task["prompt"]
         ):
@@ -276,18 +288,19 @@ def _source_record(path: Path, label: str) -> dict[str, Any]:
 
 def _freshness_records(tasks_raw: bytes, tasks: list[Mapping[str, Any]]) -> dict[str, Any]:
     records = [
-        _source_record(DATASET_TRAIN, "training split"),
-        _source_record(DATASET_DEV, "development split"),
-        _source_record(B12_ROSTER, "B12 roster"),
+        _source_record(path, f"freshness source {path.name}") for path in FRESHNESS_SOURCE_PATHS
     ]
     source_raw = b"\n".join(
         _read_regular(PROJECT_ROOT / record["path"], record["path"], 512 * 1024 * 1024)
         for record in records
     )
     task_ids = [str(task["task_id"]) for task in tasks]
-    if any(task_id.encode() in source_raw for task_id in task_ids) or b"demoacc_" in source_raw:
+    if (
+        any(task_id.encode() in source_raw for task_id in task_ids)
+        or FRESHNESS_NAMESPACE in source_raw
+    ):
         raise DemoAccuracyError("demo task namespace is not fresh against consumed local rosters")
-    if b"demoacc_" not in tasks_raw:
+    if FRESHNESS_NAMESPACE not in tasks_raw:
         raise DemoAccuracyError("demo task namespace is absent")
     return {
         "method": "exact_task_id_and_reserved_namespace_scan",
@@ -338,7 +351,7 @@ def build_truth(metis_root: Path, node_path: Path) -> dict[str, Any]:
     pin_manifest = catalog_pin.load_catalog_maintenance_pin(PROJECT_ROOT)
     body: dict[str, Any] = {
         "schema_version": 1,
-        "truth_id": "demo-accuracy-truth/v1",
+        "truth_id": TRUTH_ID,
         "status": "truth_fixed_before_model_output",
         "authority_scope": manifest["authority_scope"],
         "tasks_file_sha256": raw_hash(tasks_raw),
@@ -520,9 +533,9 @@ def build_freeze(remote: str, metis_root: Path, node_path: Path) -> dict[str, An
         raise DemoAccuracyError(f"fixed run directory already exists: {RUN_DIR}")
     body: dict[str, Any] = {
         "schema_version": 1,
-        "freeze_id": "demo-accuracy-freeze/v1",
+        "freeze_id": FREEZE_ID,
         "status": "frozen_before_model_output",
-        "authority_scope": "public_synthetic_catalog_domain_mac_demo_accuracy_only",
+        "authority_scope": EXECUTION_AUTHORITY_SCOPE,
         "preimage_commit": head,
         "preimage_tree": tree,
         "remote": remote,
@@ -694,7 +707,7 @@ def gate_arithmetic(
     delta_threshold_met = len(genuine_failures) >= 3 and len(failure_families) >= 2
     passed = all(gates.values())
     return {
-        "verdict": "DEMO_ACCURACY_V1_PASS" if passed else "DEMO_ACCURACY_V1_DIAGNOSE",
+        "verdict": PASS_VERDICT if passed else DIAGNOSE_VERDICT,
         "base": base_counts,
         "adapter": adapter_counts,
         "gates": gates,
@@ -902,8 +915,50 @@ def _verify_bound_inputs(records: list[Mapping[str, Any]]) -> None:
 
 
 def _verify_freeze_lineage(freeze_value: Mapping[str, Any], head: str) -> None:
+    expected_keys = {
+        "schema_version",
+        "freeze_id",
+        "status",
+        "authority_scope",
+        "preimage_commit",
+        "preimage_tree",
+        "remote",
+        "remote_ref",
+        "bound_inputs",
+        "truth_sha256",
+        "tasks_file_sha256",
+        "runtime",
+        "identities",
+        "sandbox_policy_sha256",
+        "generation",
+        "thresholds",
+        "counts",
+        "run_dir",
+        "model_outputs_observed",
+        "training_authorized",
+        "nonclaims",
+        "freeze_sha256",
+    }
     if (
-        freeze_value.get("status") != "frozen_before_model_output"
+        set(freeze_value) != expected_keys
+        or freeze_value.get("schema_version") != 1
+        or freeze_value.get("freeze_id") != FREEZE_ID
+        or freeze_value.get("status") != "frozen_before_model_output"
+        or freeze_value.get("authority_scope") != EXECUTION_AUTHORITY_SCOPE
+        or freeze_value.get("run_dir") != str(RUN_DIR.relative_to(PROJECT_ROOT))
+        or freeze_value.get("generation") != GENERATION
+        or freeze_value.get("thresholds") != THRESHOLDS
+        or freeze_value.get("counts")
+        != {
+            "tasks_in": 12,
+            "tasks_out": 12,
+            "tasks_distinct": 12,
+            "gaps": 0,
+            "families": {family: 2 for family in FAMILIES},
+        }
+        or freeze_value.get("sandbox_policy_sha256")
+        != canonical_hash(qlora.EVALUATION_SANDBOX_POLICY)
+        or freeze_value.get("nonclaims") != NONCLAIMS
         or freeze_value.get("model_outputs_observed") is not False
         or freeze_value.get("training_authorized") is not False
     ):
@@ -1018,7 +1073,7 @@ def run(args: argparse.Namespace) -> int:
     report_body: dict[str, Any] = {
         "schema_version": 1,
         "status": "complete",
-        "authority_scope": "public_synthetic_catalog_domain_mac_demo_accuracy_only",
+        "authority_scope": EXECUTION_AUTHORITY_SCOPE,
         "head": head,
         "tree": tree,
         "freeze_sha256": freeze_value["freeze_sha256"],
@@ -1044,7 +1099,7 @@ def run(args: argparse.Namespace) -> int:
             sort_keys=True,
         )
     )
-    return 0 if decision["verdict"] == "DEMO_ACCURACY_V1_PASS" else 1
+    return 0 if decision["verdict"] == PASS_VERDICT else 1
 
 
 def _verified_run_file_roster() -> set[Path]:
@@ -1147,7 +1202,7 @@ def evidence(args: argparse.Namespace) -> int:
         set(report) != required_report_keys
         or report.get("schema_version") != 1
         or report.get("status") != "complete"
-        or report.get("authority_scope") != "public_synthetic_catalog_domain_mac_demo_accuracy_only"
+        or report.get("authority_scope") != EXECUTION_AUTHORITY_SCOPE
         or report.get("head") != head
         or report.get("tree") != tree
         or report.get("freeze_sha256") != freeze_value["freeze_sha256"]
@@ -1185,7 +1240,7 @@ def evidence(args: argparse.Namespace) -> int:
     }
     body: dict[str, Any] = {
         "schema_version": 1,
-        "evidence_id": "demo-accuracy-evaluation/v1",
+        "evidence_id": EVIDENCE_ID,
         "status": "verified_local_cooperative",
         "authority_scope": report["authority_scope"],
         "execution": {
@@ -1215,7 +1270,7 @@ def evidence(args: argparse.Namespace) -> int:
             sort_keys=True,
         )
     )
-    return 0 if body["decision"]["verdict"] == "DEMO_ACCURACY_V1_PASS" else 1
+    return 0 if body["decision"]["verdict"] == PASS_VERDICT else 1
 
 
 def parser() -> argparse.ArgumentParser:

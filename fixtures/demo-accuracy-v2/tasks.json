@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "demo-accuracy-v2",
+  "status": "pre_output",
+  "authority_scope": "public_synthetic_catalog_domain_successor_only",
+  "model_outputs_observed": false,
+  "generation": {
+    "temperature": 0,
+    "seed": 17,
+    "thinking": false,
+    "max_tokens": 512
+  },
+  "thresholds": {
+    "total_min": 11,
+    "family_min": 1,
+    "critical_max": 0,
+    "adapter_regression_allowed": false
+  },
+  "tasks": [
+    {
+      "task_id": "demoacc_v2_f1_catalog_composite_01",
+      "family": "F-1",
+      "source": "public-synthetic/demoacc/v2/catalog-composite-01",
+      "output_kind": "metis_source",
+      "prompt": "Author exactly one complete Metis 0.43 source document, with no markdown fences or explanation. Use catalog name public.video, driver opensearch, index \"demoacc_v2_index_f1_01\", and id demoacc_v2_id_f1_01. In fields, use this exact order and these exact names: demoacc_v2_id_f1_01 as keyword; demoacc_v2_status_f1_01 as keyword enum(5), a bounded external domain of cardinality 5; demoacc_v2_title_f1_01 as keyword open, an open live-index domain. Keep both domains hash-only and do not materialize any values.",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f1_01\"\n  id demoacc_v2_id_f1_01\n  fields {\n    demoacc_v2_id_f1_01 keyword\n    demoacc_v2_status_f1_01 keyword enum(5)\n    demoacc_v2_title_f1_01 keyword open\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f1_catalog_composite_02",
+      "family": "F-1",
+      "source": "public-synthetic/demoacc/v2/catalog-composite-02",
+      "output_kind": "metis_source",
+      "prompt": "Author exactly one complete Metis 0.43 source document, with no markdown fences or explanation. Use catalog name public.video, driver opensearch, index \"demoacc_v2_index_f1_02\", and id demoacc_v2_id_f1_02. In fields, use this exact order and these exact names: demoacc_v2_id_f1_02 as keyword; demoacc_v2_type_f1_02 as keyword values [\"demoacc_v2_short\", \"demoacc_v2_long\"] (the tiny stable inline domain with exactly those two values); demoacc_v2_tags_f1_02 as keyword multi enum(4) (a bounded external domain of cardinality 4).",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f1_02\"\n  id demoacc_v2_id_f1_02\n  fields {\n    demoacc_v2_id_f1_02 keyword\n    demoacc_v2_type_f1_02 keyword values [\"demoacc_v2_short\", \"demoacc_v2_long\"]\n    demoacc_v2_tags_f1_02 keyword multi enum(4)\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f2_edit_inline5_to_enum5",
+      "family": "F-2",
+      "source": "public-synthetic/demoacc/v2/edit-inline5-to-enum5",
+      "output_kind": "metis_source",
+      "prompt": "Return exactly one complete Metis 0.43 source document, with no markdown fences or explanation. Apply only the requested minimal edit: replace the legacy inline representation of demoacc_v2_status_f2_01, which has five values, with the external enum marker enum(5). Preserve every other character-level catalog choice, field, and order; do not copy any values into the result.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f2_01\"\n  id demoacc_v2_id_f2_01\n  fields {\n    demoacc_v2_id_f2_01 keyword\n    demoacc_v2_status_f2_01 keyword values [\"demoacc_v2_draft\", \"demoacc_v2_review\", \"demoacc_v2_live\", \"demoacc_v2_hold\", \"demoacc_v2_archived\"]\n    demoacc_v2_title_f2_01 keyword open\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f2_01\"\n  id demoacc_v2_id_f2_01\n  fields {\n    demoacc_v2_id_f2_01 keyword\n    demoacc_v2_status_f2_01 keyword enum(5)\n    demoacc_v2_title_f2_01 keyword open\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f2_edit_enum777_to_open",
+      "family": "F-2",
+      "source": "public-synthetic/demoacc/v2/edit-enum777-to-open",
+      "output_kind": "metis_source",
+      "prompt": "Return exactly one complete Metis 0.43 source document, with no markdown fences or explanation. Apply only the requested minimal edit: change demoacc_v2_title_f2_02 from an external enum marker with cardinality 777 to an open live-index domain. Preserve the id, index, field order, multi flag of the other field, and all unrelated syntax.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f2_02\"\n  id demoacc_v2_id_f2_02\n  fields {\n    demoacc_v2_id_f2_02 keyword\n    demoacc_v2_title_f2_02 keyword enum(777)\n    demoacc_v2_tags_f2_02 keyword multi enum(4)\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f2_02\"\n  id demoacc_v2_id_f2_02\n  fields {\n    demoacc_v2_id_f2_02 keyword\n    demoacc_v2_title_f2_02 keyword open\n    demoacc_v2_tags_f2_02 keyword multi enum(4)\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f3_repair_enum_inline_forbidden",
+      "family": "F-3",
+      "source": "public-synthetic/demoacc/v2/repair-enum-inline-forbidden",
+      "output_kind": "metis_source",
+      "prompt": "Repair the supplied invalid Metis 0.43 source and return exactly one complete source document, with no markdown fences or explanation. Remove only the forbidden materialized values suffix from demoacc_v2_tags_f3_01; keep its multi flag and enum cardinality, and preserve the complete catalog skeleton.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f3_01\"\n  id demoacc_v2_id_f3_01\n  fields {\n    demoacc_v2_id_f3_01 keyword\n    demoacc_v2_tags_f3_01 keyword multi enum(3) values [\"demoacc_v2_crimson\", \"demoacc_v2_cyan\", \"demoacc_v2_gold\"]\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f3_01\"\n  id demoacc_v2_id_f3_01\n  fields {\n    demoacc_v2_id_f3_01 keyword\n    demoacc_v2_tags_f3_01 keyword multi enum(3)\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f3_repair_missing_keyword",
+      "family": "F-3",
+      "source": "public-synthetic/demoacc/v2/repair-missing-keyword-before-enum",
+      "output_kind": "metis_source",
+      "prompt": "Repair the supplied invalid Metis 0.43 source and return exactly one complete source document, with no markdown fences or explanation. Insert the missing keyword type before the existing enum(5) marker on demoacc_v2_genre_f3_02, making no other change.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f3_02\"\n  id demoacc_v2_id_f3_02\n  fields {\n    demoacc_v2_id_f3_02 keyword\n    demoacc_v2_genre_f3_02 enum(5)\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f3_02\"\n  id demoacc_v2_id_f3_02\n  fields {\n    demoacc_v2_id_f3_02 keyword\n    demoacc_v2_genre_f3_02 keyword enum(5)\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f4_review_legacy_inline_domain",
+      "family": "F-4",
+      "source": "public-synthetic/demoacc/v2/review-legacy-inline-domain",
+      "output_kind": "json",
+      "prompt": "Review the supplied Metis 0.43 source for catalog-domain contract violations. The tenant policy is inline_max=2, while demoacc_v2_status_f4_01 has bounded cardinality 5; therefore its five inline values violate the policy and must be reported. Return exactly one JSON object, with no markdown or prose, using the schema {\"findings\":[{\"code\":string,\"path\":string}]}. For this violation the exact controlled code is legacy_inline_domain and the exact path grammar is catalog.<catalog-name>.fields.<field-name>.domain. Include every finding and no other key.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f4_01\"\n  id demoacc_v2_id_f4_01\n  fields {\n    demoacc_v2_id_f4_01 keyword\n    demoacc_v2_status_f4_01 keyword values [\"demoacc_v2_a\", \"demoacc_v2_b\", \"demoacc_v2_c\", \"demoacc_v2_d\", \"demoacc_v2_e\"]\n  }\n}\n",
+      "expected_json": {
+        "findings": [
+          {
+            "code": "legacy_inline_domain",
+            "path": "catalog.public.video.fields.demoacc_v2_status_f4_01.domain"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "demoacc_v2_f4_review_incorrect_domain_kind",
+      "family": "F-4",
+      "source": "public-synthetic/demoacc/v2/review-incorrect-domain-kind",
+      "output_kind": "json",
+      "prompt": "Review the supplied Metis 0.43 source against this contract: demoacc_v2_status_f4_02 is a bounded domain with cardinality 5, so its catalog field must use the external enum marker. Return exactly one JSON object, with no markdown or prose, using the schema {\"findings\":[{\"code\":string,\"path\":string}]}. For this violation the exact controlled code is incorrect_domain_kind and the exact path grammar is catalog.<catalog-name>.fields.<field-name>.domain.kind. Include every finding and no other key.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f4_02\"\n  id demoacc_v2_id_f4_02\n  fields {\n    demoacc_v2_id_f4_02 keyword\n    demoacc_v2_status_f4_02 keyword open\n  }\n}\n",
+      "expected_json": {
+        "findings": [
+          {
+            "code": "incorrect_domain_kind",
+            "path": "catalog.public.video.fields.demoacc_v2_status_f4_02.domain.kind"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "demoacc_v2_f5_migrate_inline_bounded_to_enum",
+      "family": "F-5",
+      "source": "public-synthetic/demoacc/v2/migrate-inline-bounded-to-enum",
+      "output_kind": "metis_source",
+      "prompt": "Migrate the supplied legacy Metis 0.43 catalog to the canonical domain surface and return exactly one complete source document, with no markdown fences or explanation. Convert only the bounded inline domain on demoacc_v2_status_f5_01 to external enum(4), remove its materialized values, and preserve all unrelated fields and ordering.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f5_01\"\n  id demoacc_v2_id_f5_01\n  fields {\n    demoacc_v2_id_f5_01 keyword\n    demoacc_v2_status_f5_01 keyword values [\"demoacc_v2_queued\", \"demoacc_v2_ready\", \"demoacc_v2_live\", \"demoacc_v2_retired\"]\n    demoacc_v2_title_f5_01 keyword open\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f5_01\"\n  id demoacc_v2_id_f5_01\n  fields {\n    demoacc_v2_id_f5_01 keyword\n    demoacc_v2_status_f5_01 keyword enum(4)\n    demoacc_v2_title_f5_01 keyword open\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f5_migrate_enum_inline_to_enum",
+      "family": "F-5",
+      "source": "public-synthetic/demoacc/v2/migrate-enum-inline-to-enum",
+      "output_kind": "metis_source",
+      "prompt": "Migrate the supplied invalid hybrid Metis 0.43 catalog to the canonical domain surface and return exactly one complete source document, with no markdown fences or explanation. Keep demoacc_v2_tags_f5_02 as keyword multi enum(5), remove only the appended inline values, and preserve the rest of the source exactly.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f5_02\"\n  id demoacc_v2_id_f5_02\n  fields {\n    demoacc_v2_id_f5_02 keyword\n    demoacc_v2_tags_f5_02 keyword multi enum(5) values [\"demoacc_v2_north\", \"demoacc_v2_south\", \"demoacc_v2_east\", \"demoacc_v2_west\", \"demoacc_v2_central\"]\n  }\n}\n",
+      "expected_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f5_02\"\n  id demoacc_v2_id_f5_02\n  fields {\n    demoacc_v2_id_f5_02 keyword\n    demoacc_v2_tags_f5_02 keyword multi enum(5)\n  }\n}\n"
+    },
+    {
+      "task_id": "demoacc_v2_f6_explain_domain_inventory",
+      "family": "F-6",
+      "source": "public-synthetic/demoacc/v2/explain-domain-inventory",
+      "output_kind": "json",
+      "prompt": "Explain the catalog field inventory from the supplied Metis 0.43 source. Return exactly one JSON object, with no markdown or prose, using {\"catalog\":string,\"fields\":[{\"name\":string,\"domain_kind\":string,\"domain_count\":number|null,\"multi\":boolean,\"is_id\":boolean}]}. Preserve field order and report the domain kind, cardinality, multi flag, and id flag exactly. The controlled domain_kind vocabulary is exactly none, enum, open, inline: use enum for enum(N), open for open, inline for values [...], and none when no domain marker exists. domain_count is N for enum(N), the number of values for inline, and null for open or none.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f6_01\"\n  id demoacc_v2_id_f6_01\n  fields {\n    demoacc_v2_id_f6_01 keyword\n    demoacc_v2_status_f6_01 keyword enum(5)\n    demoacc_v2_title_f6_01 keyword open\n    demoacc_v2_tags_f6_01 keyword multi enum(4)\n    demoacc_v2_type_f6_01 keyword values [\"demoacc_v2_short\", \"demoacc_v2_long\"]\n  }\n}\n",
+      "expected_json": {
+        "catalog": "public.video",
+        "fields": [
+          {
+            "name": "demoacc_v2_id_f6_01",
+            "domain_kind": "none",
+            "domain_count": null,
+            "multi": false,
+            "is_id": true
+          },
+          {
+            "name": "demoacc_v2_status_f6_01",
+            "domain_kind": "enum",
+            "domain_count": 5,
+            "multi": false,
+            "is_id": false
+          },
+          {
+            "name": "demoacc_v2_title_f6_01",
+            "domain_kind": "open",
+            "domain_count": null,
+            "multi": false,
+            "is_id": false
+          },
+          {
+            "name": "demoacc_v2_tags_f6_01",
+            "domain_kind": "enum",
+            "domain_count": 4,
+            "multi": true,
+            "is_id": false
+          },
+          {
+            "name": "demoacc_v2_type_f6_01",
+            "domain_kind": "inline",
+            "domain_count": 2,
+            "multi": false,
+            "is_id": false
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "demoacc_v2_f6_explain_id_and_domain_inventory",
+      "family": "F-6",
+      "source": "public-synthetic/demoacc/v2/explain-id-and-domain-inventory",
+      "output_kind": "json",
+      "prompt": "Explain the catalog field inventory from the supplied Metis 0.43 source. Return exactly one JSON object, with no markdown or prose, using {\"catalog\":string,\"fields\":[{\"name\":string,\"domain_kind\":string,\"domain_count\":number|null,\"multi\":boolean,\"is_id\":boolean}]}. Preserve field order and report every field, including the id field. The controlled domain_kind vocabulary is exactly none, enum, open, inline: use enum for enum(N), open for open, inline for values [...], and none when no domain marker exists. domain_count is N for enum(N), the number of values for inline, and null for open or none.",
+      "input_source": "metis 0.43\ncatalog public.video {\n  driver opensearch\n  index \"demoacc_v2_index_f6_02\"\n  id demoacc_v2_id_f6_02\n  fields {\n    demoacc_v2_id_f6_02 keyword\n    demoacc_v2_title_f6_02 keyword open\n    demoacc_v2_tags_f6_02 keyword multi enum(3)\n  }\n}\n",
+      "expected_json": {
+        "catalog": "public.video",
+        "fields": [
+          {
+            "name": "demoacc_v2_id_f6_02",
+            "domain_kind": "none",
+            "domain_count": null,
+            "multi": false,
+            "is_id": true
+          },
+          {
+            "name": "demoacc_v2_title_f6_02",
+            "domain_kind": "open",
+            "domain_count": null,
+            "multi": false,
+            "is_id": false
+          },
+          {
+            "name": "demoacc_v2_tags_f6_02",
+            "domain_kind": "enum",
+            "domain_count": 3,
+            "multi": true,
+            "is_id": false
+          }
+        ]
+      }
+    }
+  ]
+}

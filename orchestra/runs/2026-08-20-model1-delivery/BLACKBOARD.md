@@ -4820,3 +4820,14 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `NO_RETRAIN` is final for V1. The minimum continuation is a generic literal
   grammar scaffold in the system prompt and a separately frozen fresh roster;
   V1 is never rerun or relabeled and its outputs never enter training.
+- FACT — The V2 successor truth is fixed before output at in=12 out=12
+  distinct=12 gaps=0, exactly two tasks per F-1...F-6 and source8/JSON4. Its
+  `demoacc_v2_` namespace has zero exact hits in train64, dev16, B12 and the
+  consumed V1 roster. The only prompt delta is a generic brace-delimited
+  catalog/fields rule plus quoted-index syntax; it contains no catalog name,
+  benchmark identifier, values, cardinalities, field ordering or target. The
+  wrapper restores the V1 default configuration on every exit, while terminal
+  V1 evidence stays bound to its historical published commit. V2 truth
+  self-hash is
+  `sha256:32109afa42680bf3d3dcf3e7a24bfb88bbc204b81eb953a869fbae0af568910b`;
+  outputs observed=false and training-input authority=false.

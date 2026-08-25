@@ -185,6 +185,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/demo-accuracy-truth-v1.json",
     "manifests/demo-accuracy-freeze-v1.json",
     "manifests/demo-accuracy-evaluation-v1.json",
+    "manifests/demo-accuracy-truth-v2.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",
@@ -214,6 +215,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/catalog-maintenance/public-synthetic-v1/values/bb-reflected.metis",
     "fixtures/catalog-maintenance/public-synthetic-v1/values/cc-editorial.metis",
     "fixtures/demo-accuracy-v1/tasks.json",
+    "fixtures/demo-accuracy-v2/tasks.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -235,6 +237,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/initial_local_qlora_b12.py",
     "src/metis_model1/initial_local_qlora_train.py",
     "src/metis_model1/demo_accuracy.py",
+    "src/metis_model1/demo_accuracy_successor.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -312,6 +315,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_initial_local_qlora_b12.py",
     "tests/test_initial_local_qlora_train.py",
     "tests/test_demo_accuracy.py",
+    "tests/test_demo_accuracy_successor.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
