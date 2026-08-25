@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 CLOSED NO_RETRAIN — T30 PRE-OUTPUT TRUTH MATERIALIZED (30/30)**.
+Status: **D18 CLOSED NO_RETRAIN — T30 PRE-OUTPUT FREEZE SEALED (30/30)**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -225,12 +225,14 @@ The pinned-oracle truth is materialized at `30/30` distinct tasks with canonical
 self-hash
 `sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`.
 L0 independently verified canonical bytes, counts and the exact coverage union.
-This remains pre-output evidence: the preimage must be published and the freeze
-generated/audited before inference. Model output is still `0`, and retraining,
-delta QLoRA, dataset derivation and promotion remain unauthorized. The
-denominator explicitly includes all ten top-level grammar alternatives, all
-three Metis standard-library modules, all twelve public members and
-`time.timezone`.
+The preimage is published at
+`a4d6e68168a787695dd287676d929fbefa81928e`. The canonical pre-output freeze
+has self-hash
+`sha256:cb8d5cd4c9899ae55f964096c29621f0754d37093f105527473db3e7f50f9703`
+and binds 26 current inputs. Model output is still `0`, and retraining, delta
+QLoRA, dataset derivation and promotion remain unauthorized. The denominator
+explicitly includes all ten top-level grammar alternatives, all three Metis
+standard-library modules, all twelve public members and `time.timezone`.
 
 The T30 freeze reopens the historical adapter lineage without comparing old
 training-source blobs to the evolving live worktree. It derives the original
@@ -296,8 +298,8 @@ retrieval-owned and are never memorized merely to improve a benchmark score.
 ## Current authority boundary
 
 At this document state D18 is closed as `NO_RETRAIN`; its model outputs remain
-ignored and ineligible for training. T30 inventory, fixtures, oracle code,
-tests, truth and Git metadata may now be built and verified. No T30 model output
-may be produced until its complete truth manifest and Git-published pre-output
-freeze exist. No optimizer step, dataset derivation, checkpoint, packaging
-update, or S3 write is authorized.
+ignored and ineligible for training. T30 truth and freeze are complete, and the
+fixed run directory is still absent. One base pass and one adapter pass may now
+be executed after the freeze commit is exactly published. No retry, optimizer
+step, dataset derivation, checkpoint, packaging update, or S3 write is
+authorized.

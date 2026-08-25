@@ -5112,3 +5112,19 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   T30 tests are `in=25 out=25 distinct=25 gaps=0`; Ruff, format and the combined
   contract/T30 suite are green at `59/59`. The real historical replay remains
   `28/28` with exact adapter-off restoration and package verification `11/11`.
+- DONE — T30 pre-output freeze materialized canonically with self-hash
+  `sha256:cb8d5cd4c9899ae55f964096c29621f0754d37093f105527473db3e7f50f9703`.
+  It binds published preimage `a4d6e681…`, 26 current inputs, truth `30/30`,
+  grammar top-levels `10/10`, stdlib members `12/12`, `time.timezone` `1/1`,
+  historical inputs `28/28`, package `11/11` and exact adapter-off restoration.
+  The fixed run directory remains absent; model calls `0`, training false.
+- OPEN — Commit, push and exactly reopen this freeze, then consume the fixed
+  attempt once for one base pass and one selected-adapter pass. No retry is
+  permitted.
+- RISK — Mandatory broad `make check` completed: foundation `68/0`, pilot
+  contracts valid/W5 correctly blocked, Ruff and format green; pytest is
+  `1379 passed, 102 failed, 1 skipped`. The failure count is the exact inherited
+  protected baseline already repeated across prior waves: legacy Oracle tests
+  require Metis `a2dde…` while the read-only checkout is `c1aca…`, and W3
+  bridge/qualifier tests fail closed without the unregistered protected broker.
+  Focused T30 plus integration remains `59/59`; no failure names a T30 file.

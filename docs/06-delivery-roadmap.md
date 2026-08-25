@@ -204,20 +204,21 @@ claim di chiusura dal relativo esito.
 
 ### Stato corrente della wave grammar + standard library
 
-La chiusura D18 è `NO_RETRAIN`. Il successore T30 è nella fase pre-output: il
-truth canonico del roster pubblico-sintetico è materializzato e verificato a
+La chiusura D18 è `NO_RETRAIN`. Il successore T30 ha completato il sigillo
+pre-output: il truth canonico del roster pubblico-sintetico è verificato a
 `30/30` task distinti (`sha256:febbde8bbf2b2ca1fa2a7cf667791acfa889080cada6d9322537dfa678e9546a`),
 con copertura osservata dei dieci top-level della grammatica, dei tre moduli
 stdlib, dei dodici membri pubblici e di `time.timezone`. La policy, il roster e
-il truth sono tracciati nei manifest/fixture dedicati e il runner/test è parte
-della fondazione. Non esistono ancora output di modello T30; training, delta
-QLoRA, dataset e promotion restano esclusi. Il prossimo gate è pubblicare il
-preimage e generare/auditare il freeze prima di una sola esecuzione
-base/adapter.
+il truth sono tracciati nei manifest/fixture dedicati. Il freeze canonico
+`sha256:cb8d5cd4c9899ae55f964096c29621f0754d37093f105527473db3e7f50f9703`
+lega il preimage pubblicato `a4d6e681…`, 26 input correnti, la lineage storica
+`28/28`, il package `11/11` e il ripristino adapter-off esatto. Non esistono
+ancora output di modello T30; training, delta QLoRA, dataset e promotion restano
+esclusi. Il prossimo gate è una sola esecuzione base/adapter sul run già fissato.
 
-Inferenza, Node/Metis, dati/materializzazione e training richiedono il mandato
-W5-XS esplicito. Network/download, privilegi, live ARES, upload, promotion,
-commit e push restano esclusi.
+Il mandato corrente autorizza soltanto l'inferenza T30 locale sigillata e i suoi
+receipt. Training, nuovi download, privilegi, live ARES, upload di payload e
+promotion restano esclusi.
 
 ## 8. Aggiornamento continuo
 
