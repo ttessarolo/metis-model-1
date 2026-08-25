@@ -5296,3 +5296,43 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   active Orchestra evidence; both independent reviews are `P0=0 P1=0 P2=0`.
   Freeze and run directories remain absent; next action is exact commit, push,
   remote reopen and zero-output freeze construction.
+- FACT — Historical replay commit
+  `a2ae35e238f20aa8729ec51c6b511c12a7201465` was pushed and exactly reopened.
+  The next freeze passed the fresh grammar/stdlib truth and the historical dev
+  replay, then stopped before writing a freeze or run directory because the
+  completed S3 receipt verifier compared its producer's bound runtime bytes at
+  `de1a922...` with today's legitimately evolved runtime. The SSO token is
+  expired but irrelevant: no AWS call is required or attempted for this local
+  receipt proof; model calls, nonces, training and delta remain zero.
+- FIX — A dedicated read-only historical verifier now parses the exact literal
+  `BOUND_CODE_PATHS` roster from the producer blob at the preimage commit,
+  requires that roster to seal the producer itself, reopens and hashes every
+  historical Git blob, and then reuses the complete unchanged marker/receipt,
+  archive, version-census, ETag, checksum, restore and redaction checks. The
+  live `verify_receipt` and the sole AWS-capable `transfer` path remain
+  live-implementation-strict; the T30 package anchor alone selects historical
+  verification with remote access disabled.
+- DONE — L0 and delegated tests close the verifier change at `62/62`; the live
+  verifier rejects a mutated implementation while the historical verifier
+  accepts only the immutable producer/blob lineage and rejects malformed,
+  nonliteral, duplicate, unsafe, key-drifted or hash-drifted rosters. Direct
+  real-receipt reopen returns `uploaded_versioned_restore_verified` with receipt
+  self `sha256:294375740e1e20d31e74fd7091d5e7cc51dbc3211799a36239f96c095343c795`.
+  Final security audit is `P0=0 P1=0`; one nonblocking fail-closed durability
+  P2 notes that a future backup-policy edit should move this v1 verifier to a
+  fully versioned policy snapshot.
+- FACT — Independent coverage census reconfirms the standard library as a
+  first-class T30-v2 axis rather than tenant-example proxy: modules `3/3`,
+  public members `12/12`, setting `time.timezone` `1/1`, interactions `10/10`,
+  grammar top-levels `10/10`, families `6x5`; only `3/30` tasks mention a
+  tenant. Each equality gate is computed from successful adapter tasks, while
+  observed model coverage remains intentionally unclaimed until the run.
+- FACT — Mandatory `make check` records foundation `69/0`, pilot contracts,
+  Ruff and format green. Full pytest is `1397 passed, 120 failed, 1 skipped`;
+  the failures remain confined to the historical D18 and protected
+  Oracle/bridge/qualifier suites, including host-loaded Node timeouts. The
+  modified backup/T30 tests are green `62/62`; no T30-v2 model result exists.
+- OPEN — Commit, push and exactly reopen this historical-receipt cure, then
+  rebuild and independently audit the zero-output T30-v2 freeze. Only a
+  published freeze may authorize the single base+adapter inference; retraining
+  remains closed unless the preregistered adjudication threshold is met.

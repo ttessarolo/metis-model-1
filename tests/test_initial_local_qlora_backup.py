@@ -13,6 +13,8 @@ from metis_model1 import initial_local_qlora_backup as backup
 COMMIT = "a" * 40
 TREE = "b" * 40
 BRANCH = "codex/model1-local-99-foundation"
+HISTORICAL_PRODUCER = backup.BACKUP_IMPLEMENTATION_PATH
+HISTORICAL_BOUND = b"bound\n"
 
 
 def _write_json(path: Path, value: dict) -> None:
@@ -66,7 +68,15 @@ def _configure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, prepare: bool
     aws_entry.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
     aws_entry.chmod(0o755)
     bound_file = root / "bound.txt"
-    bound_file.write_text("bound\n", encoding="utf-8")
+    bound_file.write_bytes(HISTORICAL_BOUND)
+    producer_source = (f'BOUND_CODE_PATHS = ("bound.txt", "{HISTORICAL_PRODUCER}")\n').encode()
+    producer_file = root / HISTORICAL_PRODUCER
+    producer_file.parent.mkdir(parents=True, exist_ok=True)
+    producer_file.write_bytes(producer_source)
+    historical_blobs = {
+        HISTORICAL_PRODUCER: producer_source,
+        "bound.txt": HISTORICAL_BOUND,
+    }
 
     monkeypatch.setattr(backup, "PROJECT_ROOT", root)
     monkeypatch.setattr(backup, "RUN_ROOT", run_root)
@@ -88,7 +98,7 @@ def _configure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, prepare: bool
         run_root / "metis-model1-adapter-backup-receipt.json",
     )
     monkeypatch.setattr(backup, "AWS_CLI_ENTRY", aws_entry)
-    monkeypatch.setattr(backup, "BOUND_CODE_PATHS", ("bound.txt",))
+    monkeypatch.setattr(backup, "BOUND_CODE_PATHS", ("bound.txt", HISTORICAL_PRODUCER))
     monkeypatch.setattr(
         backup.runtime,
         "verify_archive",
@@ -128,8 +138,8 @@ def _configure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, prepare: bool
 
     def git_blob(commit: str, relative: str) -> bytes:
         assert commit == COMMIT
-        if relative == "bound.txt":
-            return bound_file.read_bytes()
+        if relative in historical_blobs:
+            return historical_blobs[relative]
         if relative == "manifests/initial-local-qlora-backup-preimage-v1.json":
             return backup.PREIMAGE_PATH.read_bytes()
         raise AssertionError(f"unexpected git blob: {relative}")
@@ -143,6 +153,9 @@ def _configure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, prepare: bool
         "archive_bytes": archive.read_bytes(),
         "preimage": document,
         "fresh_restore": fresh_restore,
+        "bound_file": bound_file,
+        "producer_file": producer_file,
+        "historical_blobs": historical_blobs,
     }
 
 
@@ -681,8 +694,8 @@ def test_receipt_remains_valid_after_published_head_advances(tmp_path, monkeypat
             raise AssertionError(f"unexpected git call after publication: {args}") from exc
 
     def git_blob(commit: str, relative: str) -> bytes:
-        if commit == COMMIT and relative == "bound.txt":
-            return (context["root"] / relative).read_bytes()
+        if commit == COMMIT and relative in context["historical_blobs"]:
+            return context["historical_blobs"][relative]
         if commit in {COMMIT, advanced} and relative == (
             "manifests/initial-local-qlora-backup-preimage-v1.json"
         ):
@@ -693,6 +706,67 @@ def test_receipt_remains_valid_after_published_head_advances(tmp_path, monkeypat
     monkeypatch.setattr(backup, "_git_blob", git_blob)
 
     assert backup.verify_receipt(require_published_remote=True) == receipt
+
+
+def test_historical_receipt_reopens_immutable_producer_and_bound_blobs(
+    tmp_path, monkeypatch
+) -> None:
+    context = _configure(tmp_path, monkeypatch)
+    _mock_aws(context, monkeypatch)
+    receipt = backup.transfer()
+
+    # The current checkout has legitimately evolved after publication.  The
+    # historical verifier must use the producer and bound bytes at the
+    # preimage commit, rather than accepting this live implementation drift.
+    context["bound_file"].write_bytes(b"live implementation drift\n")
+    with pytest.raises(backup.BackupContractError, match="implementation differs"):
+        backup.verify_receipt()
+
+    monkeypatch.setattr(
+        backup,
+        "_run_aws",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("AWS forbidden")),
+    )
+    monkeypatch.setattr(
+        backup,
+        "_aws_cli_identity",
+        lambda: (_ for _ in ()).throw(AssertionError("AWS identity forbidden")),
+    )
+    assert backup.verify_historical_receipt() == receipt
+
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        b"BOUND_CODE_PATHS = [\n",
+        b"BOUND_CODE_PATHS = tuple(['bound.txt'])\n",
+        b'BOUND_CODE_PATHS = ("bound.txt", "bound.txt")\n',
+        b'BOUND_CODE_PATHS = ("../bound.txt",)\n',
+        (f'BOUND_CODE_PATHS = ("bound.txt", "{HISTORICAL_PRODUCER}", "other.txt")\n').encode(),
+    ],
+)
+def test_historical_receipt_rejects_producer_roster_drift(
+    tmp_path, monkeypatch, producer: bytes
+) -> None:
+    context = _configure(tmp_path, monkeypatch)
+    _mock_aws(context, monkeypatch)
+    backup.transfer()
+    context["historical_blobs"][HISTORICAL_PRODUCER] = producer
+
+    with pytest.raises(backup.BackupContractError):
+        backup.verify_historical_receipt()
+
+
+def test_historical_receipt_rejects_historical_bound_blob_hash_mismatch(
+    tmp_path, monkeypatch
+) -> None:
+    context = _configure(tmp_path, monkeypatch)
+    _mock_aws(context, monkeypatch)
+    backup.transfer()
+    context["historical_blobs"]["bound.txt"] = b"tampered historical bytes\n"
+
+    with pytest.raises(backup.BackupContractError):
+        backup.verify_historical_receipt()
 
 
 def test_atomic_evidence_write_never_clobbers_existing_receipt(tmp_path) -> None:

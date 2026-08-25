@@ -8,6 +8,7 @@ conditional ``PutObject`` attempt, and emits only redacted local evidence.
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import contextlib
 import hashlib
@@ -18,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 if __package__ in {None, ""}:
@@ -52,6 +53,7 @@ BOUND_CODE_PATHS = (
     "src/metis_model1/initial_local_qlora_runtime.py",
     "tests/test_initial_local_qlora_backup.py",
 )
+BACKUP_IMPLEMENTATION_PATH = "src/metis_model1/initial_local_qlora_backup.py"
 AWS_OPERATIONS = (
     "sts-get-caller-identity",
     "s3-get-bucket-location",
@@ -217,6 +219,91 @@ def _bound_code(commit: str) -> dict[str, str]:
     return records
 
 
+def _historical_bound_code_paths(source: bytes) -> tuple[str, ...]:
+    try:
+        tree = ast.parse(source.decode("utf-8"), filename=BACKUP_IMPLEMENTATION_PATH)
+    except (SyntaxError, UnicodeError) as exc:
+        _fail(f"cannot parse historical backup implementation: {exc}")
+    assignments: list[ast.expr] = []
+    for statement in tree.body:
+        if (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and statement.targets[0].id == "BOUND_CODE_PATHS"
+        ) or (
+            isinstance(statement, ast.AnnAssign)
+            and isinstance(statement.target, ast.Name)
+            and statement.target.id == "BOUND_CODE_PATHS"
+            and statement.value is not None
+        ):
+            assignments.append(statement.value)
+    if len(assignments) != 1:
+        _fail("historical backup bound-code roster declaration drift")
+    try:
+        roster = ast.literal_eval(assignments[0])
+    except (ValueError, TypeError, SyntaxError) as exc:
+        _fail(f"historical backup bound-code roster is not literal: {exc}")
+    if not isinstance(roster, tuple) or not roster:
+        _fail("historical backup bound-code roster is not a non-empty tuple")
+    paths: list[str] = []
+    for relative in roster:
+        if not isinstance(relative, str) or not relative:
+            _fail("historical backup bound-code path is malformed")
+        parsed = PurePosixPath(relative)
+        if (
+            parsed.is_absolute()
+            or parsed.as_posix() != relative
+            or "\\" in relative
+            or any(part in {".", ".."} for part in parsed.parts)
+            or any(ord(character) < 32 or ord(character) == 127 for character in relative)
+        ):
+            _fail("historical backup bound-code path is unsafe")
+        paths.append(relative)
+    if len(set(paths)) != len(paths) or BACKUP_IMPLEMENTATION_PATH not in paths:
+        _fail("historical backup bound-code roster is duplicate or unsealed")
+    return tuple(paths)
+
+
+def _historical_bound_code(commit: str, recorded: Any) -> dict[str, str]:
+    if not isinstance(recorded, Mapping):
+        _fail("historical backup bound-code evidence is malformed")
+    producer = _git_blob(commit, BACKUP_IMPLEMENTATION_PATH)
+    roster = _historical_bound_code_paths(producer)
+    if set(recorded) != set(roster) or len(recorded) != len(roster):
+        _fail("historical backup bound-code evidence roster drift")
+    verified: dict[str, str] = {}
+    for relative in roster:
+        expected = recorded.get(relative)
+        if not _is_hash(expected):
+            _fail(f"historical backup bound-code hash is malformed: {relative}")
+        actual = "sha256:" + hashlib.sha256(_git_blob(commit, relative)).hexdigest()
+        if actual != expected:
+            _fail(f"historical backup implementation hash drift: {relative}")
+        verified[relative] = actual
+    return verified
+
+
+def _validated_historical_aws_cli(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        _fail("historical AWS CLI identity is malformed")
+    resolved = value.get("resolved")
+    size = value.get("bytes")
+    if (
+        set(value) != {"entry", "resolved", "bytes", "sha256"}
+        or value.get("entry") != str(AWS_CLI_ENTRY)
+        or not isinstance(resolved, str)
+        or not resolved
+        or "\x00" in resolved
+        or not Path(resolved).is_absolute()
+        or type(size) is not int
+        or size < 1
+        or not _is_hash(value.get("sha256"))
+    ):
+        _fail("historical AWS CLI identity is malformed")
+    return dict(value)
+
+
 def _aws_cli_identity() -> dict[str, Any]:
     try:
         resolved = AWS_CLI_ENTRY.resolve(strict=True)
@@ -322,8 +409,15 @@ def _command_policy() -> dict[str, Any]:
     }
 
 
-def _preimage_body(commit: str, tree: str, branch: str) -> dict[str, Any]:
-    bundle = _verified_archive_bundle()
+def _preimage_body_from_parts(
+    commit: str,
+    tree: str,
+    branch: str,
+    *,
+    bound_code: Mapping[str, str],
+    bundle: Mapping[str, Any],
+    aws_cli: Mapping[str, Any],
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "preimage_id": "initial-local-qlora-s3-backup-preimage/v1",
@@ -333,15 +427,26 @@ def _preimage_body(commit: str, tree: str, branch: str) -> dict[str, Any]:
         "preimage_tree": tree,
         "branch": branch,
         "remote": REMOTE,
-        "bound_code": _bound_code(commit),
+        "bound_code": dict(bound_code),
         **bundle,
-        "aws_cli": _aws_cli_identity(),
+        "aws_cli": dict(aws_cli),
         "aws": _aws_terms(bundle["archive"], bundle["package_sha256"]),
         "command_policy": _command_policy(),
         "attempt_path": _relative(ATTEMPT_PATH),
         "receipt_path": _relative(RECEIPT_PATH),
         "nonclaims": list(NONCLAIMS),
     }
+
+
+def _preimage_body(commit: str, tree: str, branch: str) -> dict[str, Any]:
+    return _preimage_body_from_parts(
+        commit,
+        tree,
+        branch,
+        bound_code=_bound_code(commit),
+        bundle=_verified_archive_bundle(),
+        aws_cli=_aws_cli_identity(),
+    )
 
 
 def _verify_git_binding(value: Mapping[str, Any], *, require_published_remote: bool) -> str:
@@ -421,6 +526,31 @@ def verify_preimage(*, require_published_remote: bool = False) -> dict[str, Any]
     if body != expected:
         _fail("backup preimage identity, archive, or policy drift")
     return {"status": "verified", "publication_head": current_head, "preimage": value}
+
+
+def verify_historical_preimage(*, require_published_remote: bool = False) -> dict[str, Any]:
+    """Verify a completed backup against its producer's committed source bytes."""
+    value = _json(PREIMAGE_PATH)
+    body = {key: item for key, item in value.items() if key != "preimage_sha256"}
+    if value.get("preimage_sha256") != _canonical_hash(body):
+        _fail("backup preimage self-hash mismatch")
+    current_head = _verify_git_binding(value, require_published_remote=require_published_remote)
+    commit = str(value.get("preimage_commit"))
+    expected = _preimage_body_from_parts(
+        commit,
+        str(value.get("preimage_tree")),
+        str(value.get("branch")),
+        bound_code=_historical_bound_code(commit, value.get("bound_code")),
+        bundle=_verified_archive_bundle(),
+        aws_cli=_validated_historical_aws_cli(value.get("aws_cli")),
+    )
+    if body != expected:
+        _fail("historical backup preimage identity, archive, or policy drift")
+    return {
+        "status": "verified_historical",
+        "publication_head": current_head,
+        "preimage": value,
+    }
 
 
 def _aws_environment() -> dict[str, str]:
@@ -964,8 +1094,7 @@ def transfer() -> dict[str, Any]:
     return receipt
 
 
-def verify_receipt(*, require_published_remote: bool = False) -> dict[str, Any]:
-    verified = verify_preimage(require_published_remote=require_published_remote)
+def _verify_receipt_from_preimage(verified: Mapping[str, Any]) -> dict[str, Any]:
     preimage = verified["preimage"]
     marker = _verify_marker(preimage, verified["publication_head"])
     receipt = _json(RECEIPT_PATH)
@@ -1099,6 +1228,18 @@ def verify_receipt(*, require_published_remote: bool = False) -> dict[str, Any]:
         _fail("redacted S3 receipt PutObject checksum drift")
     _assert_redacted(receipt)
     return receipt
+
+
+def verify_receipt(*, require_published_remote: bool = False) -> dict[str, Any]:
+    """Verify the receipt while requiring today's live producer implementation."""
+    verified = verify_preimage(require_published_remote=require_published_remote)
+    return _verify_receipt_from_preimage(verified)
+
+
+def verify_historical_receipt(*, require_published_remote: bool = False) -> dict[str, Any]:
+    """Verify the receipt against the immutable historical producer implementation."""
+    verified = verify_historical_preimage(require_published_remote=require_published_remote)
+    return _verify_receipt_from_preimage(verified)
 
 
 def main(argv: list[str] | None = None) -> int:

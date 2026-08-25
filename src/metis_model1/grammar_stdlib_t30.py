@@ -1523,7 +1523,7 @@ def _streaming_hash(path: Path) -> tuple[int, str]:
 
 def _verified_backup_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
     try:
-        verified = backup.verify_receipt(require_published_remote=False)
+        verified = backup.verify_historical_receipt(require_published_remote=False)
     except (backup.BackupContractError, OSError) as error:
         raise GrammarStdlibT30Error("complete S3 backup receipt verification failed") from error
     if verified != value:

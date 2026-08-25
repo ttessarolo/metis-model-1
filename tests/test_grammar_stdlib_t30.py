@@ -439,12 +439,20 @@ def test_complete_s3_receipt_verifier_is_bound_and_errors_are_normalized(
     receipt, _raw = t30._historical_document(
         t30.BACKUP_RECEIPT_PATH, "remote backup receipt", "receipt_sha256"
     )
+
+    calls: list[bool] = []
+
+    def historical(*, require_published_remote: bool):
+        calls.append(require_published_remote)
+        return deepcopy(receipt)
+
     monkeypatch.setattr(
         t30.backup,
-        "verify_receipt",
-        lambda *, require_published_remote: deepcopy(receipt),
+        "verify_historical_receipt",
+        historical,
     )
     assert t30._verified_backup_receipt(receipt) == receipt
+    assert calls == [False]
     forged = deepcopy(receipt)
     forged["aws"]["account_id"] = "000000000000"
     with pytest.raises(t30.GrammarStdlibT30Error, match="differs"):
@@ -453,7 +461,7 @@ def test_complete_s3_receipt_verifier_is_bound_and_errors_are_normalized(
     def rejected(*, require_published_remote: bool):
         raise t30.backup.BackupContractError("receipt drift")
 
-    monkeypatch.setattr(t30.backup, "verify_receipt", rejected)
+    monkeypatch.setattr(t30.backup, "verify_historical_receipt", rejected)
     with pytest.raises(t30.GrammarStdlibT30Error, match="complete S3"):
         t30._verified_backup_receipt(receipt)
 
