@@ -4967,3 +4967,22 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   Focused grammar/stdlib/contracts are `70/70`, foundation is `67/0`, and
   Ruff/format/diff are green. This records a truthful broad red, not a global
   green claim; the D18 preimage is ready for exact commit/push before freeze.
+- STOP — The first zero-output freeze candidate `aa771f41...` is rejected and
+  never published or consumed. Independent audit finds its exact roster omitted
+  transitive runtime module `src/metis_model1/catalog_retrieval.py`, imported by
+  the bound catalog probe/refresh path; exact-roster verification therefore
+  could not detect a later semantic change to that module. Model outputs,
+  training and delta remain zero/false.
+- FIX — D18 `BOUND_PATHS` now includes the omitted catalog retrieval module and
+  the catalog pin manifest/schema read while constructing the grammar/stdlib
+  snapshot, making the pre-output roster 21 exact inputs. A new published
+  preimage and newly generated, independently audited freeze are mandatory
+  before inference; the rejected candidate hash is not authority.
+- FACT — Two independent transitive-closure audits return P0=0/P1=0/P2=0 on the
+  21-input cure: all ten import-time `metis_model1` modules (nine operational
+  modules plus inert package init), the two local Node runtime files, catalog
+  pin manifest/schema, fixed external Git tree/runtime and the MLX worker path
+  are accounted for. Six legacy-only local modules are outside the live D18
+  path and are nonblocking. The exact roster is `21/21` distinct. Focused D18
+  is `71/71`, foundation `67/0`, and
+  Ruff/format/diff are green; outputs, training and delta remain zero/false.

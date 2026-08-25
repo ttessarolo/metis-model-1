@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 SEMANTIC-V2 TRUTH FIXED — PRE-OUTPUT SEAL PENDING; MODEL OUTPUT AND TRAINING FALSE**.
+Status: **D18 SEMANTIC-V2 TRUTH FIXED — TRANSITIVE PREIMAGE CURE PENDING; MODEL OUTPUT AND TRAINING FALSE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete

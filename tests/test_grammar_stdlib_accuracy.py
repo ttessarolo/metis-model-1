@@ -45,6 +45,15 @@ def test_materialized_truth_is_preoutput_self_hashed_and_binds_ir() -> None:
     }
 
 
+def test_bound_paths_include_transitive_snapshot_inputs() -> None:
+    assert {
+        "manifests/catalog-maintenance-pin-v1.json",
+        "schemas/catalog-maintenance-pin.schema.json",
+        "src/metis_model1/catalog_retrieval.py",
+    }.issubset(d18.BOUND_PATHS)
+    assert len(d18.BOUND_PATHS) == 21
+
+
 def _task(
     task_id: str,
     family: str,
