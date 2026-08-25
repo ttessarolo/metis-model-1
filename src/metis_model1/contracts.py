@@ -186,6 +186,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/demo-accuracy-freeze-v1.json",
     "manifests/demo-accuracy-evaluation-v1.json",
     "manifests/demo-accuracy-truth-v2.json",
+    "manifests/demo-accuracy-freeze-v2.json",
+    "manifests/demo-accuracy-evaluation-v2.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",

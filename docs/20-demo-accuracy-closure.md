@@ -1,7 +1,7 @@
 # Demo accuracy closure v1
 
-Status: **V1 TERMINAL DIAGNOSE — verified evidence on 25 August 2026; fresh
-successor prompt cure required**.
+Status: **CLOSED — V1 diagnosis retained; fresh V2 successor passed on
+25 August 2026**.
 
 `DEMO_ACCURACY_V1` is the smallest catalog-domain accuracy gate for the macOS
 development demo. It qualifies neither a general model nor a released product.
@@ -120,6 +120,25 @@ uv run python -m metis_model1.demo_accuracy_successor freeze
 uv run python -m metis_model1.demo_accuracy_successor run
 uv run python -m metis_model1.demo_accuracy_successor evidence
 ```
+
+### V2 observed result
+
+The single sealed successor run and independent evidence replay both return
+`DEMO_ACCURACY_V2_PASS`:
+
+- base `12/12` and adapter `12/12`;
+- F-1...F-6 each `2/2` for both variants;
+- zero critical failures, invented identifiers, roster gaps, aggregate
+  regressions, or paired base-green regressions;
+- peak observed Metal allocation: base `19.753143872 GB`, adapter
+  `18.005953988 GB`;
+- evidence self-hash
+  `sha256:a1ac0a28a6714a91912706cf0d66e79c353b5b41f5201385ac4f566ac5ad782a`.
+
+The result is honest base/adapter parity on this fresh gate, not additional
+adapter uplift. It closes the bounded catalog-domain accuracy requirement for
+the macOS development demo. The smallest intervention was sufficient, so no
+delta QLoRA, optimizer run, model download, or dataset expansion is authorized.
 
 ## Training decision
 

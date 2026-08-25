@@ -1,7 +1,7 @@
 # Piano di Metis Model 1
 
-Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; primo
-gate accuracy demo terminale a 10/12 e truth del successor fresco fissata;
+Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; accuracy
+catalog-domain della demo Mac chiusa dal successor fresco a 12/12 base e adapter;
 direzione Mac Companion/VS Code ratificata ma non implementata — 25 agosto
 2026**.
 
@@ -57,9 +57,9 @@ sempre quattro livelli epistemici:
     evidenze della prima QLoRA locale consegnata.
 20. [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md)
     — direzione della demo Mac con app/server locale ed estensione Metis VS Code.
-21. [`20-demo-accuracy-closure.md`](20-demo-accuracy-closure.md) — gate fresco e
-    paired base/adapter per l'accuracy catalog-domain circoscritta della demo
-    Mac.
+21. [`20-demo-accuracy-closure.md`](20-demo-accuracy-closure.md) — gate fresco
+    paired base/adapter, diagnosi V1 e chiusura V2 dell'accuracy catalog-domain
+    circoscritta della demo Mac.
 
 ## Tesi operativa
 

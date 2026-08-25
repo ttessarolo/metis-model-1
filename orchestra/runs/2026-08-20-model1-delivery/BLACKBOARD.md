@@ -4842,3 +4842,25 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `2a363b50d4c646e28437894e542b6e7fa4517abffdb6294559e665f37a7b0b99`;
   outputs=false, training=false and run directory absent. L131-L134 and L0
   return P0=0/P1=0; exact freeze publication remains mandatory before run.
+- DONE — Exact freeze commit `849ce5af85a7e8e0394a679eb751a660dc889dd0`
+  is pushed and consumed once. V2 closes base in=12 out=12 distinct=12 gaps=0
+  correct=12 and adapter in=12 out=12 distinct=12 gaps=0 correct=12; every
+  F-1...F-6 is 2/2 for each variant. Critical=0, invented=0, aggregate and
+  paired regressions=0. Independent evidence replays all 24 outputs and returns
+  `DEMO_ACCURACY_V2_PASS`, self-hash
+  `sha256:a1ac0a28a6714a91912706cf0d66e79c353b5b41f5201385ac4f566ac5ad782a`,
+  file SHA-256
+  `6d7071b08d2486700d39a2ffc6c00a678078fde9ab77574b3df96898f8f0aa64`.
+  Peak Metal is base19.753143872GB/adapter18.005953988GB. This is honest
+  green parity on the bounded fresh catalog-domain Mac demo gate, not new
+  uplift and not global Accuracy99. Delta threshold=false, `NO_RETRAIN`;
+  training-input authority remains false.
+- FACT — Final independent audit in=3 out=3 distinct=3 gaps=0 plus L0 replay
+  returns P0=0/P1=0: all 24 candidates rescore exactly, raw roster and file
+  identities are exact, and no false green is found. Focused accuracy/runtime/
+  retrieval/contracts tests are 128/128; foundation is 67/0 and Ruff/format/
+  diff gates are green. Mandatory broad `make check` completes pytest at
+  1291 passed, 102 failed, 1 skipped: all 102 remain the inherited Oracle31,
+  W3 bridge25 and W3 qualifier46 protected-authority/external-pin groups, with
+  zero demo-accuracy or successor regression. This broad red is not relabeled
+  and does not change the bounded V2 PASS; final evidence publication is next.
