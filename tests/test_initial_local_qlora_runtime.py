@@ -833,6 +833,115 @@ def test_score_dev_candidates_uses_pinned_semantic_oracle(tmp_path, monkeypatch)
     assert json.loads(report.read_text())["counts"]["critical_failures"] == 0
 
 
+def test_dev_oracle_replay_caches_only_successful_exact_sources(monkeypatch):
+    from metis_model1 import catalog_maintenance_probe
+
+    calls: list[str] = []
+    failures = {"bad": 1}
+
+    def describe(snapshot, source):
+        assert snapshot is sentinel
+        calls.append(source)
+        if failures.get(source, 0):
+            failures[source] -= 1
+            raise catalog_maintenance_probe.CatalogMaintenanceProbeError("rejected")
+        return {"catalogs": [{"source": source}]}, {"receipt_sha256": f"receipt:{source}"}
+
+    sentinel = object()
+    monkeypatch.setattr(catalog_maintenance_probe, "_describe_source_in_snapshot", describe)
+    replay = rt._DevOracleReplay(sentinel, rt.DEFAULT_PINNED_METIS_ROOT, rt.DEFAULT_NODE_PATH)
+
+    first = replay.describe("same")
+    first[0]["catalogs"][0]["source"] = "mutated"
+    first[1]["receipt_sha256"] = "mutated"
+    assert replay.describe("same")[0]["catalogs"][0]["source"] == "same"
+    assert replay.describe("same")[1]["receipt_sha256"] == "receipt:same"
+    assert calls == ["same"]
+
+    replay.describe("same\n")
+    assert calls == ["same", "same\n"]
+
+    with pytest.raises(catalog_maintenance_probe.CatalogMaintenanceProbeError):
+        replay.describe("bad")
+    assert replay.describe("bad")[1]["receipt_sha256"] == "receipt:bad"
+    assert calls[-2:] == ["bad", "bad"]
+
+
+def test_dev_observations_reuses_one_oracle_result_for_exact_duplicate_sources(monkeypatch):
+    from metis_model1 import catalog_maintenance_probe, catalog_retrieval_refresh
+
+    source = "metis 0.43\ncatalog public.video { id keyword }\n"
+    families = ["F-1"] * 5 + ["F-2"] * 5 + ["F-3"] * 6
+    cases = [
+        {
+            "example_id": f"case-{index:02d}",
+            "task_family": family,
+            "messages": [{"role": "assistant", "content": source}],
+        }
+        for index, family in enumerate(families)
+    ]
+    candidates = [{"case_id": f"case-{index:02d}", "source": source} for index in range(16)]
+    calls = 0
+
+    def describe(_snapshot, observed_source):
+        nonlocal calls
+        calls += 1
+        assert observed_source == source
+        return {"catalogs": [{"name": "public.video"}]}, {"receipt_sha256": "sha256:" + "a" * 64}
+
+    monkeypatch.setattr(catalog_maintenance_probe, "_describe_source_in_snapshot", describe)
+    monkeypatch.setattr(catalog_maintenance_probe, "_extract_source", lambda value: (value, None))
+    monkeypatch.setattr(
+        catalog_retrieval_refresh,
+        "_pinned_snapshot",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("unexpected new snapshot")),
+    )
+
+    observations = rt._dev_observations(
+        cases,
+        candidates,
+        metis_root=rt.DEFAULT_PINNED_METIS_ROOT,
+        node_path=rt.DEFAULT_NODE_PATH,
+        oracle_replay=rt._DevOracleReplay(
+            object(), rt.DEFAULT_PINNED_METIS_ROOT, rt.DEFAULT_NODE_PATH
+        ),
+    )
+    assert len(observations) == 16
+    assert all(item["semantic_correct"] == 1 for item in observations)
+    assert calls == 1
+
+
+def test_dev_oracle_replay_closes_and_rejects_runtime_rebinding(tmp_path, monkeypatch):
+    from metis_model1 import catalog_maintenance_probe, catalog_retrieval_refresh
+
+    metis_root = tmp_path / "metis"
+    metis_root.mkdir()
+    node_path = tmp_path / "node"
+    node_path.write_bytes(b"node")
+
+    @contextmanager
+    def snapshot(*_args):
+        yield object()
+
+    calls = 0
+
+    def describe(_snapshot, source):
+        nonlocal calls
+        calls += 1
+        return {"catalogs": [{"source": source}]}, {"receipt_sha256": "receipt"}
+
+    monkeypatch.setattr(catalog_retrieval_refresh, "_pinned_snapshot", snapshot)
+    monkeypatch.setattr(catalog_maintenance_probe, "_describe_source_in_snapshot", describe)
+
+    with rt._dev_oracle_replay(metis_root, node_path) as replay:
+        replay.describe("cached")
+        with pytest.raises(rt.RuntimeContractError, match="runtime binding differs"):
+            replay.require_active_binding(tmp_path / "other-metis", node_path)
+    with pytest.raises(rt.RuntimeContractError, match="replay is closed"):
+        replay.describe("cached")
+    assert calls == 1
+
+
 def _write_dev_score_report(tmp_path):
     families = ["F-1"] * 5 + ["F-2"] * 5 + ["F-3"] * 6
     observations = []

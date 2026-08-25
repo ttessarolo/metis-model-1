@@ -8,6 +8,7 @@ Metis oracle checkout.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
@@ -387,6 +388,36 @@ def test_historical_document_rejects_raw_or_self_hash_drift(tmp_path: Path) -> N
         t30._historical_document(path, "receipt", "receipt_sha256")
     with pytest.raises(t30.GrammarStdlibT30Error, match="cannot reopen"):
         t30._historical_document(tmp_path / "absent.json", "absent", "receipt_sha256")
+
+
+def test_historical_dev_bundle_replay_shares_one_pinned_oracle_scope(monkeypatch) -> None:
+    replay = object()
+    opened: list[tuple[Path, Path]] = []
+    calls: list[tuple[str, Path | None, object]] = []
+
+    @contextmanager
+    def oracle_scope(metis_root: Path, node_path: Path):
+        opened.append((metis_root, node_path))
+        yield replay
+
+    def bundle(label: str, *, dataset_receipt: Path, adapter: Path | None, oracle_replay):
+        assert dataset_receipt == t30.DATASET_RECEIPT_PATH
+        calls.append((label, adapter, oracle_replay))
+        return {"label": label}
+
+    monkeypatch.setattr(t30.qlora, "_dev_oracle_replay", oracle_scope)
+    monkeypatch.setattr(t30.qlora, "_verified_dev_bundle", bundle)
+
+    base, gates, restored = t30._replay_historical_dev_bundles()
+    assert opened == [(t30.qlora.DEFAULT_PINNED_METIS_ROOT, t30.qlora.DEFAULT_NODE_PATH)]
+    assert [item[0] for item in calls] == ["base", "step25", "step50", "restored"]
+    assert all(item[2] is replay for item in calls)
+    assert calls[0][1] is None and calls[3][1] is None
+    assert calls[1][1] == t30.trainer.CHECKPOINT_ROOT / "step-00000025"
+    assert calls[2][1] == t30.trainer.CHECKPOINT_ROOT / "step-00000050"
+    assert base == {"label": "base"}
+    assert gates == [{"label": "step25"}, {"label": "step50"}]
+    assert restored == {"label": "restored"}
 
 
 def test_package_backup_anchor_compares_all_payload_backed_members() -> None:

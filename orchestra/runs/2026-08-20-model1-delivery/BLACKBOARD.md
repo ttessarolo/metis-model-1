@@ -5257,3 +5257,42 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - OPEN — Publish and exactly reopen the bounded Node-startup cure, then rebuild
   the zero-output freeze from that new preimage. Run directory and freeze stay
   absent; inference, training and delta QLoRA remain zero.
+- FACT — Node-startup cure commit `21e01eba640d790b7b6a1f0b42679f00f2aea826`
+  was pushed and exactly reopened. The next freeze construction completed the
+  fresh T30-v2 grammar/stdlib truth replay, then failed closed in the separate
+  historical dev-chain replay after redundant per-bundle Oracle startups hit
+  the `120s` child timeout. No freeze manifest, run directory, model call,
+  attempt nonce, training or delta artifact was created.
+- FIX — Historical base, step-25, step-50 and adapter-off-restored evidence now
+  shares one live pin-verified Oracle snapshot and a success-only in-memory
+  cache keyed by exact source text. Independent L0 and delegated censuses
+  recompute `118` eligible naive calls versus `21` distinct exact sources,
+  avoiding `97` duplicate launches. Every distinct source still requires the
+  unchanged sandboxed CLI to exit normally; failures are never cached.
+  The replay binds resolved Metis/Node identities, rejects rebinding or use
+  after close, deep-copies cached skeleton and receipt, and clears cache plus
+  snapshot in `finally`.
+- DONE — Two read-only audits close the bounded replay cure at
+  `P0=0 P1=0 P2=0`. L0 focused tests are green `69/69`, Ruff/format/diff are
+  green, and the complete clean-clone grammar+stdlib reconstruction remains
+  byte-exact at `30/30` with truth self
+  `sha256:3c4139c0d763e131be7c18332af2c5a8dd847865db4097e1b98c53823647f216`.
+  The denominator still includes all `10` grammar top levels, `3` stdlib
+  modules, `12` public members, `time.timezone` and `10` interaction classes;
+  the optimization changes no truth, score or normal-exit requirement.
+- OPEN — Run the mandatory repository gate, publish and exactly reopen this
+  bounded replay preimage, then build and audit the zero-output v2 freeze.
+  Freeze/run stay absent and inference/training/delta QLoRA remain zero.
+- FACT — Mandatory `make check` records foundation `69/0`, pilot contracts,
+  Ruff and format green. Full pytest is `1392 passed, 118 failed, 1 skipped`
+  with zero collection/runtime errors; last-failed census is exactly catalog
+  retrieval `1`, historical D18 `1`, protected Oracle `31`, bridge `25` and
+  qualifier `60`. No T30-v2, replay-cache or other modified-path test fails.
+  The catalog failure is the already nonclaimed invalid-field CLI whose two
+  launches differed between timeout/start failure and canonical exit-1 under
+  host load; it is not used by the valid T30 Oracle path.
+- DONE — Historical replay cure preimage is publication-ready: working diff is
+  limited to runtime/T30 implementation, four focused regressions and the
+  active Orchestra evidence; both independent reviews are `P0=0 P1=0 P2=0`.
+  Freeze and run directories remain absent; next action is exact commit, push,
+  remote reopen and zero-output freeze construction.

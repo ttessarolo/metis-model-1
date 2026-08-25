@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import copy
 import hashlib
 import json
 import math
@@ -17,7 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -976,19 +977,73 @@ def _candidate_rows(path: Path) -> list[dict[str, str]]:
     return result
 
 
+class _DevOracleReplay:
+    """One pinned Oracle snapshot with an exact-source, success-only cache."""
+
+    def __init__(self, snapshot: Any, metis_root: Path, node_path: Path) -> None:
+        self._snapshot = snapshot
+        self._metis_root = metis_root.resolve()
+        self._node_path = node_path.resolve()
+        self._active = True
+        self._successful: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+
+    def require_active_binding(self, metis_root: Path, node_path: Path) -> None:
+        if not self._active:
+            _fail("dev Oracle replay is closed")
+        if (metis_root.resolve(), node_path.resolve()) != (self._metis_root, self._node_path):
+            _fail("dev Oracle replay runtime binding differs")
+
+    def describe(self, source: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        from metis_model1.catalog_maintenance_probe import _describe_source_in_snapshot
+
+        if not self._active:
+            _fail("dev Oracle replay is closed")
+        if source not in self._successful:
+            result = _describe_source_in_snapshot(self._snapshot, source)
+            self._successful[source] = copy.deepcopy(result)
+        return copy.deepcopy(self._successful[source])
+
+    def close(self) -> None:
+        self._active = False
+        self._successful.clear()
+        self._snapshot = None
+
+
+@contextlib.contextmanager
+def _dev_oracle_replay(metis_root: Path, node_path: Path) -> Iterator[_DevOracleReplay]:
+    """Scope source reuse to one live, pin-verified snapshot and nothing else."""
+
+    from metis_model1.catalog_retrieval_refresh import _pinned_snapshot
+
+    with _pinned_snapshot(metis_root, node_path) as snapshot:
+        replay = _DevOracleReplay(snapshot, metis_root, node_path)
+        try:
+            yield replay
+        finally:
+            replay.close()
+
+
 def _dev_observations(
     cases: list[dict[str, Any]],
     candidates: list[dict[str, str]],
     *,
     metis_root: Path,
     node_path: Path,
+    oracle_replay: _DevOracleReplay | None = None,
 ) -> list[dict[str, Any]]:
     """Replay the exact dev16 semantics from raw candidate bytes and the pinned oracle."""
-    from metis_model1.catalog_maintenance_probe import (
-        _describe_source_in_snapshot,
-        _extract_source,
-    )
-    from metis_model1.catalog_retrieval_refresh import _pinned_snapshot
+    from metis_model1.catalog_maintenance_probe import _extract_source
+
+    if oracle_replay is None:
+        with _dev_oracle_replay(metis_root, node_path) as scoped_replay:
+            return _dev_observations(
+                cases,
+                candidates,
+                metis_root=metis_root,
+                node_path=node_path,
+                oracle_replay=scoped_replay,
+            )
+    oracle_replay.require_active_binding(metis_root, node_path)
 
     families = {
         family: sum(case.get("task_family") == family for case in cases)
@@ -997,70 +1052,67 @@ def _dev_observations(
     if families != CATEGORY_COUNTS:
         _fail("dev family denominator differs from the frozen contract")
     observations: list[dict[str, Any]] = []
-    with _pinned_snapshot(metis_root, node_path) as snapshot:
-        for case, candidate_row in zip(cases, candidates, strict=True):
-            messages = case.get("messages")
-            if (
-                not isinstance(messages, list)
-                or not messages
-                or not isinstance(messages[-1], Mapping)
-                or messages[-1].get("role") != "assistant"
-                or not isinstance(messages[-1].get("content"), str)
-            ):
-                _fail("dev target is malformed")
-            target = messages[-1]["content"]
+    for case, candidate_row in zip(cases, candidates, strict=True):
+        messages = case.get("messages")
+        if (
+            not isinstance(messages, list)
+            or not messages
+            or not isinstance(messages[-1], Mapping)
+            or messages[-1].get("role") != "assistant"
+            or not isinstance(messages[-1].get("content"), str)
+        ):
+            _fail("dev target is malformed")
+        target = messages[-1]["content"]
+        try:
+            target_skeleton, target_receipt = oracle_replay.describe(target)
+        except Exception as exc:  # noqa: BLE001
+            _fail(f"frozen dev target oracle failure: {type(exc).__name__}")
+        source, extraction_error = _extract_source(candidate_row["source"])
+        candidate_skeleton: Mapping[str, Any] | None = None
+        candidate_receipt: Mapping[str, Any] | None = None
+        oracle_error: str | None = None
+        if source is not None:
             try:
-                target_skeleton, target_receipt = _describe_source_in_snapshot(snapshot, target)
+                candidate_skeleton, candidate_receipt = oracle_replay.describe(source)
             except Exception as exc:  # noqa: BLE001
-                _fail(f"frozen dev target oracle failure: {type(exc).__name__}")
-            source, extraction_error = _extract_source(candidate_row["source"])
-            candidate_skeleton: Mapping[str, Any] | None = None
-            candidate_receipt: Mapping[str, Any] | None = None
-            oracle_error: str | None = None
-            if source is not None:
-                try:
-                    candidate_skeleton, candidate_receipt = _describe_source_in_snapshot(
-                        snapshot, source
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    oracle_error = f"{type(exc).__name__}:{exc}"
-            family = str(case.get("task_family"))
-            skeleton_match = candidate_skeleton == target_skeleton
-            exact = source is not None and exact_normalized(source, target)
-            minimal = exact if family in {"F-2", "F-3"} else True
-            invented_values = bool(source and " values [" in source)
-            critical = extraction_error is not None or oracle_error is not None
-            semantic = bool(
-                source is not None
-                and not critical
-                and skeleton_match
-                and minimal
-                and not invented_values
-            )
-            observations.append(
-                {
-                    "case_id": candidate_row["case_id"],
-                    "family": family,
-                    "source_sha256": _prefixed_text_sha256(candidate_row["source"]),
-                    "extraction": "ok" if extraction_error is None else extraction_error,
-                    "oracle": "ok" if oracle_error is None and source is not None else "rejected",
-                    "oracle_failure_sha256": (
-                        _prefixed_text_sha256(oracle_error) if oracle_error else None
-                    ),
-                    "candidate_receipt_sha256": (
-                        candidate_receipt.get("receipt_sha256")
-                        if isinstance(candidate_receipt, Mapping)
-                        else None
-                    ),
-                    "target_receipt_sha256": target_receipt.get("receipt_sha256"),
-                    "skeleton_match": skeleton_match,
-                    "exact_normalized": exact,
-                    "minimal": minimal,
-                    "invented_values": int(invented_values),
-                    "critical_failure": int(critical),
-                    "semantic_correct": int(semantic),
-                }
-            )
+                oracle_error = f"{type(exc).__name__}:{exc}"
+        family = str(case.get("task_family"))
+        skeleton_match = candidate_skeleton == target_skeleton
+        exact = source is not None and exact_normalized(source, target)
+        minimal = exact if family in {"F-2", "F-3"} else True
+        invented_values = bool(source and " values [" in source)
+        critical = extraction_error is not None or oracle_error is not None
+        semantic = bool(
+            source is not None
+            and not critical
+            and skeleton_match
+            and minimal
+            and not invented_values
+        )
+        observations.append(
+            {
+                "case_id": candidate_row["case_id"],
+                "family": family,
+                "source_sha256": _prefixed_text_sha256(candidate_row["source"]),
+                "extraction": "ok" if extraction_error is None else extraction_error,
+                "oracle": "ok" if oracle_error is None and source is not None else "rejected",
+                "oracle_failure_sha256": (
+                    _prefixed_text_sha256(oracle_error) if oracle_error else None
+                ),
+                "candidate_receipt_sha256": (
+                    candidate_receipt.get("receipt_sha256")
+                    if isinstance(candidate_receipt, Mapping)
+                    else None
+                ),
+                "target_receipt_sha256": target_receipt.get("receipt_sha256"),
+                "skeleton_match": skeleton_match,
+                "exact_normalized": exact,
+                "minimal": minimal,
+                "invented_values": int(invented_values),
+                "critical_failure": int(critical),
+                "semantic_correct": int(semantic),
+            }
+        )
     return observations
 
 
@@ -1363,6 +1415,7 @@ def _verified_dev_bundle(
     dataset_receipt: Path,
     adapter: Path | None,
     output_root: Path | None = None,
+    oracle_replay: _DevOracleReplay | None = None,
 ) -> dict[str, Any]:
     """Reopen and cross-check one exact generation/candidates/semantic bundle."""
     root = output_root or DEFAULT_OUTPUT_ROOT
@@ -1447,6 +1500,7 @@ def _verified_dev_bundle(
         candidates,
         metis_root=DEFAULT_PINNED_METIS_ROOT,
         node_path=DEFAULT_NODE_PATH,
+        oracle_replay=oracle_replay,
     )
     if observations != replayed_observations or semantic["counts"] != _dev_counts(
         replayed_observations

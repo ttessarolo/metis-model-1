@@ -1658,6 +1658,36 @@ def _verify_package_backup_anchor() -> dict[str, Any]:
     }
 
 
+def _replay_historical_dev_bundles() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    """Replay every distinct historical dev source in one pinned Oracle snapshot."""
+
+    with qlora._dev_oracle_replay(
+        qlora.DEFAULT_PINNED_METIS_ROOT, qlora.DEFAULT_NODE_PATH
+    ) as oracle_replay:
+        base_bundle = qlora._verified_dev_bundle(
+            "base",
+            dataset_receipt=DATASET_RECEIPT_PATH,
+            adapter=None,
+            oracle_replay=oracle_replay,
+        )
+        gate_bundles = [
+            qlora._verified_dev_bundle(
+                f"step{step}",
+                dataset_receipt=DATASET_RECEIPT_PATH,
+                adapter=trainer.CHECKPOINT_ROOT / f"step-{step:08d}",
+                oracle_replay=oracle_replay,
+            )
+            for step in (25, 50)
+        ]
+        restored_bundle = qlora._verified_dev_bundle(
+            "restored",
+            dataset_receipt=DATASET_RECEIPT_PATH,
+            adapter=None,
+            oracle_replay=oracle_replay,
+        )
+    return base_bundle, gate_bundles, restored_bundle
+
+
 def _verify_historical_adapter_chain(
     *,
     dataset: Mapping[str, Any],
@@ -1748,17 +1778,7 @@ def _verify_historical_adapter_chain(
         "historical selection receipt",
         "selection_sha256",
     )
-    base_bundle = qlora._verified_dev_bundle(
-        "base", dataset_receipt=DATASET_RECEIPT_PATH, adapter=None
-    )
-    gate_bundles = [
-        qlora._verified_dev_bundle(
-            f"step{step}",
-            dataset_receipt=DATASET_RECEIPT_PATH,
-            adapter=trainer.CHECKPOINT_ROOT / f"step-{step:08d}",
-        )
-        for step in (25, 50)
-    ]
+    base_bundle, gate_bundles, restored_bundle = _replay_historical_dev_bundles()
     if (
         selection.get("schema_version") != 1
         or selection.get("status") != "selected"
@@ -1785,9 +1805,6 @@ def _verify_historical_adapter_chain(
         qlora.DEFAULT_RESTORE_RECEIPT,
         "historical adapter-off restore receipt",
         "restore_sha256",
-    )
-    restored_bundle = qlora._verified_dev_bundle(
-        "restored", dataset_receipt=DATASET_RECEIPT_PATH, adapter=None
     )
     candidate_match = dict(base_bundle["files"]["candidates"])
     candidate_match["path"] = restored_bundle["files"]["candidates"]["path"]
