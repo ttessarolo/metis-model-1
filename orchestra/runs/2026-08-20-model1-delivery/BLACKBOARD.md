@@ -4788,3 +4788,18 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   report and independently replays all 24 outputs before recomputing the gate.
   Focused demo/runtime/retrieval/contracts tests are 95/95, foundation is 67/0,
   Ruff/format/diff checks are green, and run artifacts/model outputs remain 0.
+- FACT — The exact accuracy preimage commit
+  `d82e5b9e6316120e29902698b29310d5ba1ebdc9`, tree
+  `795015a0edcd2737884500c830b4d620a0fc30e1`, is pushed and exactly reopened.
+  The zero-output freeze closes in=12 out=12 distinct=12 gaps=0 at two tasks
+  per F-1...F-6 and binds 25 transitive inputs, Python 3.12.10, MLX 0.32.1,
+  MLX-VLM 0.6.15, base revision `3e6447f082e89cc7f0bc6e5441afd38dfce760ff`
+  and selected adapter SHA-256
+  `5e65a0b48531ce9e2a9751c201f570f8793da87bd2a2a9446f461dbe0589dcfb`.
+  Freeze self-hash is
+  `sha256:4c7ab945e51110605c34e3997749048cb1b2f1213c0b8b602503910ff07ece11`
+  and file SHA-256 is
+  `bfa5b4b06784130b367a4a9a158777a2c12f424173134424efca2333ff68b19f`;
+  model outputs observed=false, training authorized=false, and the sole run
+  directory remains absent. L131, L134 and L0 independently return P0=0/P1=0;
+  freeze commit, push and exact reopen remain mandatory before inference.
