@@ -4803,3 +4803,20 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   model outputs observed=false, training authorized=false, and the sole run
   directory remains absent. L131, L134 and L0 independently return P0=0/P1=0;
   freeze commit, push and exact reopen remain mandatory before inference.
+- FACT — The exact freeze commit `1131dd0206b3685a32b624728f821c9ee18a7e18`
+  is pushed and consumed once. Base and adapter each close in=12 out=12
+  distinct=12 gaps=0 at 10/12: F-1=0/2 and every F-2...F-6=2/2. Critical,
+  invented and paired regressions are all zero. Independent evidence rebuilds
+  the same terminal `DEMO_ACCURACY_V1_DIAGNOSE`; evidence self-hash is
+  `sha256:8057c5fb96726e974dbebb57846d583f928e9e58d1467a9759c0a3dc7fcdf6ab`
+  and file SHA-256 is
+  `01678e56c737f8893c6ee82d80ee2a63193c918b365bf16394d09b9b8d364a7e`.
+  Raw model output remains ignored and training-input authority=false.
+- DECISION — L131-L134 and L0 adjudicate both F-1 misses as genuine structural
+  failures: all four base/adapter answers omit the literal catalog and fields
+  braces, causing pinned describe to drop required domain fields; one adapter
+  answer also leaves the index unquoted. Retrieval and oracle are correct.
+  Two failures in one family do not meet the 3-across-2 delta threshold, so
+  `NO_RETRAIN` is final for V1. The minimum continuation is a generic literal
+  grammar scaffold in the system prompt and a separately frozen fresh roster;
+  V1 is never rerun or relabeled and its outputs never enter training.

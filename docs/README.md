@@ -1,7 +1,7 @@
 # Piano di Metis Model 1
 
-Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; gate
-accuracy catalog-domain della demo Mac attivo con truth pre-output fissata;
+Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; primo
+gate accuracy demo terminale a 10/12 con cura prompt e successor fresco attivi;
 direzione Mac Companion/VS Code ratificata ma non implementata — 25 agosto
 2026**.
 

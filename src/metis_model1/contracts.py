@@ -183,6 +183,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/initial-local-qlora-baseline-reuse-v1.json",
     "manifests/initial-local-qlora-exclusions-v1.json",
     "manifests/demo-accuracy-truth-v1.json",
+    "manifests/demo-accuracy-freeze-v1.json",
+    "manifests/demo-accuracy-evaluation-v1.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",

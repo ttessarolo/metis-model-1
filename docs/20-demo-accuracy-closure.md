@@ -1,7 +1,7 @@
 # Demo accuracy closure v1
 
-Status: **ACTIVE — explicitly authorized on 25 August 2026; truth fixed before
-model output**.
+Status: **V1 TERMINAL DIAGNOSE — verified evidence on 25 August 2026; fresh
+successor prompt cure required**.
 
 `DEMO_ACCURACY_V1` is the smallest catalog-domain accuracy gate for the macOS
 development demo. It qualifies neither a general model nor a released product.
@@ -75,6 +75,24 @@ reusing the directory.
 Otherwise the gate is `DEMO_ACCURACY_V1_DIAGNOSE`. It does not permit a retry
 of the consumed run.
 
+## V1 observed result
+
+The single sealed run is terminal at base `10/12` and adapter `10/12`. Both
+variants score `0/2` on F-1 and `2/2` on each of F-2...F-6, with zero critical
+failures, invented identifiers, roster gaps, aggregate regressions, or paired
+base-green regressions. Evidence self-hash is
+`sha256:8057c5fb96726e974dbebb57846d583f928e9e58d1467a9759c0a3dc7fcdf6ab`.
+
+L0 and three independent read-only audits classify both F-1 misses as genuine
+structural failures, not retrieval or oracle defects. All four base/adapter
+answers omit the literal braces required around the catalog and `fields`
+blocks, so pinned `describe` retains at most the id field and drops the requested
+domain fields; the adapter also leaves one index unquoted. The prompt names all
+required semantic values, but the shared system contract does not render the
+literal structural scaffold. The smallest lawful next action is therefore a
+generic prompt/retrieval cure plus a separately sealed fresh successor roster,
+not rescoring V1 and not training on its outputs.
+
 ## Training decision
 
 Delta QLoRA remains prohibited by default. Its adjudication threshold is met
@@ -87,6 +105,9 @@ new frozen provenance-safe dataset, stable replay, an independent dev split,
 and an adapter-on versus adapter-off regression gate before optimizer startup.
 The automated report can only request L0 oracle adjudication; it never grants
 training eligibility or optimizer authority by itself.
+
+V1 observes only two genuine failures in one family. Its delta threshold is
+therefore not met and the recorded action is `no_retrain`.
 
 ## Explicit non-claims
 
