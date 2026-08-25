@@ -193,6 +193,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/grammar-stdlib-accuracy-d18-truth-v1.json",
     "manifests/grammar-stdlib-accuracy-d18-freeze-v1.json",
     "manifests/grammar-stdlib-accuracy-d18-recovery-v1.json",
+    "manifests/grammar-stdlib-accuracy-d18-evaluation-v1.json",
+    "manifests/grammar-stdlib-accuracy-d18-adjudication-v1.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",

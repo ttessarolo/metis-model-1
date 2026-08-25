@@ -1,6 +1,6 @@
 # Grammar and standard-library accuracy
 
-Status: **D18 ZERO-MODEL RECOVERY FREEZE FIXED — PUBLICATION PENDING; TRAINING FALSE**.
+Status: **D18 CLOSED NO_RETRAIN — FRESH HELD-OUT T30 CONSTRUCTION ACTIVE**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -182,6 +182,32 @@ Two independent audits return P0=0/P1=0/P2=0. The seal must itself be
 committed, pushed and exactly reopened before the zero-model rescore may write
 the previously absent report.
 
+The seal was published as commit `d547441c4ab4a028192c70f682fbe1aa64b68bbf`,
+tree `9c3154cd3cb0b0e20b71cdc7280f3c52694e4135`, before recovery. Recovery made
+zero additional model calls and produced a 28,174-byte report with self-hash
+`sha256:58421babac0fa688c7dcc8ef56cd6699481e2a79a9c037d37a2fe408783799c3`.
+Independent evidence then reproduced every automatic observation and gate
+decision; its self-hash is
+`sha256:4c672aa39139ac71a8a2d3fbb2416572d628e66398d184cba08a8b353eb3e2b4`.
+
+Base and adapter both score `8/9` on the automatic semantic denominator:
+F-1 `3/3`, F-2 `3/3`, F-3 `2/3`, with zero critical failures and zero paired
+regressions. Both miss the same F-3 endpoint-variant surface because the
+retrieval context lacks the generic `variant <name> use block.<name>`
+micro-skeleton. Both also miss one literal diagnostic-marker echo in F-4,
+which is diagnostic-only. L0 review accepts all twelve base/adapter decisions
+for the six F-5/F-6 tasks (`12/12 ACCEPT`, `0 REJECT`, `0 UNCLEAR`) without
+converting them to automatic semantic or training credit.
+
+The L0 human adjudication, including a task-specific rationale and exact target
+binding for each F-5/F-6 decision, is
+`sha256:1c17c12d03e9b89c2c901427be1b98a42a62d195d8b5af490c1a4ec5cb753eec`.
+The raw delta census is one task, one family and one independent root against
+the required `3/2/2`; after classifying the missing surface as a retrieval
+context gap, training-eligible failures are zero. The terminal D18 decision is
+`GRAMMAR_STDLIB_D18_NO_RETRAIN`: retain the current adapter, add only the two
+generic retrieval instructions, and test them on fresh held-out T30 tasks.
+
 ### G2 — decision and held-out T30
 
 If D18 does not establish delta eligibility, the current adapter is retained
@@ -235,8 +261,9 @@ retrieval-owned and are never memorized merely to improve a benchmark score.
 
 ## Current authority boundary
 
-At this document state, inventory, fixtures, oracle code, tests, manifests,
-and Git metadata may be built and verified. No model output may be produced
-until a complete truth manifest and Git-published pre-output freeze exist.
-No optimizer step, dataset derivation, checkpoint, packaging update, or S3
-write is authorized by construction work alone.
+At this document state D18 is closed as `NO_RETRAIN`; its model outputs remain
+ignored and ineligible for training. T30 inventory, fixtures, oracle code,
+tests, truth and Git metadata may now be built and verified. No T30 model output
+may be produced until its complete truth manifest and Git-published pre-output
+freeze exist. No optimizer step, dataset derivation, checkpoint, packaging
+update, or S3 write is authorized.

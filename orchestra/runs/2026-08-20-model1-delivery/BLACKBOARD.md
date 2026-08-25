@@ -5044,3 +5044,18 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   absent. Two independent audits return P0=0/P1=0/P2=0. Model replay is false,
   additional calls are zero and training/delta remain false; exact seal
   commit/push/reopen is the only prerequisite to candidate rescoring.
+- FACT — Recovery seal commit `d547441c4ab4a028192c70f682fbe1aa64b68bbf`,
+  tree `9c3154cd3cb0b0e20b71cdc7280f3c52694e4135`, is pushed and exactly
+  reopened. Zero-model rescoring publishes report self `58421bab` and an
+  independent full replay publishes evidence self `4c672aa3`; both derive
+  `GRAMMAR_STDLIB_D18_REVIEW_REQUIRED`, base=adapter automatic `8/9`,
+  F1/F2/F3=`3/3,3/3,2/3`, critical0 and paired-regressions0.
+- DONE — L0 semantic adjudication closes the six F5/F6 tasks as `12/12 ACCEPT`,
+  reject0/unclear0, without automatic or training credit. The shared F3 miss is
+  a generic retrieval-surface gap for `variant <name> use block.<name>`; the
+  F4 miss is diagnostic literal echo only. Raw delta evidence is task1/family1/
+  root1 versus required3/2/2, training-eligible failures0. Task-specific
+  rationale plus exact target binding close each human decision. Adjudication
+  self is `sha256:1c17c12d...53eec`; decision is
+  `GRAMMAR_STDLIB_D18_NO_RETRAIN`, retain adapter and proceed to fresh held-out
+  T30 with only generic context cures.

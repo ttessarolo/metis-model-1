@@ -75,6 +75,151 @@ def test_materialized_freeze_is_zero_output_and_binds_the_published_preimage() -
     assert freeze["run_dir"] == "artifacts/grammar-stdlib-accuracy/d18/d18-v1-20260825"
 
 
+def test_materialized_evidence_and_adjudication_close_d18_without_retraining() -> None:
+    evidence_raw = d18.EVIDENCE_PATH.read_bytes()
+    evidence = json.loads(evidence_raw)
+    adjudication_path = (
+        d18.PROJECT_ROOT / "manifests/grammar-stdlib-accuracy-d18-adjudication-v1.json"
+    )
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+
+    assert d18.raw_hash(evidence_raw) == (
+        "sha256:f2cf12bd60533cc504b207ad0078d34bf87b633b392a587be45a9df12cd5dfb3"
+    )
+    assert evidence["evaluation_sha256"] == d18.canonical_hash(
+        {key: value for key, value in evidence.items() if key != "evaluation_sha256"}
+    )
+    assert evidence["evaluation_sha256"] == (
+        "sha256:4c672aa39139ac71a8a2d3fbb2416572d628e66398d184cba08a8b353eb3e2b4"
+    )
+    assert evidence["decision"]["verdict"] == "GRAMMAR_STDLIB_D18_REVIEW_REQUIRED"
+    assert evidence["decision"]["gates"] == {
+        "adapter_automatic_semantic_total": True,
+        "automatic_semantic_denominator": True,
+        "automatic_semantic_family_floor": True,
+        "complete": True,
+        "critical_zero": True,
+        "no_paired_regression": True,
+    }
+    assert evidence["decision"]["paired_regressions"] == []
+    assert evidence["training_authorized"] is False
+    assert evidence["delta_qlora_authorized"] is False
+
+    assert adjudication["adjudication_sha256"] == d18.canonical_hash(
+        {key: value for key, value in adjudication.items() if key != "adjudication_sha256"}
+    )
+    assert adjudication["status"] == "closed_no_retrain"
+    recovery_path = d18.PROJECT_ROOT / "manifests/grammar-stdlib-accuracy-d18-recovery-v1.json"
+    recovery_raw = recovery_path.read_bytes()
+    recovery_value = json.loads(recovery_raw)
+    assert adjudication["lineage"]["recovery_freeze"] == {
+        "path": "manifests/grammar-stdlib-accuracy-d18-recovery-v1.json",
+        "raw_sha256": d18.raw_hash(recovery_raw),
+        "self_sha256": recovery_value["recovery_freeze_sha256"],
+    }
+    assert adjudication["lineage"]["evaluation"] == {
+        "path": "manifests/grammar-stdlib-accuracy-d18-evaluation-v1.json",
+        "raw_sha256": d18.raw_hash(evidence_raw),
+        "self_sha256": evidence["evaluation_sha256"],
+    }
+    assert adjudication["lineage"]["report"] == {
+        "path": "artifacts/grammar-stdlib-accuracy/d18/d18-v1-20260825/report.json",
+        "raw_sha256": ("sha256:055667395752488e0ea0e948156278251c9e0e96b58b11887ecef843fc976c27"),
+        "self_sha256": evidence["execution"]["report_sha256"],
+    }
+    assert adjudication["lineage"]["outputs"] == evidence["execution"]["outputs"]
+    observations = {
+        (side, row["task_id"]): row
+        for side, rows in evidence["observations"].items()
+        for row in rows
+    }
+    required_tasks = {
+        "gsl_d18_f5_01",
+        "gsl_d18_f5_02",
+        "gsl_d18_f5_03",
+        "gsl_d18_f6_01",
+        "gsl_d18_f6_02",
+        "gsl_d18_f6_03",
+    }
+    reviews = adjudication["review"]["decisions"]
+    assert len(reviews) == 12
+    assert {(row["side"], row["task_id"]) for row in reviews} == {
+        (side, task_id) for side in ("base", "adapter") for task_id in required_tasks
+    }
+    for row in reviews:
+        observed = observations[(row["side"], row["task_id"])]
+        assert row["family"] == observed["family"]
+        assert row["authority_tier"] == observed["authority_tier"]
+        assert row["independent_root"] == observed["independent_root"]
+        assert row["candidate_sha256"] == observed["candidate_sha256"]
+        assert row["report_mechanical_match"] == observed["mechanical_match"] is True
+        assert row["report_semantic_correct"] == observed["semantic_correct"] is None
+        assert row["report_failure_code"] == observed["failure_code"] is None
+        assert row["decision"] == "ACCEPT"
+        assert row["training_label_eligible"] is False
+        assert row["delta_eligible"] is False
+    assert adjudication["review"]["accepted"] == 12
+    assert adjudication["review"]["rejected"] == 0
+    assert adjudication["review"]["unclear"] == 0
+    assert adjudication["review"]["automatic_semantic_credit"] is False
+    truth = json.loads(d18.TRUTH_PATH.read_text(encoding="utf-8"))
+    truth_by_id = {row["task_id"]: row for row in truth["tasks"]}
+    rationales = adjudication["review"]["task_rationales"]
+    assert {row["task_id"] for row in rationales} == required_tasks
+    for rationale in rationales:
+        task_id = rationale["task_id"]
+        target = truth_by_id[task_id]["target"]
+        if rationale["basis"] == "expected_semantic_signature_exact":
+            assert all(
+                observations[(side, task_id)]["observed"] == target["expected"]
+                for side in ("base", "adapter")
+            )
+        else:
+            assert rationale["basis"] == "expected_json_hash_exact"
+            assert all(
+                observations[(side, task_id)]["observed"]["json_sha256"]
+                == target["expected_json_sha256"]
+                for side in ("base", "adapter")
+            )
+
+    f3 = adjudication["reclassifications"]["f3_retrieval_gap"]
+    assert (f3["task_id"], f3["family"], f3["classification"]) == (
+        "gsl_d18_f3_03",
+        "F-3",
+        "retrieval_surface_gap",
+    )
+    assert all(
+        observations[(side, f3["task_id"])]["failure_code"] == "semantic_mismatch"
+        for side in f3["sides"]
+    )
+    f4 = adjudication["reclassifications"]["f4_diagnostic_echo"]
+    assert (f4["task_id"], f4["family"], f4["classification"]) == (
+        "gsl_d18_f4_02",
+        "F-4",
+        "diagnostic_literal_echo",
+    )
+    assert all(
+        observations[(side, f4["task_id"])]["failure_code"] == "diagnostic_review_mismatch"
+        for side in f4["sides"]
+    )
+    assert adjudication["delta_gate"] == {
+        "observed_raw": {"genuine_failures": 1, "families": 1, "roots": 1},
+        "required": {"genuine_failures": 3, "families": 2, "roots": 2},
+        "post_adjudication": {"training_eligible_failures": 0, "families": 0, "roots": 0},
+        "threshold_met": False,
+    }
+    assert adjudication["decision"] == {
+        "verdict": "GRAMMAR_STDLIB_D18_NO_RETRAIN",
+        "action": "NO_RETRAIN_CONTEXT_CURE",
+        "retain_adapter": True,
+        "next_gate": "fresh_held_out_t30",
+        "training_authorized": False,
+        "delta_qlora_authorized": False,
+        "dataset_authorized": False,
+        "promotion_authorized": False,
+    }
+
+
 def _task(
     task_id: str,
     family: str,
