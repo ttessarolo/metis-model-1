@@ -4864,3 +4864,10 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   W3 bridge25 and W3 qualifier46 protected-authority/external-pin groups, with
   zero demo-accuracy or successor regression. This broad red is not relabeled
   and does not change the bounded V2 PASS; final evidence publication is next.
+- DONE — Redacted V2 evidence and closure contract are published at commit
+  `998c276920b380699d5e38a66595edd18f16671b`, tree
+  `c441e0d0be28ba516820a460eea8a72b4e2522db`, and exact remote reopen matches.
+  Required foundation paths include both V1 terminal diagnosis and V2
+  truth/freeze/evidence; raw candidates remain ignored and are not training
+  data. `DEMO_ACCURACY_V2` is closed and published at 12/12 base plus 12/12
+  adapter with `NO_RETRAIN`, under all previously recorded nonclaims.
