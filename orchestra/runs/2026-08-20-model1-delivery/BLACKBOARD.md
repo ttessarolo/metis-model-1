@@ -4831,3 +4831,14 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   self-hash is
   `sha256:32109afa42680bf3d3dcf3e7a24bfb88bbc204b81eb953a869fbae0af568910b`;
   outputs observed=false and training-input authority=false.
+- FACT — V2 preimage commit `8195c8900f9c59a53bcb8182eb5eb603dd4a19c8`,
+  tree `d0f726841e7684f7e7b7d7911e46994fe19844aa`, is pushed and reopened.
+  The zero-output successor freeze binds inputs28, tasks12/12/distinct12/gaps0,
+  Python3.12.10/MLX0.32.1/MLX-VLM0.6.15, base revision `3e6447f...`, selected
+  step50 adapter `5e65a0b4...`, successor-only IDs/authority and fixed ignored
+  run directory. Freeze self-hash is
+  `sha256:d9382c7569e599babc633d763a19bef389c6660b153785d7a7e2c4bd9b9b85fb`
+  and file SHA-256 is
+  `2a363b50d4c646e28437894e542b6e7fa4517abffdb6294559e665f37a7b0b99`;
+  outputs=false, training=false and run directory absent. L131-L134 and L0
+  return P0=0/P1=0; exact freeze publication remains mandatory before run.
