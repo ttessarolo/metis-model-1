@@ -4686,3 +4686,15 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   qualifier protected-authority and old Metis-pin groups account for all 102,
   with zero local QLoRA or backup regression. Exact implementation publication
   is the next gate; no AWS transfer has yet occurred.
+- FACT — Backup implementation commit
+  `de1a92227c553f5010bb191d7c4e65623a406482`, tree
+  `f68225a7be6cfe33280f2f5f3d986111db6ad3a0`, is pushed and exactly reopened.
+  The generated no-output S3 preimage is 4216 bytes with raw SHA-256
+  `9e57e04af85233abd565ff3e8e2d8ce93b5e9ba0afd303c407667fd8aaabb0db`
+  and self-hash
+  `sha256:1b88295a2cf5bd30b50292ab3d0640ee7ab944e2daca9bc2de20f21a50fb5426`.
+  It binds the 233809920-byte archive SHA
+  `5df666613798d58b552f6bd44eb4dcfcabb86d70e1a6dbf3a293c40eaeac0568`
+  to account `670565864033`, region `eu-west-1`, bucket `metis-model-1` and its
+  content-addressed key, with upload/marker/receipt still absent. Exact preimage
+  commit, push and strict remote reopen remain mandatory before the sole PUT.
