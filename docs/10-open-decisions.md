@@ -14,7 +14,7 @@ then reflected here and in the relevant decision document.
 | O-005 | RATIFIED | Rank/alpha/LR/seed grid | W5 | — |
 | O-006 | RATIFIED | Local artifact-store format | W5 | — |
 | O-007 | OPEN | Multi-task or task-specific adapters | W7 | W7 |
-| O-008 | OPEN | CLI/editor/agent integration surface | W8 | W8 |
+| O-008 | OPEN | Exact Mac Companion/VS Code protocol and local authentication | W8 | W8 |
 | O-009 | OPEN | Distribution beyond local-only | W8 | External distribution only |
 | O-010 | RATIFIED | Lightweight-first maintenance path for Metis changes | W7 promotion | — |
 | O-011 | RATIFIED | Baseline-first experiment separated from Accuracy-99 promotion | W5-XS | — |
@@ -89,3 +89,12 @@ promotion or a 99% claim.
 600/563, W1/W3 closure and A/B evidence. A green B baseline may close the local
 product as `NO_TRAIN`; only repeatable semantic failures can open a bounded
 micro-dataset and one rank-8 experiment.
+
+D-013 ratifies the product direction without closing O-008 or O-009. The demo
+will use an installable macOS Companion with a local service; the Metis VS Code
+extension will be its editorial client. Inference is local-first, real changes
+require toolchain evidence plus human confirmation, and every remote or VS Code
+tool fallback must be explicit, policy-controlled and visible. Protocol,
+authentication, packaging, release channel and distribution evidence remain
+open for W8. Windows is outside the demo scope and may be evaluated only after
+project approval.

@@ -4248,6 +4248,15 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   fresh-root credit merely by relabeling; the parallel census must identify
   reusable authority or the minimum genuinely new task/oracle set.
 
+- FACT — UPSTREAM SEAL FINALIZED (2026-08-24 evening, ares-matioska session).
+  Follow-up to the two notes above: after re-anchoring the 12 promotion
+  baselines (surface-migration tolerance §9.140: only the textual source-tree
+  anchor moved, compiled IR and evidence exact) and regenerating the parity
+  ledger + STATO-CORRENTE derivative, the sealed Metis main is `01837a66`
+  (ledger fix commits `97c39666`/`19ac9cfa`; ledger entry §9.174). The full
+  test suite is CI-green on the release job and «Editor Metis 0.23.88» is
+  published with assets. Grammar pin for Model 1 is UNCHANGED: `1f7eaae9`.
+
 - FACT — L0 reran the repository-wide `make check` after integrating the
   public-synthetic retrieval checkpoint: foundation `54/54`, focused
   retrieval/adversarial `84/84`, lint and format are green; full pytest is
@@ -4715,3 +4724,67 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `sha256:294375740e1e20d31e74fd7091d5e7cc51dbc3211799a36239f96c095343c795`.
   This closes the bounded local fine-tuned adapter delivery; it remains a
   nonpromotion result and does not assert global Accuracy 99.
+- FACT — The user ratifies the post-accuracy product direction without opening
+  an implementation wave. For development and the demo, Model 1 will be
+  consumed through an installable macOS Companion that downloads and verifies
+  base plus adapter, hosts a versioned local service, and serves the Metis VS
+  Code extension for real
+  author/edit/repair/review/migrate workflows. Inference is local-first; every
+  remote or VS Code tool/model fallback is explicit and policy-controlled, and
+  every real patch remains toolchain-verified and human-approved. D-013 and
+  `docs/19-local-companion-and-vscode-direction.md` bind the direction; exact
+  protocol/authentication and distribution remain O-008/O-009. Windows is
+  explicitly outside the demo and may be reconsidered only after project
+  approval; it creates no current abstraction or gate.
+  The accuracy path must preserve adapter separation, retrieval-owned tenant
+  state, structured patch evidence, compatibility with the qualified Mac
+  runtime and rollback.
+- FACT — L128 and L0 independently confirm that Model 1 does not load the
+  Ollama tag `qwen3.8:27b-mlx`. Training and inference use the separate local
+  checkpoint `mlx-community/Qwen3.8-27B-4bit` at revision
+  `3e6447f082e89cc7f0bc6e5441afd38dfce760ff` through MLX-VLM 0.6.15 and MLX
+  0.32.1; its verified payload is 16054541349 bytes and the selected adapter is
+  separate. Executable source/manifests contain Ollama references=0; the
+  installed 18-GB Ollama tag is idle. Removing that tag cannot affect this
+  repository's current training/evaluation/package path, but L0 does not infer
+  that unrelated projects do not call it and performs no deletion.
+- FACT — The user explicitly opens the accuracy-closure wave. L131-L133 and L0
+  independently reconcile the real evidence: base dev16 is `6/16`, selected
+  adapter dev16 is `16/16`, but both base and adapter remain `11/12` on B12;
+  the sole B12 miss has matching normalized IR and differs only in a
+  layout-sensitive AST inventory. The current adapter is real and delivered,
+  but the dev score is too template-narrow to close demo accuracy by itself.
+- DECISION — `DEMO_ACCURACY_V1` is the minimum fresh closure path: one
+  public-synthetic, pre-output-sealed roster with `12` tasks, exactly `2` per
+  F-1...F-6, covering author/edit/repair/review/migrate/explain. Base and the
+  selected adapter run under identical retrieval/runtime settings; semantic
+  scoring normalizes representation so formatting cannot create false model
+  failures. Demo accuracy closes only at adapter `>=11/12`, at least `1/2` in
+  every family, zero critical/invented/unauthorized failures and no regression
+  versus base. No benchmark output may feed training. Three noncritical
+  semantic mismatches across two families trigger only L0 oracle adjudication,
+  never automatic delta authority; Delta QLoRA can open only after those
+  failures are independently confirmed genuine and correctable. Otherwise the
+  result is an oracle/prompt cure or an honest bounded failure.
+  This wave does not implement Companion/Windows and cannot emit the separate
+  `TARGET_99_CONFIRMED` population claim, whose 600/563 gate remains unchanged.
+- FACT — L134 and L0 close the pre-output roster at in=12 out=12 distinct=12
+  gaps=0, exactly two tasks per F-1...F-6 and source8/JSON4. All catalogs use
+  the pinned `public.video` describe path; F-1 names every identifier/value and
+  F-4 binds the tenant threshold, so no expected field identity is inferred.
+  The pinned Metis revision `5e112f9148f40e7e792052e896c5a9efe8eaf0a2`
+  normalizes all eight source truths. Exact task-ID plus reserved `demoacc_`
+  namespace hits are zero in train64, dev16 and B12; this is explicitly not a
+  semantic-template-independence claim. Truth self-hash after the independent
+  underdetermination cure is
+  `sha256:0624b5b448ca9798cf7b518c8c36692f983ff1d39e019edc066c8c933bae11a7`;
+  model outputs observed=0 and training-input authority=false.
+- FACT — L131-L134 and L0 return final static GO at P0=0/P1=0. The cured
+  runner reconstructs truth from the pinned oracle at freeze, run and evidence;
+  binds the complete retrieval/oracle/fixture closure; validates published
+  commit/tree ancestry; compares base/adapter with identical deterministic
+  requests; and republishes raw candidates only through no-follow directory-FD
+  writes under the ignored single-use run root. Evidence distrusts the local
+  report and independently replays all 24 outputs before recomputing the gate.
+  Focused demo/runtime/retrieval/contracts tests are 95/95, foundation is 67/0,
+  Ruff/format/diff checks are green, and run artifacts/model outputs remain 0.

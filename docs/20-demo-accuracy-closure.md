@@ -1,0 +1,97 @@
+# Demo accuracy closure v1
+
+Status: **ACTIVE — explicitly authorized on 25 August 2026; truth fixed before
+model output**.
+
+`DEMO_ACCURACY_V1` is the smallest catalog-domain accuracy gate for the macOS
+development demo. It qualifies neither a general model nor a released product.
+Its purpose is to decide whether the already selected local adapter is accurate
+and non-regressing on the declared catalog-domain surface. Adapter uplift was
+already established separately on dev16; parity with a green base is acceptable
+here and is reported honestly as parity, not new uplift.
+
+## Scope
+
+The fresh public-synthetic roster contains exactly 12 tasks: two each for
+F-1 authoring, F-2 minimal editing, F-3 diagnostic repair, F-4 review,
+F-5 migration/canonicalization, and F-6 structural explanation. Every task
+has fixed oracle truth and a distinct public-synthetic task record. Exact task IDs
+and the reserved `demoacc_` symbol namespace do not occur in the consumed
+INITIAL_LOCAL_QLORA_V1 train/dev sets or W5-XS B12 roster. This exact-namespace
+check does not claim semantic-template independence: the gate intentionally
+tests the same product abilities on fresh identifiers and compositions.
+
+The roster must include the realistic demo actions that the prior surface did
+not measure: review with a concrete finding, a bounded canonical migration,
+and a normalized structural inventory. Every expected driver, identifier,
+cardinality, tenant threshold, controlled diagnostic code/path grammar, JSON
+vocabulary or value needed for a unique answer is stated before inference; an
+under-specified oracle is a benchmark defect, not a model failure.
+
+## Freeze and paired execution
+
+Before any output, `truth` and `freeze` publish the complete ordered roster,
+oracle policy, model/checkpoint identities, prompt, retrieval presentation,
+sampling, reasoning mode, token limit, and repair budget. The base and the
+selected adapter then run the same frozen tasks with every generation setting
+identical except `adapter_path` / `adapter_enabled`.
+
+The semantic oracle must compare normalized AST/IR and declared structural
+invariants, not parser coordinates, whitespace, or formatting layout. If
+canonical rendering is required, it is a separately reported formatter gate;
+it must not turn an IR-equivalent source into a semantic failure. Parse, link,
+validation, compile, minimal-patch, invented-identifier, diagnostic, and
+family-specific oracles remain independently visible.
+
+The authorized sequence is single-use and ordered:
+
+```bash
+uv run python -m metis_model1.demo_accuracy truth
+uv run python -m metis_model1.demo_accuracy freeze
+uv run python -m metis_model1.demo_accuracy run
+uv run python -m metis_model1.demo_accuracy evidence
+```
+
+Raw prompts, generations, repair attempts, and model outputs remain in a
+fresh ignored run directory. They are never appended to training data, never
+used for checkpoint selection, and cannot amend a frozen roster or oracle.
+The run is single-use: a partial worker failure is retained as a consumed failed
+attempt and requires a separately frozen benchmark ID rather than deleting or
+reusing the directory.
+
+## Gate
+
+`DEMO_ACCURACY_V1_PASS` requires all of the following:
+
+- adapter semantic success is at least `11/12`;
+- each F-1…F-6 family has at least `1/2` semantic successes;
+- adapter critical failures, accepted invented identifiers and roster gaps are
+  all zero; normalized target equality rejects unrelated semantic edits while
+  whitespace/layout differences are not model failures;
+- the adapter loses no base-green task and does not regress the aggregate
+  paired base result;
+- identities, receipts, hashes, and offline execution evidence verify.
+
+Otherwise the gate is `DEMO_ACCURACY_V1_DIAGNOSE`. It does not permit a retry
+of the consumed run.
+
+## Training decision
+
+Delta QLoRA remains prohibited by default. Its adjudication threshold is met
+under this accuracy-closure mandate only if the
+frozen run observes at least three genuine, reproducible, oracle-correctable
+semantic failures across at least two families. Formatting-only differences,
+under-specified requests, retrieval/tool failures, and defective oracle truth
+are diagnosis inputs, not training labels. Any eligible retune still requires a
+new frozen provenance-safe dataset, stable replay, an independent dev split,
+and an adapter-on versus adapter-off regression gate before optimizer startup.
+The automated report can only request L0 oracle adjudication; it never grants
+training eligibility or optimizer authority by itself.
+
+## Explicit non-claims
+
+This contract does **not** claim global `ACCURACY99_PROMOTED`, full endpoint
+workflow accuracy, population accuracy, tenant-data competence, live ARES
+execution, Companion delivery, VS Code integration, remote fallback,
+distribution, or Windows support. It does not promote the adapter or replace
+the frozen Accuracy-99 benchmark.

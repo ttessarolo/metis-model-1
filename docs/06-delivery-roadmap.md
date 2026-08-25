@@ -43,7 +43,7 @@ un micro-dataset non sensibile e non decide la semantica del benchmark.
 
 ### W0 — Foundation
 
-- decision log D-001…D-012;
+- decision log D-001…D-013;
 - source/model revision manifest;
 - repository structure e policy artifact;
 - open decision register.
@@ -108,6 +108,12 @@ remains open.
 
 ### W8 — Packaging
 
+- Metis Companion installabile su macOS per sviluppo e demo;
+- acquisizione e verifica separate di base model e adapter;
+- runtime MLX/MLX-VLM Mac qualificato sul contratto semantico;
+- API locale versionata e autenticata;
+- estensione Metis VS Code per author/edit/repair/review/migrate;
+- fallback remoto/tool-based esplicito, policy-controlled e auditabile;
 - launcher locale con adapter on/off;
 - context/compile loop fail-closed;
 - model/data card;
@@ -172,7 +178,7 @@ Stato corrente e deadline delle decisioni non ancora ratificate:
 | O-005 | rank/alpha/LR/seed grid | RATIFICATA: 4 config, 700 step max |
 | O-006 | formato artifact store locale | RATIFICATA: local-only, atomico, cap 40 GiB |
 | O-007 | adapter unico multi-task o adapter separati | dopo il pilot W5 |
-| O-008 | interfaccia CLI/editor/agent | prima di W8 |
+| O-008 | protocollo Companion/VS Code e autenticazione locale Mac | prima di W8 |
 | O-009 | policy di distribuzione oltre local-only | dopo W7, con review dedicata |
 | O-010 | percorso di manutenzione per modifiche Metis | RATIFICATA prima della prima promotion W7; applicata in W9 |
 | O-011 | split baseline-first / Accuracy-99 | RATIFICATA: W5-XS separato dalla promotion |
@@ -250,3 +256,7 @@ automaticamente il claim della versione precedente.
 
 Una nuova revisione Qwen, MLX o MLX-VLM richiede inoltre le rispettive
 qualification e pin: nessun floating `latest`.
+
+Il supporto Windows non appartiene al percorso W8 della demo e non costituisce
+un gate corrente. Potrà essere pianificato separatamente dopo l'approvazione del
+progetto.

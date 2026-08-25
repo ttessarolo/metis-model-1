@@ -63,6 +63,11 @@ adapter Metis.
 | D-010 | Pesi per abilità stabili, retrieval per stato mutevole | Riduce obsolescenza e allucinazioni di simboli | Checkout corrente e contesto restano componenti del sistema |
 | D-011 | Dati e artefatti local-only per default | Il corpus Metis può essere proprietario | Ogni upload o distribuzione richiede autorizzazione separata |
 | D-012 | Nessun peso o dataset voluminoso in Git | Mantiene il repository ispezionabile e sicuro | Git contiene manifest, config, report e checksum, non i payload |
+| D-013 | Direzione prodotto: Companion locale Mac + estensione Metis VS Code | Giulia e la redazione devono usare Model 1 sui workspace reali con inferenza locale, toolchain e controllo umano | La demo usa MLX su Mac; le wave preservano adapter separato, retrieval-owned state e patch verificabili. Protocollo e distribuzione restano O-008/O-009; Windows si valuta solo dopo l'approvazione |
+
+La direzione D-013 è specificata in
+[`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md).
+Non autorizza ancora sviluppo, distribuzione o fallback remoto.
 
 ## 4. Ipotesi da dimostrare
 

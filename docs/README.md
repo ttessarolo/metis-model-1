@@ -1,7 +1,9 @@
 # Piano di Metis Model 1
 
-Stato del piano: **W5-XS first-value ratificato e pronto a ricevere il mandato
-esecutivo; promotion Accuracy-99 separata e ancora bloccata — 24 agosto 2026**.
+Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; gate
+accuracy catalog-domain della demo Mac attivo con truth pre-output fissata;
+direzione Mac Companion/VS Code ratificata ma non implementata — 25 agosto
+2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -47,6 +49,17 @@ sempre quattro livelli epistemici:
     fail-closed, denominatori correnti e gate per il seal W1/W2.
 16. [`15-first-value-experiment.md`](15-first-value-experiment.md) — percorso
     baseline-first, dataset minimo, micro-QLoRA, tempi e stop rule W5-XS.
+17. [`16-accuracy-wave-catalog-domain-maintenance.md`](16-accuracy-wave-catalog-domain-maintenance.md)
+    — manutenzione della superficie cataloghi e policy `NO_RETRAIN`/delta.
+18. [`17-catalog-prompt-cure-successor.md`](17-catalog-prompt-cure-successor.md)
+    — cura prompt cataloghi e relativo confine diagnostico.
+19. [`18-initial-local-qlora.md`](18-initial-local-qlora.md) — contratto ed
+    evidenze della prima QLoRA locale consegnata.
+20. [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md)
+    — direzione della demo Mac con app/server locale ed estensione Metis VS Code.
+21. [`20-demo-accuracy-closure.md`](20-demo-accuracy-closure.md) — gate fresco e
+    paired base/adapter per l'accuracy catalog-domain circoscritta della demo
+    Mac.
 
 ## Tesi operativa
 
@@ -68,15 +81,19 @@ l'autorità eseguibile. La formula di Model 1 è quindi:
 
 ## Cosa non dichiara lo stato corrente
 
-Questo repository, allo stato iniziale, non dichiara che:
+Questo repository, allo stato corrente, non dichiara che:
 
-- un training o adapter Metis di pilot sia già stato eseguito o promosso;
+- l'adapter locale consegnato costituisca una promotion Accuracy-99;
+- esistano già Companion, API locale o integrazione VS Code;
+- il supporto Windows faccia parte della demo corrente;
+- il backup S3 sia un canale autorizzato di distribuzione ai client;
 - `EXPERIMENT_PLAN_READY` autorizzi inferenza, dataset o training;
 - la qualifica sintetica batch-1 / sequence-128 e i probe delimitati a 1.024
   token si estendano automaticamente a 2.048 token o ad altre configurazioni;
 - le soglie proposte siano state raggiunte;
 - un output compiler-clean sia semanticamente equivalente all'intento;
-- dataset o adapter possano essere distribuiti fuori dal perimetro autorizzato.
+- dataset o adapter possano essere distribuiti fuori dal perimetro autorizzato;
+- un fallback remoto possa ricevere codice o dati senza policy e consenso.
 
 Questi claim diventano veri solo attraverso gli evidence gate descritti nei
 documenti successivi.

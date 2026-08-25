@@ -147,6 +147,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/16-accuracy-wave-catalog-domain-maintenance.md",
     "docs/17-catalog-prompt-cure-successor.md",
     "docs/18-initial-local-qlora.md",
+    "docs/19-local-companion-and-vscode-direction.md",
+    "docs/20-demo-accuracy-closure.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -180,6 +182,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/initial-local-qlora-plan-v1.json",
     "manifests/initial-local-qlora-baseline-reuse-v1.json",
     "manifests/initial-local-qlora-exclusions-v1.json",
+    "manifests/demo-accuracy-truth-v1.json",
     "schemas/catalog-maintenance-successor-probe.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",
@@ -208,6 +211,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/catalog-maintenance/public-synthetic-v1/values/aa-list.metis",
     "fixtures/catalog-maintenance/public-synthetic-v1/values/bb-reflected.metis",
     "fixtures/catalog-maintenance/public-synthetic-v1/values/cc-editorial.metis",
+    "fixtures/demo-accuracy-v1/tasks.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -228,6 +232,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/initial_local_qlora_runtime.py",
     "src/metis_model1/initial_local_qlora_b12.py",
     "src/metis_model1/initial_local_qlora_train.py",
+    "src/metis_model1/demo_accuracy.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -304,6 +309,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_initial_local_qlora_runtime.py",
     "tests/test_initial_local_qlora_b12.py",
     "tests/test_initial_local_qlora_train.py",
+    "tests/test_demo_accuracy.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (

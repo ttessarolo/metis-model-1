@@ -152,14 +152,33 @@ Il primo runner deve poter:
 - non scrivere nel checkout sorgente salvo un'azione umana separata;
 - fallire closed quando compiler, manifest o versione non coincidono.
 
-## 8. Scelte deliberatamente rimandate
+## 8. Direzione di prodotto ratificata
 
-- interfaccia finale CLI, editor extension o coding-agent protocol;
+Model 1 sarà servito nella fase di sviluppo e demo da un'applicazione
+installabile su macOS che ospita un servizio locale, acquisisce e verifica
+separatamente base model e adapter e offre un'API locale versionata.
+L'estensione Metis per VS Code sarà il client editoriale per authoring, editing,
+repair, review e migrazione di endpoint reali; ogni modifica passa da toolchain,
+preview/diff e conferma umana.
+
+L'inferenza è local-first. Fallback remoti o verso tool/modelli disponibili in
+VS Code sono policy-controlled, visibili e auditabili, mai automatici o
+silenziosi. Il contratto completo è in
+[`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md).
+
+## 9. Scelte deliberatamente rimandate
+
+- protocollo esatto e autenticazione fra Companion ed estensione;
+- packaging, firma, updater e canale di distribuzione;
+- provider e policy del fallback remoto;
 - formato dell'artifact store per adapter e dataset;
 - eventuale fusione per distribuzione;
 - supporto di context window oltre 2.048 token durante il training;
 - adapter distinti per author/repair o adapter unico multi-task;
 - uso di DPO su preference pairs dopo la SFT.
 
-Queste scelte dipendono dagli esiti del pilot e non devono essere anticipate nel
-primo qualification run.
+Queste scelte dipendono dagli esiti di accuracy e dalle qualification di
+prodotto; non devono essere anticipate dalla prossima wave del modello.
+
+Il supporto Windows è esplicitamente fuori dal perimetro della demo. Sarà
+valutato in una wave separata soltanto se il progetto verrà approvato.
