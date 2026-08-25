@@ -4623,3 +4623,66 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   10-file/487448-byte/zero-checkpoint census. `run-v2`, staging, markers and
   optimizer state remain absent; strict remote reopen remains required after
   the exact freeze commit+push and before import.
+- FACT — Freeze-v2 commit `f3a1513d920c49d519a088a292736e42d8040a68`
+  is pushed and reopened before the sealed adapter-off baseline is imported
+  atomically into `run-v2`. The three source/destination files are byte-exact;
+  reuse receipt self-hash is
+  `sha256:7557830133d443ee9f83956bf425437ccb807f59438926934d3285c252f1ce54`,
+  with zero additional model calls and zero optimizer invocations.
+- FACT — The one authorized rank-8 QLoRA configuration completes step 25 in
+  247.508 seconds and step 50 in 174.892 seconds, cumulative optimizer time
+  422.401 seconds. Step25 checkpoint self-hash is `sha256:cf2cc2b0...`; its
+  dev gate is 16/16 versus base 6/16. Step50 checkpoint self-hash is
+  `sha256:0da127b7...`, manifest `sha256:373fe0fa...`, and selected adapter
+  `sha256:5e65a0b48531ce9e2a9751c201f570f8793da87bd2a2a9446f461dbe0589dcfb`.
+  Step50 also scores 16/16; the required additional gain for step100 is
+  mathematically impossible, so no step100 authority exists and no retry or
+  alternate configuration is run.
+- FACT — Training receipt self-hash
+  `sha256:5da4040955d80582eac821fc4682faca1119816fd2fe05f030fc8410affc8291`
+  and selection self-hash
+  `sha256:0ed579b750011708bda6507f04639d1856a2562f7673adf1773529243218bbaa`
+  bind selected step50. Adapter-off restoration exactly reproduces the original
+  base candidates and 6/16 score; restore self-hash is
+  `sha256:34a9885904787c8e3ab7bdd780c42b70f941a2799e42b9c17ea7b06b82bd60f0`.
+- FACT — The sole terminal B12 adapter replay closes in=12 out=12 distinct=12
+  gaps=0 at 11/12, equal to frozen base B12 11/12, with critical=0 and
+  invented=0. Receipt self-hash is
+  `sha256:92413ade0bb9e7cfe2cc0f24557650dd1f4b56e84fa32c38ffc3c36216b556b4`
+  and file hash `sha256:f9a00c9cce9604e87e27cb72de692701d26c41cf97a0b13dfa91f38c68adaef4`;
+  L117 and L0 independently replay the retained evidence. Verdict is
+  `LOCAL_ADAPTER_UPLIFT` from the dev improvement 6/16 to 16/16, not from a
+  B12 score increase and not as a global Accuracy-99 claim.
+- DONE — The local adapter package is sealed and independently audited:
+  in=11 out=11 distinct=11 gaps=0 regular files, payload 233790371 bytes,
+  adapter 233581693 bytes with SHA-256
+  `5e65a0b48531ce9e2a9751c201f570f8793da87bd2a2a9446f461dbe0589dcfb`.
+  Its deterministic USTAR archive is 233809920 bytes with SHA-256
+  `5df666613798d58b552f6bd44eb4dcfcabb86d70e1a6dbf3a293c40eaeac0568`;
+  package self-hash is `sha256:79ef33e8d939844577fda2c59633ab582aac8f3857008a7df640ec0194e7ef6a`
+  and archive-receipt self-hash is
+  `sha256:0c95ebb67e138f185d3d1ba7d0cb21b0b33154d14ece7b71ae3e341bc287a54a`.
+  Fresh restore verifies all 11 members; base weights, dataset rows, optimizer
+  state, raw model/oracle output, logs, credentials and `.env` are absent.
+- OPEN — Publish and remotely reopen the exact S3 backup implementation and
+  archive-derived preimage, then perform its sole conditional AES256 PUT,
+  HeadObject/version check, fresh download and `verify-archive` before closing
+  the delivery.
+- FIX — L116 implements the missing single-use backup boundary without reading
+  `.env`, AWS configuration/cache or credentials and without any AWS call.
+  The preimage binds Git code/tests, AWS CLI identity, account/profile/region/
+  bucket, the archive-derived key, exact version-history census and a closed
+  environment. Transfer permits one `If-None-Match: *` AES256 `put-object`,
+  requires a fresh versioned prefix with no hidden versions/delete markers,
+  cross-checks PUT/current/versioned HEAD/checksum/metadata/ETag, downloads the
+  exact version to a fresh temporary directory and reruns `verify-archive`.
+  Marker and redacted receipt publication are atomic no-clobber.
+- FACT — L117 first reproduces and then verifies cures for a dangling receipt
+  symlink, preimage self-reference, re-signed restore-summary forgery and hidden
+  S3 version history. Final independent verdict is P0=0/P1=0. Backup tests are
+  29/29 and the complete QLoRA focused roster is 84/84; Ruff, formatting,
+  foundation 67/0 and diff checks are green. The mandatory final broad replay
+  is `1262 passed, 102 failed, 1 skipped`; the same inherited Oracle/W3 bridge/
+  qualifier protected-authority and old Metis-pin groups account for all 102,
+  with zero local QLoRA or backup regression. Exact implementation publication
+  is the next gate; no AWS transfer has yet occurred.
