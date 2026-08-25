@@ -1,10 +1,14 @@
 """Execute the pinned catalog retrieval CLI against a public fixture only.
 
 This is a maintenance receipt path, not the production W3 Oracle.  It archives
-the exact catalog implementation commit, copies the already-pinned runtime,
+the exact catalog implementation commit, reconstructs its pinned tooling,
 copies a hash-checked public fixture into that snapshot, and runs only
 ``catalog-domain.ts`` under the same cooperative local sandbox used by the pin
-verifier.  The returned report contains hashes and redacted summaries only.
+verifier.  The already-pinned Node executable is allowlisted as one exact,
+read-only file and reverified after the snapshot closes.  This avoids macOS
+security rescans of a newly materialized executable without broadening access
+to its containing home directory.  The returned report contains hashes and
+redacted summaries only.
 """
 
 from __future__ import annotations
@@ -92,6 +96,36 @@ def _canonical(value: Any) -> bytes:
 
 def _sha256(raw: bytes) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def _snapshot_policy(snapshot: Path, node: Path) -> str:
+    """Allow the verified Node binary, but no other external home path."""
+
+    if not snapshot.is_absolute() or not node.is_absolute():
+        raise CatalogRetrievalRefreshError("snapshot runtime paths must be absolute")
+    return " ".join(
+        (
+            pin._sandbox_policy(snapshot),
+            f"(allow file-read* (literal {json.dumps(str(node))}))",
+        )
+    )
+
+
+def _verify_runtime_node(
+    node: Path,
+    runtime: dict[str, Any],
+    *,
+    expected: bytes | None = None,
+) -> bytes:
+    """Normalize pin errors and optionally enforce the post-execution bytes."""
+
+    try:
+        raw = pin._verify_node(node, runtime)
+    except pin.CatalogMaintenancePinError as error:
+        raise CatalogRetrievalRefreshError("pinned Node verification failed") from error
+    if expected is not None and raw != expected:
+        raise CatalogRetrievalRefreshError("pinned Node post-check mismatch")
+    return raw
 
 
 def _safe_relative(value: Any, label: str) -> PurePosixPath:
@@ -309,7 +343,8 @@ def _pinned_snapshot(metis_root: Path, node_path: Path) -> Any:
             text=False,
         )
         assert isinstance(archive, bytes)
-        node_bytes = pin._verify_node(node_path, manifest["runtime"])
+        node = node_path.resolve(strict=True)
+        node_bytes = _verify_runtime_node(node, manifest["runtime"])
         with tempfile.TemporaryDirectory(prefix="metis-model1-catalog-refresh-") as temporary:
             snapshot_root = Path(temporary)
             pin._safe_extract_archive(archive, snapshot_root)
@@ -320,13 +355,13 @@ def _pinned_snapshot(metis_root: Path, node_path: Path) -> Any:
             modules_sha256 = "sha256:" + pin._node_modules_sha256(snapshot_modules)
             if modules_sha256 != manifest["runtime"]["node_modules_sha256"]:
                 raise CatalogRetrievalRefreshError("copied tooling node_modules differs from pin")
-            node = snapshot_root / "pinned-node"
-            node.write_bytes(node_bytes)
-            node.chmod(0o500)
-            policy = pin._sandbox_policy(snapshot_root)
+            policy = _snapshot_policy(snapshot_root, node)
             pin._assert_sandbox_boundaries(snapshot_root, policy)
             fixture = snapshot_root / "public-synthetic-tenant"
-            yield _Snapshot(snapshot_root, tooling, node, policy, fixture)
+            try:
+                yield _Snapshot(snapshot_root, tooling, node, policy, fixture)
+            finally:
+                _verify_runtime_node(node, manifest["runtime"], expected=node_bytes)
     except CatalogRetrievalRefreshError:
         raise
     except (OSError, tarfile.TarError, subprocess.SubprocessError) as error:

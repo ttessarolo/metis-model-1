@@ -5233,3 +5233,27 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - OPEN — Commit and push this truth preimage, reopen the exact remote commit,
   then build and independently audit the zero-output v2 freeze. The fixed run
   directory remains absent; model calls, training and delta QLoRA remain zero.
+- FACT — Truth preimage `467a1c1c068bad4989497f8fc8da052621d16aa1`
+  was pushed and exactly reopened. Two subsequent freeze-constructor attempts
+  and one traced no-write reconstruction stopped before any manifest or run
+  directory: the first scheduled `gsl_t30v2_f1_01` child reached the `120s`
+  process timeout with only `112 KiB` resident and every sampled frame at
+  macOS `_dyld_start`. Node had not loaded the runner or read the synthetic
+  source; this is not an F1, grammar or standard-library failure and consumed
+  zero model calls/nonces.
+- FIX — The snapshot runtime no longer materializes a new executable inode for
+  every Oracle session. It executes the already hash/mode/link-verified,
+  resolved Node binary through one exact literal Seatbelt read allow, keeps the
+  rest of the home directory denied, and repeats the full pin verification
+  after the snapshot closes. Pin failures are normalized fail-closed and the
+  receipt retains `not_same_uid_adversary_resistant`; no broader host claim is
+  made. The previously stalled F1 request is now `status=ok`.
+- DONE — A complete post-cure pinned rebuild again produces exact truth self
+  `sha256:3c4139c0d763e131be7c18332af2c5a8dd847865db4097e1b98c53823647f216`.
+  Focused T30/contracts plus runtime-boundary tests are green `84/84`; Ruff,
+  format and diff checks are green. The historical invalid-field catalog CLI
+  still retains an event-loop handle and was interrupted rather than spending
+  another `120s`; it is outside the valid Oracle path and is not claimed cured.
+- OPEN — Publish and exactly reopen the bounded Node-startup cure, then rebuild
+  the zero-output freeze from that new preimage. Run directory and freeze stay
+  absent; inference, training and delta QLoRA remain zero.

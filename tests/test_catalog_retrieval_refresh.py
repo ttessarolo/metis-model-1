@@ -36,6 +36,42 @@ def _assert_no_values(value: object) -> None:
             _assert_no_values(item)
 
 
+def test_snapshot_policy_allows_only_the_exact_verified_node(tmp_path: Path) -> None:
+    snapshot = (tmp_path / "snapshot").resolve()
+    node = (tmp_path / "runtime" / "node").resolve()
+
+    policy = refresh._snapshot_policy(snapshot, node)
+
+    assert f'(allow file-read* (literal "{node}"))' in policy
+    assert f'(allow file-read* (subpath "{node.parent}"))' not in policy
+    assert f'(allow file-read* (subpath "{snapshot}"))' in policy
+    assert "not_same_uid_adversary_resistant" in refresh.NONCLAIMS
+
+
+def test_runtime_node_verification_normalizes_pin_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    node = tmp_path / "node"
+
+    def reject(*_args: object, **_kwargs: object) -> bytes:
+        raise pin.CatalogMaintenancePinError("sensitive pin detail")
+
+    monkeypatch.setattr(pin, "_verify_node", reject)
+
+    with pytest.raises(refresh.CatalogRetrievalRefreshError, match="verification failed"):
+        refresh._verify_runtime_node(node, {})
+
+
+def test_runtime_node_postcheck_mismatch_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    node = tmp_path / "node"
+    monkeypatch.setattr(pin, "_verify_node", lambda *_args, **_kwargs: b"after")
+
+    with pytest.raises(refresh.CatalogRetrievalRefreshError, match="post-check mismatch"):
+        refresh._verify_runtime_node(node, {}, expected=b"before")
+
+
 @pytest.fixture(scope="module")
 def public_report() -> dict[str, object]:
     if not CAN_RUN_PINNED_RUNTIME:
