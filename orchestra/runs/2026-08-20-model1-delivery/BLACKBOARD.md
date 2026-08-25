@@ -4698,3 +4698,20 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   to account `670565864033`, region `eu-west-1`, bucket `metis-model-1` and its
   content-addressed key, with upload/marker/receipt still absent. Exact preimage
   commit, push and strict remote reopen remain mandatory before the sole PUT.
+- DONE — `INITIAL_LOCAL_QLORA_V1` is delivered: in=1 out=1 distinct=1 gaps=0
+  versioned S3 object, with exactly one conditional PUT. Account
+  `670565864033`, region `eu-west-1`, bucket `metis-model-1`, key
+  `metis-model1/5df666613798d58b552f6bd44eb4dcfcabb86d70e1a6dbf3a293c40eaeac0568/metis-model1-adapter.tar`
+  and version `jvzkhvVQM7VBD3h9PwsN8ddynpiGlYJ2` are exact. Version census is
+  before=0/after=1, delete-markers=0, truncated=false; AES256, SHA-256 checksum,
+  metadata, current/versioned HEAD and ETag all match. A fresh version-specific
+  download reproduces all 233809920 bytes and archive SHA
+  `5df666613798d58b552f6bd44eb4dcfcabb86d70e1a6dbf3a293c40eaeac0568`,
+  then `verify-archive` closes package members 11/11 and package self-hash
+  `sha256:79ef33e8d939844577fda2c59633ab582aac8f3857008a7df640ec0194e7ef6a`.
+  Backup receipt raw SHA-256 is
+  `8443ad5a8636d9399542342f2747e38ff3d876914456f9b31a64f71b7824874d`
+  with self-hash
+  `sha256:294375740e1e20d31e74fd7091d5e7cc51dbc3211799a36239f96c095343c795`.
+  This closes the bounded local fine-tuned adapter delivery; it remains a
+  nonpromotion result and does not assert global Accuracy 99.
