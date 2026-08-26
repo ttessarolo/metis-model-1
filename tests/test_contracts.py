@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 from copy import deepcopy
 
 import pytest
@@ -58,6 +59,7 @@ def test_repository_foundation_is_valid() -> None:
     assert any(item.startswith("catalog-maintenance-successor-evidence=") for item in report.passes)
     assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
     assert any(item.startswith("grammar-stdlib-t30-v2=adjudication/") for item in report.passes)
+    assert any(item.startswith("grammar-stdlib-t30-v3=truth/") for item in report.passes)
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
@@ -281,7 +283,16 @@ def test_grammar_stdlib_t30_preoutput_contract_rejects_out_of_order_stage(
 
 
 def test_grammar_stdlib_t30_successor_contract_is_fail_closed() -> None:
-    assert validate_grammar_stdlib_t30_successor_contract(repository_root()) == []
+    root = repository_root()
+    errors = validate_grammar_stdlib_t30_successor_contract(root)
+    truth_path = root / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+
+    if truth_path.is_file():
+        assert errors == []
+    else:
+        assert errors == [
+            "T30-v3 contract path is missing: manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+        ]
 
 
 def test_grammar_stdlib_t30_successor_rejects_out_of_order_stage(tmp_path) -> None:
@@ -365,6 +376,879 @@ def test_grammar_stdlib_t30_successor_rejects_rehashed_truth_input_drift(tmp_pat
     errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
 
     assert "T30-v2 truth tasks_file_sha256 does not link its input" in errors
+
+
+def _copy_t30_v3_static_contract(tmp_path) -> None:
+    root = repository_root()
+    for relative in (
+        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+        "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json",
+        "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md",
+        "manifests/grammar-stdlib-accuracy-t30-policy-v3.json",
+        "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
+        "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json",
+        "src/metis_model1/grammar_stdlib_t30.py",
+        "src/metis_model1/grammar_stdlib_t30_successor.py",
+        "src/metis_model1/grammar_stdlib_t30_v3.py",
+        "tests/test_grammar_stdlib_t30_successor.py",
+        "tests/test_grammar_stdlib_t30_v3.py",
+    ):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
+    from metis_model1 import grammar_stdlib_t30 as t30
+    from metis_model1 import grammar_stdlib_t30_v3 as v3
+
+    with v3.successor_configuration():
+        bound_paths = tuple(t30.BOUND_PATHS)
+    for relative in bound_paths:
+        source = root / relative
+        destination = tmp_path / relative
+        if source.is_file() and not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+    policy_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-policy-v3.json"
+    policy_value = json.loads(policy_path.read_text(encoding="utf-8"))
+    policy_value["nonclaims"] = v3.V3_NONCLAIMS
+    policy_path.write_text(json.dumps(policy_value), encoding="utf-8")
+    _rewrite_canonical_self_hash(policy_path, "policy_sha256")
+    truth_path = root / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    destination = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    if truth_path.is_file():
+        shutil.copy2(truth_path, destination)
+        return
+
+    policy = json.loads(
+        (tmp_path / "manifests/grammar-stdlib-accuracy-t30-policy-v3.json").read_text()
+    )
+    predecessor_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json"
+    predecessor_raw = predecessor_path.read_bytes()
+    predecessor_value = json.loads(predecessor_raw)
+    predecessor = {
+        "path": "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
+        "bytes": len(predecessor_raw),
+        "file_sha256": "sha256:" + hashlib.sha256(predecessor_raw).hexdigest(),
+        "evaluation_sha256": predecessor_value["evaluation_sha256"],
+        "verdict": predecessor_value["decision"]["verdict"],
+        "disposition": "terminal_diagnosis_no_promotion",
+    }
+    tasks = json.loads(
+        (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_text()
+    )["tasks"]
+    with v3.successor_configuration():
+
+        def signature(task, *, invalid: bool = False):
+            mode = task["oracle"]["mode"]
+            return {
+                "contract": "metis-semantic-signature/v2",
+                "status": "invalid" if invalid else "ok",
+                "endpoint": {
+                    "mode": mode,
+                    "requested": task["oracle"].get("target") if mode == "endpoint" else None,
+                    "selected": task["oracle"].get("target") if mode == "endpoint" else None,
+                    "count": 1 if mode == "endpoint" else 0,
+                },
+                "semantic_ast_sha256": "sha256:" + "a" * 64,
+                "semantic_ir_sha256": None if invalid else "sha256:" + "b" * 64,
+                "semantic_diagnostics_sha256": "sha256:" + "c" * 64,
+                "failure_kind": task["oracle"].get("input_failure_kind") if invalid else None,
+            }
+
+        records = []
+        for task in tasks:
+            target = {
+                "kind": task["task_mode"],
+                "authority_tier": task["authority_tier"],
+                "messages_sha256": t30.canonical_hash(t30.build_messages(task)),
+                "declared_coverage": task["coverage"],
+                "content_root_sha256": t30._task_content_root(task),
+                "before": (
+                    signature(task, invalid=task["oracle"].get("input_failure_kind") is not None)
+                    if task.get("before_source") is not None
+                    else None
+                ),
+                "input": signature(task) if task.get("input_source") is not None else None,
+                "repaired": signature(task)
+                if task.get("expected_repaired_source") is not None
+                else None,
+                "expected_coverage": task["coverage"],
+            }
+            if task["task_mode"] == "source_output":
+                target["expected"] = signature(task)
+            else:
+                target["expected_json_sha256"] = t30.canonical_hash(task["expected_json"])
+            records.append(
+                {
+                    "task_id": task["task_id"],
+                    "family": task["family"],
+                    "authority_tier": task["authority_tier"],
+                    "target": target,
+                    "model_output_observed": False,
+                }
+            )
+        truth = {
+            "schema_version": 1,
+            "truth_id": t30.TRUTH_ID,
+            "status": "truth_fixed_before_model_output",
+            "authority_tier": "automatic",
+            "benchmark_id": t30.BENCHMARK_ID,
+            "semantic_signature_contract": t30.d18.SEMANTIC_SIGNATURE_CONTRACT,
+            "tasks_file_sha256": "sha256:"
+            + hashlib.sha256(
+                (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_bytes()
+            ).hexdigest(),
+            "reference_context_sha256": "sha256:"
+            + hashlib.sha256(
+                (
+                    tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md"
+                ).read_bytes()
+            ).hexdigest(),
+            "policy_sha256": policy["policy_sha256"],
+            "grammar_stdlib_pin": json.loads(
+                (tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v2.json").read_text(
+                    encoding="utf-8"
+                )
+            )["grammar_stdlib_pin"],
+            "generation": t30.GENERATION,
+            "thresholds": t30.THRESHOLDS,
+            "counts": {
+                "tasks_in": 30,
+                "tasks_out": 30,
+                "tasks_distinct": 30,
+                "gaps": 0,
+                "families": {family: 5 for family in t30.FAMILIES},
+            },
+            "tasks": records,
+            "model_outputs_observed": False,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "nonclaims": policy["nonclaims"],
+            "predecessor_terminal_diagnosis": predecessor,
+        }
+    truth["truth_sha256"] = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                truth, allow_nan=False, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+    )
+    destination.write_text(json.dumps(truth), encoding="utf-8")
+
+
+def _rewrite_canonical_self_hash(path, field: str) -> dict:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    body = {key: item for key, item in value.items() if key != field}
+    value[field] = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                body,
+                allow_nan=False,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
+    path.write_text(json.dumps(value), encoding="utf-8")
+    return value
+
+
+def test_grammar_stdlib_t30_v3_rejects_out_of_order_phase(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+    evaluation_path.write_text("{}", encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 phase evaluation is present before its predecessor" in errors
+
+
+def test_grammar_stdlib_t30_v3_synthetic_static_contract_is_valid(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+
+    assert validate_grammar_stdlib_t30_successor_contract(tmp_path) == []
+
+
+def _write_t30_v3_complete_phase_fixture(tmp_path, *, passing: bool = False) -> None:
+    """Materialize a realistic local phase chain with raw candidate/report lineage."""
+
+    _copy_t30_v3_static_contract(tmp_path)
+    from metis_model1 import grammar_stdlib_t30 as t30
+    from metis_model1 import grammar_stdlib_t30_v3 as v3
+
+    policy_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-policy-v3.json"
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth_by_id = {row["task_id"]: row for row in truth["tasks"]}
+    tasks = json.loads(
+        (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_text(
+            encoding="utf-8"
+        )
+    )["tasks"]
+    with v3.successor_configuration():
+        freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+        freeze = {
+            "schema_version": 1,
+            "freeze_id": t30.FREEZE_ID,
+            "status": "frozen_before_model_output",
+            "authority_tier": "automatic",
+            "preimage_commit": "0" * 40,
+            "preimage_tree": "1" * 40,
+            "remote": "synthetic-test",
+            "remote_ref": "synthetic-test-ref",
+            "run_id": t30.RUN_ID,
+            "run_dir": t30.RUN_RELATIVE,
+            "attempt_nonce": t30.ATTEMPT_NONCE,
+            "bound_inputs": [
+                contracts._t30_v3_bound_record(tmp_path, path) for path in t30.BOUND_PATHS
+            ],
+            "truth_sha256": truth["truth_sha256"],
+            "policy_sha256": policy["policy_sha256"],
+            "policy_file_sha256": "sha256:" + hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+            "tasks_file_sha256": "sha256:"
+            + hashlib.sha256(
+                (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_bytes()
+            ).hexdigest(),
+            "reference_context_sha256": "sha256:"
+            + hashlib.sha256(
+                (
+                    tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md"
+                ).read_bytes()
+            ).hexdigest(),
+            "semantic_signature_contract": t30.d18.SEMANTIC_SIGNATURE_CONTRACT,
+            "runtime_identities": json.loads(
+                (tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json").read_text(
+                    encoding="utf-8"
+                )
+            )["runtime_identities"],
+            "generation": t30.GENERATION,
+            "thresholds": t30.THRESHOLDS,
+            "model_outputs_observed": False,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "nonclaims": policy["nonclaims"],
+            "predecessor_terminal_diagnosis": truth["predecessor_terminal_diagnosis"],
+        }
+        freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+        freeze = _rewrite_canonical_self_hash(freeze_path, "freeze_sha256")
+
+        empty_coverage = {field: [] for field in t30.COVERAGE_FIELDS}
+        run_dir = tmp_path / t30.RUN_RELATIVE
+        internal_observations: dict[str, list[dict]] = {}
+        outputs: dict[str, dict] = {}
+        for side in ("base", "adapter"):
+            candidate_rows = [
+                {
+                    "task_id": task["task_id"],
+                    "text": f"synthetic rejected {side} candidate for {task['task_id']}",
+                    "peak_metal_gb": 0.125,
+                }
+                for task in tasks
+            ]
+            raw = b"".join(contracts._t30_v3_canonical_bytes(row) + b"\n" for row in candidate_rows)
+            candidate_path = run_dir / side / "candidates.jsonl"
+            candidate_path.parent.mkdir(parents=True, exist_ok=True)
+            candidate_path.write_bytes(raw)
+            outputs[side] = {
+                "path": f"{t30.RUN_RELATIVE}/{side}/candidates.jsonl",
+                "bytes": len(raw),
+                "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+            }
+            internal_observations[side] = [
+                {
+                    "task_id": task["task_id"],
+                    "family": task["family"],
+                    "task_mode": task["task_mode"],
+                    "authority_tier": task["authority_tier"],
+                    "independent_root": task["provenance_roots"]["independent"],
+                    "mechanical_match": passing,
+                    "semantic_correct": (
+                        passing if task["family"] in {"F-1", "F-2", "F-3", "F-4"} else None
+                    ),
+                    "final_human_review_required": task["family"] in t30.FINAL_HUMAN_REVIEW,
+                    "final_human_review_kind": t30.FINAL_HUMAN_REVIEW.get(task["family"]),
+                    "critical_failure": False,
+                    "failure_code": None if passing else "semantic_mismatch",
+                    "candidate_sha256": "sha256:"
+                    + hashlib.sha256(candidate["text"].encode()).hexdigest(),
+                    "observed": (
+                        deepcopy(truth_by_id[task["task_id"]]["target"]["expected"])
+                        if passing and task["task_mode"] == "source_output"
+                        else {
+                            "json": deepcopy(task["expected_json"]),
+                            "json_sha256": t30.canonical_hash(task["expected_json"]),
+                        }
+                        if passing
+                        else None
+                    ),
+                    "observed_coverage": deepcopy(task["coverage"]) if passing else empty_coverage,
+                    "peak_metal_gb": candidate["peak_metal_gb"],
+                }
+                for task, candidate in zip(tasks, candidate_rows, strict=True)
+            ]
+        decision = t30.gate_arithmetic(
+            internal_observations["base"], internal_observations["adapter"]
+        )
+        requests = t30._request_batch(tasks)
+        attempt_path = run_dir / "attempt.json"
+        attempt = {
+            "schema_version": 1,
+            "attempt_id": t30.ATTEMPT_NONCE,
+            "status": "started_before_model_output",
+            "head": "2" * 40,
+            "tree": "3" * 40,
+            "freeze_sha256": freeze["freeze_sha256"],
+            "base_requests": 30,
+            "adapter_requests": 30,
+            "requests_sha256": t30.canonical_hash(requests),
+            "request_ids_sha256": t30.canonical_hash([row["request_id"] for row in requests]),
+            "base_worker_command": t30._worker_command(False),
+            "adapter_worker_command": t30._worker_command(True),
+            "runtime_identities_sha256": t30.canonical_hash(freeze["runtime_identities"]),
+            "generation": t30.GENERATION,
+            "model_outputs_observed": False,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        }
+        attempt["attempt_sha256"] = t30.canonical_hash(attempt)
+        attempt_raw = contracts._t30_v3_canonical_bytes(attempt) + b"\n"
+        attempt_path.write_bytes(attempt_raw)
+        attempt_receipt = {
+            "path": f"{t30.RUN_RELATIVE}/attempt.json",
+            "bytes": len(attempt_raw),
+            "sha256": "sha256:" + hashlib.sha256(attempt_raw).hexdigest(),
+            "attempt_sha256": attempt["attempt_sha256"],
+        }
+        report = {
+            "schema_version": 1,
+            "status": "complete",
+            "authority_tier": "diagnostic_only",
+            "head": "2" * 40,
+            "tree": "3" * 40,
+            "freeze_sha256": freeze["freeze_sha256"],
+            "attempt_nonce": t30.ATTEMPT_NONCE,
+            "attempt_receipt": attempt_receipt,
+            "outputs": outputs,
+            "observations": internal_observations,
+            "decision": decision,
+            "model_outputs_observed": True,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "nonclaims": policy["nonclaims"],
+        }
+        report["report_sha256"] = t30.canonical_hash(report)
+        (run_dir / "report.json").write_bytes(contracts._t30_v3_canonical_bytes(report) + b"\n")
+        observations = t30._public_observations(internal_observations)
+        evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+        evaluation = {
+            "schema_version": 1,
+            "evidence_id": t30.EVIDENCE_ID,
+            "status": "verified_local_cooperative",
+            "authority_tier": "diagnostic_only",
+            "execution": {
+                "head": "2" * 40,
+                "tree": "3" * 40,
+                "freeze_sha256": freeze["freeze_sha256"],
+                "freeze_file_sha256": "sha256:"
+                + hashlib.sha256(freeze_path.read_bytes()).hexdigest(),
+                "report_sha256": report["report_sha256"],
+                "run_dir": t30.RUN_RELATIVE,
+                "outputs": outputs,
+            },
+            "observations": observations,
+            "decision": decision,
+            "model_outputs_observed": True,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "nonclaims": policy["nonclaims"],
+        }
+        evaluation_path.write_text(json.dumps(evaluation), encoding="utf-8")
+        evaluation = _rewrite_canonical_self_hash(evaluation_path, "evaluation_sha256")
+
+        reviews = [
+            {
+                "task_id": task["task_id"],
+                "family": task["family"],
+                "review_kind": t30.FINAL_HUMAN_REVIEW[task["family"]],
+                "candidate_sha256": observations["adapter"][index]["candidate_sha256"],
+                "decision": "ACCEPT" if passing else "REJECT",
+                "rationale_code": task["family"].replace("-", "")
+                + ("_SYNTHETIC_ACCEPT" if passing else "_SYNTHETIC_REJECT"),
+                "rationale": (
+                    "Synthetic static fixture records a sufficiently detailed acceptance."
+                    if passing
+                    else "Synthetic static fixture records a sufficiently detailed rejection."
+                ),
+                "source": "direct_candidate_and_pinned_truth_review",
+            }
+            for index, task in enumerate(tasks)
+            if task["family"] in t30.FINAL_HUMAN_REVIEW
+        ]
+        review_receipt = {
+            "schema_version": 1,
+            "review_id": t30.HUMAN_REVIEW_ID,
+            "authority_tier": "human_review_required",
+            "reviewer_role": "L0_frontier_coordinator",
+            "evaluation_sha256": evaluation["evaluation_sha256"],
+            "reviews": reviews,
+        }
+        review_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-human-review-v3.json"
+        review_raw = contracts._t30_v3_canonical_bytes(review_receipt) + b"\n"
+        review_path.write_bytes(review_raw)
+        adjudication_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json"
+        adjudication = {
+            "schema_version": 1,
+            "adjudication_id": t30.ADJUDICATION_ID,
+            "status": "final_local_adjudication",
+            "authority_tier": "L0_frontier_human_review",
+            "evaluation_sha256": evaluation["evaluation_sha256"],
+            "evaluation_file_sha256": "sha256:"
+            + hashlib.sha256(evaluation_path.read_bytes()).hexdigest(),
+            "freeze_sha256": freeze["freeze_sha256"],
+            "review_receipt_sha256": "sha256:" + hashlib.sha256(review_raw).hexdigest(),
+            "reviews": reviews,
+            "decision": t30._final_adjudication(evaluation, review_receipt, freeze),
+            "model_outputs_observed": True,
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "nonclaims": policy["nonclaims"],
+        }
+    adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
+    _rewrite_canonical_self_hash(adjudication_path, "adjudication_sha256")
+
+
+def test_grammar_stdlib_t30_v3_realistic_complete_phase_contract_is_valid(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    evaluation = json.loads(
+        (tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json").read_text()
+    )
+    monkeypatch.setattr(contracts, "_t30_v3_git_lineage", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        contracts,
+        "_t30_v3_live_semantic_replay",
+        lambda *_args, **_kwargs: deepcopy(evaluation["observations"]),
+    )
+
+    assert validate_grammar_stdlib_t30_successor_contract(tmp_path) == []
+
+
+def test_grammar_stdlib_t30_v3_realistic_review_and_pass_chain_is_valid(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path, passing=True)
+    evaluation = json.loads(
+        (tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json").read_text()
+    )
+    adjudication = json.loads(
+        (tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json").read_text()
+    )
+    monkeypatch.setattr(contracts, "_t30_v3_git_lineage", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        contracts,
+        "_t30_v3_live_semantic_replay",
+        lambda *_args, **_kwargs: deepcopy(evaluation["observations"]),
+    )
+
+    assert evaluation["decision"]["verdict"] == "GRAMMAR_STDLIB_T30_V3_REVIEW_REQUIRED"
+    assert adjudication["decision"]["verdict"] == "GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN"
+    assert validate_grammar_stdlib_t30_successor_contract(tmp_path) == []
+
+
+def test_t30_v3_git_lineage_binds_real_commits_blobs_and_freeze_bytes(tmp_path) -> None:
+    def git(*arguments: str) -> str:
+        completed = subprocess.run(
+            ["git", "-C", str(tmp_path), *arguments],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "T30 Contract Test")
+    git("config", "user.email", "t30-contract@example.invalid")
+    bound_path = tmp_path / "bound.txt"
+    bound_path.write_text("sealed\n", encoding="utf-8")
+    git("add", "bound.txt")
+    git("commit", "-qm", "preimage")
+    preimage = git("rev-parse", "HEAD")
+    preimage_tree = git("rev-parse", "HEAD^{tree}")
+    freeze = {
+        "preimage_commit": preimage,
+        "preimage_tree": preimage_tree,
+        "bound_inputs": [contracts._t30_v3_bound_record(tmp_path, "bound.txt")],
+    }
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+    freeze_path.parent.mkdir()
+    freeze_path.write_bytes(contracts._t30_v3_canonical_bytes(freeze) + b"\n")
+    git("add", freeze_path.relative_to(tmp_path).as_posix())
+    git("commit", "-qm", "run freeze")
+    execution = {"head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}")}
+
+    assert (
+        contracts._t30_v3_git_lineage(tmp_path, {"bound_paths": ["bound.txt"]}, freeze, execution)
+        == []
+    )
+
+    synthetic_execution = {**execution, "head": "2" * 40}
+    assert contracts._t30_v3_git_lineage(
+        tmp_path, {"bound_paths": ["bound.txt"]}, freeze, synthetic_execution
+    ) == ["T30-v3 Git lineage is unavailable or contains drift"]
+
+    bound_path.write_text("mutated during run\n", encoding="utf-8")
+    git("add", "bound.txt")
+    git("commit", "-qm", "mutate bound input")
+    mutated_execution = {
+        "head": git("rev-parse", "HEAD"),
+        "tree": git("rev-parse", "HEAD^{tree}"),
+    }
+    assert contracts._t30_v3_git_lineage(
+        tmp_path, {"bound_paths": ["bound.txt"]}, freeze, mutated_execution
+    ) == ["T30-v3 Git lineage is unavailable or contains drift"]
+
+
+def test_t30_v3_git_lineage_rejects_unresolved_synthetic_oids(tmp_path) -> None:
+    assert contracts._t30_v3_git_lineage(
+        tmp_path,
+        {"bound_paths": []},
+        {
+            "preimage_commit": "0" * 40,
+            "preimage_tree": "1" * 40,
+            "bound_inputs": [],
+        },
+        {"head": "2" * 40, "tree": "3" * 40},
+    ) == ["T30-v3 Git lineage is unavailable or contains drift"]
+
+
+def test_t30_v3_unpatched_garbage_diagnosis_fails_closed_before_oracle(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert any(error.startswith("T30-v3 live semantic replay is unavailable:") for error in errors)
+
+
+@pytest.mark.parametrize(
+    "surface",
+    [
+        "decision_null",
+        "decision_empty",
+        "adapter_null",
+        "gates_null",
+        "runtime_null",
+        "adapter_off_restore_null",
+    ],
+)
+def test_t30_v3_malformed_phase_surfaces_never_escape(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, surface: str
+) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+    evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    if surface == "decision_null":
+        evaluation["decision"] = None
+    elif surface == "decision_empty":
+        evaluation["decision"] = {}
+    elif surface == "adapter_null":
+        evaluation["decision"]["adapter"] = None
+    elif surface == "gates_null":
+        evaluation["decision"]["gates"] = None
+    elif surface == "runtime_null":
+        freeze["runtime_identities"] = None
+    else:
+        freeze["runtime_identities"]["adapter_off_restore"] = None
+    evaluation_path.write_text(json.dumps(evaluation), encoding="utf-8")
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+    monkeypatch.setattr(contracts, "_t30_v3_git_lineage", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        contracts,
+        "_t30_v3_live_semantic_replay",
+        lambda *_args, **_kwargs: deepcopy(evaluation["observations"]),
+    )
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert errors
+    assert any("malformed" in error or "drift" in error or "invalid" in error for error in errors)
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_full_roster_pass_laundering(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    from metis_model1 import grammar_stdlib_t30 as t30
+    from metis_model1 import grammar_stdlib_t30_v3 as v3
+
+    evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+    adjudication_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json"
+    with v3.successor_configuration():
+        evaluation_verdict = t30.PRE_REVIEW_VERDICT
+        adjudication_verdict = t30.PASS_VERDICT
+    evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+    evaluation["decision"]["gates"] = {gate: True for gate in evaluation["decision"]["gates"]}
+    evaluation["decision"]["verdict"] = evaluation_verdict
+    evaluation_path.write_text(json.dumps(evaluation), encoding="utf-8")
+    evaluation = _rewrite_canonical_self_hash(evaluation_path, "evaluation_sha256")
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+    adjudication["evaluation_sha256"] = evaluation["evaluation_sha256"]
+    adjudication["evaluation_file_sha256"] = (
+        "sha256:" + hashlib.sha256(evaluation_path.read_bytes()).hexdigest()
+    )
+    adjudication["decision"]["gates"] = {gate: True for gate in adjudication["decision"]["gates"]}
+    adjudication["decision"]["verdict"] = adjudication_verdict
+    adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
+    _rewrite_canonical_self_hash(adjudication_path, "adjudication_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 evaluation decision arithmetic or evidence linkage contains drift" in errors
+    assert any(error.startswith("T30-v3 live semantic replay is unavailable:") for error in errors)
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_grammar_stdlib_pin(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["grammar_stdlib_pin"] = {"forged": "nonempty"}
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+    _rewrite_canonical_self_hash(truth_path, "truth_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 truth static identity evidence contains drift" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_truth_self_hash_drift(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["truth_sha256"] = "sha256:" + "0" * 64
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 truth self-hash is invalid" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_predecessor_adjudication_drift(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    adjudication_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json"
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+    adjudication["decision"]["verdict"] = "FORGED"
+    _rewrite_canonical_self_hash(adjudication_path, "adjudication_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 predecessor does not bind final T30-v2 adjudication" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_predecessor_truth_link_drift(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["predecessor_terminal_diagnosis"]["evaluation_sha256"] = "sha256:" + "0" * 64
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+    _rewrite_canonical_self_hash(truth_path, "truth_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 truth does not bind the terminal T30-v2 diagnosis" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_counter_only_truth(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["tasks"] = []
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+    _rewrite_canonical_self_hash(truth_path, "truth_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 truth task roster is not exactly thirty rows" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_empty_semantic_signature(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["tasks"][0]["target"]["expected"] = {}
+    truth_path.write_text(json.dumps(truth), encoding="utf-8")
+    _rewrite_canonical_self_hash(truth_path, "truth_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 truth task target drift: gsl_t30v3_f1_01" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_rehashed_minimal_pass_promotion_chain(tmp_path) -> None:
+    _copy_t30_v3_static_contract(tmp_path)
+    policy_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-policy-v3.json"
+    truth_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json"
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+    freeze = {
+        "schema_version": 1,
+        "freeze_id": "grammar-stdlib-accuracy-t30-freeze/v3",
+        "status": "frozen_before_model_output",
+        "authority_tier": "automatic",
+        "truth_sha256": truth["truth_sha256"],
+        "policy_sha256": policy["policy_sha256"],
+        "nonclaims": policy["nonclaims"],
+        "model_outputs_observed": False,
+        "training_authorized": False,
+        "delta_qlora_authorized": False,
+        "tasks_file_sha256": "sha256:"
+        + hashlib.sha256(
+            (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_bytes()
+        ).hexdigest(),
+        "reference_context_sha256": "sha256:"
+        + hashlib.sha256(
+            (tmp_path / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md").read_bytes()
+        ).hexdigest(),
+        "policy_file_sha256": "sha256:" + hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+    }
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+    freeze = _rewrite_canonical_self_hash(freeze_path, "freeze_sha256")
+    evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+    evaluation = {
+        "schema_version": 1,
+        "evidence_id": "grammar-stdlib-accuracy-t30-evaluation/v3",
+        "status": "verified_local_cooperative",
+        "authority_tier": "diagnostic_only",
+        "nonclaims": policy["nonclaims"],
+        "model_outputs_observed": True,
+        "training_authorized": False,
+        "delta_qlora_authorized": False,
+        "execution": {
+            "freeze_sha256": freeze["freeze_sha256"],
+            "freeze_file_sha256": "sha256:" + hashlib.sha256(freeze_path.read_bytes()).hexdigest(),
+        },
+        "decision": {
+            "verdict": "GRAMMAR_STDLIB_T30_V3_REVIEW_REQUIRED",
+            "gates": {"complete": True},
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+        },
+    }
+    evaluation_path.write_text(json.dumps(evaluation), encoding="utf-8")
+    evaluation = _rewrite_canonical_self_hash(evaluation_path, "evaluation_sha256")
+    adjudication_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json"
+    adjudication = {
+        "schema_version": 1,
+        "adjudication_id": "grammar-stdlib-accuracy-t30-adjudication/v3",
+        "status": "final_local_adjudication",
+        "authority_tier": "L0_frontier_human_review",
+        "evaluation_sha256": evaluation["evaluation_sha256"],
+        "freeze_sha256": freeze["freeze_sha256"],
+        "nonclaims": policy["nonclaims"],
+        "model_outputs_observed": True,
+        "training_authorized": False,
+        "delta_qlora_authorized": False,
+        "evaluation_file_sha256": "sha256:"
+        + hashlib.sha256(evaluation_path.read_bytes()).hexdigest(),
+        "reviews": [],
+        "decision": {
+            "verdict": "GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN",
+            "gates": {"complete": True},
+            "training_authorized": False,
+            "delta_qlora_authorized": False,
+            "promotion_authorized": "forged-string-authority",
+        },
+    }
+    adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
+    _rewrite_canonical_self_hash(adjudication_path, "adjudication_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 freeze static evidence roster or linkage contains drift" in errors
+    assert "T30-v3 evaluation execution evidence is incomplete" in errors
+    assert "T30-v3 adjudication review/final-task roster is incomplete" in errors
+    assert "T30-v3 phase decision/gate evidence is missing" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_freeze_predecessor_link_drift(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    (tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json").unlink()
+    (tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json").unlink()
+    freeze_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    freeze["predecessor_terminal_diagnosis"] = {"forged": "promotable"}
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+    _rewrite_canonical_self_hash(freeze_path, "freeze_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 freeze static evidence roster or linkage contains drift" in errors
+
+
+def test_grammar_stdlib_t30_v3_accepts_nonnegative_source_endpoint_count() -> None:
+    root = repository_root()
+    tasks = json.loads(
+        (root / "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json").read_text(encoding="utf-8")
+    )["tasks"]
+    truth = json.loads(
+        (root / "manifests/grammar-stdlib-accuracy-t30-truth-v3.json").read_text(encoding="utf-8")
+    )
+    task = next(row for row in tasks if row["oracle"]["mode"] == "source")
+    truth_by_id = {row["task_id"]: row for row in truth["tasks"]}
+    signature = deepcopy(truth_by_id[task["task_id"]]["target"]["expected"])
+    signature["endpoint"]["count"] = 2
+
+    assert contracts._is_t30_v3_semantic_signature(task, signature)
+    signature["endpoint"]["count"] = -1
+    assert not contracts._is_t30_v3_semantic_signature(task, signature)
+
+
+def test_grammar_stdlib_t30_v3_malformed_observation_fails_without_exception(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    evaluation_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-evaluation-v3.json"
+    evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+    del evaluation["observations"]["adapter"][0]["task_id"]
+    evaluation_path.write_text(json.dumps(evaluation), encoding="utf-8")
+    _rewrite_canonical_self_hash(evaluation_path, "evaluation_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 evaluation observations are not a paired 30-task roster" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_candidate_artifact_drift(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    candidate_path = (
+        tmp_path / "artifacts/grammar-stdlib-accuracy/t30/t30-v3-20260826/base/candidates.jsonl"
+    )
+    candidate_path.write_bytes(candidate_path.read_bytes() + b"{}\n")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 base candidate artifact identity contains drift" in errors
+    assert "T30-v3 base candidate roster is not exactly thirty canonical rows" in errors
+
+
+def test_grammar_stdlib_t30_v3_rejects_unbound_human_review_receipt(tmp_path) -> None:
+    _write_t30_v3_complete_phase_fixture(tmp_path)
+    adjudication_path = tmp_path / "manifests/grammar-stdlib-accuracy-t30-adjudication-v3.json"
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+    adjudication["review_receipt_sha256"] = "NOT_A_HASH_OR_RECEIPT"
+    adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
+    _rewrite_canonical_self_hash(adjudication_path, "adjudication_sha256")
+
+    errors = validate_grammar_stdlib_t30_successor_contract(tmp_path)
+
+    assert "T30-v3 human review receipt identity or adjudication linkage contains drift" in errors
 
 
 def test_artifact_store_policy_is_ratified_and_budgeted() -> None:

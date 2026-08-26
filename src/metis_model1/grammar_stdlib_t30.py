@@ -3446,6 +3446,27 @@ def _load_review_receipt(path: Path, evaluation: Mapping[str, Any]) -> tuple[dic
     return value, raw
 
 
+def _successful_coverage_gate(
+    successful: list[Mapping[str, Any]],
+) -> tuple[dict[str, list[str]], dict[str, bool]]:
+    """Credit only successful rows and enforce the ratified occurrence floor."""
+
+    counts = {
+        field: Counter(value for row in successful for value in row["observed_coverage"][field])
+        for field in COVERAGE_FIELDS
+    }
+    coverage = {field: sorted(field_counts) for field, field_counts in counts.items()}
+    minimum = POLICY_COVERAGE_GATE.get("minimum_successful_occurrences_each", 1)
+    if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum < 1:
+        raise GrammarStdlibT30Error("T30 successful coverage occurrence floor is invalid")
+    gates = {
+        FINAL_COVERAGE_GATE_NAMES[field]: set(coverage[field]) == denominator
+        and all(counts[field][value] >= minimum for value in denominator)
+        for field, denominator in _coverage_domains().items()
+    }
+    return coverage, gates
+
+
 def _final_adjudication(
     evaluation: Mapping[str, Any],
     reviews: Mapping[str, Any],
@@ -3494,10 +3515,7 @@ def _final_adjudication(
             }
         )
     successful = [row for row in final_rows if row["success"]]
-    coverage = {
-        field: sorted({value for row in successful for value in row["observed_coverage"][field]})
-        for field in COVERAGE_FIELDS
-    }
+    coverage, coverage_gates = _successful_coverage_gate(successful)
     family = {
         name: sum(row["success"] for row in final_rows if row["family"] == name)
         for name in FAMILIES
@@ -3519,10 +3537,6 @@ def _final_adjudication(
         and prior["gates"]["automatic_semantic_denominator"]
         and prior["gates"]["automatic_family_floor"],
         "adapter_off_exact_restore": restore.get("exact_candidate_restore") is True,
-    }
-    coverage_gates = {
-        FINAL_COVERAGE_GATE_NAMES[field]: set(coverage[field]) == denominator
-        for field, denominator in _coverage_domains().items()
     }
     gates = {**gates, **coverage_gates}
     verdict = PASS_VERDICT if all(gates.values()) else DIAGNOSE_VERDICT

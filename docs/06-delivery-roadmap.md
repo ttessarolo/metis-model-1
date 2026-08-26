@@ -215,23 +215,36 @@ classificavano alias legittimi come simboli inventati. F2/F3, determinati, sono
 `sha256:e6e4d4d015c8086203c81a69800a3a14c136c01d3c66304d99df74b84349f0ac`;
 non viene rescored né promosso retroattivamente.
 
-Il percorso attivo è un T30-v2 interamente fresco, ancora `30=5x6`, che espone
-prima dell'output il contratto JSON completo e rende deterministici i task di
-authoring. Oltre ai dieci top-level della grammatica, v2 gatizza esplicitamente
-i tre moduli standard-library, i dodici membri, `time.timezone` e le interazioni
-fra capability ambient, funzioni pure, namespace e `needs`. Si prova l'adapter
-esistente con una sola coppia base/adapter; training e delta QLoRA si aprono
-soltanto se fallimenti genuini superano la soglia già ratificata.
+T30-v2 è ora terminale e pubblicato. La singola coppia base/adapter ha prodotto
+`30/30 + 30/30` risposte: base `30/30`, adapter `29/30` dopo le quindici review
+umane preregistrate. L'unico difetto genuino è l'omissione delle parentesi del
+gruppo `attributes` a tre assegnazioni in F-1. Tutti i denominatori della
+grammatica e della standard library restano coperti dai task riusciti
+(`10/3/12/1/10`), ma i veto critical/regression rendono il verdetto finale
+`GRAMMAR_STDLIB_T30_V2_DIAGNOSE`. Un solo task, una famiglia e una root sono
+sotto la soglia `3 task / 2 famiglie / 2 root`: nessun retraining o delta QLoRA
+è autorizzato e nessun output v2 diventa dato o label.
 
-Il truth v2 è fissato dal toolchain pinned a `30/30` task distinti, zero gap e
-cinque task per famiglia, self-hash
-`sha256:3c4139c0d763e131be7c18332af2c5a8dd847865db4097e1b98c53823647f216`.
-Include anche la serializzazione strutturale delle quattro forme di dominio
-catalogo, compreso l'inline minuscolo con sola taglia. Non esiste ancora un
-freeze v2 né output di modello: pubblicazione del preimage e sigillo restano i
-prossimi gate obbligatori.
+La cura minima attiva modifica soltanto retrieval/prompt: la sintassi compatta
+`attributes` vale per una sola assegnazione; con due o più assegnazioni serve il
+gruppo tra parentesi graffe. T30-v3 ricostruisce da zero `30=5x6` task e mantiene come
+assi obbligatori i dieci top-level, i tre moduli standard-library, i dodici
+membri pubblici, `time.timezone` e le dieci classi d'interazione. Il gate finale
+richiede almeno due task riusciti per ogni elemento, non la sola presenza nella
+metadata dichiarata.
 
-Il mandato corrente autorizza costruzione, sigillo e inferenza locale T30-v2.
+La truth v3 è fissata dal clone Metis pulito e dal Node pinnato: `30/30/30`, zero
+gap, cinque task per famiglia, self-hash
+`sha256:e49d6bf71465ea6832afa57ed7e22b8b8970199847e204804ccf2773ac04d5c5`.
+Task, messaggi, content root e target semantici sono disgiunti da D18/v1/v2;
+due target F-1 esercitano gruppi multi-attributo reali. Non esistono ancora
+freeze, run o output v3. I mutation gate sono chiusi con replay semantico live
+obbligatorio per ogni futura evaluation e lineage Git fino al run HEAD. Il
+preimage è pronto: deve essere committato, pubblicato e riaperto esattamente;
+solo allora può essere creato il sigillo zero-output e consumata l'unica coppia
+base/adapter.
+
+Il mandato corrente autorizza costruzione, sigillo e inferenza locale T30-v3.
 Nuovi download, privilegi, live ARES, upload di payload e promotion restano
 esclusi; il repository Metis esterno resta strettamente read-only.
 

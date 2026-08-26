@@ -5429,3 +5429,61 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
 - DONE — The terminal v2 adjudication, phase-aware foundation regression, docs
   and active Orchestra evidence are commit-ready. The next write is their exact
   commit/push/reopen; no v3 file or model output is mixed into this boundary.
+- FACT — Terminal T30-v2 adjudication commit
+  `4048c4002da6d91c1af3921421655fb08571724b` is exact at local HEAD,
+  tracking ref and direct origin. Its final `29/30` adapter diagnosis and
+  `10/3/12/1/10` successful grammar/stdlib coverage remain immutable and
+  permanently nontraining.
+- FIX — Fresh T30-v3 keeps weights, grammar, stdlib, Oracle and targets
+  unchanged and adds only the generic rule that compact `attributes` is valid
+  for one assignment while two or more require a braced group. Two fresh F-1
+  targets exercise real groups; lexical string/comment decoys fail closed.
+  The final coverage gate now requires two successful occurrences for every
+  grammar top-level, stdlib module/member/setting and interaction item.
+- DONE — Pinned clean-clone truth materialization closes
+  `in=30 out=30 distinct=30 gaps=0`, families `5x6`, self
+  `sha256:e49d6bf71465ea6832afa57ed7e22b8b8970199847e204804ccf2773ac04d5c5`
+  and raw
+  `sha256:193006a690ad8c8d6aba27c424546ebe96d33673423bfa08cca65b805b52132e`.
+  It binds tasks raw `sha256:925fa62c8ac1bb2410cbedae4826338316b2db03c9c696505f7697e3fd34bf96`,
+  reference raw `sha256:ca2f7fc354e75a5c9367f6c934e67a04f7e44fd1615e26a8f19be6cde444194b`
+  and policy self
+  `sha256:0d29581d7873626ab9cb19c45bbda11c89a8e7872a54eab3a7c1193f76cb4527`.
+  Declared minima are grammar `2`, stdlib modules `7`, members `3`, setting
+  `7`, interactions `2`; output/training/delta authority is false.
+- FACT — L0 independently replays the cured three-assignment F1 target and the
+  two formerly duplicated F4 structural targets against the pinned Oracle.
+  All sealed signatures are exact; F4 derives fresh top-level shapes
+  `Catalog+ValueSet+List` and `Tenant+Transformer`.
+- STOP — Freeze and publication remain closed while the adversarial repository
+  validator audit cures two offline laundering paths: a canonically rehashed
+  minimal full-phase PASS roster and a forged nonempty grammar/stdlib pin.
+  Core truth/freeze reconstruction would reject both, but foundation must also
+  fail closed before this preimage can be committed and published.
+- FIX — The T30-v3 phase validator now rejects counter-only truth, forged pins,
+  synthetic commit/tree identifiers, changed bound blobs at either preimage or
+  run HEAD, candidate/report/attempt drift and unbound review receipts. Every
+  materialized evaluation, including `DIAGNOSE`, must replay all `60/60`
+  candidates against only the repository-owned clean Metis clone and pinned
+  Node; public observations and gate arithmetic must reproduce exactly. Six
+  malformed decision/runtime surfaces return contract errors rather than
+  escaping as exceptions.
+- DONE — Independent code, lineage, runner-parity and adversarial re-audits
+  close `P0=0 P1=0`. L0 independently reruns the complete focused roster at
+  `123/123`, Ruff, format, diff and foundation `70/0`; the audit's live replay
+  closes `in=60 out=60 distinct=60 gaps=0` and leaves the clean Metis clone
+  unchanged. Fabricated positive and negative chains now fail closed.
+- FACT — Mandatory `make check` on the stable code preimage completes
+  foundation/pilot/lint/format green and broad pytest at
+  `1456 passed, 102 failed, 1 skipped`. The reds are exactly the inherited
+  protected-runtime host clusters: Oracle `31`, W3 bridge `25`, W3 qualifier
+  `46`; modified-path and T30-v3 regressions are `0`.
+- RISK — Once an evaluation exists, fail-closed validation intentionally needs
+  the ignored run artifacts and clean Metis clone locally. The review receipt
+  must be canonical JSON plus LF at the fixed tracked v3 path and be published
+  before adjudication. The current local sequence satisfies both constraints;
+  a Git-only clone cannot attest terminal evidence without restoring them.
+- DONE — T30-v3 preimage is commit-ready with model outputs `0`, training
+  authority false and full grammar plus standard-library denominators fixed at
+  `10/3/12/1/10`. Exact commit, push and remote reopen are the only remaining
+  prerequisites to the zero-output freeze.

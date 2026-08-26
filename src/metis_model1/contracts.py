@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 import subprocess
 import tomllib
 from collections import Counter
@@ -241,6 +243,12 @@ REQUIRED_FOUNDATION_PATHS = (
     "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
     "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
     "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
+    # T30-v3 is a fresh successor with a fully materialized static preimage.
+    # Its later phase manifests remain append-only and conditional.
+    "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json",
+    "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md",
+    "manifests/grammar-stdlib-accuracy-t30-policy-v3.json",
+    "manifests/grammar-stdlib-accuracy-t30-truth-v3.json",
     "qualification/.python-version",
     "qualification/README.md",
     "qualification/checkpoint-pin.json",
@@ -269,6 +277,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/grammar_stdlib_accuracy_recovery.py",
     "src/metis_model1/grammar_stdlib_t30.py",
     "src/metis_model1/grammar_stdlib_t30_successor.py",
+    "src/metis_model1/grammar_stdlib_t30_v3.py",
     "orchestra/runs/2026-08-20-foundation/BLACKBOARD.md",
     "orchestra/runs/2026-08-20-foundation/SESSIONS.md",
     "orchestra/runs/2026-08-20-w1-w4-entry/BLACKBOARD.md",
@@ -355,6 +364,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_grammar_stdlib_accuracy_recovery.py",
     "tests/test_grammar_stdlib_t30.py",
     "tests/test_grammar_stdlib_t30_successor.py",
+    "tests/test_grammar_stdlib_t30_v3.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -1963,25 +1973,1222 @@ def validate_grammar_stdlib_t30_preoutput_contract(root: Path) -> list[str]:
     return errors
 
 
-def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
-    """Validate the fresh T30-v2 grammar/stdlib chain without invoking Metis.
+def _validate_t30_v3_truth_static_shape(
+    contract: Mapping[str, Any], truth: Mapping[str, Any], tasks: list[dict[str, Any]]
+) -> list[str]:
+    """Validate the oracle-free portion of a materialized V3 truth roster.
 
-    The successor engine owns the detailed roster and policy grammar.  This
-    repository-level gate reuses that exact contract against ``root`` and then
-    checks the append-only truth/freeze/evaluation/adjudication phase chain.
+    Oracle signatures remain verified by the truth producer and the later
+    freeze reconstruction.  The repository gate must nevertheless reject a
+    rehashed counter-only truth before it can be described as foundation-green.
     """
 
-    required = (
-        "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
-        "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
-        "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
-        "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
-        "src/metis_model1/grammar_stdlib_t30.py",
-        "src/metis_model1/grammar_stdlib_t30_successor.py",
-        "tests/test_grammar_stdlib_t30_successor.py",
+    errors: list[str] = []
+    expected_keys = {
+        "schema_version",
+        "truth_id",
+        "status",
+        "authority_tier",
+        "benchmark_id",
+        "semantic_signature_contract",
+        "tasks_file_sha256",
+        "reference_context_sha256",
+        "policy_sha256",
+        "grammar_stdlib_pin",
+        "generation",
+        "thresholds",
+        "counts",
+        "tasks",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "nonclaims",
+        "predecessor_terminal_diagnosis",
+        "truth_sha256",
+    }
+    if set(truth) != expected_keys:
+        errors.append("T30-v3 truth manifest field roster is not exact")
+    if (
+        truth.get("semantic_signature_contract") != contract["semantic_signature_contract"]
+        or truth.get("generation") != contract["generation"]
+        or truth.get("thresholds") != contract["thresholds"]
+        or truth.get("grammar_stdlib_pin") != contract["grammar_stdlib_pin"]
+    ):
+        errors.append("T30-v3 truth static identity evidence contains drift")
+    counts = truth.get("counts")
+    if not isinstance(counts, Mapping) or counts.get("families") != {
+        family: contract["tasks_per_family"] for family in contract["families"]
+    }:
+        errors.append("T30-v3 truth family census is not exactly five per family")
+    rows = truth.get("tasks")
+    if not isinstance(rows, list) or len(rows) != contract["task_count"]:
+        errors.append("T30-v3 truth task roster is not exactly thirty rows")
+        return errors
+    by_id = {row.get("task_id"): row for row in rows if isinstance(row, Mapping)}
+    if len(by_id) != contract["task_count"] or set(by_id) != {task["task_id"] for task in tasks}:
+        errors.append("T30-v3 truth task IDs do not exactly match the frozen roster")
+        return errors
+    for task in tasks:
+        row = by_id[task["task_id"]]
+        target = row.get("target")
+        target_keys = {
+            "kind",
+            "authority_tier",
+            "messages_sha256",
+            "declared_coverage",
+            "content_root_sha256",
+            "before",
+            "input",
+            "repaired",
+            "expected_coverage",
+        }
+        if task["task_mode"] == "source_output":
+            target_keys.add("expected")
+        else:
+            target_keys.add("expected_json_sha256")
+        if (
+            set(row) != {"task_id", "family", "authority_tier", "target", "model_output_observed"}
+            or row.get("family") != task["family"]
+            or row.get("authority_tier") != task["authority_tier"]
+            or row.get("model_output_observed") is not False
+            or not isinstance(target, Mapping)
+            or set(target) != target_keys
+            or target.get("kind") != task["task_mode"]
+            or target.get("authority_tier") != task["authority_tier"]
+            or target.get("messages_sha256") != contract["messages"][task["task_id"]]
+            or target.get("declared_coverage") != task["coverage"]
+            or target.get("expected_coverage") != task["coverage"]
+            or target.get("content_root_sha256") != contract["content_roots"][task["task_id"]]
+            or any(
+                (target.get(field) is None) != (task.get(source_field) is None)
+                or (
+                    target.get(field) is not None
+                    and not _is_t30_v3_semantic_signature(task, target.get(field))
+                )
+                for field, source_field in (
+                    ("before", "before_source"),
+                    ("input", "input_source"),
+                    ("repaired", "expected_repaired_source"),
+                )
+            )
+            or (
+                task["task_mode"] == "source_output"
+                and not _is_t30_v3_semantic_signature(task, target.get("expected"))
+            )
+            or (
+                task["task_mode"] == "exact_json_review"
+                and target.get("expected_json_sha256")
+                != contract["expected_json_sha256"][task["task_id"]]
+            )
+        ):
+            errors.append(f"T30-v3 truth task target drift: {task['task_id']}")
+    return errors
+
+
+def _is_t30_v3_sha256(value: Any) -> bool:
+    return isinstance(value, str) and bool(re.fullmatch(r"sha256:[0-9a-f]{64}", value))
+
+
+def _t30_v3_bound_record(root: Path, relative: str) -> dict[str, Any]:
+    raw = (root / relative).read_bytes()
+    return {
+        "path": relative,
+        "bytes": len(raw),
+        "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+        "git_blob_oid": hashlib.sha1(
+            f"blob {len(raw)}\0".encode() + raw, usedforsecurity=False
+        ).hexdigest(),
+    }
+
+
+def _is_t30_v3_semantic_signature(task: Mapping[str, Any], value: Any) -> bool:
+    """Check a stored Oracle signature without rerunning the Oracle."""
+
+    if not isinstance(value, Mapping) or set(value) != {
+        "contract",
+        "status",
+        "endpoint",
+        "semantic_ast_sha256",
+        "semantic_ir_sha256",
+        "semantic_diagnostics_sha256",
+        "failure_kind",
+    }:
+        return False
+    endpoint = value.get("endpoint")
+    if not isinstance(endpoint, Mapping) or set(endpoint) != {
+        "mode",
+        "requested",
+        "selected",
+        "count",
+    }:
+        return False
+    mode = task["oracle"]["mode"]
+    status = value.get("status")
+    count = endpoint.get("count")
+    if endpoint.get("mode") != mode or type(count) is not int or count < 0:
+        return False
+    if mode == "endpoint":
+        target = task["oracle"].get("target")
+        if (
+            endpoint.get("requested") != target
+            or (status == "ok" and (count != 1 or endpoint.get("selected") != target))
+            or (
+                status != "ok"
+                and endpoint.get("selected") is not None
+                and not isinstance(endpoint.get("selected"), str)
+            )
+        ):
+            return False
+    elif endpoint.get("requested") is not None or endpoint.get("selected") is not None:
+        return False
+    if (
+        value.get("contract") != "metis-semantic-signature/v2"
+        or status not in {"ok", "invalid"}
+        or not _is_t30_v3_sha256(value.get("semantic_ast_sha256"))
+        or not _is_t30_v3_sha256(value.get("semantic_diagnostics_sha256"))
+    ):
+        return False
+    if status == "ok":
+        return value.get("failure_kind") is None and (
+            value.get("semantic_ir_sha256") is None
+            if mode == "source"
+            else _is_t30_v3_sha256(value.get("semantic_ir_sha256"))
+        )
+    return (
+        value.get("failure_kind") == task["oracle"].get("input_failure_kind")
+        and value.get("semantic_ir_sha256") is None
     )
+
+
+def _validate_t30_v3_phase_decision(
+    contract: Mapping[str, Any], decision: Any, *, final: bool
+) -> list[str]:
+    required = (
+        {
+            "verdict",
+            "authority_tier",
+            "base",
+            "adapter",
+            "gates",
+            "paired_regressions",
+            "paired_mechanical_regressions",
+            "review_required",
+            "training_authorized",
+            "delta_qlora_authorized",
+        }
+        if not final
+        else {
+            "verdict",
+            "authority_tier",
+            "semantic_correct",
+            "semantic_denominator",
+            "family",
+            "coverage",
+            "gates",
+            "final_tasks",
+            "training_authorized",
+            "delta_qlora_authorized",
+        }
+    )
+    expected_gates = (
+        {
+            "final_adapter_29_of_30_provisional",
+            "final_family_floor_provisional",
+            "automatic_semantic_total",
+            "automatic_semantic_denominator",
+            "automatic_family_floor",
+            "critical_invented_unauthorized_tool_retrieval_veto",
+            "unauthorized_tool_retrieval_veto",
+            "complete",
+            "no_paired_regression",
+        }
+        if not final
+        else {
+            "adapter_semantic_29_of_30",
+            "family_floor_4_of_5",
+            "human_reviews_complete",
+            "critical_veto_clear",
+            "no_paired_regression",
+            "complete",
+            "automatic_gate",
+            "adapter_off_exact_restore",
+            *contract["final_coverage_gate_names"].values(),
+        }
+    )
+    if (
+        not isinstance(decision, Mapping)
+        or set(decision) != required
+        or not isinstance(decision.get("gates"), Mapping)
+        or set(decision["gates"]) != expected_gates
+    ):
+        return ["T30-v3 phase decision/gate evidence is missing"]
+    gates = decision["gates"]
+    if not gates or any(type(value) is not bool for value in gates.values()):
+        return ["T30-v3 phase decision/gate evidence is malformed"]
+    expected_verdict = (
+        contract["pass_verdict"]
+        if final and all(gates.values())
+        else contract["pre_review_verdict"]
+        if not final and all(gates.values())
+        else contract["diagnose_verdict"]
+    )
+    if (
+        decision.get("verdict") != expected_verdict
+        or decision.get("training_authorized") is not False
+        or decision.get("delta_qlora_authorized") is not False
+    ):
+        return ["T30-v3 phase decision claims an unsupported verdict or promotion"]
+    return []
+
+
+def _validate_t30_v3_freeze_static_shape(
+    contract: Mapping[str, Any], freeze: Mapping[str, Any], truth: Mapping[str, Any] | None
+) -> list[str]:
+    required = {
+        "schema_version",
+        "freeze_id",
+        "status",
+        "authority_tier",
+        "preimage_commit",
+        "preimage_tree",
+        "remote",
+        "remote_ref",
+        "run_id",
+        "run_dir",
+        "attempt_nonce",
+        "bound_inputs",
+        "truth_sha256",
+        "policy_sha256",
+        "policy_file_sha256",
+        "tasks_file_sha256",
+        "reference_context_sha256",
+        "semantic_signature_contract",
+        "runtime_identities",
+        "generation",
+        "thresholds",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "nonclaims",
+        "predecessor_terminal_diagnosis",
+        "freeze_sha256",
+    }
+    if (
+        set(freeze) != required
+        or freeze.get("run_id") != contract["run_id"]
+        or freeze.get("run_dir") != contract["run_relative"]
+        or freeze.get("attempt_nonce") != contract["attempt_nonce"]
+        or freeze.get("semantic_signature_contract") != contract["semantic_signature_contract"]
+        or freeze.get("generation") != contract["generation"]
+        or freeze.get("thresholds") != contract["thresholds"]
+        or freeze.get("truth_sha256") != (truth or {}).get("truth_sha256")
+        or freeze.get("predecessor_terminal_diagnosis")
+        != (truth or {}).get("predecessor_terminal_diagnosis")
+        or freeze.get("runtime_identities") != contract["runtime_identities"]
+        or not isinstance(freeze.get("bound_inputs"), list)
+        or freeze.get("bound_inputs") != contract["bound_records"]
+    ):
+        return ["T30-v3 freeze static evidence roster or linkage contains drift"]
+    return []
+
+
+def _t30_v3_canonical_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _t30_v3_live_semantic_replay(
+    root: Path,
+    tasks: list[dict[str, Any]],
+    truth: Mapping[str, Any],
+    candidate_rows: Mapping[str, list[dict[str, Any]]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Rescore all sixty candidates against the repository-owned clean clone."""
+
+    from metis_model1 import grammar_stdlib_t30 as t30
+    from metis_model1 import grammar_stdlib_t30_v3 as successor
+
+    clean_relative = PurePosixPath("artifacts/t30-metis-clean-c1aca0f6")
+    resolved_root = root.resolve(strict=True)
+    clean_root = resolved_root
+    for part in clean_relative.parts:
+        clean_root /= part
+        if clean_root.is_symlink():
+            raise ValueError("T30-v3 clean Metis clone traverses a symlink")
+    if not clean_root.is_dir() or clean_root.resolve(strict=True) != resolved_root / clean_relative:
+        raise ValueError("T30-v3 clean Metis clone is unavailable")
+    if set(candidate_rows) != {"base", "adapter"} or any(
+        len(candidate_rows[side]) != len(tasks) for side in ("base", "adapter")
+    ):
+        raise ValueError("T30-v3 semantic replay candidate roster is incomplete")
+    truth_rows = truth.get("tasks")
+    if not isinstance(truth_rows, list):
+        raise ValueError("T30-v3 semantic replay truth roster is unavailable")
+    truth_by_id = {
+        row.get("task_id"): row
+        for row in truth_rows
+        if isinstance(row, Mapping) and isinstance(row.get("task_id"), str)
+    }
+    if set(truth_by_id) != {task["task_id"] for task in tasks}:
+        raise ValueError("T30-v3 semantic replay truth roster contains drift")
+
+    with successor.successor_configuration():
+        with t30.oracle.grammar_stdlib_oracle_session(
+            metis_root=clean_root,
+            node_path=t30.DEFAULT_NODE,
+        ) as session:
+            if dict(session.pin_identity) != truth.get("grammar_stdlib_pin"):
+                raise ValueError("T30-v3 semantic replay pin identity contains drift")
+        internal = {
+            side: [
+                t30.score_candidate(
+                    task,
+                    candidate,
+                    truth_by_id[task["task_id"]],
+                    clean_root,
+                    t30.DEFAULT_NODE,
+                )
+                for task, candidate in zip(tasks, candidate_rows[side], strict=True)
+            ]
+            for side in ("base", "adapter")
+        }
+        return t30._public_observations(internal)
+
+
+def _t30_v3_git_lineage(
+    root: Path,
+    contract: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+    execution: Mapping[str, Any],
+) -> list[str]:
+    """Verify the committed preimage, run commit and exact freeze bytes."""
+
+    error = "T30-v3 Git lineage is unavailable or contains drift"
+
+    def git(*arguments: str) -> subprocess.CompletedProcess[bytes] | None:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(root), *arguments],
+                capture_output=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    def object_id(*arguments: str) -> str | None:
+        process = git(*arguments)
+        if process is None or process.returncode != 0:
+            return None
+        try:
+            value = process.stdout.decode("ascii").strip()
+        except UnicodeDecodeError:
+            return None
+        return value if re.fullmatch(r"[0-9a-f]{40}", value) else None
+
+    preimage = freeze.get("preimage_commit")
+    preimage_tree = freeze.get("preimage_tree")
+    run_head = execution.get("head")
+    run_tree = execution.get("tree")
+    if not all(
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value)
+        for value in (preimage, preimage_tree, run_head, run_tree)
+    ):
+        return [error]
+    if (
+        object_id("rev-parse", "--verify", f"{preimage}^{{commit}}") != preimage
+        or object_id("rev-parse", "--verify", f"{preimage}^{{tree}}") != preimage_tree
+        or object_id("rev-parse", "--verify", f"{run_head}^{{commit}}") != run_head
+        or object_id("rev-parse", "--verify", f"{run_head}^{{tree}}") != run_tree
+    ):
+        return [error]
+
+    bound_inputs = freeze.get("bound_inputs")
+    if not isinstance(bound_inputs, list) or len(bound_inputs) != len(contract["bound_paths"]):
+        return [error]
+    for relative, record in zip(contract["bound_paths"], bound_inputs, strict=True):
+        if not isinstance(record, Mapping) or record.get("path") != relative:
+            return [error]
+        for revision in (preimage, run_head):
+            process = git("ls-tree", "-z", revision, "--", relative)
+            if process is None or process.returncode != 0:
+                return [error]
+            entries = [item for item in process.stdout.split(b"\0") if item]
+            if len(entries) != 1:
+                return [error]
+            try:
+                metadata, path = entries[0].split(b"\t", 1)
+                _mode, kind, blob_oid = metadata.decode("ascii").split(" ", 2)
+                tracked_path = path.decode("utf-8")
+            except (UnicodeDecodeError, ValueError):
+                return [error]
+            if kind != "blob" or tracked_path != relative or blob_oid != record.get("git_blob_oid"):
+                return [error]
+
+    for ancestor, descendant in ((preimage, run_head), (run_head, "HEAD")):
+        process = git("merge-base", "--is-ancestor", ancestor, descendant)
+        if process is None or process.returncode != 0:
+            return [error]
+    freeze_relative = "manifests/grammar-stdlib-accuracy-t30-freeze-v3.json"
+    local_raw, read_error = _t30_v3_read_artifact(root, freeze_relative, maximum=2 * 1024 * 1024)
+    committed = git("cat-file", "blob", f"{run_head}:{freeze_relative}")
+    if (
+        read_error is not None
+        or local_raw is None
+        or committed is None
+        or committed.returncode != 0
+        or committed.stdout != local_raw
+    ):
+        return [error]
+    return []
+
+
+def _t30_v3_read_artifact(
+    root: Path, relative: str, *, maximum: int = 32 * 1024 * 1024
+) -> tuple[bytes | None, str | None]:
+    """Read one exact relative regular file without following a local symlink lane."""
+
+    path = root
+    try:
+        parts = PurePosixPath(relative).parts
+        if not parts or PurePosixPath(relative).is_absolute() or ".." in parts:
+            return None, "path is not confined to the repository"
+        for part in parts:
+            path /= part
+            if path.is_symlink():
+                return None, "path traverses a symlink"
+        if not path.is_file():
+            return None, "regular file is missing"
+        before = path.stat()
+        if before.st_size > maximum:
+            return None, "regular file exceeds its size bound"
+        raw = path.read_bytes()
+        after = path.stat()
+        identity = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if any(getattr(before, field) != getattr(after, field) for field in identity):
+            return None, "regular file changed while reading"
+        return raw, None
+    except OSError as error:
+        return None, f"artifact read failed: {type(error).__name__}"
+
+
+def _t30_v3_output_record(
+    contract: Mapping[str, Any], root: Path, side: str, value: Any
+) -> tuple[list[str], list[dict[str, Any]]]:
+    errors: list[str] = []
+    expected_path = f"{contract['run_relative']}/{side}/candidates.jsonl"
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"path", "bytes", "sha256"}
+        or value.get("path") != expected_path
+        or type(value.get("bytes")) is not int
+        or value.get("bytes", -1) < 1
+        or not _is_t30_v3_sha256(value.get("sha256"))
+    ):
+        return [f"T30-v3 {side} output identity is invalid"], []
+    raw, read_error = _t30_v3_read_artifact(root, expected_path)
+    if read_error is not None or raw is None:
+        return [f"T30-v3 {side} candidate artifact is unavailable: {read_error}"], []
+    if len(raw) != value["bytes"] or "sha256:" + hashlib.sha256(raw).hexdigest() != value["sha256"]:
+        errors.append(f"T30-v3 {side} candidate artifact identity contains drift")
+    lines = raw.splitlines()
+    rows: list[dict[str, Any]] = []
+    if len(lines) != contract["task_count"] or not raw.endswith(b"\n"):
+        errors.append(f"T30-v3 {side} candidate roster is not exactly thirty canonical rows")
+        return errors, rows
+    for task, line in zip(contract["tasks"], lines, strict=True):
+        try:
+            row = json.loads(line)
+            peak = row.get("peak_metal_gb") if isinstance(row, Mapping) else None
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"task_id", "text", "peak_metal_gb"}
+                or row.get("task_id") != task["task_id"]
+                or not isinstance(row.get("text"), str)
+                or not row["text"]
+                or type(peak) not in {int, float}
+                or not math.isfinite(float(peak))
+                or float(peak) < 0
+                or line != _t30_v3_canonical_bytes(row)
+            ):
+                raise ValueError("candidate row shape drift")
+        except (UnicodeDecodeError, ValueError, OverflowError, json.JSONDecodeError, TypeError):
+            errors.append(f"T30-v3 {side} candidate row drift: {task['task_id']}")
+            continue
+        rows.append(row)
+    return errors, rows
+
+
+def _is_t30_v3_coverage(
+    contract: Mapping[str, Any], task: Mapping[str, Any], value: Any, *, exact: bool
+) -> bool:
+    if not isinstance(value, Mapping) or set(value) != set(contract["coverage_fields"]):
+        return False
+    if not all(
+        isinstance(value.get(field), list)
+        and all(
+            isinstance(item, str) and item in contract["coverage_domains"][field]
+            for item in value[field]
+        )
+        for field in contract["coverage_fields"]
+    ):
+        return False
+    return not exact or value == task["coverage"]
+
+
+def _validate_t30_v3_observations(
+    contract: Mapping[str, Any], observations: Any, tasks: list[dict[str, Any]]
+) -> tuple[list[str], dict[str, list[Mapping[str, Any]]]]:
+    errors: list[str] = []
+    expected_ids = [task["task_id"] for task in tasks]
+    rows_by_side: dict[str, list[Mapping[str, Any]]] = {}
+    expected_keys = {
+        "task_id",
+        "family",
+        "task_mode",
+        "authority_tier",
+        "independent_root",
+        "mechanical_match",
+        "semantic_correct",
+        "critical_failure",
+        "failure_code",
+        "candidate_sha256",
+        "observed",
+        "observed_coverage",
+    }
+    if not isinstance(observations, Mapping) or set(observations) != {"base", "adapter"}:
+        return ["T30-v3 evaluation observations are not a paired 30-task roster"], rows_by_side
+    for side in ("base", "adapter"):
+        rows = observations.get(side)
+        if (
+            not isinstance(rows, list)
+            or len(rows) != contract["task_count"]
+            or [row.get("task_id") for row in rows if isinstance(row, Mapping)] != expected_ids
+        ):
+            errors.append("T30-v3 evaluation observations are not a paired 30-task roster")
+            continue
+        typed_rows: list[Mapping[str, Any]] = []
+        for task, row in zip(tasks, rows, strict=True):
+            observed = row.get("observed") if isinstance(row, Mapping) else None
+            automatic = task["family"] in {"F-1", "F-2", "F-3", "F-4"}
+            observed_ok = (
+                observed is None
+                or (
+                    task["task_mode"] == "source_output"
+                    and _is_t30_v3_semantic_signature(task, observed)
+                )
+                or (
+                    task["task_mode"] == "exact_json_review"
+                    and isinstance(observed, Mapping)
+                    and set(observed) == {"json", "json_sha256"}
+                    and observed.get("json_sha256")
+                    == contract["canonical_hash"](observed.get("json"))
+                )
+            )
+            if (
+                not isinstance(row, Mapping)
+                or set(row) != expected_keys
+                or row.get("family") != task["family"]
+                or row.get("task_mode") != task["task_mode"]
+                or row.get("authority_tier") != task["authority_tier"]
+                or row.get("independent_root") != task["provenance_roots"]["independent"]
+                or type(row.get("mechanical_match")) is not bool
+                or type(row.get("critical_failure")) is not bool
+                or not (
+                    type(row.get("semantic_correct")) is bool
+                    if automatic
+                    else row.get("semantic_correct") is None
+                )
+                or not isinstance(row.get("failure_code"), (str, type(None)))
+                or not _is_t30_v3_sha256(row.get("candidate_sha256"))
+                or not observed_ok
+                or not _is_t30_v3_coverage(
+                    contract,
+                    task,
+                    row.get("observed_coverage"),
+                    exact=row.get("mechanical_match") is True,
+                )
+                or (
+                    row.get("mechanical_match") is True
+                    and (observed is None or row.get("semantic_correct") is False)
+                )
+            ):
+                errors.append(f"T30-v3 evaluation observation evidence drift: {task['task_id']}")
+            else:
+                typed_rows.append(row)
+        if len(typed_rows) == contract["task_count"]:
+            rows_by_side[side] = typed_rows
+    return errors, rows_by_side
+
+
+def _t30_v3_core_observations(
+    contract: Mapping[str, Any], tasks: list[dict[str, Any]], rows: list[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """Restore deterministic internal-only fields stripped from public evidence."""
+
+    return [
+        {
+            **row,
+            "final_human_review_required": task["family"] in contract["final_human_review"],
+            "final_human_review_kind": contract["final_human_review"].get(task["family"]),
+        }
+        for task, row in zip(tasks, rows, strict=True)
+    ]
+
+
+def _validate_t30_v3_attempt_artifact(
+    contract: Mapping[str, Any],
+    root: Path,
+    receipt: Any,
+    execution: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+) -> list[str]:
+    expected_path = f"{contract['run_relative']}/attempt.json"
+    try:
+        runtime_identities_sha256 = contract["canonical_hash"](freeze.get("runtime_identities"))
+    except Exception:  # noqa: BLE001 - untrusted manifest content fails closed
+        runtime_identities_sha256 = None
+    if (
+        not isinstance(receipt, Mapping)
+        or set(receipt) != {"path", "bytes", "sha256", "attempt_sha256"}
+        or receipt.get("path") != expected_path
+        or type(receipt.get("bytes")) is not int
+        or receipt.get("bytes", -1) < 1
+        or not _is_t30_v3_sha256(receipt.get("sha256"))
+        or not _is_t30_v3_sha256(receipt.get("attempt_sha256"))
+    ):
+        return ["T30-v3 report attempt receipt is invalid"]
+    raw, read_error = _t30_v3_read_artifact(root, expected_path, maximum=2 * 1024 * 1024)
+    if read_error is not None or raw is None:
+        return [f"T30-v3 attempt artifact is unavailable: {read_error}"]
+    errors: list[str] = []
+    if (
+        len(raw) != receipt["bytes"]
+        or "sha256:" + hashlib.sha256(raw).hexdigest() != receipt["sha256"]
+    ):
+        errors.append("T30-v3 attempt artifact identity contains drift")
+    try:
+        attempt = json.loads(raw)
+        canonical = _t30_v3_canonical_bytes(attempt) + b"\n"
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
+        return [*errors, "T30-v3 attempt artifact is not canonical JSON"]
+    required = {
+        "schema_version",
+        "attempt_id",
+        "status",
+        "head",
+        "tree",
+        "freeze_sha256",
+        "base_requests",
+        "adapter_requests",
+        "requests_sha256",
+        "request_ids_sha256",
+        "base_worker_command",
+        "adapter_worker_command",
+        "runtime_identities_sha256",
+        "generation",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "attempt_sha256",
+    }
+    body = (
+        {key: item for key, item in attempt.items() if key != "attempt_sha256"}
+        if isinstance(attempt, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(attempt, Mapping)
+        or set(attempt) != required
+        or raw != canonical
+        or attempt.get("schema_version") != 1
+        or attempt.get("attempt_id") != contract["attempt_nonce"]
+        or attempt.get("status") != "started_before_model_output"
+        or attempt.get("head") != execution.get("head")
+        or attempt.get("tree") != execution.get("tree")
+        or attempt.get("freeze_sha256") != freeze.get("freeze_sha256")
+        or attempt.get("base_requests") != contract["task_count"]
+        or attempt.get("adapter_requests") != contract["task_count"]
+        or attempt.get("requests_sha256") != contract["requests_sha256"]
+        or attempt.get("request_ids_sha256") != contract["request_ids_sha256"]
+        or attempt.get("base_worker_command") != contract["base_worker_command"]
+        or attempt.get("adapter_worker_command") != contract["adapter_worker_command"]
+        or attempt.get("runtime_identities_sha256") != runtime_identities_sha256
+        or attempt.get("generation") != contract["generation"]
+        or attempt.get("model_outputs_observed") is not False
+        or attempt.get("training_authorized") is not False
+        or attempt.get("delta_qlora_authorized") is not False
+        or attempt.get("attempt_sha256") != contract["canonical_hash"](body)
+        or attempt.get("attempt_sha256") != receipt.get("attempt_sha256")
+    ):
+        errors.append("T30-v3 attempt artifact lineage contains drift")
+    return errors
+
+
+def _validate_t30_v3_evaluation_artifacts(
+    contract: Mapping[str, Any],
+    root: Path,
+    evaluation: Mapping[str, Any],
+    execution: Any,
+    freeze: Mapping[str, Any],
+    truth: Mapping[str, Any],
+    tasks: list[dict[str, Any]],
+) -> list[str]:
+    if not isinstance(execution, Mapping):
+        return ["T30-v3 evaluation execution evidence is incomplete"]
+    errors: list[str] = []
+    if (
+        not re.fullmatch(r"[0-9a-f]{40}", str(execution.get("head")))
+        or not re.fullmatch(r"[0-9a-f]{40}", str(execution.get("tree")))
+        or not _is_t30_v3_sha256(execution.get("report_sha256"))
+    ):
+        errors.append("T30-v3 evaluation execution identity is malformed")
+    outputs = execution.get("outputs")
+    if not isinstance(outputs, Mapping) or set(outputs) != {"base", "adapter"}:
+        return [*errors, "T30-v3 evaluation output identity roster is incomplete"]
+    candidate_rows: dict[str, list[dict[str, Any]]] = {}
+    for side in ("base", "adapter"):
+        output_errors, rows = _t30_v3_output_record(contract, root, side, outputs.get(side))
+        errors.extend(output_errors)
+        if len(rows) == contract["task_count"]:
+            candidate_rows[side] = rows
+
+    errors.extend(_t30_v3_git_lineage(root, contract, freeze, execution))
+
+    public = evaluation.get("observations")
+    if isinstance(public, Mapping) and set(candidate_rows) == {"base", "adapter"}:
+        for side in ("base", "adapter"):
+            public_rows = public.get(side)
+            if not isinstance(public_rows, list) or len(public_rows) != contract["task_count"]:
+                continue
+            for task, candidate, row in zip(tasks, candidate_rows[side], public_rows, strict=True):
+                if (
+                    not isinstance(row, Mapping)
+                    or row.get("task_id") != candidate["task_id"]
+                    or row.get("candidate_sha256")
+                    != "sha256:" + hashlib.sha256(candidate["text"].encode("utf-8")).hexdigest()
+                ):
+                    errors.append(
+                        f"T30-v3 {side} candidate/public observation linkage drift: "
+                        f"{task['task_id']}"
+                    )
+
+    if set(candidate_rows) != {"base", "adapter"}:
+        errors.append("T30-v3 live semantic replay candidate roster is unavailable")
+    else:
+        try:
+            replayed = _t30_v3_live_semantic_replay(root, tasks, truth, candidate_rows)
+            if replayed != public:
+                errors.append("T30-v3 live semantic replay observations contain drift")
+            replay_rows = (
+                replayed
+                if isinstance(replayed, Mapping) and set(replayed) == {"base", "adapter"}
+                else {}
+            )
+            if all(
+                isinstance(replay_rows.get(side), list)
+                and len(replay_rows[side]) == contract["task_count"]
+                for side in ("base", "adapter")
+            ):
+                replay_decision = contract["gate_arithmetic"](
+                    _t30_v3_core_observations(contract, tasks, replay_rows["base"]),
+                    _t30_v3_core_observations(contract, tasks, replay_rows["adapter"]),
+                )
+                if evaluation.get("decision") != replay_decision:
+                    errors.append("T30-v3 live semantic replay gate arithmetic contains drift")
+            else:
+                errors.append("T30-v3 live semantic replay observation roster is malformed")
+        except Exception as error:  # noqa: BLE001 - live replay boundary fails closed
+            errors.append(
+                f"T30-v3 live semantic replay is unavailable: {type(error).__name__}: {error}"
+            )
+
+    report_relative = f"{contract['run_relative']}/report.json"
+    report_raw, read_error = _t30_v3_read_artifact(root, report_relative)
+    if read_error is not None or report_raw is None:
+        return [*errors, f"T30-v3 report artifact is unavailable: {read_error}"]
+    try:
+        report = json.loads(report_raw)
+        canonical_report = _t30_v3_canonical_bytes(report) + b"\n"
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
+        return [*errors, "T30-v3 report artifact is not canonical JSON"]
+    required = {
+        "schema_version",
+        "status",
+        "authority_tier",
+        "head",
+        "tree",
+        "freeze_sha256",
+        "attempt_nonce",
+        "attempt_receipt",
+        "outputs",
+        "observations",
+        "decision",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "nonclaims",
+        "report_sha256",
+    }
+    body = (
+        {key: item for key, item in report.items() if key != "report_sha256"}
+        if isinstance(report, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(report, Mapping)
+        or set(report) != required
+        or report_raw != canonical_report
+        or report.get("schema_version") != 1
+        or report.get("status") != "complete"
+        or report.get("authority_tier") != "diagnostic_only"
+        or report.get("head") != execution.get("head")
+        or report.get("tree") != execution.get("tree")
+        or report.get("freeze_sha256") != freeze.get("freeze_sha256")
+        or report.get("attempt_nonce") != contract["attempt_nonce"]
+        or report.get("outputs") != outputs
+        or report.get("decision") != evaluation.get("decision")
+        or report.get("model_outputs_observed") is not True
+        or report.get("training_authorized") is not False
+        or report.get("delta_qlora_authorized") is not False
+        or report.get("nonclaims") != contract["nonclaims"]
+        or report.get("report_sha256") != contract["canonical_hash"](body)
+        or report.get("report_sha256") != execution.get("report_sha256")
+    ):
+        errors.append("T30-v3 report self-hash or execution lineage contains drift")
+
+    report_observations = report.get("observations") if isinstance(report, Mapping) else None
+    if (
+        not isinstance(report_observations, Mapping)
+        or set(report_observations) != {"base", "adapter"}
+        or not isinstance(public, Mapping)
+    ):
+        errors.append("T30-v3 report observation roster is incomplete")
+    else:
+        extra = {"final_human_review_required", "final_human_review_kind", "peak_metal_gb"}
+        for side in ("base", "adapter"):
+            report_rows = report_observations.get(side)
+            public_rows = public.get(side)
+            candidates = candidate_rows.get(side)
+            if (
+                not isinstance(report_rows, list)
+                or not isinstance(public_rows, list)
+                or not isinstance(candidates, list)
+                or len(report_rows) != contract["task_count"]
+                or len(public_rows) != contract["task_count"]
+                or len(candidates) != contract["task_count"]
+            ):
+                errors.append(f"T30-v3 report {side} observation roster is incomplete")
+                continue
+            for task, report_row, public_row, candidate in zip(
+                tasks, report_rows, public_rows, candidates, strict=True
+            ):
+                if (
+                    not isinstance(report_row, Mapping)
+                    or not isinstance(public_row, Mapping)
+                    or set(report_row) != set(public_row) | extra
+                    or {key: report_row.get(key) for key in public_row} != public_row
+                    or report_row.get("peak_metal_gb") != candidate["peak_metal_gb"]
+                    or report_row.get("final_human_review_required")
+                    is not (task["family"] in contract["final_human_review"])
+                    or report_row.get("final_human_review_kind")
+                    != contract["final_human_review"].get(task["family"])
+                ):
+                    errors.append(
+                        f"T30-v3 report/public observation linkage drift: {task['task_id']}"
+                    )
+    errors.extend(
+        _validate_t30_v3_attempt_artifact(
+            contract,
+            root,
+            report.get("attempt_receipt") if isinstance(report, Mapping) else None,
+            execution,
+            freeze,
+        )
+    )
+    return errors
+
+
+def _validate_t30_v3_evaluation_static_shape(
+    contract: Mapping[str, Any],
+    root: Path,
+    evaluation: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+    truth: Mapping[str, Any],
+    tasks: list[dict[str, Any]],
+) -> list[str]:
+    required = {
+        "schema_version",
+        "evidence_id",
+        "status",
+        "authority_tier",
+        "execution",
+        "observations",
+        "decision",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "nonclaims",
+        "evaluation_sha256",
+    }
+    errors = (
+        []
+        if set(evaluation) == required
+        else ["T30-v3 evaluation manifest field roster is not exact"]
+    )
+    execution = evaluation.get("execution")
+    if (
+        not isinstance(execution, Mapping)
+        or set(execution)
+        != {
+            "head",
+            "tree",
+            "freeze_sha256",
+            "freeze_file_sha256",
+            "report_sha256",
+            "run_dir",
+            "outputs",
+        }
+        or execution.get("run_dir") != contract["run_relative"]
+    ):
+        errors.append("T30-v3 evaluation execution evidence is incomplete")
+    errors.extend(
+        _validate_t30_v3_evaluation_artifacts(
+            contract,
+            root,
+            evaluation,
+            execution,
+            freeze,
+            truth,
+            tasks,
+        )
+    )
+    observation_errors, rows = _validate_t30_v3_observations(
+        contract, evaluation.get("observations"), tasks
+    )
+    errors.extend(observation_errors)
+    if set(rows) == {"base", "adapter"}:
+        expected_decision = contract["gate_arithmetic"](
+            _t30_v3_core_observations(contract, tasks, rows["base"]),
+            _t30_v3_core_observations(contract, tasks, rows["adapter"]),
+        )
+        if evaluation.get("decision") != expected_decision:
+            errors.append(
+                "T30-v3 evaluation decision arithmetic or evidence linkage contains drift"
+            )
+    errors.extend(
+        _validate_t30_v3_phase_decision(contract, evaluation.get("decision"), final=False)
+    )
+    return errors
+
+
+def _validate_t30_v3_review_receipt(
+    contract: Mapping[str, Any],
+    root: Path,
+    adjudication: Mapping[str, Any],
+    evaluation: Mapping[str, Any],
+) -> list[str]:
+    relative = contract["human_review_relative"]
+    raw, read_error = _t30_v3_read_artifact(root, relative, maximum=2 * 1024 * 1024)
+    if read_error is not None or raw is None:
+        return [f"T30-v3 human review receipt is unavailable: {read_error}"]
+    errors: list[str] = []
+    if (root / ".git").exists():
+        try:
+            tracked = subprocess.run(
+                ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", relative],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            tracked = None
+        if tracked is None or tracked.returncode != 0:
+            errors.append("T30-v3 human review receipt is not tracked")
+    try:
+        receipt = json.loads(raw)
+        canonical = _t30_v3_canonical_bytes(receipt) + b"\n"
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
+        return [*errors, "T30-v3 human review receipt is not canonical JSON"]
+    if (
+        not _is_t30_v3_sha256(adjudication.get("review_receipt_sha256"))
+        or adjudication.get("review_receipt_sha256") != "sha256:" + hashlib.sha256(raw).hexdigest()
+        or not isinstance(receipt, Mapping)
+        or set(receipt)
+        != {
+            "schema_version",
+            "review_id",
+            "authority_tier",
+            "reviewer_role",
+            "evaluation_sha256",
+            "reviews",
+        }
+        or raw != canonical
+        or receipt.get("schema_version") != 1
+        or receipt.get("review_id") != contract["human_review_id"]
+        or receipt.get("authority_tier") != "human_review_required"
+        or receipt.get("reviewer_role") != "L0_frontier_coordinator"
+        or receipt.get("evaluation_sha256") != evaluation.get("evaluation_sha256")
+        or receipt.get("reviews") != adjudication.get("reviews")
+    ):
+        errors.append("T30-v3 human review receipt identity or adjudication linkage contains drift")
+    return errors
+
+
+def _validate_t30_v3_adjudication_static_shape(
+    contract: Mapping[str, Any],
+    root: Path,
+    adjudication: Mapping[str, Any],
+    evaluation: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+    tasks: list[dict[str, Any]],
+) -> list[str]:
+    required = {
+        "schema_version",
+        "adjudication_id",
+        "status",
+        "authority_tier",
+        "evaluation_sha256",
+        "evaluation_file_sha256",
+        "freeze_sha256",
+        "review_receipt_sha256",
+        "reviews",
+        "decision",
+        "model_outputs_observed",
+        "training_authorized",
+        "delta_qlora_authorized",
+        "nonclaims",
+        "adjudication_sha256",
+    }
+    errors = (
+        []
+        if set(adjudication) == required
+        else ["T30-v3 adjudication manifest field roster is not exact"]
+    )
+    errors.extend(_validate_t30_v3_review_receipt(contract, root, adjudication, evaluation))
+    reviews = adjudication.get("reviews")
+    decision = adjudication.get("decision")
+    final_tasks = decision.get("final_tasks") if isinstance(decision, Mapping) else None
+    task_by_id = {task["task_id"]: task for task in tasks}
+    adapter = (
+        evaluation.get("observations", {}).get("adapter")
+        if isinstance(evaluation.get("observations"), Mapping)
+        else None
+    )
+    observation_by_id: dict[str, Mapping[str, Any]] = {}
+    if isinstance(adapter, list):
+        for row in adapter:
+            task_id = row.get("task_id") if isinstance(row, Mapping) else None
+            if isinstance(task_id, str):
+                observation_by_id[task_id] = row
+    expected_review_ids = [
+        task["task_id"] for task in tasks if task["family"] in contract["final_human_review"]
+    ]
+    if (
+        not isinstance(reviews, list)
+        or len(reviews) != contract["human_review_count"]
+        or [row.get("task_id") for row in reviews if isinstance(row, Mapping)]
+        != expected_review_ids
+        or not isinstance(final_tasks, list)
+        or len(final_tasks) != contract["task_count"]
+        or [row.get("task_id") for row in final_tasks if isinstance(row, Mapping)]
+        != [task["task_id"] for task in tasks]
+    ):
+        errors.append("T30-v3 adjudication review/final-task roster is incomplete")
+        return [*errors, *_validate_t30_v3_phase_decision(contract, decision, final=True)]
+    review_by_id: dict[str, Mapping[str, Any]] = {}
+    review_keys = {
+        "task_id",
+        "family",
+        "review_kind",
+        "candidate_sha256",
+        "decision",
+        "rationale_code",
+        "rationale",
+        "source",
+    }
+    for row in reviews:
+        task = task_by_id[row["task_id"]]
+        observation = observation_by_id.get(row["task_id"])
+        family = task["family"]
+        if (
+            set(row) != review_keys
+            or row.get("family") != family
+            or row.get("review_kind") != contract["final_human_review"][family]
+            or not isinstance(observation, Mapping)
+            or row.get("candidate_sha256") != observation.get("candidate_sha256")
+            or row.get("decision") not in {"ACCEPT", "REJECT", "UNCLEAR"}
+            or not isinstance(row.get("rationale_code"), str)
+            or not row["rationale_code"].startswith(family.replace("-", ""))
+            or not isinstance(row.get("rationale"), str)
+            or len(row["rationale"].strip()) < 20
+            or row.get("source") != "direct_candidate_and_pinned_truth_review"
+        ):
+            errors.append(f"T30-v3 adjudication review evidence drift: {task['task_id']}")
+        else:
+            review_by_id[task["task_id"]] = row
+    if (
+        len(review_by_id) == contract["human_review_count"]
+        and len(observation_by_id) == contract["task_count"]
+    ):
+        try:
+            expected_decision = contract["final_adjudication"](
+                evaluation, {"reviews": reviews}, freeze
+            )
+        except Exception:  # noqa: BLE001 - malformed phase evidence fails closed
+            errors.append("T30-v3 adjudication inputs are malformed")
+        else:
+            if decision != expected_decision:
+                errors.append(
+                    "T30-v3 adjudication decision arithmetic or evidence linkage contains drift"
+                )
+    errors.extend(_validate_t30_v3_phase_decision(contract, decision, final=True))
+    return errors
+
+
+def _validate_grammar_stdlib_t30_successor_version(root: Path, version: int) -> list[str]:
+    """Validate one append-only chain; V3 evaluations require pinned Metis replay."""
+
+    if version == 2:
+        required = (
+            "fixtures/grammar-stdlib-accuracy-v2/t30-tasks.json",
+            "fixtures/grammar-stdlib-accuracy-v2/t30-reference-context.md",
+            "manifests/grammar-stdlib-accuracy-t30-policy-v2.json",
+            "manifests/grammar-stdlib-accuracy-t30-evaluation-v1.json",
+            "src/metis_model1/grammar_stdlib_t30.py",
+            "src/metis_model1/grammar_stdlib_t30_successor.py",
+            "tests/test_grammar_stdlib_t30_successor.py",
+        )
+        wrapper_module = "grammar_stdlib_t30_successor"
+        predecessor_evaluation_version = 1
+        predecessor_adjudication_version: int | None = None
+    elif version == 3:
+        required = (
+            "fixtures/grammar-stdlib-accuracy-v3/t30-tasks.json",
+            "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md",
+            "manifests/grammar-stdlib-accuracy-t30-policy-v3.json",
+            "manifests/grammar-stdlib-accuracy-t30-truth-v3.json",
+            "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
+            "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json",
+            "src/metis_model1/grammar_stdlib_t30.py",
+            "src/metis_model1/grammar_stdlib_t30_v3.py",
+            "tests/test_grammar_stdlib_t30_v3.py",
+        )
+        wrapper_module = "grammar_stdlib_t30_v3"
+        predecessor_evaluation_version = 2
+        predecessor_adjudication_version = 2
+    else:  # pragma: no cover - internal call sites enumerate supported successors.
+        raise ValueError(f"unsupported T30 successor version: {version}")
+
+    label = f"T30-v{version}"
     errors = [
-        f"T30-v2 contract path is missing: {path}"
+        f"{label} contract path is missing: {path}"
         for path in required
         if not (root / path).is_file()
     ]
@@ -1990,7 +3197,11 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
 
     try:
         from metis_model1 import grammar_stdlib_t30 as t30
-        from metis_model1 import grammar_stdlib_t30_successor as successor
+
+        if wrapper_module == "grammar_stdlib_t30_successor":
+            from metis_model1 import grammar_stdlib_t30_successor as successor
+        else:
+            from metis_model1 import grammar_stdlib_t30_v3 as successor
 
         with successor.successor_configuration():
             t30.TASKS_PATH = root / required[0]
@@ -2010,10 +3221,84 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
                 "evaluation": ("evidence_id", t30.EVIDENCE_ID),
                 "adjudication": ("adjudication_id", t30.ADJUDICATION_ID),
             }
-    except Exception as error:  # noqa: BLE001 - static contract boundary fails closed
-        return [f"T30-v2 static contract unreadable: {type(error).__name__}: {error}"]
 
-    predecessor_path = root / required[3]
+            def v3_gate_arithmetic(
+                base: list[Mapping[str, Any]], adapter: list[Mapping[str, Any]]
+            ) -> dict[str, Any]:
+                with successor.successor_configuration():
+                    return t30.gate_arithmetic(base, adapter)
+
+            def v3_final_adjudication(
+                evaluation: Mapping[str, Any], reviews: Mapping[str, Any], freeze: Mapping[str, Any]
+            ) -> dict[str, Any]:
+                with successor.successor_configuration():
+                    return t30._final_adjudication(evaluation, reviews, freeze)
+
+            v3_static_contract = (
+                {
+                    "semantic_signature_contract": t30.d18.SEMANTIC_SIGNATURE_CONTRACT,
+                    "generation": t30.GENERATION,
+                    "thresholds": t30.THRESHOLDS,
+                    "families": tuple(t30.FAMILIES),
+                    "tasks_per_family": t30.TASKS_PER_FAMILY,
+                    "task_count": t30.TASK_COUNT,
+                    "human_review_count": t30.HUMAN_REVIEW_COUNT,
+                    "human_review_id": t30.HUMAN_REVIEW_ID,
+                    "human_review_relative": (
+                        "manifests/grammar-stdlib-accuracy-t30-human-review-v3.json"
+                    ),
+                    "run_id": t30.RUN_ID,
+                    "run_relative": t30.RUN_RELATIVE,
+                    "attempt_nonce": t30.ATTEMPT_NONCE,
+                    "bound_paths": list(t30.BOUND_PATHS),
+                    "pre_review_verdict": t30.PRE_REVIEW_VERDICT,
+                    "pass_verdict": t30.PASS_VERDICT,
+                    "diagnose_verdict": t30.DIAGNOSE_VERDICT,
+                    "final_coverage_gate_names": dict(t30.FINAL_COVERAGE_GATE_NAMES),
+                    "final_human_review": dict(t30.FINAL_HUMAN_REVIEW),
+                    "coverage_fields": tuple(t30.COVERAGE_FIELDS),
+                    "coverage_domains": {
+                        field: set(values) for field, values in t30._coverage_domains().items()
+                    },
+                    "canonical_hash": t30.canonical_hash,
+                    "nonclaims": list(t30.NONCLAIMS),
+                    "tasks": tasks,
+                    "requests_sha256": t30.canonical_hash(t30._request_batch(tasks)),
+                    "request_ids_sha256": t30.canonical_hash([task["task_id"] for task in tasks]),
+                    "base_worker_command": t30._worker_command(False),
+                    "adapter_worker_command": t30._worker_command(True),
+                    "grammar_stdlib_pin": load_json(
+                        root / "manifests/grammar-stdlib-accuracy-t30-truth-v2.json"
+                    )["grammar_stdlib_pin"],
+                    "runtime_identities": load_json(
+                        root / "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json"
+                    )["runtime_identities"],
+                    "bound_records": [_t30_v3_bound_record(root, path) for path in t30.BOUND_PATHS],
+                    "gate_arithmetic": v3_gate_arithmetic,
+                    "final_adjudication": v3_final_adjudication,
+                    "messages": {
+                        task["task_id"]: t30.canonical_hash(t30.build_messages(task))
+                        for task in tasks
+                    },
+                    "content_roots": {
+                        task["task_id"]: t30._task_content_root(task) for task in tasks
+                    },
+                    "expected_json_sha256": {
+                        task["task_id"]: t30.canonical_hash(task["expected_json"])
+                        for task in tasks
+                        if task["task_mode"] == "exact_json_review"
+                    },
+                }
+                if version == 3
+                else None
+            )
+    except Exception as error:  # noqa: BLE001 - static contract boundary fails closed
+        return [f"{label} static contract unreadable: {type(error).__name__}: {error}"]
+
+    predecessor_path = (
+        root
+        / f"manifests/grammar-stdlib-accuracy-t30-evaluation-v{predecessor_evaluation_version}.json"
+    )
     try:
         predecessor_value = load_json(predecessor_path)
         predecessor_raw = predecessor_path.read_bytes()
@@ -2034,21 +3319,31 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
         )
         predecessor_policy = policy["predecessor"]
         predecessor_decision = predecessor_value.get("decision")
+        predecessor_policy_hash_field = "evaluation_self_sha256"
         if (
             predecessor_value.get("evaluation_sha256") != predecessor_self_hash
             or predecessor_value.get("evaluation_sha256")
-            != predecessor_policy["evaluation_self_sha256"]
-            or predecessor_value.get("evidence_id") != "grammar-stdlib-accuracy-t30-evaluation/v1"
+            != predecessor_policy.get(predecessor_policy_hash_field)
+            or predecessor_value.get("evidence_id")
+            != f"grammar-stdlib-accuracy-t30-evaluation/v{predecessor_evaluation_version}"
             or predecessor_value.get("status") != "verified_local_cooperative"
             or not isinstance(predecessor_decision, dict)
-            or predecessor_decision.get("verdict") != "GRAMMAR_STDLIB_T30_DIAGNOSE"
+            or predecessor_decision.get("verdict")
+            != (
+                "GRAMMAR_STDLIB_T30_DIAGNOSE"
+                if predecessor_evaluation_version == 1
+                else "GRAMMAR_STDLIB_T30_V2_DIAGNOSE"
+            )
             or predecessor_value.get("model_outputs_observed") is not True
             or predecessor_value.get("training_authorized") is not False
             or predecessor_value.get("delta_qlora_authorized") is not False
         ):
-            errors.append("T30-v2 predecessor is not the terminal T30-v1 diagnosis")
+            errors.append(
+                f"{label} predecessor is not the terminal T30-v"
+                f"{predecessor_evaluation_version} diagnosis"
+            )
         predecessor = {
-            "path": required[3],
+            "path": predecessor_path.relative_to(root).as_posix(),
             "bytes": len(predecessor_raw),
             "file_sha256": "sha256:" + hashlib.sha256(predecessor_raw).hexdigest(),
             "evaluation_sha256": predecessor_value.get("evaluation_sha256"),
@@ -2058,8 +3353,75 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
             "disposition": "terminal_diagnosis_no_promotion",
         }
     except Exception as error:  # noqa: BLE001 - predecessor boundary fails closed
-        errors.append(f"T30-v2 predecessor unreadable: {type(error).__name__}: {error}")
+        errors.append(f"{label} predecessor unreadable: {type(error).__name__}: {error}")
         predecessor = None
+
+    if predecessor_adjudication_version is not None:
+        adjudication_path = root / (
+            "manifests/grammar-stdlib-accuracy-t30-adjudication-"
+            f"v{predecessor_adjudication_version}.json"
+        )
+        try:
+            adjudication = load_json(adjudication_path)
+            adjudication_body = {
+                key: value for key, value in adjudication.items() if key != "adjudication_sha256"
+            }
+            adjudication_self_hash = (
+                "sha256:"
+                + hashlib.sha256(
+                    json.dumps(
+                        adjudication_body,
+                        allow_nan=False,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest()
+            )
+            adjudication_decision = adjudication.get("decision")
+            predecessor_policy = policy.get("predecessor")
+            policy_binds_terminal_v2 = (
+                isinstance(predecessor_policy, dict)
+                and {
+                    "evaluation_path": predecessor_path.relative_to(root).as_posix(),
+                    "evaluation_self_sha256": predecessor_value.get("evaluation_sha256"),
+                    "adjudication_path": adjudication_path.relative_to(root).as_posix(),
+                    "adjudication_self_sha256": adjudication_self_hash,
+                    "adjudication_raw_sha256": "sha256:"
+                    + hashlib.sha256(adjudication_path.read_bytes()).hexdigest(),
+                    "adjudication_evaluation_self_sha256": predecessor_value.get(
+                        "evaluation_sha256"
+                    ),
+                    "adjudication_verdict": "GRAMMAR_STDLIB_T30_V2_DIAGNOSE",
+                    "disposition": "terminal_diagnosis_no_promotion",
+                    "rescore_allowed": False,
+                    "model_replay_allowed": False,
+                    "task_or_output_reuse_allowed": False,
+                    "promotion_credit": False,
+                }.items()
+                <= predecessor_policy.items()
+            )
+            if (
+                adjudication.get("adjudication_sha256") != adjudication_self_hash
+                or adjudication.get("adjudication_id")
+                != f"grammar-stdlib-accuracy-t30-adjudication/v{predecessor_adjudication_version}"
+                or adjudication.get("status") != "final_local_adjudication"
+                or adjudication.get("evaluation_sha256")
+                != (predecessor_value.get("evaluation_sha256") if predecessor else None)
+                or adjudication.get("evaluation_file_sha256")
+                != "sha256:" + hashlib.sha256(predecessor_raw).hexdigest()
+                or not isinstance(adjudication_decision, dict)
+                or adjudication_decision.get("verdict") != "GRAMMAR_STDLIB_T30_V2_DIAGNOSE"
+                or adjudication.get("model_outputs_observed") is not True
+                or adjudication.get("training_authorized") is not False
+                or adjudication.get("delta_qlora_authorized") is not False
+                or not policy_binds_terminal_v2
+            ):
+                errors.append(f"{label} predecessor does not bind final T30-v2 adjudication")
+        except Exception as error:  # noqa: BLE001 - predecessor boundary fails closed
+            errors.append(
+                f"{label} predecessor adjudication unreadable: {type(error).__name__}: {error}"
+            )
 
     coverage_counts = {
         field: Counter(value for task in tasks for value in task["coverage"][field])
@@ -2076,21 +3438,25 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
         for counts in coverage_counts.values()
         for count in counts.values()
     ):
-        errors.append("T30-v2 declared grammar/stdlib coverage has an occurrence below two")
+        errors.append(f"{label} declared grammar/stdlib coverage has an occurrence below two")
     if policy.get("predecessor", {}).get("disposition") != "terminal_diagnosis_no_promotion":
-        errors.append("T30-v2 policy does not make the T30-v1 diagnosis non-promotable")
+        errors.append(
+            f"{label} policy does not make the T30-v{predecessor_evaluation_version} diagnosis "
+            "non-promotable"
+        )
 
     phase_paths = {
-        "truth": root / "manifests/grammar-stdlib-accuracy-t30-truth-v2.json",
-        "freeze": root / "manifests/grammar-stdlib-accuracy-t30-freeze-v2.json",
-        "evaluation": root / "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
-        "adjudication": root / "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json",
+        "truth": root / f"manifests/grammar-stdlib-accuracy-t30-truth-v{version}.json",
+        "freeze": root / f"manifests/grammar-stdlib-accuracy-t30-freeze-v{version}.json",
+        "evaluation": root / f"manifests/grammar-stdlib-accuracy-t30-evaluation-v{version}.json",
+        "adjudication": root
+        / f"manifests/grammar-stdlib-accuracy-t30-adjudication-v{version}.json",
     }
     phase_names = tuple(phase_paths)
     present = [phase_paths[name].is_file() for name in phase_names]
     for index, is_present in enumerate(present):
         if is_present and not all(present[:index]):
-            errors.append(f"T30-v2 phase {phase_names[index]} is present before its predecessor")
+            errors.append(f"{label} phase {phase_names[index]} is present before its predecessor")
 
     phases: dict[str, dict[str, Any]] = {}
     for index, name in enumerate(phase_names):
@@ -2113,10 +3479,10 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
                     ).encode()
                 ).hexdigest()
             ):
-                errors.append(f"T30-v2 {name} self-hash is invalid")
+                errors.append(f"{label} {name} self-hash is invalid")
             phases[name] = value
         except Exception as error:  # noqa: BLE001 - phase boundary fails closed
-            errors.append(f"T30-v2 {name} manifest unreadable: {type(error).__name__}: {error}")
+            errors.append(f"{label} {name} manifest unreadable: {type(error).__name__}: {error}")
 
     truth = phases.get("truth")
     if truth is not None:
@@ -2130,22 +3496,29 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
             "delta_qlora_authorized": False,
         }
         if any(truth.get(key) != value for key, value in identity.items()):
-            errors.append("T30-v2 truth identity/status/claims contain drift")
+            errors.append(f"{label} truth identity/status/claims contain drift")
         counts = truth.get("counts")
         if not isinstance(counts, dict) or {
             key: counts.get(key) for key in ("tasks_in", "tasks_out", "tasks_distinct", "gaps")
         } != {"tasks_in": 30, "tasks_out": 30, "tasks_distinct": 30, "gaps": 0}:
-            errors.append("T30-v2 truth counts are not 30/30/30 with zero gaps")
+            errors.append(f"{label} truth counts are not 30/30/30 with zero gaps")
         if truth.get("policy_sha256") != policy.get("policy_sha256"):
-            errors.append("T30-v2 truth does not link the ratified policy")
+            errors.append(f"{label} truth does not link the ratified policy")
         for key, target in (
             ("tasks_file_sha256", root / required[0]),
             ("reference_context_sha256", root / required[1]),
         ):
             if truth.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
-                errors.append(f"T30-v2 truth {key} does not link its input")
+                errors.append(f"{label} truth {key} does not link its input")
         if truth.get("predecessor_terminal_diagnosis") != predecessor:
-            errors.append("T30-v2 truth does not bind the terminal T30-v1 diagnosis")
+            errors.append(
+                f"{label} truth does not bind the terminal T30-v"
+                f"{predecessor_evaluation_version} diagnosis"
+            )
+        if version == 3:
+            errors.extend(
+                _validate_t30_v3_truth_static_shape(v3_static_contract or {}, truth, tasks)
+            )
 
     freeze = phases.get("freeze")
     if freeze is not None:
@@ -2162,14 +3535,18 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
             "delta_qlora_authorized": False,
         }
         if any(freeze.get(key) != value for key, value in identity.items()):
-            errors.append("T30-v2 freeze identity/status/claims or linkage contain drift")
+            errors.append(f"{label} freeze identity/status/claims or linkage contain drift")
         for key, target in (
             ("tasks_file_sha256", root / required[0]),
             ("reference_context_sha256", root / required[1]),
             ("policy_file_sha256", root / required[2]),
         ):
             if freeze.get(key) != "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest():
-                errors.append(f"T30-v2 freeze {key} does not link its input")
+                errors.append(f"{label} freeze {key} does not link its input")
+        if version == 3:
+            errors.extend(
+                _validate_t30_v3_freeze_static_shape(v3_static_contract or {}, freeze, truth)
+            )
 
     evaluation = phases.get("evaluation")
     if evaluation is not None:
@@ -2184,17 +3561,28 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
             "delta_qlora_authorized": False,
         }
         if any(evaluation.get(key) != value for key, value in identity.items()):
-            errors.append("T30-v2 evaluation identity/status/claims contain drift")
+            errors.append(f"{label} evaluation identity/status/claims contain drift")
         execution = evaluation.get("execution")
         if not isinstance(execution, dict) or execution.get("freeze_sha256") != (
             freeze.get("freeze_sha256") if freeze else None
         ):
-            errors.append("T30-v2 evaluation does not link the preceding freeze")
+            errors.append(f"{label} evaluation does not link the preceding freeze")
         elif (
             execution.get("freeze_file_sha256")
             != "sha256:" + hashlib.sha256(phase_paths["freeze"].read_bytes()).hexdigest()
         ):
-            errors.append("T30-v2 evaluation freeze file hash linkage contains drift")
+            errors.append(f"{label} evaluation freeze file hash linkage contains drift")
+        if version == 3:
+            errors.extend(
+                _validate_t30_v3_evaluation_static_shape(
+                    v3_static_contract or {},
+                    root,
+                    evaluation,
+                    freeze or {},
+                    truth or {},
+                    tasks,
+                )
+            )
 
     adjudication = phases.get("adjudication")
     if adjudication is not None:
@@ -2211,13 +3599,39 @@ def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
             "delta_qlora_authorized": False,
         }
         if any(adjudication.get(key) != value for key, value in identity.items()):
-            errors.append("T30-v2 adjudication identity/status/claims or linkage contain drift")
+            errors.append(f"{label} adjudication identity/status/claims or linkage contain drift")
         if (
             adjudication.get("evaluation_file_sha256")
             != "sha256:" + hashlib.sha256(phase_paths["evaluation"].read_bytes()).hexdigest()
         ):
-            errors.append("T30-v2 adjudication evaluation file hash linkage contains drift")
+            errors.append(f"{label} adjudication evaluation file hash linkage contains drift")
+        if version == 3:
+            errors.extend(
+                _validate_t30_v3_adjudication_static_shape(
+                    v3_static_contract or {},
+                    root,
+                    adjudication,
+                    evaluation or {},
+                    freeze or {},
+                    tasks,
+                )
+            )
     return errors
+
+
+def validate_grammar_stdlib_t30_successor_contract(root: Path) -> list[str]:
+    """Validate immutable T30-v2 and the append-only fresh T30-v3 chain.
+
+    V2 remains an independently validated terminal predecessor.  V3's static
+    preimage is foundation-required; its freeze, evaluation and adjudication
+    become required only in order as they materialize.
+    """
+
+    return [
+        error
+        for version in (2, 3)
+        for error in _validate_grammar_stdlib_t30_successor_version(root, version)
+    ]
 
 
 def validate_hyperparameter_grid_contract(root: Path) -> list[str]:
@@ -3089,14 +4503,17 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             "evaluation",
             "adjudication",
         )
-        latest = "static"
-        for phase in successor_phases:
-            if (root / f"manifests/grammar-stdlib-accuracy-t30-{phase}-v2.json").is_file():
-                latest = phase
-        report.passes.append(
-            f"grammar-stdlib-t30-v2={latest}/30-fresh/10-top-levels/"
-            "3-modules/12-members/10-interactions/no-training"
-        )
+        for version in (2, 3):
+            latest = "static"
+            for phase in successor_phases:
+                if (
+                    root / f"manifests/grammar-stdlib-accuracy-t30-{phase}-v{version}.json"
+                ).is_file():
+                    latest = phase
+            report.passes.append(
+                f"grammar-stdlib-t30-v{version}={latest}/30-fresh/10-top-levels/"
+                "3-modules/12-members/10-interactions/no-training"
+            )
 
     hyperparameter_errors = validate_hyperparameter_grid_contract(root)
     if hyperparameter_errors:
