@@ -5556,3 +5556,37 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   freeze; it is not yet an accuracy claim. Run/inference remains prohibited
   until this freeze is committed, pushed and reopened byte-exactly. Training
   and delta QLoRA remain unauthorized.
+- DONE — Freeze commit `a4857f2ff941ddca1a79f2cc16301f6142663c96`
+  was pushed and reopened exactly; all 43 bound inputs remain unchanged from
+  preimage. The sole authorized one-shot then produced base `30/30` and adapter
+  `30/30` non-empty paired outputs with raw hashes `a260db14` and `ff5ca8f7`.
+  Attempt self is `5eff9d97`, report self `837ef7bd`; no retry occurred.
+- FACT — Automatic scoring is base `20/20` and adapter `20/20`, both
+  provisionally exact `30/30`, with critical failures `0`, paired regressions
+  `0`, and all prereview gates true. The run correctly stops at
+  `GRAMMAR_STDLIB_T30_V3_REVIEW_REQUIRED`; model inference is complete and
+  training/delta remain false.
+- DONE — Fresh evidence replay materializes evaluation self
+  `sha256:aac49be943cad4a7dc4e2d7a754b42137a2520c360a92a1eeb242161a7ec08c2`,
+  raw
+  `sha256:b84803a69fbe37a1870be101c505130b71bb90748756b458f22b62944e2217d1`.
+  Disjoint provisional reviews by declared `gpt-5.6-terra` (F2/F5) and
+  `gpt-5.6-sol` (F6), followed by independent L0 comparison against candidates,
+  truth, signatures and coverage, close `15/15 ACCEPT`: F2 has four byte-exact
+  repairs plus one permitted whitespace-only form, F5 is `5/5` exact, and F6
+  is `5/5` exact parsed JSON. Canonical L0 receipt raw is
+  `sha256:8823478b979850b015994ff3734ccf2eaf3d8da9559f9b151a6c8a13550796b7`.
+- STOP — Evaluation and human-review receipt must be committed, pushed and
+  reopened before final adjudication. The current strong result is not yet the
+  terminal accuracy verdict, and no retraining is authorized.
+- DONE — Independent read-only evaluation/receipt audit by declared
+  `gpt-5.6-luna` closes `P0=0 P1=0 P2=0`: evaluation/report/attempt/receipt
+  self-hashes, 60 candidate bindings, 30 paired IDs, automatic `20/20` each,
+  regressions `0`, canonical review order and all 15 rationales are exact.
+  Receipt and evaluation remain the only untracked phase artifacts;
+  adjudication is absent.
+- DONE — Mandatory prepublication live validation replays all 60 candidates
+  against the clean pinned Metis grammar and standard library and closes
+  `FOUNDATION VALID passes=70 errors=0 files=391`, recognizing phase
+  `evaluation/30-fresh/10-top-levels/3-modules/12-members/10-interactions/no-training`.
+  Evaluation and review receipt may now be committed and pushed together.
