@@ -5622,3 +5622,11 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN`, `30/30` and training/delta false;
   all `43/43` freeze-bound inputs still match their recorded Git blob OIDs with
   drift `0`.
+- DONE — User-authorized default-branch promotion fast-forwarded `main` from
+  `ad7a1169104c22fa8736b7463a93f65ea9f670f8` to publication record
+  `e424f989732efc009554668de0641ce828d4a5ff`. The pre-push fetch proved
+  ahead/behind `0/76` and an exact merge base at the old `main`; the post-push
+  readback proved local `main`, tracking `origin/main`, `ls-remote` and the
+  release branch exact at `e424f98`, with divergence `0/0` and a clean
+  worktree. The promotion changed Git refs only: model, adapter, dataset and S3
+  payload bytes were not changed.
