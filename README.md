@@ -129,6 +129,19 @@ riproducibili i blocchi correnti: task `30/30`, asset `201/201`, celle Oracle
 `0/160`, review diritti `0/201` e un solo gruppo di leakage rispetto al minimo
 `563`. Il relativo seal è quindi intenzionalmente `unsealed_evidence_only`.
 
+Sul percorso di prodotto più stretto, `INITIAL_LOCAL_QLORA_V1` è stato
+consegnato e sottoposto a backup; la wave catalog-domain ha chiuso 12/12 sia per
+base sia per adapter e la wave grammar+standard-library T30-v3 ha chiuso 30/30
+per entrambi con verdetto `NO_RETRAIN`. Questi risultati non equivalgono alla
+promotion statistica Accuracy-99 sul benchmark 600/563, che resta separata.
+
+La wave Metis Brain ha inoltre consegnato il core locale v1: API autenticata su
+loopback, sessioni tenant isolate con TTL idle di 20 minuti, snapshot immutabili,
+capability, stale guard e compilazione contro grammar/stdlib pinnate. Il core è
+eseguibile ma non carica ancora Model 1 (`model_loaded=false`): inferenza,
+retrieval progressivo, chat/VSIX, Metis Fast e packaging Mac restano separati e
+non sono dichiarati completati.
+
 I gate locali non privilegiati non scaricano modelli e non toccano l'ambiente
 Conda globale:
 
@@ -195,6 +208,8 @@ sono:
 - [pacchetto di evidenza e seal W1/W2](docs/14-w1-w2-evidence-package.md).
 - [esperimento first-value W5-XS](docs/15-first-value-experiment.md).
 - [report tecnico W4](orchestra/runs/2026-08-20-w1-w4-entry/W4-QUALIFICATION.md).
+- [contratto sessioni Metis Brain v1](docs/22-metis-brain-session-wave.md).
+- [runbook locale Metis Brain](docs/23-metis-brain-local-runbook.md).
 
 I documenti distinguono esplicitamente fra stato **VERIFICATO**, **DECISO**,
 **PROPOSTO** e **DA VERIFICARE**.
@@ -214,10 +229,8 @@ fusione o distribuzione esterna richiede una decisione e una review separate.
 
 ## Prossimo milestone
 
-Il piano è chiuso su W5-XS. La prossima milestone è una singola wave local-only
-che costruisce il thin runner/roster ed esegue la baseline B; può terminare in
-uno o due giorni con
-`MODEL1_USABLE_LOCAL_NO_TRAIN`. Soltanto failure ripetibili aprono il piccolo
-dataset e il micro-QLoRA, con hard stop a cinque giorni. Phase B privilegiata,
-563 gruppi, F-4/F-5/F-6 e O-003 restano fuori dal percorso critico del primo
-valore e servono esclusivamente a una futura promotion Accuracy-99.
+La prossima milestone di prodotto è collegare a questo core l'inferenza Model 1
+con un solo runtime condiviso e il retrieval progressivo dei cataloghi, senza
+cambiare l'isolamento delle sessioni. Seguono integrazione VSIX/Metis Fast e
+packaging dell'app Mac. La promotion Accuracy-99 su benchmark 600/563 resta una
+corsia statistica separata e non blocca il primo server locale dimostrabile.

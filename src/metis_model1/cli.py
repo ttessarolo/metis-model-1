@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from metis_model1.brain_server import run_brain_server
 from metis_model1.contracts import ValidationReport, repository_root, validate_foundation
 from metis_model1.pipeline import (
     DEFAULT_METIS_ROOT,
@@ -69,11 +70,18 @@ def build_parser() -> argparse.ArgumentParser:
         pilot.add_argument("--root", type=Path, default=repository_root())
         pilot.add_argument("--metis-root", type=Path, default=DEFAULT_METIS_ROOT)
         pilot.add_argument("--json", action="store_true", dest="as_json")
+    brain = subparsers.add_parser(
+        "brain-serve",
+        description="Run the authenticated numeric-loopback Metis Brain service.",
+    )
+    brain.add_argument("--config", type=Path, required=True)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "brain-serve":
+        return run_brain_server(args.config)
     if args.command == "assess-experiment":
         report = assess_experiment_plan(args.root)
         if args.as_json:

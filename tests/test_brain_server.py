@@ -1,0 +1,534 @@
+from __future__ import annotations
+
+import http.client
+import json
+import os
+import stat
+import threading
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+import metis_model1.brain_server as brain_server_module
+from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_protocol import CAPABILITIES, MAX_JSON_BYTES
+from metis_model1.brain_server import (
+    BrainApplication,
+    BrainConfig,
+    BrainRuntime,
+    MetisBrainService,
+    _ThreadingBrainHTTPServer,
+)
+from metis_model1.brain_sessions import ClientPolicy, SessionLimits, SessionManager
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class FakeCompiler:
+    toolchain_binding = "sha256:" + "a" * 64
+
+    def compile(self, *, lease: Any, source: Any, filename: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "ok",
+            "session_id": lease.session_id,
+            "context_revision": lease.snapshot.revision,
+            "filename": filename,
+            "source_bytes": len(source.encode("utf-8")),
+        }
+
+
+class ConstructibleFakeCompiler(FakeCompiler):
+    def __init__(self, **_kwargs: Any) -> None:
+        self.execution_count = 0
+
+
+def _tenant(root: Path) -> Path:
+    root.mkdir()
+    (root / "metis.toml").write_text(
+        '[tenant]\nid = "tenant-one"\n\n[stdlib]\nlanguage = "0.43"\n',
+        encoding="utf-8",
+    )
+    (root / "main.metis").write_text("metis 0.43\ntenant tenant_one {}\n", encoding="utf-8")
+    return root.resolve()
+
+
+@contextmanager
+def _service(
+    tmp_path: Path, *, clock: FakeClock | None = None
+) -> Iterator[tuple[_ThreadingBrainHTTPServer, BrainRuntime]]:
+    runtime = BrainRuntime((tmp_path / "runtime").resolve())
+    tenant = _tenant(tmp_path / "tenant")
+    manager = SessionManager(
+        registry=TenantRegistry([("demo", "tenant-one", tenant)]),
+        policies=[
+            ClientPolicy(
+                client_id="visix",
+                tenant_aliases=frozenset({"demo"}),
+                capabilities=CAPABILITIES,
+            )
+        ],
+        runtime_root=runtime.run_dir / "sessions",
+        toolchain_binding=FakeCompiler.toolchain_binding,
+        monotonic=clock or time.monotonic,
+    )
+    app = BrainApplication(runtime=runtime, manager=manager, compiler=FakeCompiler())  # type: ignore[arg-type]
+    server = _ThreadingBrainHTTPServer(("127.0.0.1", 0), app)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server, runtime
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        manager.shutdown()
+        runtime.close()
+
+
+def _request(
+    server: _ThreadingBrainHTTPServer,
+    method: str,
+    path: str,
+    *,
+    body: dict[str, Any] | bytes | None = None,
+    token: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+    request_headers = dict(headers or {})
+    raw: bytes | None
+    if isinstance(body, dict):
+        raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    else:
+        raw = body
+    if raw is not None:
+        request_headers.setdefault("Content-Type", "application/json")
+    if token is not None:
+        request_headers["Authorization"] = f"Bearer {token}"
+    connection.request(method, path, body=raw, headers=request_headers)
+    response = connection.getresponse()
+    payload = json.loads(response.read().decode("utf-8"))
+    response_headers = {key.lower(): value for key, value in response.getheaders()}
+    connection.close()
+    return response.status, payload, response_headers
+
+
+def _bootstrap(runtime: BrainRuntime) -> str:
+    return runtime.bootstrap_file.read_text(encoding="ascii").strip()
+
+
+def _open(
+    server: _ThreadingBrainHTTPServer,
+    runtime: BrainRuntime,
+    *,
+    token: str | None = None,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
+    return _request(
+        server,
+        "POST",
+        "/v1/sessions",
+        token=token or _bootstrap(runtime),
+        body={
+            "client_id": "visix",
+            "tenant_alias": "demo",
+            "capabilities": sorted(CAPABILITIES),
+        },
+    )
+
+
+def test_live_http_session_context_compile_status_and_close(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, runtime):
+        status, health, headers = _request(server, "GET", "/v1/health")
+        assert status == 200
+        assert health["status"] == "ready"
+        assert health["model_loaded"] is False
+        assert "access-control-allow-origin" not in headers
+
+        status, opened, _headers = _open(server, runtime)
+        assert status == 201
+        session = opened["session"]
+        session_id = session["id"]
+        token = session["token"]
+        revision = session["context_revision"]
+        assert token not in json.dumps(health)
+
+        status, context, _headers = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session_id}/context",
+            token=token,
+            body={"expected_revision": revision},
+        )
+        assert status == 200
+        assert context["revision"] == revision
+        assert {item["path"] for item in context["files"]} == {"metis.toml", "main.metis"}
+
+        source = "metis 0.43\ntenant candidate {}\n"
+        status, compiled, _headers = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session_id}/compile",
+            token=token,
+            body={
+                "expected_revision": revision,
+                "source": source,
+                "filename": "candidate.metis",
+                "execution_mode": "source",
+                "endpoint": None,
+            },
+        )
+        assert status == 200
+        assert compiled["source_bytes"] == len(source.encode("utf-8"))
+
+        status, current, _headers = _request(
+            server, "GET", f"/v1/sessions/{session_id}", token=token
+        )
+        assert status == 200
+        assert "root" not in json.dumps(current)
+        assert "token" not in json.dumps(current)
+
+        status, closed, _headers = _request(
+            server, "DELETE", f"/v1/sessions/{session_id}", token=token
+        )
+        assert status == 200
+        assert closed["session"]["state"] == "closed"
+        status, unavailable, _headers = _request(
+            server, "GET", f"/v1/sessions/{session_id}", token=token
+        )
+        assert status == 401
+        assert unavailable["error"]["code"] == "SESSION_UNAVAILABLE"
+
+
+def test_bootstrap_permissions_rotation_and_authority_separation(tmp_path: Path) -> None:
+    first_base = (tmp_path / "runtime-one").resolve()
+    first = BrainRuntime(first_base)
+    first_token = _bootstrap(first)
+    try:
+        assert stat.S_IMODE(first.run_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(first.bootstrap_file.stat().st_mode) == 0o600
+    finally:
+        first.close()
+    second = BrainRuntime(first_base)
+    try:
+        assert _bootstrap(second) != first_token
+    finally:
+        second.close()
+
+    with _service(tmp_path / "service") as (server, runtime):
+        status, opened, _headers = _open(server, runtime)
+        assert status == 201
+        session_id = opened["session"]["id"]
+        status, payload, _headers = _request(
+            server,
+            "GET",
+            f"/v1/sessions/{session_id}",
+            token=_bootstrap(runtime),
+        )
+        assert status == 401
+        assert payload["error"]["code"] == "SESSION_UNAVAILABLE"
+
+
+def test_wrong_bootstrap_cross_session_token_and_capability_fail_closed(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, runtime):
+        status, payload, _headers = _open(server, runtime, token="wrong")
+        assert status == 401
+        assert payload["error"]["code"] == "BOOTSTRAP_UNAUTHORIZED"
+
+        _status, first, _headers = _open(server, runtime)
+        _status, second, _headers = _open(server, runtime)
+        status, payload, _headers = _request(
+            server,
+            "GET",
+            f"/v1/sessions/{second['session']['id']}",
+            token=first["session"]["token"],
+        )
+        assert status == 401
+        assert payload["error"]["code"] == "SESSION_UNAVAILABLE"
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected"),
+    [
+        ({"Origin": "https://attacker.example"}, "BROWSER_ORIGIN_DENIED"),
+        ({"Cookie": "session=attacker"}, "COOKIE_DENIED"),
+    ],
+)
+def test_browser_pivots_are_rejected_without_cors(
+    tmp_path: Path, headers: dict[str, str], expected: str
+) -> None:
+    with _service(tmp_path) as (server, runtime):
+        status, payload, response_headers = _request(
+            server,
+            "POST",
+            "/v1/sessions",
+            token=_bootstrap(runtime),
+            headers=headers,
+            body={
+                "client_id": "visix",
+                "tenant_alias": "demo",
+                "capabilities": sorted(CAPABILITIES),
+            },
+        )
+        assert status in {400, 403}
+        assert payload["error"]["code"] == expected
+        assert "access-control-allow-origin" not in response_headers
+
+
+def test_query_duplicate_unknown_fields_and_relaxed_content_type_are_rejected(
+    tmp_path: Path,
+) -> None:
+    with _service(tmp_path) as (server, runtime):
+        status, payload, _headers = _request(server, "GET", "/v1/health?token=secret")
+        assert status == 404
+        assert payload["error"]["code"] == "INVALID_ROUTE"
+
+        duplicate = (
+            b'{"client_id":"visix","client_id":"other","tenant_alias":"demo",'
+            b'"capabilities":["session.read"]}'
+        )
+        status, payload, _headers = _request(
+            server,
+            "POST",
+            "/v1/sessions",
+            token=_bootstrap(runtime),
+            body=duplicate,
+        )
+        assert status == 400
+        assert payload["error"]["code"] == "DUPLICATE_FIELD"
+
+        status, payload, _headers = _request(
+            server,
+            "POST",
+            "/v1/sessions",
+            token=_bootstrap(runtime),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            body={
+                "client_id": "visix",
+                "tenant_alias": "demo",
+                "capabilities": ["session.read"],
+            },
+        )
+        assert status == 415
+        assert payload["error"]["code"] == "INVALID_BODY"
+
+
+def test_bad_host_malformed_auth_and_unsupported_method_are_json_errors(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, _runtime):
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+        connection.putrequest("GET", "/v1/health", skip_host=True)
+        connection.putheader("Host", "attacker.example")
+        connection.endheaders()
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+        connection.close()
+        assert response.status == 400
+        assert payload["error"]["code"] == "HOST_DENIED"
+
+        status, payload, _headers = _request(
+            server,
+            "POST",
+            "/v1/sessions",
+            headers={"Authorization": "Basic nope"},
+            body={
+                "client_id": "visix",
+                "tenant_alias": "demo",
+                "capabilities": sorted(CAPABILITIES),
+            },
+        )
+        assert status == 401
+        assert payload["error"]["code"] == "UNAUTHORIZED"
+
+        status, payload, headers = _request(server, "OPTIONS", "/v1/health")
+        assert status == 405
+        assert payload["error"]["code"] == "METHOD_NOT_ALLOWED"
+        assert headers["content-type"] == "application/json"
+
+
+def test_duplicate_security_headers_are_rejected(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, _runtime):
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+        connection.putrequest("GET", "/v1/health", skip_host=True)
+        connection.putheader("Host", f"127.0.0.1:{server.server_address[1]}")
+        connection.putheader("Host", "attacker.example")
+        connection.endheaders()
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+        connection.close()
+        assert response.status == 400
+        assert payload["error"]["code"] == "HOST_DENIED"
+
+
+def test_duplicate_content_length_and_transfer_encoding_cannot_close_session(
+    tmp_path: Path,
+) -> None:
+    with _service(tmp_path) as (server, runtime):
+        _status, opened, _headers = _open(server, runtime)
+        session = opened["session"]
+        for framing_headers in (
+            (("Content-Length", "0"), ("Content-Length", "5")),
+            (("Transfer-Encoding", "chunked"),),
+        ):
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_address[1], timeout=5
+            )
+            connection.putrequest("DELETE", f"/v1/sessions/{session['id']}")
+            connection.putheader("Authorization", f"Bearer {session['token']}")
+            for key, value in framing_headers:
+                connection.putheader(key, value)
+            connection.endheaders()
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+            assert response.status == 400
+            assert payload["error"]["code"] == "INVALID_BODY"
+
+        status, payload, _headers = _request(
+            server,
+            "GET",
+            f"/v1/sessions/{session['id']}",
+            token=session["token"],
+        )
+        assert status == 200
+        assert payload["session"]["state"] == "active"
+
+
+def test_invalid_compile_schema_does_not_refresh_session_ttl(tmp_path: Path) -> None:
+    clock = FakeClock()
+    with _service(tmp_path, clock=clock) as (server, runtime):
+        _status, opened, _headers = _open(server, runtime)
+        session = opened["session"]
+        clock.advance(1000)
+        status, payload, _headers = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/compile",
+            token=session["token"],
+            body={
+                "expected_revision": session["context_revision"],
+                "source": "metis 0.43\ntenant candidate {}\n",
+                "filename": "../escape.metis",
+                "execution_mode": "source",
+                "endpoint": None,
+            },
+        )
+        assert status == 400
+        assert payload["error"]["code"] == "INVALID_SCHEMA"
+        clock.advance(200)
+        status, payload, _headers = _request(
+            server,
+            "GET",
+            f"/v1/sessions/{session['id']}",
+            token=session["token"],
+        )
+        assert status == 401
+        assert payload["error"]["code"] == "SESSION_UNAVAILABLE"
+
+
+def test_oversized_body_is_rejected_from_headers_before_dispatch(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, runtime):
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+        connection.putrequest("POST", "/v1/sessions")
+        connection.putheader("Authorization", f"Bearer {_bootstrap(runtime)}")
+        connection.putheader("Content-Type", "application/json")
+        connection.putheader("Content-Length", str(MAX_JSON_BYTES + 1))
+        connection.endheaders()
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+        connection.close()
+        assert response.status == 413
+        assert payload["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_runtime_cleanup_never_follows_session_symlink(tmp_path: Path) -> None:
+    runtime = BrainRuntime((tmp_path / "runtime").resolve())
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("keep", encoding="utf-8")
+    os.symlink(sentinel, runtime.run_dir / "unrelated-link")
+    runtime.close()
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def _service_config(tmp_path: Path) -> BrainConfig:
+    tenant = _tenant(tmp_path / "configured-tenant")
+    metis_root = tmp_path / "metis"
+    metis_root.mkdir()
+    node_path = tmp_path / "node"
+    node_path.write_text("unused", encoding="utf-8")
+    return BrainConfig(
+        host="127.0.0.1",
+        port=0,
+        runtime_root=(tmp_path / "configured-runtime").resolve(),
+        metis_git_root=metis_root.resolve(),
+        node_path=node_path.resolve(),
+        compiler_concurrency=1,
+        tenant_grants=(("demo", "tenant-one", tenant),),
+        client_policies=(
+            ClientPolicy(
+                client_id="visix",
+                tenant_aliases=frozenset({"demo"}),
+                capabilities=CAPABILITIES,
+            ),
+        ),
+        limits=SessionLimits(),
+    )
+
+
+def test_constructor_bind_failure_cleans_private_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _service_config(tmp_path)
+
+    class FailingServer:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            raise OSError("synthetic bind failure")
+
+    monkeypatch.setattr(brain_server_module, "BrainCompiler", ConstructibleFakeCompiler)
+    monkeypatch.setattr(brain_server_module, "_ThreadingBrainHTTPServer", FailingServer)
+    with pytest.raises(OSError, match="synthetic bind failure"):
+        MetisBrainService(config)
+    assert list(config.runtime_root.glob("run-*")) == []
+
+
+def test_concurrent_close_waits_for_cleanup_and_removes_bootstrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(brain_server_module, "BrainCompiler", ConstructibleFakeCompiler)
+    service = MetisBrainService(_service_config(tmp_path))
+    entered = threading.Event()
+    release = threading.Event()
+    original_shutdown = service.app.manager.shutdown
+
+    def delayed_shutdown() -> None:
+        entered.set()
+        assert release.wait(timeout=5)
+        original_shutdown()
+
+    monkeypatch.setattr(service.app.manager, "shutdown", delayed_shutdown)
+    first = threading.Thread(target=service.close)
+    second = threading.Thread(target=service.close)
+    first.start()
+    assert entered.wait(timeout=5)
+    second.start()
+    second.join(timeout=0.05)
+    assert second.is_alive()
+    release.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert not service.runtime.bootstrap_file.exists()
+    assert not service.runtime.run_dir.exists()

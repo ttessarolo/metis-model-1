@@ -161,6 +161,11 @@ L'estensione Metis per VS Code sarà il client editoriale per authoring, editing
 repair, review e migrazione di endpoint reali; ogni modifica passa da toolchain,
 preview/diff e conferma umana.
 
+Il core Metis Brain v1 fissa già HTTP numerico loopback, autenticazione
+bootstrap/sessione, capability, snapshot tenant immutabili, TTL idle di 20
+minuti e compilazione pinnata. Non include ancora inferenza o integrazione
+client.
+
 L'inferenza è local-first. Fallback remoti o verso tool/modelli disponibili in
 VS Code sono policy-controlled, visibili e auditabili, mai automatici o
 silenziosi. Il contratto completo è in
@@ -168,7 +173,8 @@ silenziosi. Il contratto completo è in
 
 ## 9. Scelte deliberatamente rimandate
 
-- protocollo esatto e autenticazione fra Companion ed estensione;
+- protocollo di inferenza/streaming, pairing e workflow fra Metis Brain,
+  estensione e Metis Fast;
 - packaging, firma, updater e canale di distribuzione;
 - provider e policy del fallback remoto;
 - formato dell'artifact store per adapter e dataset;

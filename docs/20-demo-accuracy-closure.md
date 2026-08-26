@@ -160,6 +160,6 @@ therefore not met and the recorded action is `no_retrain`.
 
 This contract does **not** claim global `ACCURACY99_PROMOTED`, full endpoint
 workflow accuracy, population accuracy, tenant-data competence, live ARES
-execution, Companion delivery, VS Code integration, remote fallback,
+execution, Metis Brain delivery, VS Code integration, remote fallback,
 distribution, or Windows support. It does not promote the adapter or replace
 the frozen Accuracy-99 benchmark.

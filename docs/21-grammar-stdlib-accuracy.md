@@ -390,5 +390,5 @@ ignored and ineligible for training. T30-v3 has demonstrated the complete
 generic retrieval instruction, without replaying or relabelling a v2 task.
 This closes the bounded grammar-and-standard-library accuracy wave. It does
 not authorize an optimizer step, dataset derivation, checkpoint, package or S3
-payload change, external Metis mutation, Companion, Windows work or the
+payload change, external Metis mutation, Metis Brain product work, Windows work or the
 separate population-level `ACCURACY99_PROMOTED` claim.

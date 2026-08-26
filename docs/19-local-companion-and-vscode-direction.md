@@ -1,17 +1,17 @@
-# Direzione prodotto: Metis Companion e integrazione VS Code
+# Direzione prodotto: Metis Brain e integrazione VS Code
 
-Stato: **DIREZIONE RATIFICATA — DEMO MACOS DOPO LA CHIUSURA DELL'ACCURACY;
-WINDOWS FUORI DAL PERIMETRO CORRENTE**.
+Stato: **DIREZIONE RATIFICATA; CORE SESSIONI/COMPILER V1 IMPLEMENTATO;
+INFERENZA, APP E INTEGRAZIONE VSIX ANCORA APERTE; WINDOWS FUORI PERIMETRO**.
 
 Questo documento fissa la destinazione del prodotto affinché le wave correnti
-non ottimizzino il modello per un'interfaccia diversa da quella prevista. Non
-autorizza sviluppo applicativo, distribuzione, inferenza remota o scritture sui
-repository reali.
+non ottimizzino il modello per un'interfaccia diversa da quella prevista. Il
+core sessioni/compilatore realizzato non autorizza distribuzione, inferenza
+remota o scritture sui repository reali.
 
 ## 1. Risultato di prodotto
 
 Metis Model 1 sarà consumato nella fase di sviluppo e demo attraverso
-un'applicazione installabile su macOS, denominata qui **Metis Companion**.
+un'applicazione installabile su macOS denominata **Metis Brain**.
 L'applicazione ospiterà un servizio locale e gestirà il ciclo di vita del
 modello:
 
@@ -22,12 +22,12 @@ modello:
 - conservazione della versione precedente fino alla verifica della nuova.
 
 L'archivio S3 creato per `INITIAL_LOCAL_QLORA_V1` è un backup sigillato, non il
-canale di distribuzione dei client. Il release channel del Companion richiederà
+canale di distribuzione dei client. Il release channel di Metis Brain richiederà
 un contratto separato, firmato e verificabile.
 
 ## 2. Ruolo dell'estensione Metis per VS Code
 
-L'estensione VS Code è un client editoriale del Companion. Deve permettere a
+L'estensione VS Code è un client editoriale di Metis Brain. Deve permettere a
 Giulia e alla redazione di creare, modificare, correggere, migrare e revisionare
 endpoint Metis reali usando il workspace corrente e l'inferenza locale.
 
@@ -36,7 +36,7 @@ Il flusso di riferimento è:
 ```text
 richiesta editoriale + workspace attendibile
   -> estensione Metis VS Code
-  -> API locale versionata del Companion
+  -> API locale versionata di Metis Brain
   -> retrieval del contesto corrente
   -> base Qwen3.8 + adapter Metis
   -> parse/link/validate/compile/oracle e repair limitato
@@ -81,11 +81,11 @@ La direzione prodotto conferma la separazione fondativa:
 
 I valori tenant, gli endpoint reali e lo stato operativo non devono essere
 memorizzati nell'adapter. Questa scelta mantiene il modello aggiornabile con
-interventi piccoli e consente al Companion di lavorare su workspace differenti.
+interventi piccoli e consente a Metis Brain di lavorare su workspace differenti.
 
 ## 5. Vincoli imposti alle wave di accuracy
 
-Le decisioni prese prima dell'implementazione del Companion devono preservare:
+Le decisioni delle wave successive di Metis Brain devono preservare:
 
 1. adapter separato dal base model, versionato e disattivabile;
 2. uso del runtime MLX/MLX-VLM già qualificato come percorso della demo Mac,
@@ -103,30 +103,37 @@ Le decisioni prese prima dell'implementazione del Companion devono preservare:
 Il checkpoint corrente è qualificato con MLX/MLX-VLM su Apple Silicon: questo è
 il solo percorso richiesto per la fase di sviluppo e per la demo.
 
-Windows non è un requisito corrente e non blocca accuracy, Companion, plugin o
+Windows non è un requisito corrente e non blocca accuracy, Metis Brain, plugin o
 demo. Soltanto dopo l'approvazione del progetto si deciderà se aprire una wave
 separata per backend, packaging e parità Windows. Nessuna astrazione Windows va
 implementata preventivamente.
 
-## 7. Sicurezza minima del futuro servizio locale
+## 7. Sicurezza del servizio locale
 
 Anche un servizio limitato alla macchina locale tratta estensione e processi
-chiamanti come non attendibili. Il contratto futuro deve includere:
+chiamanti come non attendibili. Il core v1 implementa già:
 
-- bind locale o IPC privato, autenticazione/capability e protocollo versionato;
-- associazione di ogni richiesta a utente, workspace attendibile e versione;
+- bind HTTP su `127.0.0.1`, bootstrap ruotato, token di sessione, capability e
+  protocollo versionato;
+- associazione di ogni sessione a client autorizzato, alias tenant, snapshot e
+  revisione immutabile;
 - nessun path, comando, argomento o variabile d'ambiente arbitrario;
-- limiti di concorrenza, token, repair, tempo e dimensione richiesta;
-- preview, diff, conferma umana e rollback prima di modificare file reali;
+- limiti di concorrenza, sessioni, compiler, tempo e dimensione richiesta;
+- scadenza dopo 20 minuti esatti di inattività semantica, close esplicito,
+  revoca dei risultati tardivi e cleanup confinato;
 - log redatti senza credenziali, `.env` o payload tenant non autorizzati.
+
+Preview, diff, conferma umana, applicazione CAS e rollback prima di modificare
+file reali restano responsabilità dei client futuri.
 
 ## 8. Decisioni ancora aperte
 
-La direzione è ratificata; restano deliberatamente aperti fino alle wave di
-prodotto W7-W8:
+La direzione e il core session/compiler v1 sono ratificati; restano
+deliberatamente aperti fino alle wave di prodotto W7-W8:
 
-- HTTP loopback autenticato, Unix socket o altro trasporto locale Mac;
-- schema API, streaming, sessioni e protocollo di capability;
+- protocollo di inferenza condivisa, retrieval progressivo e streaming degli
+  eventi di lavoro;
+- pairing dell'app con VSIX/Metis Fast, workflow editoriale e superfici chat;
 - packaging, firma/notarizzazione, updater e release channel;
 - provider remoti ammessi e classificazione dei dati trasmissibili;
 - uno o più adapter per le diverse famiglie di task;

@@ -108,7 +108,9 @@ remains open.
 
 ### W8 — Packaging
 
-- Metis Companion installabile su macOS per sviluppo e demo;
+- **tranche consegnata:** core Metis Brain loopback con sessioni tenant,
+  capability, TTL idle 20 minuti e compiler pinnato;
+- Metis Brain installabile su macOS per sviluppo e demo;
 - acquisizione e verifica separate di base model e adapter;
 - runtime MLX/MLX-VLM Mac qualificato sul contratto semantico;
 - API locale versionata e autenticata;
@@ -178,7 +180,7 @@ Stato corrente e deadline delle decisioni non ancora ratificate:
 | O-005 | rank/alpha/LR/seed grid | RATIFICATA: 4 config, 700 step max |
 | O-006 | formato artifact store locale | RATIFICATA: local-only, atomico, cap 40 GiB |
 | O-007 | adapter unico multi-task o adapter separati | dopo il pilot W5 |
-| O-008 | protocollo Companion/VS Code e autenticazione locale Mac | prima di W8 |
+| O-008 | integrazione VSIX/Metis Fast, workflow editoriale, streaming e packaging Mac | durante W8 |
 | O-009 | policy di distribuzione oltre local-only | dopo W7, con review dedicata |
 | O-010 | percorso di manutenzione per modifiche Metis | RATIFICATA prima della prima promotion W7; applicata in W9 |
 | O-011 | split baseline-first / Accuracy-99 | RATIFICATA: W5-XS separato dalla promotion |
@@ -244,8 +246,9 @@ accuracy grammatica + standard library è chiusa mantenendo l'adapter esistente.
 Non sono richiesti né autorizzati dataset, optimizer, delta QLoRA, nuovi
 checkpoint o modifiche al payload S3. Restano separati il benchmark di
 promotion `600/563`, O-003, W5/runtime protetto e il claim statistico
-`ACCURACY99_PROMOTED`; live ARES, repository Metis esterno, Companion e Windows
-rimangono fuori perimetro.
+`ACCURACY99_PROMOTED`; live ARES, scritture al repository Metis esterno, app
+Metis Brain distribuibile, integrazioni client e Windows rimangono fuori
+perimetro.
 
 ## 8. Aggiornamento continuo
 

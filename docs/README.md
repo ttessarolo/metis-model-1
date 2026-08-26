@@ -1,9 +1,9 @@
 # Piano di Metis Model 1
 
 Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; accuracy
-catalog-domain della demo Mac chiusa dal successor fresco a 12/12 base e adapter;
-wave grammar+standard-library aperta in costruzione pre-output; direzione Mac
-Companion/VS Code ratificata ma non implementata — 25 agosto 2026**.
+catalog-domain chiusa a 12/12 e grammar+standard-library T30-v3 chiusa a 30/30
+con `NO_RETRAIN`; core sessioni/compilatore di Metis Brain implementato; inferenza,
+app installabile e integrazione VSIX/Metis Fast ancora aperte — 26 agosto 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -56,13 +56,17 @@ sempre quattro livelli epistemici:
 19. [`18-initial-local-qlora.md`](18-initial-local-qlora.md) — contratto ed
     evidenze della prima QLoRA locale consegnata.
 20. [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md)
-    — direzione della demo Mac con app/server locale ed estensione Metis VS Code.
+    — direzione della demo Mac con Metis Brain ed estensione Metis VS Code.
 21. [`20-demo-accuracy-closure.md`](20-demo-accuracy-closure.md) — gate fresco
     paired base/adapter, diagnosi V1 e chiusura V2 dell'accuracy catalog-domain
     circoscritta della demo Mac.
 22. [`21-grammar-stdlib-accuracy.md`](21-grammar-stdlib-accuracy.md) — copertura
     guidata dalla grammatica e dalla standard library, D18/T30 e percorso
     `NO_RETRAIN`/delta senza riuso degli output storici.
+23. [`22-metis-brain-session-wave.md`](22-metis-brain-session-wave.md) — piano,
+    contratto e confini del core sessioni tenant/compilatore locale v1.
+24. [`23-metis-brain-local-runbook.md`](23-metis-brain-local-runbook.md) — avvio,
+    protocollo client, health, errori e limiti del core locale Mac.
 
 ## Tesi operativa
 
@@ -87,7 +91,9 @@ l'autorità eseguibile. La formula di Model 1 è quindi:
 Questo repository, allo stato corrente, non dichiara che:
 
 - l'adapter locale consegnato costituisca una promotion Accuracy-99;
-- esistano già Companion, API locale o integrazione VS Code;
+- esistano già inferenza Brain, app installabile, chat o integrazione VSIX/Metis
+  Fast; l'API loopback session/compiler v1 esiste ma non è ancora un prodotto
+  distribuito;
 - il supporto Windows faccia parte della demo corrente;
 - il backup S3 sia un canale autorizzato di distribuzione ai client;
 - `EXPERIMENT_PLAN_READY` autorizzi inferenza, dataset o training;

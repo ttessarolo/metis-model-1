@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 0,
+    "runtime_root": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-runtime"
+  },
+  "toolchain": {
+    "metis_git_root": "/Users/tommasotessarolo/Developer/ares-matioska/metis",
+    "node_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-runtime/node-v22.22.3/bin/node",
+    "compiler_concurrency": 1
+  },
+  "tenants": [
+    {
+      "alias": "public-synthetic",
+      "tenant_id": "model1-public-synthetic",
+      "root": "/Users/tommasotessarolo/Developer/metis-model-1/fixtures/catalog-maintenance/public-synthetic-v1"
+    }
+  ],
+  "clients": [
+    {
+      "client_id": "metis-vsix",
+      "tenant_aliases": ["public-synthetic"],
+      "capabilities": ["compile", "context.read", "session.close", "session.read"]
+    },
+    {
+      "client_id": "metis-fast",
+      "tenant_aliases": ["public-synthetic"],
+      "capabilities": ["compile", "context.read", "session.close", "session.read"]
+    }
+  ],
+  "limits": {
+    "global_sessions": 16,
+    "sessions_per_client": 4,
+    "sessions_per_tenant": 8
+  }
+}
