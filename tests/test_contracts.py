@@ -59,7 +59,15 @@ def test_repository_foundation_is_valid() -> None:
     assert any(item.startswith("catalog-maintenance-successor-evidence=") for item in report.passes)
     assert "w1-w2-evidence-package=6-semantic-sidecars" in report.passes
     assert any(item.startswith("grammar-stdlib-t30-v2=adjudication/") for item in report.passes)
-    assert any(item.startswith("grammar-stdlib-t30-v3=truth/") for item in report.passes)
+    assert any(
+        item.startswith(
+            tuple(
+                f"grammar-stdlib-t30-v3={phase}/"
+                for phase in ("truth", "freeze", "evaluation", "adjudication")
+            )
+        )
+        for item in report.passes
+    )
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]

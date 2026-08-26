@@ -5487,3 +5487,23 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   authority false and full grammar plus standard-library denominators fixed at
   `10/3/12/1/10`. Exact commit, push and remote reopen are the only remaining
   prerequisites to the zero-output freeze.
+- FACT — Published preimage `3d602077419f948317c69c0b66a222137ed25555`
+  generated zero-output freeze self
+  `sha256:6adbec2a3fb97ab8b19f9756628005ea65a591bbfa4b63ed621cf4736102345b`,
+  but L0's immediate post-freeze test exposed one modified-path false red:
+  `test_repository_foundation_is_valid` hardcoded the latest v3 phase as
+  `truth` although the validator correctly reported `freeze`. Run directory,
+  evaluation and adjudication remained absent; model calls/training stayed `0`.
+- STOP — The first freeze was not committed, pushed or consumed and was moved
+  intact outside the repository. Its preimage is obsolete because the
+  phase-aware assertion belongs to the bound test surface.
+- FIX — Foundation tests now accept only the ordered ratified v3 phase names
+  `truth`, `freeze`, `evaluation` or `adjudication`, while retaining the full
+  grammar/stdlib denominator suffix. Focused/full gates and a new exact
+  preimage publication must precede regeneration of the zero-output freeze.
+- DONE — Phase-assertion cure is green at focused `123/123`, foundation
+  `70/0`, pilot/lint/format/diff and mandatory broad
+  `1456 passed, 102 failed, 1 skipped`. Failures reproduce exactly the
+  inherited Oracle `31`, bridge `25`, qualifier `46` host clusters; the cured
+  foundation assertion and every modified/T30-v3 path have regressions `0`.
+  A new exact preimage commit/push/reopen may now precede freeze regeneration.
