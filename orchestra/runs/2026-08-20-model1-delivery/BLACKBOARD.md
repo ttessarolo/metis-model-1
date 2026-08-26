@@ -5507,3 +5507,34 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   inherited Oracle `31`, bridge `25`, qualifier `46` host clusters; the cured
   foundation assertion and every modified/T30-v3 path have regressions `0`.
   A new exact preimage commit/push/reopen may now precede freeze regeneration.
+- FACT — Regenerated freeze on published preimage
+  `26afea21405f5673d1653e3a1bdab3737569f80a` closes both independent audits
+  at `P0=0 P1=0 P2=0`, self
+  `sha256:f4c2f36256ba109148fbb1b7881c4faa99f8e445ceb3a00e4d0236dc86804df1`,
+  raw
+  `sha256:8ba4dbb8940834e21d45820c4d06cbf7658678b167905b5b91516ce67a2b1d60`,
+  bound `41/41` and zero output. Phase-aware foundation and focused gates are
+  green; the freeze was never published or consumed.
+- STOP — L0's post-audit bound-roster completeness check finds that the 41
+  inputs omit `src/metis_model1/contracts.py` and `tests/test_contracts.py`,
+  the exact implementation and regression surface for mandatory live replay
+  and Git lineage. That would permit a post-freeze gate weakening. The second
+  freeze was moved intact outside the repository and is obsolete.
+- FIX — T30-v3 now binds both validator files explicitly and tests their
+  presence and path uniqueness. A new preimage and regenerated 43-input freeze
+  are mandatory before the one-shot; grammar, standard library, truth, model
+  weights and output count remain unchanged.
+- DONE — Bound-roster cure closes at `43/43` unique paths with
+  `src/metis_model1/contracts.py` and `tests/test_contracts.py` present.
+  Focused T30/contracts tests remain `123/123`, foundation remains `70/0`, and
+  the mandatory broad gate completes at `1456 passed, 102 failed, 1 skipped`.
+  A fresh `--last-failed --collect-only` reconstruction identifies exactly the
+  inherited Oracle `31`, bridge `25`, qualifier `46` clusters; modified and
+  T30-v3 regressions remain `0`.
+- DONE — Independent read-only standard-library census by declared lower-cost
+  model `gpt-5.6-luna` closes `P0=0 P1=0 P2=0`: fresh roster/truth are
+  `30/30/30`, families `5x6`, grammar top-levels `10/10`, stdlib modules
+  `3/3` (`time=17`, `text=9`, `codec=7`), members `12/12` with minimum
+  occurrence `3`, `time.timezone=7`, interactions `10/10`, and the final gate
+  credits only successful rows with minimum occurrence `2`. This is pre-output
+  roster evidence, not a model-accuracy claim; model calls/training remain `0`.

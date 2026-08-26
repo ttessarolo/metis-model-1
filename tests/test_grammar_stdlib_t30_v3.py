@@ -106,7 +106,9 @@ def test_v3_binds_v2_terminal_chain_and_fresh_wrapper_inputs() -> None:
         "manifests/grammar-stdlib-accuracy-t30-evaluation-v2.json",
         "manifests/grammar-stdlib-accuracy-t30-human-review-v2.json",
         "manifests/grammar-stdlib-accuracy-t30-adjudication-v2.json",
+        "src/metis_model1/contracts.py",
         "src/metis_model1/grammar_stdlib_t30_v3.py",
+        "tests/test_contracts.py",
         "tests/test_grammar_stdlib_t30_v3.py",
     }
     assert required.issubset(v3.SUCCESSOR_BOUND_PATHS)
