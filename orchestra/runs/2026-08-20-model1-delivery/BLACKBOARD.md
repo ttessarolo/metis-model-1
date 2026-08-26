@@ -5590,3 +5590,28 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   `FOUNDATION VALID passes=70 errors=0 files=391`, recognizing phase
   `evaluation/30-fresh/10-top-levels/3-modules/12-members/10-interactions/no-training`.
   Evaluation and review receipt may now be committed and pushed together.
+- FACT — Final L0 adjudication is self-consistent at
+  `sha256:ff94f7df6445d5642b388cfc190984f4fc12decb5fe9973cab3509e0a551f81c`
+  (raw
+  `sha256:923a23e3db1ee15194d17edea4b7d0e83bf280a806a6c1614fd567833a0c7c41`)
+  and binds the published freeze `1e5281cf`, evaluation `aac49be9`/`b84803a6`
+  and exact review receipt `8823478b`; training and delta remain false.
+- DONE — Terminal adapter result is `30/30` distinct successful tasks, six
+  families at `5/5`, `15/15 ACCEPT` preregistered reviews, critical failures
+  `0`, paired regressions `0` and every final gate true. Successful coverage is
+  `10/3/12/1/10`, with minimum occurrence counts `2/7/3/7/2`; this is observed
+  semantic coverage, not metadata-only credit.
+- DECISION — `GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN`. Retain the current
+  step-50 adapter: the one generic retrieval instruction closes the sole v2
+  failure root, so no dataset, optimizer run, delta QLoRA, checkpoint or S3
+  payload change is required. This closes the bounded grammar+stdlib wave, not
+  the separate `600/563` population/promotion claim.
+- FACT — Final `make check` reaches foundation `70/0`, pilot contracts valid,
+  lint green and format `208/208`. Its broad pytest repeat is deliberately
+  interrupted after `3:06:40` at `689 passed, 32 failed` and `46%`: the 32
+  observed failures are the inherited external-dirty Metis check `1` plus
+  protected-broker Oracle cluster `31`; T30-v3 and modified-path failures are
+  `0`. This partial repeat is not reported as a complete broad pass. The last
+  complete broad evidence remains `1456 passed, 102 failed, 1 skipped` with
+  exact inherited Oracle `31`, bridge `25`, qualifier `46` and modified/T30-v3
+  regressions `0`.

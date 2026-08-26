@@ -225,28 +225,27 @@ grammatica e della standard library restano coperti dai task riusciti
 sotto la soglia `3 task / 2 famiglie / 2 root`: nessun retraining o delta QLoRA
 è autorizzato e nessun output v2 diventa dato o label.
 
-La cura minima attiva modifica soltanto retrieval/prompt: la sintassi compatta
+La cura minima ha modificato soltanto retrieval/prompt: la sintassi compatta
 `attributes` vale per una sola assegnazione; con due o più assegnazioni serve il
-gruppo tra parentesi graffe. T30-v3 ricostruisce da zero `30=5x6` task e mantiene come
-assi obbligatori i dieci top-level, i tre moduli standard-library, i dodici
-membri pubblici, `time.timezone` e le dieci classi d'interazione. Il gate finale
-richiede almeno due task riusciti per ogni elemento, non la sola presenza nella
-metadata dichiarata.
+gruppo tra parentesi graffe. T30-v3 ha quindi ricostruito da zero `30=5x6` task
+disgiunti da D18/v1/v2, mantenendo invariati grammatica, standard library,
+modello base e adapter step-50.
 
-La truth v3 è fissata dal clone Metis pulito e dal Node pinnato: `30/30/30`, zero
-gap, cinque task per famiglia, self-hash
-`sha256:e49d6bf71465ea6832afa57ed7e22b8b8970199847e204804ccf2773ac04d5c5`.
-Task, messaggi, content root e target semantici sono disgiunti da D18/v1/v2;
-due target F-1 esercitano gruppi multi-attributo reali. Non esistono ancora
-freeze, run o output v3. I mutation gate sono chiusi con replay semantico live
-obbligatorio per ogni futura evaluation e lineage Git fino al run HEAD. Il
-preimage è pronto: deve essere committato, pubblicato e riaperto esattamente;
-solo allora può essere creato il sigillo zero-output e consumata l'unica coppia
-base/adapter.
+La singola one-shot ha prodotto base `30/30` e adapter `30/30`; entrambi sono
+`20/20` sul denominatore automatico, senza critical failure né regressioni
+accoppiate. Le quindici review preregistrate sono `15/15 ACCEPT`; il risultato
+terminale dell'adapter è `30/30`, con ogni famiglia a `5/5`. I task riusciti
+coprono i dieci top-level, i tre moduli standard-library, i dodici membri,
+`time.timezone` e le dieci classi d'interazione (`10/3/12/1/10`), con almeno
+due occorrenze riuscite per ogni elemento.
 
-Il mandato corrente autorizza costruzione, sigillo e inferenza locale T30-v3.
-Nuovi download, privilegi, live ARES, upload di payload e promotion restano
-esclusi; il repository Metis esterno resta strettamente read-only.
+Il verdetto è `GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN`: la wave bounded di
+accuracy grammatica + standard library è chiusa mantenendo l'adapter esistente.
+Non sono richiesti né autorizzati dataset, optimizer, delta QLoRA, nuovi
+checkpoint o modifiche al payload S3. Restano separati il benchmark di
+promotion `600/563`, O-003, W5/runtime protetto e il claim statistico
+`ACCURACY99_PROMOTED`; live ARES, repository Metis esterno, Companion e Windows
+rimangono fuori perimetro.
 
 ## 8. Aggiornamento continuo
 

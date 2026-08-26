@@ -1,7 +1,7 @@
 # Grammar and standard-library accuracy
 
 Status: **D18 CLOSED NO_RETRAIN — T30-v1 DIAGNOSED — T30-v2 CLOSED 29/30
-DIAGNOSE — PROMPT-ONLY T30-v3 CURE ACTIVE**.
+DIAGNOSE — T30-v3 CLOSED 30/30 PASS_NO_RETRAIN**.
 
 This wave closes the largest known limitation of the delivered local adapter:
 its optimizer saw a narrow catalog-domain training slice, not the complete
@@ -323,6 +323,35 @@ The bounded T30 gate requires:
 This is a bounded product-coverage result, not the separate 600-task/563-root
 `ACCURACY99_PROMOTED` population claim.
 
+T30-v3 applies only the generic retrieval instruction learned from the v2
+diagnosis: unbraced `attributes` is valid for one assignment, while two or
+more assignments require a braced group. It keeps the same pinned grammar,
+standard library, base model and step-50 adapter, and uses a wholly fresh
+`30=5x6` public-synthetic roster disjoint from D18, v1 and v2.
+
+The published one-shot produced `30/30` distinct non-empty base outputs and
+`30/30` distinct non-empty adapter outputs. Both sides pass the automatic
+denominator at `20/20`, with zero critical failures and zero paired
+regressions. L0 adjudication accepts all fifteen preregistered F-2/F-5/F-6
+reviews and closes the adapter at `30/30`, with every family at `5/5`.
+Successful rows cover all ten grammar top levels, all three standard-library
+modules, all twelve public members, `time.timezone`, and all ten interaction
+classes; their minimum successful occurrence counts are respectively
+`2/7/3/7/2`.
+
+The terminal adjudication is
+`GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN`, self-hash
+`sha256:ff94f7df6445d5642b388cfc190984f4fc12decb5fe9973cab3509e0a551f81c`
+and raw file hash
+`sha256:923a23e3db1ee15194d17edea4b7d0e83bf280a806a6c1614fd567833a0c7c41`.
+It binds freeze self-hash
+`sha256:1e5281cfef947aff6c274780359834dc2b91e081121997b20705311472b8ca93`,
+evaluation self-hash
+`sha256:aac49be943cad4a7dc4e2d7a754b42137a2520c360a92a1eeb242161a7ec08c2`
+and the exact `15/15 ACCEPT` review receipt. The existing adapter is retained;
+no dataset, optimizer run, delta QLoRA, checkpoint or model payload change is
+authorized or required.
+
 ### G3 — conditional delta QLoRA
 
 T30-v2 establishes only one task, one family and one independent failure root,
@@ -354,13 +383,12 @@ retrieval-owned and are never memorized merely to improve a benchmark score.
 
 ## Current authority boundary
 
-At this document state D18 is closed as `NO_RETRAIN`; T30-v1 and T30-v2 are
-immutable benchmark diagnoses. Their outputs remain ignored and ineligible for
-training. The only active accuracy path is a fresh T30-v3 successor using the
-same pinned grammar, standard library, base and adapter plus one generic
-retrieval instruction: unbraced `attributes` is allowed for exactly one
-assignment, while two or more assignments require a braced group. T30-v3 must
-re-demonstrate the complete `10/3/12/1/10` grammar/stdlib denominator and may
-not replay or relabel a v2 task. No optimizer step, dataset derivation,
-checkpoint, package or S3 payload change, external Metis mutation, Companion,
-Windows work or population-accuracy promotion is authorized.
+At this document state D18 and T30-v3 are closed as `NO_RETRAIN`; T30-v1 and
+T30-v2 remain immutable benchmark diagnoses. All benchmark outputs remain
+ignored and ineligible for training. T30-v3 has demonstrated the complete
+`10/3/12/1/10` grammar/stdlib denominator with the existing adapter and the
+generic retrieval instruction, without replaying or relabelling a v2 task.
+This closes the bounded grammar-and-standard-library accuracy wave. It does
+not authorize an optimizer step, dataset derivation, checkpoint, package or S3
+payload change, external Metis mutation, Companion, Windows work or the
+separate population-level `ACCURACY99_PROMOTED` claim.
