@@ -5615,3 +5615,10 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   complete broad evidence remains `1456 passed, 102 failed, 1 skipped` with
   exact inherited Oracle `31`, bridge `25`, qualifier `46` and modified/T30-v3
   regressions `0`.
+- DONE — Closure commit `75f1f81aeae5d88e65e6fcb4451e5d8291cfeefd`, tree
+  `3df8fca4a7959fe09f784aac8aba549f59dbcbc6`, is pushed with local,
+  tracking and `ls-remote` heads exact. Reopening the adjudication from the Git
+  blob reproduces raw `923a23e3`, self `ff94f7df`, verdict
+  `GRAMMAR_STDLIB_T30_V3_PASS_NO_RETRAIN`, `30/30` and training/delta false;
+  all `43/43` freeze-bound inputs still match their recorded Git blob OIDs with
+  drift `0`.
