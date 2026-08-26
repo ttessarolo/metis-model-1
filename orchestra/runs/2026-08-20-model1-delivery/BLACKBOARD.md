@@ -5538,3 +5538,21 @@ IN PROGRESS — delivery wave opened; no promotion verdict yet.
   occurrence `3`, `time.timezone=7`, interactions `10/10`, and the final gate
   credits only successful rows with minimum occurrence `2`. This is pre-output
   roster evidence, not a model-accuracy claim; model calls/training remain `0`.
+- FACT — Third freeze generated on exact published preimage
+  `89e2e760b93a8af8b2cc874b8b0954a8780f32cc`, tree
+  `6612a66e07772478ce63c77557f437f4adab1617`: self
+  `sha256:1e5281cfef947aff6c274780359834dc2b91e081121997b20705311472b8ca93`,
+  raw
+  `sha256:c1c8ca4fad3eab1d84a50e850060b002678148487cda91770d5f0698b736256c`,
+  `43/43` unique bound inputs including `contracts.py` and
+  `test_contracts.py`, and zero model output. Local, tracking and `ls-remote`
+  preimage commits are exact; clean Metis clone remains at `c1aca0f6`.
+- DONE — Disjoint read-only freeze audits by declared `gpt-5.6-luna` (hash,
+  lineage and all bound blobs) and `gpt-5.6-terra` with delegated
+  `gpt-5.6-luna` census (contract, grammar and stdlib) close
+  `P0=0 P1=0 P2=0`. Foundation is `70/0`, focused suite `123/123`, truth is
+  `30/30/30` and coverage remains preregistered at `10/3/12/1/10`.
+- STOP — The minimum-two successful-coverage rule is only preregistered at
+  freeze; it is not yet an accuracy claim. Run/inference remains prohibited
+  until this freeze is committed, pushed and reopened byte-exactly. Training
+  and delta QLoRA remain unauthorized.
