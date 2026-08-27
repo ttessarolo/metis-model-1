@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-semantics-source-manifest.schema.json",
+  "title": "Video semantic grounding canonical source manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "semantic_source_revision", "sources"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "video-semantics/sources-v1"},
+    "semantic_source_revision": {"$ref": "#/$defs/hash"},
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/source"}
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id", "source_ref", "kind", "identity_storage", "repository_commit",
+        "tenant", "catalog", "sensitivity", "manifest_schema", "content_sha256"
+      ],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/opaque"},
+        "source_ref": {"$ref": "#/$defs/opaque"},
+        "kind": {"enum": ["reserved_editorial", "catalog", "valueset", "live_census", "validated_usage", "oracle", "synthetic_fixture"]},
+        "identity_storage": {"enum": ["local-confidential-receipt", "repository-manifest", "public-synthetic"]},
+        "repository_commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "tenant": {"$ref": "#/$defs/opaque"},
+        "catalog": {"$ref": "#/$defs/opaque"},
+        "sensitivity": {"enum": ["internal_editorial", "internal_aggregate", "public_synthetic"]},
+        "manifest_schema": {"const": 1},
+        "content_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

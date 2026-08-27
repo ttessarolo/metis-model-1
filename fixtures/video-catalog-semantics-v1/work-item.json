@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_item_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "node_kind": "field",
+  "canonical_locator": {
+    "repository_commit": "1111111111111111111111111111111111111111",
+    "path": "catalogs/video.metis",
+    "catalog": "video",
+    "field_path": "visual.tone",
+    "literal": null,
+    "preimage_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "technical": {"type": "keyword", "modifiers": [], "domain_kind": "enum", "declared_cardinality": 1, "observed_cardinality": 1},
+  "candidate": {"means": "Synthetic monochrome visual property.", "aka": ["black-and-white"], "review_state": "draft"},
+  "editorial_rules": {"include_when": [], "exclude_when": [], "scope": ["video"], "dependencies": [], "constraint_gaps": []},
+  "evidence_refs": ["synthetic-page-001"],
+  "ambiguities": [],
+  "author": "synthetic-run-001",
+  "reviewer": null
+}

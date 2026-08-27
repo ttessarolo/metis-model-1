@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-catalog-census-profile.schema.json",
+  "title": "Allowlisted video catalog read-only census profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "profile_revision", "tenant_ref", "catalog_ref", "alias_ref", "index_ref", "pit_keep_alive", "operations", "fields"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile_id": {"const": "video-semantics-census-v1"},
+    "profile_revision": {"$ref": "#/$defs/hash"},
+    "tenant_ref": {"$ref": "#/$defs/opaque"},
+    "catalog_ref": {"$ref": "#/$defs/opaque"},
+    "alias_ref": {"$ref": "#/$defs/opaque"},
+    "index_ref": {"$ref": "#/$defs/opaque"},
+    "pit_keep_alive": {"type": "string", "pattern": "^[1-9][0-9]{0,2}[smh]$"},
+    "operations": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["resolve_index", "mapping", "field_caps", "pit_open", "search_aggregate", "pit_close"]}
+    },
+    "fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/field"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "field": {
+      "type": "object", "additionalProperties": false,
+      "required": ["field_path", "mapping_type", "nested_path", "capability", "multi_valued", "cardinality_cap", "max_pages", "page_size", "max_literal_bytes"],
+      "properties": {
+        "field_path": {"type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._@+/-]+$"},
+        "mapping_type": {"type": "string", "minLength": 1, "maxLength": 64},
+        "nested_path": {"type": ["string", "null"], "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._@+/-]+$", "maxLength": 512},
+        "capability": {"enum": ["metadata-only", "aggregate-counts", "enumerate-finite-values", "open-no-values", "deny"]},
+        "multi_valued": {"enum": ["observed", "declared", "unknown"]},
+        "cardinality_cap": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "max_pages": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "page_size": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "max_literal_bytes": {"type": "integer", "minimum": 1, "maximum": 1048576}
+      }
+    }
+  }
+}

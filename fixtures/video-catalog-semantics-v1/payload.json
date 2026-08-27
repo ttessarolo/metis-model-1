@@ -1,0 +1,7 @@
+{
+  "fixture_id": "synthetic-video-v1",
+  "records": [
+    {"id": "synthetic-001", "visual_tone": "monochrome"},
+    {"id": "synthetic-002", "visual_tone": "colour"}
+  ]
+}

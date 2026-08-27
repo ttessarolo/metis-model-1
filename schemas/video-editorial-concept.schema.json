@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-editorial-concept.schema.json",
+  "title": "Video editorial concept extracted from an approved source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "concept_id", "editorial_source_ref", "source_locator", "editorial_variant", "scope", "source_label", "definition", "include_when", "exclude_when", "cardinality", "parents", "children", "dependencies", "exclusive_with", "examples", "source_quality", "notes", "review_state"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "concept_id": {"$ref": "#/$defs/hash"},
+    "editorial_source_ref": {"$ref": "#/$defs/opaque"},
+    "source_locator": {"$ref": "#/$defs/opaque"},
+    "editorial_variant": {"enum": ["scope-a", "scope-b", "scope-c", "shared"]},
+    "scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/opaque"}},
+    "source_label": {"type": "string", "minLength": 1, "maxLength": 256},
+    "definition": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "include_when": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "exclude_when": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "cardinality": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "min", "max"],
+      "properties": {
+        "kind": {"enum": ["one", "max", "range", "unbounded", "conditional"]},
+        "min": {"type": "integer", "minimum": 0},
+        "max": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "parents": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+    "children": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+    "dependencies": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+    "exclusive_with": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+    "examples": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 512}},
+    "source_quality": {"enum": ["explicit", "partial", "contradictory", "inferred"]},
+    "notes": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "review_state": {"enum": ["unannotated", "draft", "reviewed"]}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"}
+  }
+}

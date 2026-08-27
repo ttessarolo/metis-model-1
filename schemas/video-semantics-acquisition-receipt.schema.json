@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-semantics-acquisition-receipt.schema.json",
+  "title": "Video semantic grounding acquisition receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "manifest_sha256", "source_id", "status", "acquired_at", "duration_ms", "run_id", "runtime", "counts", "receipt_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "receipt_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "manifest_sha256": {"$ref": "#/$defs/hash"},
+    "source_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "status": {"enum": ["VALID", "PARTIAL", "DENIED", "INCONSISTENT", "BLOCKED"]},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "duration_ms": {"type": "integer", "minimum": 0, "maximum": 86400000},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,96}$"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "tool_version"],
+      "properties": {
+        "python": {"type": "string", "minLength": 1, "maxLength": 64},
+        "tool_version": {"type": "string", "minLength": 1, "maxLength": 128}
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items_in", "items_out", "items_distinct", "items_gaps"],
+      "properties": {
+        "items_in": {"type": "integer", "minimum": 0},
+        "items_out": {"type": "integer", "minimum": 0},
+        "items_distinct": {"type": "integer", "minimum": 0},
+        "items_gaps": {"type": "integer", "minimum": 0}
+      }
+    },
+    "receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+}

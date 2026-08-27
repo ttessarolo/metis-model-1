@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-catalog-census-receipt.schema.json",
+  "title": "Video catalog census receipt",
+  "type": "object",
+  "oneOf": [{"$ref": "#/$defs/offline_contract"}, {"$ref": "#/$defs/live_census"}],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "state_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["complete", "partial", "denied", "non_aggregatable", "inconsistent"],
+      "properties": {
+        "complete": {"type": "integer", "minimum": 0}, "partial": {"type": "integer", "minimum": 0},
+        "denied": {"type": "integer", "minimum": 0}, "non_aggregatable": {"type": "integer", "minimum": 0},
+        "inconsistent": {"type": "integer", "minimum": 0}
+      }
+    },
+    "offline_contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "evidence_scope", "contract_id", "profile_id", "profile_revision", "tenant_ref", "catalog_ref", "alias_ref", "index_ref", "protocol_mode", "atomicity_claim", "snapshot_ref", "live_evidence", "attestation", "live_attestation_claim", "execution", "status", "field_count", "transport_calls", "deny_before_network", "leak_findings", "query_count", "query_hashes", "state_counts", "values_redacted", "field_result_sha256", "artifact_sha256", "nonclaims", "receipt_sha256"],
+      "properties": {
+        "schema_version": {"const": 1}, "evidence_scope": {"const": "offline_contract"},
+        "contract_id": {"const": "video-census-bridge-p4a-v1"}, "profile_id": {"const": "video-semantics-census-v1"},
+        "profile_revision": {"$ref": "#/$defs/hash"}, "tenant_ref": {"$ref": "#/$defs/opaque"},
+        "catalog_ref": {"$ref": "#/$defs/opaque"}, "alias_ref": {"$ref": "#/$defs/opaque"}, "index_ref": {"$ref": "#/$defs/opaque"},
+        "protocol_mode": {"const": "pit"}, "atomicity_claim": {"const": false}, "snapshot_ref": {"const": null},
+        "live_evidence": {"const": false}, "attestation": {"const": "not_performed"}, "live_attestation_claim": {"const": false},
+        "execution": {"const": "offline_fake_transport"},
+        "status": {"enum": ["OFFLINE_CONTRACT_VALID", "OFFLINE_CONTRACT_PARTIAL"]}, "field_count": {"type": "integer", "minimum": 1},
+        "transport_calls": {"type": "integer", "minimum": 0}, "deny_before_network": {"type": "integer", "minimum": 0},
+        "leak_findings": {"const": 0}, "query_count": {"type": "integer", "minimum": 0},
+        "query_hashes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+        "state_counts": {"$ref": "#/$defs/state_counts"}, "values_redacted": {"const": true},
+        "field_result_sha256": {"$ref": "#/$defs/hash"}, "artifact_sha256": {"$ref": "#/$defs/hash"},
+        "nonclaims": {"const": ["no_live_census", "no_live_snapshot", "no_mapping_evidence", "no_document_evidence", "no_attestation"]},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "live_census": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "evidence_scope", "receipt_id", "profile_id", "tenant_ref", "catalog_ref", "alias_ref", "index_ref", "mode", "snapshot_ref", "mapping_sha256_before", "mapping_sha256_after", "document_count_before", "document_count_after", "field_roster_count", "query_count", "query_hashes", "state_counts", "started_at", "ended_at", "status", "values_redacted", "artifact_sha256", "attestation", "receipt_sha256"],
+      "properties": {
+        "schema_version": {"const": 1}, "evidence_scope": {"const": "live_census"},
+        "receipt_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+        "profile_id": {"const": "video-semantics-census-v1"}, "tenant_ref": {"$ref": "#/$defs/opaque"},
+        "catalog_ref": {"$ref": "#/$defs/opaque"}, "alias_ref": {"$ref": "#/$defs/opaque"}, "index_ref": {"$ref": "#/$defs/opaque"},
+        "mode": {"enum": ["pit", "equivalent_snapshot", "single_bounded_request"]}, "snapshot_ref": {"$ref": "#/$defs/opaque"},
+        "mapping_sha256_before": {"$ref": "#/$defs/hash"}, "mapping_sha256_after": {"$ref": "#/$defs/hash"},
+        "document_count_before": {"type": "integer", "minimum": 0}, "document_count_after": {"type": "integer", "minimum": 0},
+        "field_roster_count": {"type": "integer", "minimum": 0}, "query_count": {"type": "integer", "minimum": 0},
+        "query_hashes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
+        "state_counts": {"$ref": "#/$defs/state_counts"}, "started_at": {"type": "string", "format": "date-time"},
+        "ended_at": {"type": "string", "format": "date-time"},
+        "status": {"enum": ["VALID", "NON_ATOMIC", "INCONSISTENT", "BLOCKED_INCONSISTENT", "DENIED", "PARTIAL"]},
+        "values_redacted": {"const": true}, "artifact_sha256": {"$ref": "#/$defs/hash"},
+        "attestation": {"enum": ["signed_read_only", "out_of_band_signed"]}, "receipt_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

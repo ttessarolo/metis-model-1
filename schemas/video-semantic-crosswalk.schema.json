@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-semantic-crosswalk.schema.json",
+  "title": "Video editorial to technical semantic crosswalk",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "crosswalk_id", "semantic_source_revision", "rows"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "crosswalk_id": {"const": "video-semantics/crosswalk-v1"},
+    "semantic_source_revision": {"$ref": "#/$defs/hash"},
+    "rows": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/row"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "row": {
+      "type": "object", "additionalProperties": false,
+      "required": ["concept_id", "canonical_locator", "literal", "relation", "field_status", "rationale", "evidence_refs", "validated_usages", "decision_required", "reviewer", "decision_state"],
+      "properties": {
+        "concept_id": {"$ref": "#/$defs/hash"},
+        "canonical_locator": {"$ref": "#/$defs/opaque"},
+        "literal": {"type": ["string", "null"], "maxLength": 1024},
+        "relation": {"enum": ["exact", "renamed", "synonym", "split", "merged", "absent", "conflict", "unresolved"]},
+        "field_status": {"enum": ["declared-observed", "declared-unobserved", "live-only", "legacy-aggregate", "absent", "conflict", "unresolved"]},
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/opaque"}},
+        "validated_usages": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/opaque"}},
+        "decision_required": {"type": "boolean"},
+        "reviewer": {"type": ["string", "null"], "maxLength": 128},
+        "decision_state": {"enum": ["provisional", "reviewed", "needs-decision", "rejected"]}
+      }
+    }
+  }
+}

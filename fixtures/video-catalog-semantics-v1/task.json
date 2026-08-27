@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "V-1-01",
+  "leakage_group": "synthetic-group-001",
+  "family": "V-1",
+  "request": "Select the synthetic monochrome videos.",
+  "scope": {"tenant_ref": "synthetic-tenant-v1", "catalog_ref": "video"},
+  "target": {"source": "endpoint synthetic { filter visual.tone == \"monochrome\" }", "required_fragments": ["visual.tone"], "forbidden_fragments": ["title"]},
+  "expected": {
+    "catalog_refs": ["video"],
+    "field_refs": ["visual.tone"],
+    "literal_refs": ["monochrome"],
+    "semantic_refs": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"]
+  },
+  "behavior": "resolve",
+  "semantic_refs": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+  "oracle": {"parse": true, "link": true, "validate": true, "compile": true, "semantic": ["exact-field-match"]},
+  "patch_regions": ["catalogs/video.metis"],
+  "criticality": "normal",
+  "provenance": {
+    "source_revision": "sha256:b8203704211f582302e69d7bfff6930ca064b0f550f7dba1abc376bf098cc095",
+    "constraint_revision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "grammar_revision": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "toolchain_revision": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "base_model_ref": "synthetic-base-v1",
+    "adapter_ref": null,
+    "tokenizer_ref": "synthetic-tokenizer-v1"
+  },
+  "limits": {"max_tokens": 512, "max_repair_cycles": 2, "timeout_ms": 30000}
+}

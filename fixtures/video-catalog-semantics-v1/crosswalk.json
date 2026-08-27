@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "crosswalk_id": "video-semantics/crosswalk-v1",
+  "semantic_source_revision": "sha256:b8203704211f582302e69d7bfff6930ca064b0f550f7dba1abc376bf098cc095",
+  "rows": [
+    {
+      "concept_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "canonical_locator": "video.visual.tone",
+      "literal": "monochrome",
+      "relation": "exact",
+      "field_status": "declared-observed",
+      "rationale": "Synthetic concept and field use the same fixture term.",
+      "evidence_refs": ["synthetic-page-001"],
+      "validated_usages": ["synthetic-usage-001"],
+      "decision_required": false,
+      "reviewer": "synthetic-reviewer",
+      "decision_state": "reviewed"
+    }
+  ]
+}

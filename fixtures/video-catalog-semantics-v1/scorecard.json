@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "scorecard_id": "video-semantics/scorecard-v1",
+  "evidence_scope": "synthetic_contract",
+  "evaluation_status": "not_evaluated",
+  "benchmark_revision": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "task_roster_revision": null,
+  "roster_complete": false,
+  "variants": ["B0", "B1", "D0", "D1"],
+  "overall": {"passed": 0, "total": 1, "wilson95": [0.0, 0.7934506856227624]},
+  "families": [
+    {"family": "V-1", "variant": "B0", "score": {"passed": 0, "total": 1, "wilson95": [0.0, 0.7934506856227624]}}
+  ],
+  "critical": {"total": 12, "passed": 0, "failed": 0},
+  "error_taxonomy": {"not_evaluated": 0},
+  "reproducibility": {"seed_policy": "sha256(benchmark_revision||task_id||variant)", "permutation_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "same_context": true, "model_outputs_redacted": true},
+  "policy": {"accuracy99_claim": false, "training_authority": false, "raw_outputs_present": false, "thresholds_ratified": false},
+  "nonclaims": ["not_evaluated", "incomplete_roster", "no_accuracy99_claim", "no_training_authority"],
+  "receipt_sha256": "sha256:b55a74f892a3b75ba100239a7713b7585ff8639aab2a4908c6b9dc9006eac1cd"
+}

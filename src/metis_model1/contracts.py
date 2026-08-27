@@ -90,6 +90,10 @@ CONTRACT_PAIRS = (
         "manifests/initial-local-qlora-baseline-reuse-v1.json",
     ),
     ("schemas/accuracy-uplift-plan.schema.json", "manifests/accuracy-uplift-plan.json"),
+    (
+        "schemas/video-semantics-source-manifest.schema.json",
+        "manifests/video-semantics-sources-v1.json",
+    ),
 )
 
 STANDALONE_SCHEMAS = (
@@ -114,6 +118,15 @@ STANDALONE_SCHEMAS = (
     "schemas/w3-semantic-spec.schema.json",
     "schemas/w3-source-register.schema.json",
     "schemas/w3-run.schema.json",
+    "schemas/video-semantics-acquisition-receipt.schema.json",
+    "schemas/video-editorial-concept.schema.json",
+    "schemas/video-semantic-work-item.schema.json",
+    "schemas/video-semantic-crosswalk.schema.json",
+    "schemas/video-editorial-constraint.schema.json",
+    "schemas/video-catalog-census-profile.schema.json",
+    "schemas/video-catalog-census-receipt.schema.json",
+    "schemas/video-grounding-task.schema.json",
+    "schemas/video-grounding-scorecard.schema.json",
 )
 
 REQUIRED_FOUNDATION_PATHS = (
@@ -140,6 +153,9 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/catalog_maintenance_successor.py",
     "src/metis_model1/catalog_maintenance_successor_evidence.py",
     "src/metis_model1/maintenance_decision.py",
+    "src/metis_model1/video_semantics_contracts.py",
+    "src/metis_model1/video_grounding_benchmark.py",
+    "src/metis_model1/video_census_bridge.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -154,6 +170,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/19-local-companion-and-vscode-direction.md",
     "docs/20-demo-accuracy-closure.md",
     "docs/21-grammar-stdlib-accuracy.md",
+    "docs/24-video-catalog-semantic-grounding-wave.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -179,6 +196,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/catalog-maintenance-probe-evaluation-v1.json",
     "manifests/catalog-maintenance-probe-decision-v1.json",
     "manifests/accuracy-uplift-plan.json",
+    "manifests/video-semantics-sources-v1.json",
     "schemas/catalog-maintenance-probe.schema.json",
     "schemas/catalog-maintenance-probe-freeze.schema.json",
     "schemas/catalog-maintenance-probe-evaluation.schema.json",
@@ -205,6 +223,25 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/catalog-maintenance-successor-decision.schema.json",
     "schemas/initial-local-qlora-plan.schema.json",
     "schemas/initial-local-qlora-baseline-reuse.schema.json",
+    "schemas/video-semantics-source-manifest.schema.json",
+    "schemas/video-semantics-acquisition-receipt.schema.json",
+    "schemas/video-editorial-concept.schema.json",
+    "schemas/video-semantic-work-item.schema.json",
+    "schemas/video-semantic-crosswalk.schema.json",
+    "schemas/video-editorial-constraint.schema.json",
+    "schemas/video-catalog-census-profile.schema.json",
+    "schemas/video-catalog-census-receipt.schema.json",
+    "schemas/video-grounding-task.schema.json",
+    "schemas/video-grounding-scorecard.schema.json",
+    "fixtures/video-catalog-semantics-v1/concept.json",
+    "fixtures/video-catalog-semantics-v1/work-item.json",
+    "fixtures/video-catalog-semantics-v1/crosswalk.json",
+    "fixtures/video-catalog-semantics-v1/constraint.json",
+    "fixtures/video-catalog-semantics-v1/profile.json",
+    "fixtures/video-catalog-semantics-v1/census-receipt.json",
+    "fixtures/video-catalog-semantics-v1/task.json",
+    "fixtures/video-catalog-semantics-v1/scorecard.json",
+    "fixtures/video-catalog-semantics-v1/payload.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-enum3.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-open.json",
     "fixtures/catalog-maintenance/probe-v1/cases/author-inline-tiny.json",
@@ -288,6 +325,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-20-accuracy-99-pilot/KIMI-ACCURACY99-AUDIT.md",
     "orchestra/runs/2026-08-20-accuracy-99-pilot/W1-STRUCTURAL-PATH.md",
     "orchestra/runs/2026-08-20-accuracy-99-pilot/W4-SEQUENCE-1024-EXPANSION.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics/BLACKBOARD.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics/SESSIONS.md",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",
@@ -365,6 +404,10 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_grammar_stdlib_t30.py",
     "tests/test_grammar_stdlib_t30_successor.py",
     "tests/test_grammar_stdlib_t30_v3.py",
+    "tests/test_video_semantics_contracts.py",
+    "tests/test_video_grounding_benchmark.py",
+    "tests/test_census_bridge_boundary.py",
+    "tests/test_frontier_egress_boundary.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -3857,6 +3900,32 @@ def validate_repository_file_contents(root: Path, paths: list[str]) -> list[str]
     return errors
 
 
+def validate_video_semantics_contract(root: Path) -> list[str]:
+    """Validate the tracked public-synthetic P3/P4A semantic tranche."""
+
+    from metis_model1.video_semantics_contracts import (
+        VideoSemanticsContractError,
+        validate_repository_source_manifest,
+        validate_synthetic_fixture,
+    )
+    from metis_model1.video_semantics_contracts import load_json as load_video_json
+
+    manifest_path = root / "manifests/video-semantics-sources-v1.json"
+    fixture_root = root / "fixtures/video-catalog-semantics-v1"
+    try:
+        manifest = load_video_json(manifest_path)
+        errors = validate_repository_source_manifest(manifest, fixture_root=fixture_root)
+        roster = validate_synthetic_fixture(
+            fixture_root,
+            manifest_path=manifest_path,
+        )
+    except (OSError, VideoSemanticsContractError, ValueError, TypeError) as error:
+        return [f"video semantics contract failed closed: {error}"]
+    if roster != {"in": 10, "out": 10, "distinct": 10, "gaps": 0}:
+        errors.append("video semantics synthetic fixture roster is incomplete")
+    return errors
+
+
 def git_repository_files(root: Path) -> list[str]:
     process = subprocess.run(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
@@ -4365,6 +4434,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
             report.errors.append(f"invalid schema {schema_path}: {error.message}")
         else:
             report.passes.append(f"schema={schema_path}")
+
+    video_semantics_errors = validate_video_semantics_contract(root)
+    if video_semantics_errors:
+        report.errors.extend(video_semantics_errors)
+    else:
+        report.passes.append("video-semantics=10-contracts/public-synthetic/offline-p4a")
 
     retained_schema_errors = validate_w3_retained_report_schema_contract(root)
     if retained_schema_errors:

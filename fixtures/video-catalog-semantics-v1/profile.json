@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "profile_id": "video-semantics-census-v1",
+  "profile_revision": "sha256:5a40cadd6a6fab99fdfcaa966e17e32f5db474cd901143e0c7b059995ce2e4c7",
+  "tenant_ref": "synthetic-tenant-v1",
+  "catalog_ref": "video",
+  "alias_ref": "synthetic-video-alias-v1",
+  "index_ref": "synthetic-video-index-v1",
+  "pit_keep_alive": "2m",
+  "operations": ["resolve_index", "mapping", "field_caps", "pit_open", "search_aggregate", "pit_close"],
+  "fields": [
+    {"field_path": "visual.tone", "mapping_type": "keyword", "nested_path": null, "capability": "enumerate-finite-values", "multi_valued": "declared", "cardinality_cap": 8, "max_pages": 1, "page_size": 8, "max_literal_bytes": 128},
+    {"field_path": "title", "mapping_type": "keyword", "nested_path": null, "capability": "open-no-values", "multi_valued": "unknown", "cardinality_cap": 1, "max_pages": 1, "page_size": 1, "max_literal_bytes": 1}
+  ]
+}

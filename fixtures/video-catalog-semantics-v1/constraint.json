@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "constraint_revision": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "constraints": [
+    {
+      "constraint_id": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "rule": "The synthetic visual tone field accepts at most one value.",
+      "fields": ["visual.tone"],
+      "grammar_expressed": false,
+      "validator_verifiable": false,
+      "editorial_oracle": true,
+      "brain_behavior": "clarify",
+      "future_grammar_decision": null,
+      "evidence_refs": ["synthetic-page-001"],
+      "review_state": "reviewed"
+    }
+  ]
+}

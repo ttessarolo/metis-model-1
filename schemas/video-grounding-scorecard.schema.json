@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-grounding-scorecard.schema.json",
+  "title": "Video semantic grounding sanitized scorecard",
+  "type": "object",
+  "oneOf": [{"$ref": "#/$defs/synthetic_contract"}, {"$ref": "#/$defs/evaluated"}],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "score": {
+      "type": "object", "additionalProperties": false, "required": ["passed", "total", "wilson95"],
+      "properties": {
+        "passed": {"type": "integer", "minimum": 0}, "total": {"type": "integer", "minimum": 1},
+        "wilson95": {"type": "array", "prefixItems": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "number", "minimum": 0, "maximum": 1}], "items": false}
+      }
+    },
+    "family_scores": {
+      "type": "array", "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["family", "variant", "score"],
+        "properties": {
+          "family": {"enum": ["V-1", "V-2", "V-3", "V-4", "V-5", "V-6", "V-7"]},
+          "variant": {"enum": ["B0", "B1", "D0", "D1"]}, "score": {"$ref": "#/$defs/score"}
+        }
+      }
+    },
+    "critical": {
+      "type": "object", "additionalProperties": false, "required": ["total", "passed", "failed"],
+      "properties": {"total": {"const": 12}, "passed": {"type": "integer", "minimum": 0, "maximum": 12}, "failed": {"type": "integer", "minimum": 0, "maximum": 12}}
+    },
+    "error_taxonomy": {"type": "object", "patternProperties": {"^[A-Za-z0-9._:-]+$": {"type": "integer", "minimum": 0}}, "additionalProperties": false, "minProperties": 1},
+    "common": {
+      "type": "object",
+      "required": ["schema_version", "scorecard_id", "benchmark_revision", "variants", "overall", "families", "critical", "error_taxonomy", "reproducibility", "policy", "nonclaims", "receipt_sha256"],
+      "properties": {
+        "schema_version": {"const": 1}, "scorecard_id": {"const": "video-semantics/scorecard-v1"}, "benchmark_revision": {"$ref": "#/$defs/hash"},
+        "variants": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["B0", "B1", "D0", "D1"]}},
+        "overall": {"$ref": "#/$defs/score"}, "families": {"$ref": "#/$defs/family_scores"}, "critical": {"$ref": "#/$defs/critical"},
+        "error_taxonomy": {"$ref": "#/$defs/error_taxonomy"},
+        "reproducibility": {"type": "object", "additionalProperties": false, "required": ["seed_policy", "permutation_hash", "same_context", "model_outputs_redacted"], "properties": {"seed_policy": {"const": "sha256(benchmark_revision||task_id||variant)"}, "permutation_hash": {"$ref": "#/$defs/hash"}, "same_context": {"const": true}, "model_outputs_redacted": {"const": true}}},
+        "policy": {"type": "object", "additionalProperties": false, "required": ["accuracy99_claim", "training_authority", "raw_outputs_present", "thresholds_ratified"], "properties": {"accuracy99_claim": {"const": false}, "training_authority": {"const": false}, "raw_outputs_present": {"const": false}, "thresholds_ratified": {"type": "boolean"}}},
+        "nonclaims": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "synthetic_contract": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"type": "object", "required": ["evidence_scope", "evaluation_status", "task_roster_revision", "roster_complete"], "properties": {"evidence_scope": {"const": "synthetic_contract"}, "evaluation_status": {"const": "not_evaluated"}, "task_roster_revision": {"type": "null"}, "roster_complete": {"const": false}, "nonclaims": {"const": ["not_evaluated", "incomplete_roster", "no_accuracy99_claim", "no_training_authority"]}, "policy": {"type": "object", "properties": {"thresholds_ratified": {"const": false}}}, "critical": {"type": "object", "properties": {"passed": {"const": 0}, "failed": {"const": 0}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "evaluated": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"type": "object", "required": ["evidence_scope", "evaluation_status", "task_roster_revision", "roster_complete"], "properties": {"evidence_scope": {"const": "evaluated"}, "evaluation_status": {"const": "evaluated"}, "task_roster_revision": {"$ref": "#/$defs/hash"}, "roster_complete": {"const": true}, "variants": {"const": ["B0", "B1", "D0", "D1"]}, "families": {"minItems": 28, "maxItems": 28}, "policy": {"type": "object", "properties": {"thresholds_ratified": {"const": true}}}, "nonclaims": {"const": ["no_accuracy99_claim", "no_training_authority"]}}}
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

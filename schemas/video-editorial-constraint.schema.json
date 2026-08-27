@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-editorial-constraint.schema.json",
+  "title": "Video editorial constraint oracle ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "constraint_revision", "constraints"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "constraint_revision": {"$ref": "#/$defs/hash"},
+    "constraints": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/constraint"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["constraint_id", "rule", "fields", "grammar_expressed", "validator_verifiable", "editorial_oracle", "brain_behavior", "future_grammar_decision", "evidence_refs", "review_state"],
+      "properties": {
+        "constraint_id": {"$ref": "#/$defs/hash"},
+        "rule": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/opaque"}},
+        "grammar_expressed": {"type": "boolean"},
+        "validator_verifiable": {"type": "boolean"},
+        "editorial_oracle": {"type": "boolean"},
+        "brain_behavior": {"enum": ["apply", "clarify", "unsupported", "stop"]},
+        "future_grammar_decision": {"type": ["string", "null"], "maxLength": 2048},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/opaque"}},
+        "review_state": {"enum": ["draft", "reviewed", "stale", "contradictory"]}
+      }
+    }
+  }
+}

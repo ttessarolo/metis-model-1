@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "manifest_id": "video-semantics/sources-v1",
+  "semantic_source_revision": "sha256:b8203704211f582302e69d7bfff6930ca064b0f550f7dba1abc376bf098cc095",
+  "sources": [
+    {
+      "source_id": "VIDEO_SYNTHETIC_FIXTURE_V1",
+      "source_ref": "synthetic-video-v1",
+      "kind": "synthetic_fixture",
+      "identity_storage": "public-synthetic",
+      "repository_commit": null,
+      "tenant": "synthetic-tenant-v1",
+      "catalog": "video",
+      "sensitivity": "public_synthetic",
+      "manifest_schema": 1,
+      "content_sha256": "sha256:5387240d99e8df37357fdfb6ac6b1e94a6b50179c1d8ebc2f1556b4499bc8f2a"
+    }
+  ]
+}

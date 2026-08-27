@@ -23,6 +23,7 @@ from metis_model1.contracts import (
     validate_instance,
     validate_qualification_contract,
     validate_repository_file_contents,
+    validate_video_semantics_contract,
     validate_w3_retained_report_schema_contract,
 )
 
@@ -71,6 +72,19 @@ def test_repository_foundation_is_valid() -> None:
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
+
+
+def test_video_semantics_contracts_are_registered_and_semantically_valid() -> None:
+    root = repository_root()
+    assert (
+        "schemas/video-semantics-source-manifest.schema.json",
+        "manifests/video-semantics-sources-v1.json",
+    ) in contracts.CONTRACT_PAIRS
+    assert (
+        len([path for path in contracts.STANDALONE_SCHEMAS if path.startswith("schemas/video-")])
+        == 9
+    )
+    assert validate_video_semantics_contract(root) == []
 
 
 def test_foundation_rejects_semantic_w2_rights_laundering(

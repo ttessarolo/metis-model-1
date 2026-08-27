@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "concept_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "editorial_source_ref": "synthetic-video-v1",
+  "source_locator": "synthetic-page-001",
+  "editorial_variant": "shared",
+  "scope": ["video"],
+  "source_label": "monochrome",
+  "definition": "Synthetic concept for a monochrome visual property.",
+  "include_when": ["The synthetic record declares the property."],
+  "exclude_when": ["The synthetic record does not declare the property."],
+  "cardinality": {"kind": "one", "min": 0, "max": 1},
+  "parents": [],
+  "children": [],
+  "dependencies": [],
+  "exclusive_with": [],
+  "examples": ["synthetic-example-only"],
+  "source_quality": "explicit",
+  "notes": ["Fixture only; not editorial evidence."],
+  "review_state": "reviewed"
+}
