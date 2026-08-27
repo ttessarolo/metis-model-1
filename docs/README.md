@@ -67,6 +67,10 @@ sempre quattro livelli epistemici:
     contratto e confini del core sessioni tenant/compilatore locale v1.
 24. [`23-metis-brain-local-runbook.md`](23-metis-brain-local-runbook.md) — avvio,
     protocollo client, health, errori e limiti del core locale Mac.
+25. [`24-video-catalog-semantic-grounding-wave.md`](24-video-catalog-semantic-grounding-wave.md)
+    — piano esecutivo completo per trasformare fonti editoriali riservate e il
+    census read-only di `@video` in semantica tenant-owned, retrieval Brain,
+    benchmark Giulia e decisione `NO_RETRAIN`/delta.
 
 ## Tesi operativa
 
