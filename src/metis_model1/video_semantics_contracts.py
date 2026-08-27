@@ -266,9 +266,33 @@ def validate_acquisition_receipt(receipt: Any, manifest: Mapping[str, Any]) -> l
     return errors
 
 
+def canonical_concept_material(concept: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable semantic identity, excluding relations and review telemetry."""
+
+    return {
+        "schema_version": concept["schema_version"],
+        "editorial_source_ref": concept["editorial_source_ref"],
+        "source_locator": concept["source_locator"],
+        "editorial_variant": concept["editorial_variant"],
+        "scope": sorted(concept["scope"]),
+        "source_label": concept["source_label"],
+        "definition": concept["definition"],
+        "include_when": concept["include_when"],
+        "exclude_when": concept["exclude_when"],
+        "cardinality": concept["cardinality"],
+    }
+
+
+def semantic_concept_id(concept: Mapping[str, Any]) -> str:
+    """Return the host-owned deterministic ID for one concept candidate."""
+
+    return "sha256:" + canonical_json_hash(canonical_concept_material(concept))
+
+
 def validate_concepts(concepts: Sequence[Any]) -> list[str]:
     errors: list[str] = []
     ids: set[str] = set()
+    by_id: dict[str, Mapping[str, Any]] = {}
     for index, concept in enumerate(concepts):
         concept_errors = schema_errors("video-editorial-concept.schema.json", concept)
         errors.extend(f"concept[{index}]: {error}" for error in concept_errors)
@@ -279,6 +303,30 @@ def validate_concepts(concepts: Sequence[Any]) -> list[str]:
                 errors.append(f"concept[{index}]: duplicate concept_id")
             if isinstance(concept_id, str):
                 ids.add(concept_id)
+                by_id[concept_id] = concept
+            if not concept_errors and concept_id != semantic_concept_id(concept):
+                errors.append(f"concept[{index}]: concept_id is not deterministic")
+            cardinality = concept.get("cardinality")
+            if (
+                isinstance(cardinality, Mapping)
+                and set(cardinality) == {"kind", "min", "max"}
+                and isinstance(cardinality.get("kind"), str)
+                and type(cardinality.get("min")) is int
+                and (type(cardinality.get("max")) is int or cardinality.get("max") is None)
+            ):
+                kind = cardinality["kind"]
+                minimum = cardinality["min"]
+                maximum = cardinality["max"]
+                if maximum is not None and minimum > maximum:
+                    errors.append(f"concept[{index}]: cardinality min exceeds max")
+                if kind == "one" and (minimum not in {0, 1} or maximum != 1):
+                    errors.append(f"concept[{index}]: one cardinality must be 0..1 or 1..1")
+                elif kind == "max" and (minimum != 0 or maximum is None or maximum < 1):
+                    errors.append(f"concept[{index}]: max cardinality must be 0..N with N >= 1")
+                elif kind == "range" and maximum is None:
+                    errors.append(f"concept[{index}]: range cardinality requires max")
+                elif kind == "unbounded" and maximum is not None:
+                    errors.append(f"concept[{index}]: unbounded cardinality requires null max")
     for index, concept in enumerate(concepts):
         if not isinstance(concept, Mapping):
             continue
@@ -288,6 +336,41 @@ def validate_concepts(concepts: Sequence[Any]) -> list[str]:
                     errors.append(f"concept[{index}]: dangling {relation} ref")
                 if ref == concept.get("concept_id"):
                     errors.append(f"concept[{index}]: self-referential {relation} ref")
+        concept_id = concept.get("concept_id")
+        if not isinstance(concept_id, str):
+            continue
+        for parent_id in concept.get("parents", []):
+            parent = by_id.get(parent_id)
+            if parent is not None and concept_id not in parent.get("children", []):
+                errors.append(f"concept[{index}]: parent/child relation is not reciprocal")
+        for child_id in concept.get("children", []):
+            child = by_id.get(child_id)
+            if child is not None and concept_id not in child.get("parents", []):
+                errors.append(f"concept[{index}]: child/parent relation is not reciprocal")
+        for other_id in concept.get("exclusive_with", []):
+            other = by_id.get(other_id)
+            if other is not None and concept_id not in other.get("exclusive_with", []):
+                errors.append(f"concept[{index}]: exclusive_with relation is not symmetric")
+
+    indegree = {concept_id: 0 for concept_id in by_id}
+    children_by_parent = {concept_id: set() for concept_id in by_id}
+    for concept_id, concept in by_id.items():
+        for parent_id in concept.get("parents", []):
+            if parent_id in by_id and concept_id not in children_by_parent[parent_id]:
+                children_by_parent[parent_id].add(concept_id)
+                indegree[concept_id] += 1
+    ready = sorted(concept_id for concept_id, degree in indegree.items() if degree == 0)
+    visited = 0
+    while ready:
+        current = ready.pop(0)
+        visited += 1
+        for child_id in sorted(children_by_parent[current]):
+            indegree[child_id] -= 1
+            if indegree[child_id] == 0:
+                ready.append(child_id)
+                ready.sort()
+    if visited != len(by_id):
+        errors.append("concept hierarchy contains a cycle")
     return errors
 
 
@@ -514,7 +597,7 @@ def validate_synthetic_fixture(
         "duration_ms": 12,
         "run_id": "synthetic-run-001",
         "runtime": {"python": "3.13", "tool_version": "synthetic-1"},
-        "counts": {"items_in": 5, "items_out": 5, "items_distinct": 5, "items_gaps": 0},
+        "counts": {"items_in": 1, "items_out": 1, "items_distinct": 1, "items_gaps": 0},
     }
     acquisition["receipt_sha256"] = manifest_digest(acquisition)
     errors = validate_repository_source_manifest(manifest, fixture_root=root)

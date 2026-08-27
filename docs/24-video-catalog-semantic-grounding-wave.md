@@ -1,23 +1,25 @@
 # Wave `@video`: semantic grounding editoriale riservato
 
-Stato: **PIANO ESEGUIBILE — PREPARAZIONE `GO NOW`; SCRITTURA CANONICA
-`WAITING_FOR_SEMANTIC_GRAMMAR_SURFACE_FROZEN`**.
+Stato: **ESECUZIONE ATTIVA — prerequisito grammaticale `GREEN`, source freeze
+P0 chiuso e preflight di estrazione P1 `GREEN`; ontologia P1 e scrittura
+canonica ancora non autorizzate**.
 
 Data del piano: 27 agosto 2026.
 
-Baseline documentale Model 1 osservata durante la stesura:
-`main@bd0be01f7def692a0d1f8127c98167ef500dac56`.
+Baseline della wave corrente Model 1:
+`main@421bc30cda08cec4f4ec7d3641ad8a0faa8249c9`.
 
-Snapshot operativo Metis osservato durante la stesura:
-`main@96fcaec4d2038fbf939bf548ac2baeefc2920287`, con il dirty set esclusivo del
-team grammatica ancora in corso. Questo SHA non è un pin di integrazione.
+Pin grammaticale Metis verificato su estrazione pulita del commit promosso:
+`main@53fe68949ce4a0a46fd1825c1a071255c500eec6`. Il successivo lavoro sul
+retrieval schema 2 resta una lane upstream distinta e non è ancora un pin di
+integrazione per questa wave.
 
-Stato del gate repository Model 1 osservato durante la stesura: l'ultimo
-`make check` rieseguito dopo la stesura ha raggiunto `passes=68 errors=1
-files=411` e si è fermato sulla verifica pinned-Node del replay storico T30-v3.
-La failure è preesistente a questo piano: non blocca P0-P5, ma blocca la
-Definition of Done finché una nuova esecuzione non chiude `errors=0` e l'intera
-catena termina con exit code zero.
+Snapshot corrente del gate repository Model 1: `make check` ha raggiunto
+`passes=80 errors=2 files=458`. Le due failure sono i blocker storici
+T30-v3 di freeze/linkage statico e replay semantico sul Node pinnato: non
+bloccano P0-P5, ma continuano a bloccare la Definition of Done globale finché
+una nuova esecuzione non chiude `errors=0` e l'intera catena termina con exit
+code zero.
 
 Documenti superiori che questo piano applica senza sostituire:
 
@@ -46,20 +48,24 @@ Possono iniziare immediatamente, senza toccare il dirty set Metis e senza
 scrivere nel tenant:
 
 1. congelamento e manifest delle fonti;
-2. estrazione strutturata dell'ontologia dalle fonti editoriali riservate;
-3. registro delle contraddizioni, cardinalità, dipendenze e scope;
-4. crosswalk preliminare contro lo snapshot locale;
-5. schema e fake contract-first del censimento OpenSearch read-only;
-6. schema di provenance, work item, crosswalk, receipt e benchmark;
-7. preregistrazione delle famiglie di richieste di Giulia;
-8. definizione dell'oracle semantico e delle regole di review;
-9. threat model, test negativi locali e politica di sanitizzazione;
-10. preparazione di una patch candidate neutrale, ma non ancora applicabile ai
+2. estrazione meccanica sandboxed in unità pagina/documento;
+3. schema, disposition roster e work package dell'ontologia; il drafting sul
+   testo riservato parte soltanto dopo `FRONTIER_EGRESS_DENY_VALID`;
+4. registro delle contraddizioni, cardinalità, dipendenze e scope;
+5. crosswalk preliminare contro lo snapshot locale;
+6. schema e fake contract-first del censimento OpenSearch read-only;
+7. schema di provenance, work item, crosswalk, receipt e benchmark;
+8. preregistrazione delle famiglie di richieste di Giulia;
+9. definizione dell'oracle semantico e delle regole di review;
+10. threat model, test negativi locali e politica di sanitizzazione;
+11. preparazione di una patch candidate neutrale, ma non ancora applicabile ai
     `.metis` canonici.
 
-### `MUST WAIT`
+### `CANONICAL PROMOTION MUST WAIT`
 
-Devono aspettare il commit grammatica promosso e il relativo SHA:
+Il commit grammaticale richiesto è ora promosso e verificato. Restano però
+bloccate fino alla chiusura dei census, del crosswalk, della review editoriale e
+dei rispettivi gate di sicurezza:
 
 1. scrittura di `label`, `means`, `aka` o rimozione di `draft` nei cataloghi
    canonici;
@@ -70,7 +76,7 @@ Devono aspettare il commit grammatica promosso e il relativo SHA:
 6. valutazione finale base/adapter col contratto nuovo;
 7. qualsiasi decisione di delta QLoRA.
 
-Il gate esatto che sblocca la scrittura canonica è:
+Il prerequisito grammaticale esatto per la scrittura canonica è:
 
 ```text
 SEMANTIC_GRAMMAR_SURFACE_FROZEN
@@ -79,26 +85,26 @@ SEMANTIC_GRAMMAR_SURFACE_FROZEN
   AND REFLECTED_SEMANTICS_PRESERVED
 ```
 
-Il gate deve nominare il commit Metis pulito e promosso. Test verdi su un dirty
-set, typecheck isolato o parser funzionante non sono sostituti.
+Il prerequisito è soddisfatto sul commit Metis pulito e promosso
+`53fe68949ce4a0a46fd1825c1a071255c500eec6`. Questo non promuove da solo alcuna
+annotazione: i gate semantici, di provenance, review, sicurezza e retrieval
+restano indipendenti.
 
-### Stato verificato del team grammatica al 27 agosto 2026
+### Stato verificato della grammatica al 27 agosto 2026
 
 | Componente | Stato osservato | Conseguenza |
 |---|---|---|
-| `Means`, `Aka`, `ValueItem` | presente nel dirty set | superficie di base disponibile ma non promossa |
-| `Catalog.label` | presente nel dirty set | non ancora autorità finché manca il commit |
-| `ListEntry means/aka` | presente nel dirty set | R8 può coprire anche le liste |
-| validator `aka -> means`, `label -> means` | presente e testato localmente | necessario ma non sufficiente |
-| stato `unannotated|draft|reviewed` | presente nel reader corrente | schema runtime non ancora collegato |
-| formatter e R8 esteso | verdi nel controllo corrente | evidence su dirty set, non freeze terminale |
-| G2 sync strutturale | **assente** | sync vietato sui file annotati |
-| G3 full-corpus/collision census | **assente** | compatibility gate non chiudibile |
-| retrieval `--semantic` schema 2 | **assente** | Brain non può ancora consumare le descrizioni |
-| verdetto `SEMANTIC_GRAMMAR_SURFACE_FROZEN` | **assente** | scrittura canonica bloccata |
+| `Means`, `Aka`, `ValueItem`, `Catalog.label`, `ListEntry means/aka` | promosso nel pin | superficie grammaticale disponibile |
+| validator `aka -> means`, `label -> means` | verde sul pin | invariante sintattica verificata |
+| R8 Catalog/Field/ValueItem/ListEntry | verde sul pin | artifact tecnici byte-invarianti |
+| G2 sync strutturale | verde sul pin | literal sopravvissuti preservati; transizioni e stale-source coperti |
+| G3 full-corpus/collision census | verde sul pin | `404` documenti, zero errori inattesi e zero collisioni |
+| retrieval `--semantic` schema 2 | candidate upstream verde nei test dedicati | non ancora committato, pinnato o incluso nella test chain; Brain resta scollegato |
+| quattro gate di freeze grammaticale | **PASS** | prerequisito grammaticale chiuso sullo stesso SHA |
 
-Il blocker corrente non è quindi “la grammatica non esiste”: è che la sua
-catena di preservazione, compatibilità e consumo non è ancora chiusa.
+Il blocker corrente non è più la grammatica. Sono ancora aperti la produzione
+e validazione dell'ontologia privata, il census completo del catalogo, il
+crosswalk, la review e la promozione del retrieval schema 2 necessario a Brain.
 
 ## 2. Obiettivo di prodotto
 
@@ -224,11 +230,21 @@ fonti editoriali riservate non entrano in Git e non vengono citati nella
 documentazione ufficiale. P0 li verifica esclusivamente in una receipt locale
 confidenziale dentro l'artifact root ignorata.
 
-Il gate pubblico registra soltanto schema/versione, esito
-`private_roster_complete=true|false`, `gaps=0|N` e la classificazione di
-sensibilità. Il roster, i denominatori e la provenance puntuale restano locali;
-nessun hash o identificatore della fonte viene promosso in manifest, board,
-log, prompt, test fixture o commit.
+Il gate pubblico registra soltanto schema/versione, operazione allowlisted,
+esito, `private_roster_complete=true|false`, `gaps=0|N`, classificazione di
+sensibilità, presenza-payload sempre falsa e codici di errore allowlisted. Per
+l'estrazione aggiunge esclusivamente i booleani `format_supported` e
+`sandbox_verified`. Il roster, i denominatori e la provenance puntuale restano
+locali; nessun hash o identificatore della fonte viene promosso in manifest,
+board, log, prompt, test fixture o commit.
+
+Il preflight corrente ha completato acquisizione, freeze ed estrazione locale
+sandboxed, quindi ne ha ripetuto l'estrazione e confrontato l'envelope privato
+esatto. La receipt pubblica è `VALID`, completa e senza gap. Questo prova il
+trasporto meccanico source -> unità pagina/documento; non prova ancora la
+fedeltà editoriale dell'ontologia né autorizza l'invio del testo a un modello.
+La root autorizzata, le sue sottodirectory e i file sorgente devono inoltre
+essere owner-controlled e non scrivibili da gruppo o altri.
 
 ### 5.2 Snapshot locale iniziale
 
@@ -362,6 +378,11 @@ scrittura il runner deve:
 - provare con `git check-ignore -v` che ogni artifact reale sia ignorato e
   controllare `git status --short` prima e dopo il run.
 
+I probe Git del boundary usano un executable di sistema assoluto con binary e
+antenati root-owned/non-writable, identità verificata prima e dopo, ambiente
+minimale privo di redirect `GIT_*`, fsmonitor/cache/excludes neutralizzati e
+optional locks disabilitati. Un `git` risolto dal PATH non è autorità.
+
 Retention predefinita, salvo obblighi più restrittivi:
 
 | Classe | Persistenza | Fine vita |
@@ -430,6 +451,21 @@ digest canonico e receipt operative differenti.
 Né manifest né receipt Git contengono path a secret, valori di environment o
 locator che rivelino credenziali.
 
+### 8.1-b Source extraction envelope
+
+L'estrazione meccanica usa soltanto parser locali con executable e catena di
+provenance pinnati. La sorgente entra nel sandbox tramite file descriptor
+ereditato; rete, letture home non autorizzate e scritture sono negate e provate
+con canary sullo stesso profilo. L'envelope privato collega ogni sorgente a un
+roster ordinato di unità `page` o `document`, digest del testo, contatori esatti
+e identità del parser/profilo. Il runner ricalcola l'estrazione reale e richiede
+uguaglianza byte-canonica prima di accettare o riusare l'artefatto.
+
+La CLI espone solo l'esito allowlisted. Testo, locator, nomi, hash, conteggi e
+strumentazione privata restano nell'artifact root ignorata. Questo sub-gate è
+`VIDEO_SOURCE_EXTRACTION_PREFLIGHT_VALID`; non sostituisce
+`EDITORIAL_SOURCE_ONTOLOGY_CENSUS_VALID`.
+
 ### 8.2 Editorial concept
 
 Ogni concetto estratto dalle fonti editoriali riservate contiene:
@@ -457,6 +493,19 @@ Ogni concetto estratto dalle fonti editoriali riservate contiene:
 ```
 
 Gli esempi restano evidence. Non alimentano automaticamente `aka`.
+
+Il `concept_id` è calcolato dall'host sul materiale semantico canonico del
+concetto, non accettato come identificatore inventato dal modello. Relazioni e
+telemetria di review restano fuori dal preimage per evitare un ciclo di hash.
+Il validator richiede cardinalità coerenti con il relativo `kind`, reciprocità
+parent/child, simmetria delle esclusioni e gerarchia aciclica.
+
+La sola presenza di almeno un concept per fonte non chiude il census. Un roster
+privato di disposizione deve enumerare ogni unità estratta esattamente una
+volta e assegnarle uno stato terminale `concepts`, `no_concept` oppure
+`excluded` con motivazione. L'aritmetica deve essere
+`in=out=distinct`, `gaps=0`; i concept indicati devono esistere e appartenere
+alla stessa unità. Senza questo roster completo il gate ontologico resta aperto.
 
 ### 8.3 Semantic work item
 
@@ -1003,6 +1052,10 @@ Gli altri nodi restano esplicitamente `unannotated` e censiti.
 
 Il frontier non scrive direttamente nel checkout canonico.
 
+Il sandbox dei parser chiude soltanto il preflight di estrazione meccanica. Non
+è la prova di egress richiesta al processo modello e non rende verde
+`FRONTIER_EGRESS_DENY_VALID`.
+
 Il default della lane frontier è `egress=none`: modello locale oppure ambiente
 già autorizzato che non trasmette all'esterno fonti o estratti riservati, literal
 live, prompt, work item o output. Nessun tool può caricare automaticamente file
@@ -1512,6 +1565,9 @@ Exit: `VIDEO_SEMANTICS_SOURCES_FROZEN`.
 
 Deliverable:
 
+- preflight source -> unità pagina/documento sandboxed, deterministico e
+  idempotente (**chiuso**);
+- disposition roster esatto di ogni unità estratta;
 - roster locale riservato coperto integralmente;
 - editorial concept JSONL validato in artifact root esclusa da Git;
 - constraint ledger;
@@ -1702,6 +1758,7 @@ canonici del piano Brain/VSIX o della grammatica.
 | Sub-gate locale | Contribuisce a / prerequisito di | Evidence terminale | Owner verdetto |
 |---|---|---|---|
 | `VIDEO_SEMANTICS_SOURCES_FROZEN` | tutti i gate semantici downstream | canonical manifest digest + acquisition receipts | L0 |
+| `VIDEO_SOURCE_EXTRACTION_PREFLIGHT_VALID` | prerequisito meccanico di `EDITORIAL_SOURCE_ONTOLOGY_CENSUS_VALID` | envelope privato + replay esatto + receipt sandbox sanitizzata | L0 dopo review L7 |
 | `EDITORIAL_SOURCE_ONTOLOGY_CENSUS_VALID` | `SEMANTIC_DESCRIPTION_REVIEW_VALID`, `EDITORIAL_TRACEABILITY_VALID` | private-roster receipt, concept manifest, contradiction ledger | L0 + reviewer editoriale |
 | `VIDEO_LOCAL_SNAPSHOT_CENSUS_VALID` | `SEMANTIC_CATALOG_CENSUS_VALID` | field/value-set roster e snapshot hash | L0 |
 | `CENSUS_SECRET_BOUNDARY_VALID` | prerequisito sicurezza del live census | process-boundary test receipt | L6 security |
@@ -1731,6 +1788,7 @@ canonico rosso.
 ### Fonti e census
 
 - `VIDEO_SEMANTICS_SOURCES_FROZEN`
+- `VIDEO_SOURCE_EXTRACTION_PREFLIGHT_VALID`
 - `EDITORIAL_SOURCE_ONTOLOGY_CENSUS_VALID`
 - `VIDEO_LOCAL_SNAPSHOT_CENSUS_VALID`
 - `CENSUS_SECRET_BOUNDARY_VALID`
@@ -1771,26 +1829,27 @@ first-class li ha superati.
 
 ### 21.2 Matrice comando -> input -> artifact -> criterio
 
-Le entry marcate `PLANNED` sono parte esplicita del deliverable P3/G2/G3: il
-gate resta aperto finché il comando non esiste, non è nella test chain e non
-produce la receipt indicata. I placeholder `<...>` vengono sostituiti da path o
-SHA pinnati nella sessione; non sono input liberi provenienti dalla chat.
+Le entry ancora marcate `PLANNED` sono parte esplicita del deliverable: il gate
+resta aperto finché il comando non esiste, non è nella test chain e non produce
+la receipt indicata. I placeholder `<...>` vengono sostituiti da path o SHA
+pinnati nella sessione; non sono input liberi provenienti dalla chat.
 
 | Fase/gate | Entrypoint | Input pinnato | Artifact/receipt | Expected result |
 |---|---|---|---|---|
-| P0 reserved-source preflight (`LOCAL ONLY`) | validator locale non versionato sul registro confidenziale | roster riservato fuori Git | private acquisition receipt | `private_roster_complete=true`, `gaps=0`; nessuna identità in output ufficiale |
+| P0 reserved-source preflight (`IMPLEMENTED`, `LOCAL ONLY`) | `uv run metis-model1 video-semantics acquire-sources --source-root <authorized-local-root>` | root locale autorizzata, fuori repository | private acquisition bundle atomico | `private_roster_complete=true`, `gaps=0`; nessuna identità in output ufficiale |
 | P0 artifact boundary | `git check-ignore -v artifacts/video-catalog-semantics-v1/<sentinel>` + `git status --short` | repo Model 1 | boundary receipt | sentinel ignorato; nessun raw artifact nel status |
-| P0 source freeze (`PLANNED`) | `uv run metis-model1 video-semantics freeze-sources --manifest <manifest>` | canonical manifests + receipts | `sources-freeze-v1.json` | schema valido; digest stabili; zero volatile field nel digest |
-| P1 ontology (`PLANNED`) | `uv run metis-model1 video-semantics validate-ontology --concepts <jsonl> --sources <local-private-registry>` | roster locale riservato | ontology receipt sanitizzata | private roster completo; `gaps=0`; zero dangling opaque ref |
+| P0 source freeze (`IMPLEMENTED`) | `uv run metis-model1 video-semantics freeze-sources` | private acquisition bundle a locator fisso | private source freeze deterministico | schema valido; digest stabili; zero volatile field nel digest |
+| P1 source extraction preflight (`IMPLEMENTED`, `LOCAL ONLY`, `PASS`) | `uv run metis-model1 video-semantics extract-sources` | acquisition bundle + source freeze a locator fisso | private page/document envelope | formati supportati; sandbox verificata; roster completo; replay indipendente esatto; `gaps=0` |
+| P1 ontology validation (`IMPLEMENTED`; produzione ancora aperta) | `uv run metis-model1 video-semantics validate-ontology` | JSONL, source bundle e disposition roster privati a locator fissi | ontology receipt sanitizzata | source/unit roster completi; `in=out=distinct`, `gaps=0`; zero dangling opaque ref |
 | P2 local census (`PLANNED`) | `uv run metis-model1 video-semantics census-local --tenant <pinned-tenant> --catalog <catalog-ref>` | tenant SHA + catalog/value-set files | local census receipt | `private_roster_complete=true`, `gaps=0`; ogni field status terminale |
-| P3 schema (`PLANNED`) | `uv run pytest -q tests/test_video_semantics_contracts.py` | schemi + fixture sintetiche | test report | schema valid/invalid roster completo, exit 0 |
-| P3/P4A security (`PLANNED`) | `uv run pytest -q tests/test_census_bridge_boundary.py` | fake transport + real child boundary | security receipt | write/path denied before network; sentinel leaks `0` |
+| P3 schema (`IMPLEMENTED`) | `uv run pytest -q tests/test_video_semantics_contracts.py` | schemi + fixture sintetiche | test report | schema valid/invalid roster completo, exit 0 |
+| P3/P4A security (`IMPLEMENTED`) | `uv run pytest -q tests/test_census_bridge_boundary.py` | fake transport + real child boundary | security receipt | write/path denied before network; sentinel leaks `0` |
 | P3 frontier egress (`PLANNED`) | `uv run pytest -q tests/test_frontier_egress_boundary.py` | runner+model executable, exact peer/socket, network-deny profile | egress receipt | canary attempted/denied `2/2`; unexpected/successful external `0/0` |
 | P5/P7 crosswalk (`PLANNED`) | `uv run pytest -q tests/test_video_semantic_crosswalk.py` | concepts + local/live census | crosswalk receipt | zero duplicate key; zero dangling ref; critical unresolved `0` |
 | G1 parser/generated | `npm run langium:generate && npm run typecheck` da `metis/tooling` | commit Metis candidate | build log | exit 0; generated diff atteso soltanto |
 | G1/R8 | `node --import tsx test/r8-description-invariant.ts` e `node --import tsx test/r8-semantic-surface.ts` | fixture Catalog/Field/ValueItem/ListEntry | R8 receipt | artifact tecnico pre/post byte-identico; roster nodi completo |
-| G2 structural sync | `node --import tsx test/catalog-sync-values-rewrite.ts` + nuovo `test/catalog-sync-values-semantics.ts` | transizioni inline/enum/list/open annotate | sync receipt | survivor exact-literal byte-identico; new unannotated; remove roster; no inferred rename |
-| G3 full corpus (`PLANNED`) | `npm run test:full-corpus-grammar-compat` | stdlib, demo, upstream corpus, collision corpus | full-corpus receipt | parse/validate/typecheck `errors=0`; artifact baseline identica; collision roster `gaps=0` |
+| G2 structural sync (`PASS`) | test promosso `catalog-sync-values-merge.ts` | transizioni inline/enum/list/open annotate | sync receipt | survivor exact-literal byte-identico; new unannotated; remove roster; no inferred rename |
+| G3 full corpus (`PASS`) | test promosso `full-corpus-grammar-compat.ts` | stdlib, demo, upstream corpus, collision corpus | full-corpus receipt | `404` documenti; errori inattesi e collisioni `0` |
 | Freeze grammatica | `git status --short` + `git rev-parse HEAD` + `npm test` | commit Metis promosso | grammar freeze receipt | checkout pulito; G1/G2/G3/R8/full-corpus verdi sullo stesso SHA |
 | P4B boundary | smoke VSIX `metis.catalog.censusReadOnly` su fake e profilo reale | VSIX worktree + SecretStorage tenant | VSIX receipt | signed role valid; effective handle match; TLS valid; no secret/raw document |
 | P6 census (`PLANNED`) | Census Bridge con profilo `video-semantics-census-v1` | indice fisico + PIT + allowlist hash | census artifact + sanitized receipt | exactly one `VALID`; complete fields; zero denied-value leakage |
@@ -1966,15 +2025,16 @@ Appena viene dato il GO esecutivo alla preparazione:
 
 1. creare `orchestra/runs/<date>-video-catalog-semantics/`;
 2. registrare L0, lane, modelli, write-set, esclusioni e comandi;
-3. registrare il blocker corrente `make check passes=68 errors=1`, assegnarne la
+3. registrare il blocker corrente `make check passes=80 errors=2`, assegnarne la
    diagnosi e non confonderlo con un failure della nuova wave;
 4. creare artifact root privata, verificarne realpath/permessi e provare
    `git check-ignore -v` più `git status --short`;
 5. verificare il registro riservato soltanto nel perimetro locale escluso da Git;
 6. separare canonical source manifests dalle acquisition receipts;
 7. creare gli schemi intermedi e gli entrypoint `PLANNED` della matrice 21.2;
-8. materializzare l'estrazione soltanto sotto artifact root ignorato, con
-   `egress=none`;
+8. materializzare l'estrazione meccanica soltanto sotto artifact root ignorato,
+   nel sandbox parser; applicare `egress=none` separatamente al futuro processo
+   modello soltanto dopo il relativo gate;
 9. chiudere il roster locale con `private_roster_complete=true` e `gaps=0`;
 10. costruire constraint ledger/constraint projection e contradiction roster;
 11. rigenerare il census locale e verificare
@@ -2004,8 +2064,7 @@ Appena viene dato il GO esecutivo alla preparazione:
 Non sono decisioni architetturali mancanti; sono evidenze che l'esecuzione deve
 registrare:
 
-- SHA del commit grammatica promosso;
-- roster G1-delta/G2/G3 terminale;
+- SHA promosso e test-chain del retrieval semantico schema 2;
 - identità live dell'indice al momento del census;
 - numero reale di campi/subfield e domini;
 - prova osservata o attestazione firmata/verificata del ruolo remoto read-only

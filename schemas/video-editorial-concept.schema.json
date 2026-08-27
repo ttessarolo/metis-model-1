@@ -22,7 +22,13 @@
         "kind": {"enum": ["one", "max", "range", "unbounded", "conditional"]},
         "min": {"type": "integer", "minimum": 0},
         "max": {"type": ["integer", "null"], "minimum": 0}
-      }
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "one"}}}, "then": {"properties": {"min": {"enum": [0, 1]}, "max": {"const": 1}}}},
+        {"if": {"properties": {"kind": {"const": "max"}}}, "then": {"properties": {"min": {"const": 0}, "max": {"type": "integer", "minimum": 1}}}},
+        {"if": {"properties": {"kind": {"const": "range"}}}, "then": {"properties": {"max": {"type": "integer"}}}},
+        {"if": {"properties": {"kind": {"const": "unbounded"}}}, "then": {"properties": {"max": {"type": "null"}}}}
+      ]
     },
     "parents": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},
     "children": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/hash"}},

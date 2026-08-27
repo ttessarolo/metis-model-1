@@ -4,7 +4,7 @@
   "semantic_source_revision": "sha256:b8203704211f582302e69d7bfff6930ca064b0f550f7dba1abc376bf098cc095",
   "rows": [
     {
-      "concept_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "concept_id": "sha256:169a04a1df95232663f718a7b13e3beb18dc97f6981a5db7e082fc563851e41a",
       "canonical_locator": "video.visual.tone",
       "literal": "monochrome",
       "relation": "exact",

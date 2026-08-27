@@ -32,6 +32,7 @@ _SYNC_MARKERS = (
     "/onedrive/",
 )
 _STATUS_ARGS = ("status", "--porcelain=v1", "--untracked-files=all")
+_SYSTEM_GIT_PATH = Path("/usr/bin/git")
 GitRunner = Callable[[Path, tuple[str, ...]], subprocess.CompletedProcess[bytes]]
 
 
@@ -169,17 +170,85 @@ def _ensure_private_root(root: Path) -> tuple[Path, bool]:
     return target, True
 
 
-def _default_git(root: Path, args: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
+def _git_identity(path: Path) -> tuple[int, int, int, int, int, int, int]:
+    info = path.lstat()
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_nlink,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _verify_system_git() -> tuple[Path, tuple[int, int, int, int, int, int, int]]:
+    """Require the Git authority to be a fixed, system-owned executable.
+
+    Git is deliberately not resolved through ``PATH``.  Every directory in
+    the executable's ancestry is checked as well, so an attacker cannot
+    substitute a user-owned or writable parent while the probe is prepared.
+    """
+
     try:
-        return subprocess.run(
-            ["git", *args],
+        executable = Path(_SYSTEM_GIT_PATH)
+        if not executable.is_absolute():
+            _fail()
+        chain = (executable, *executable.parents)
+        for index, path in enumerate(chain):
+            info = path.lstat()
+            if (
+                stat.S_ISLNK(info.st_mode)
+                or info.st_uid != 0
+                or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            ):
+                _fail()
+            if index == 0 and (not stat.S_ISREG(info.st_mode) or not info.st_mode & stat.S_IXUSR):
+                _fail()
+        identity = _git_identity(executable)
+    except (OSError, VideoArtifactBoundaryError):
+        raise VideoArtifactBoundaryError("video artifact boundary is not safe") from None
+    return executable, identity
+
+
+def _default_git(root: Path, args: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
+    executable, identity = _verify_system_git()
+    # The probe gets a bounded environment.  In particular, no inherited
+    # GIT_DIR/GIT_INDEX_FILE or helper/config variables can redirect it away
+    # from the repository passed as cwd.
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+    }
+    command = [
+        str(executable),
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "-c",
+        "core.excludesFile=/dev/null",
+        *args,
+    ]
+    try:
+        result = subprocess.run(
+            command,
             cwd=root,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
+            timeout=30,
+            env=environment,
         )
-    except (OSError, subprocess.SubprocessError):
+        if _git_identity(executable) != identity:
+            _fail()
+        return result
+    except (OSError, subprocess.SubprocessError, VideoArtifactBoundaryError):
         _fail()
 
 

@@ -9,6 +9,7 @@ from copy import deepcopy
 import pytest
 
 import metis_model1.contracts as contracts
+from metis_model1 import cli
 from metis_model1.contracts import (
     load_json,
     repository_root,
@@ -73,6 +74,18 @@ def test_repository_foundation_is_valid() -> None:
     assert "W1" not in report.open_by_wave
     assert "W4" not in report.open_by_wave
     assert report.open_nonblocking == ["O-009"]
+
+
+def test_foundation_cli_fails_closed_without_path_or_traceback(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["validate-foundation", "--root", str(tmp_path), "--json"]) == 1
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["status"] == "invalid"
+    assert result["errors"]
+    assert str(tmp_path) not in captured.out
+    assert captured.err == ""
 
 
 def test_video_semantics_contracts_are_registered_and_semantically_valid() -> None:

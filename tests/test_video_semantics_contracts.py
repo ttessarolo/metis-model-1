@@ -17,6 +17,7 @@ from metis_model1.video_semantics_contracts import (
     load_schema,
     manifest_digest,
     schema_errors,
+    semantic_concept_id,
     semantic_source_revision,
     validate_acquisition_receipt,
     validate_census_receipt,
@@ -96,6 +97,63 @@ def test_dangling_concept_reference_is_rejected() -> None:
     attacked["parents"] = ["sha256:" + "9" * 64]
     errors = validate_concepts([attacked])
     assert any("dangling parents ref" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "cardinality",
+    [
+        {"kind": "one", "min": 2, "max": 1},
+        {"kind": "max", "min": 3, "max": 2},
+        {"kind": "range", "min": 5, "max": 1},
+        {"kind": "unbounded", "min": 0, "max": 1},
+    ],
+)
+def test_impossible_concept_cardinalities_are_rejected(cardinality: dict) -> None:
+    concept = _fixture("concept.json")
+    concept["cardinality"] = cardinality
+    concept["concept_id"] = semantic_concept_id(concept)
+    errors = validate_concepts([concept])
+    assert any("cardinality" in error for error in errors)
+
+
+def test_concept_identity_is_host_recomputed_from_canonical_material() -> None:
+    concept = _fixture("concept.json")
+    assert concept["concept_id"] == semantic_concept_id(concept)
+    concept["definition"] = "Changed semantic definition."
+    assert any("concept_id is not deterministic" in error for error in validate_concepts([concept]))
+
+
+def test_concept_relations_are_reciprocal_symmetric_and_acyclic() -> None:
+    first = _fixture("concept.json")
+    second = deepcopy(first)
+    second.update(
+        source_locator="synthetic-page-002",
+        source_label="second-concept",
+        definition="A second synthetic concept.",
+    )
+    second["concept_id"] = semantic_concept_id(second)
+    first_id = first["concept_id"]
+    second_id = second["concept_id"]
+
+    first["parents"] = [second_id]
+    assert any(
+        "parent/child relation is not reciprocal" in error
+        for error in validate_concepts([first, second])
+    )
+
+    first["parents"] = []
+    first["exclusive_with"] = [second_id]
+    assert any(
+        "exclusive_with relation is not symmetric" in error
+        for error in validate_concepts([first, second])
+    )
+
+    first["exclusive_with"] = []
+    first["parents"] = [second_id]
+    first["children"] = [second_id]
+    second["parents"] = [first_id]
+    second["children"] = [first_id]
+    assert "concept hierarchy contains a cycle" in validate_concepts([first, second])
 
 
 def test_path_traversal_and_raw_keys_are_rejected() -> None:

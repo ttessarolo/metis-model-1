@@ -55,6 +55,39 @@ def test_positive_boundary_receipt_and_cleanup(tmp_path: Path) -> None:
     assert after == before
 
 
+def test_default_git_ignores_path_and_inherited_git_redirects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _root(tmp_path)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    marker = tmp_path / "invoked"
+    fake_git = fake_bin / "git"
+    fake_git.write_text(f"#!/bin/sh\nprintf invoked > {marker}\n", encoding="utf-8")
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake_bin))
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "outside.git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outside.index"))
+
+    result = _default_git(root, ("status", "--porcelain=v1"))
+
+    assert result.returncode == 0
+    assert not marker.exists()
+
+
+def test_default_git_rejects_user_owned_authority_even_if_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _root(tmp_path)
+    fake_git = tmp_path / "git"
+    fake_git.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_git.chmod(0o755)
+    monkeypatch.setattr(boundary, "_SYSTEM_GIT_PATH", fake_git)
+
+    with pytest.raises(VideoArtifactBoundaryError):
+        _default_git(root, ("status", "--porcelain=v1"))
+
+
 def test_sentinel_is_created_private_before_cleanup(tmp_path: Path, monkeypatch) -> None:
     root = _root(tmp_path)
     observed: dict[str, int] = {}

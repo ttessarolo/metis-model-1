@@ -157,7 +157,11 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/video_grounding_benchmark.py",
     "src/metis_model1/video_census_bridge.py",
     "src/metis_model1/video_private_artifacts.py",
+    "src/metis_model1/video_private_io.py",
+    "src/metis_model1/video_source_acquisition.py",
     "src/metis_model1/video_semantics_tooling.py",
+    "src/metis_model1/video_semantics_private_runner.py",
+    "src/metis_model1/video_source_extraction.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -332,6 +336,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-27-video-catalog-semantics/SESSIONS.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-private-prep/BLACKBOARD.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-private-prep/SESSIONS.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-source-freeze/BLACKBOARD.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-source-freeze/SESSIONS.md",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",
@@ -413,6 +419,13 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_video_grounding_benchmark.py",
     "tests/test_census_bridge_boundary.py",
     "tests/test_frontier_egress_boundary.py",
+    "tests/test_video_private_artifacts.py",
+    "tests/test_video_private_io.py",
+    "tests/test_video_source_acquisition.py",
+    "tests/test_video_semantics_tooling.py",
+    "tests/test_video_semantics_private_runner.py",
+    "tests/test_video_semantics_cli.py",
+    "tests/test_video_source_extraction.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -4446,8 +4459,9 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
     for relative_path in REQUIRED_FOUNDATION_PATHS:
         if not (root / relative_path).is_file():
             report.errors.append(f"required foundation file is missing: {relative_path}")
-    if not report.errors:
-        report.passes.append(f"foundation-files={len(REQUIRED_FOUNDATION_PATHS)}")
+    if report.errors:
+        return report
+    report.passes.append(f"foundation-files={len(REQUIRED_FOUNDATION_PATHS)}")
 
     for schema_path, instance_path in CONTRACT_PAIRS:
         schema = load_json(root / schema_path)

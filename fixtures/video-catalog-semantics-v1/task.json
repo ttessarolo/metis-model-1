@@ -10,10 +10,10 @@
     "catalog_refs": ["video"],
     "field_refs": ["visual.tone"],
     "literal_refs": ["monochrome"],
-    "semantic_refs": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"]
+    "semantic_refs": ["sha256:169a04a1df95232663f718a7b13e3beb18dc97f6981a5db7e082fc563851e41a"]
   },
   "behavior": "resolve",
-  "semantic_refs": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+  "semantic_refs": ["sha256:169a04a1df95232663f718a7b13e3beb18dc97f6981a5db7e082fc563851e41a"],
   "oracle": {"parse": true, "link": true, "validate": true, "compile": true, "semantic": ["exact-field-match"]},
   "patch_regions": ["catalogs/video.metis"],
   "criticality": "normal",
