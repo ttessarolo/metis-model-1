@@ -321,6 +321,10 @@ Gli eventuali script entrano sotto `src/metis_model1/` e i test sotto `tests/`.
 
 ### 7.2 Artefatti locali esclusi da Git
 
+L'addendum pubblico e source-free della boundary è
+`manifests/video-private-artifact-policy-v1.json`. La sua receipt espone solo
+esiti booleani e non contiene provenance specifica delle fonti.
+
 ```text
 artifacts/video-catalog-semantics-v1/
   raw/reserved-source-evidence/
@@ -913,7 +917,7 @@ Per ogni literal:
 - parent/child;
 - duplicate candidate;
 - deprecated candidate;
-- manual-only;
+- reserved-source-only;
 - live-only;
 - unresolved.
 
@@ -1461,7 +1465,7 @@ Il numero di righe cambiate nella grammatica non decide da solo l'escalation.
 ## 19. Wave esecutive e dipendenze
 
 ```text
-P0 source freeze ─┬─> P1 manual ontology ─┐
+P0 source freeze ─┬─> P1 editorial ontology ─┐
                   ├─> P2 local census ────┼─> P5 preliminary crosswalk
                   └─> P3 schemas/fakes ───┘
 

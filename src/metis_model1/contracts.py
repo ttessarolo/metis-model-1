@@ -156,6 +156,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/video_semantics_contracts.py",
     "src/metis_model1/video_grounding_benchmark.py",
     "src/metis_model1/video_census_bridge.py",
+    "src/metis_model1/video_private_artifacts.py",
+    "src/metis_model1/video_semantics_tooling.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -197,6 +199,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/catalog-maintenance-probe-decision-v1.json",
     "manifests/accuracy-uplift-plan.json",
     "manifests/video-semantics-sources-v1.json",
+    "manifests/video-private-artifact-policy-v1.json",
     "schemas/catalog-maintenance-probe.schema.json",
     "schemas/catalog-maintenance-probe-freeze.schema.json",
     "schemas/catalog-maintenance-probe-evaluation.schema.json",
@@ -327,6 +330,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-20-accuracy-99-pilot/W4-SEQUENCE-1024-EXPANSION.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics/BLACKBOARD.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics/SESSIONS.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-private-prep/BLACKBOARD.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-private-prep/SESSIONS.md",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",
@@ -3926,6 +3931,38 @@ def validate_video_semantics_contract(root: Path) -> list[str]:
     return errors
 
 
+def validate_video_private_artifact_policy_contract(root: Path) -> list[str]:
+    """Validate the public, source-free addendum for the private artifact root."""
+
+    expected = {
+        "schema_version": 1,
+        "policy_id": "video-private-artifact-boundary/v1",
+        "status": "ratified",
+        "root_relative": "artifacts/video-catalog-semantics-v1",
+        "tracked_payloads_allowed": False,
+        "cloud_sync": "known_path_markers_only",
+        "universal_cloud_sync_scan": "not_performed",
+        "root_mode": "0700",
+        "file_mode": "0600",
+        "symlinks_allowed": False,
+        "atomic_writes": True,
+        "sentinel_policy": "ephemeral_synthetic_only",
+        "public_receipt": {
+            "sensitive_material_accessed": False,
+            "path_disclosure": False,
+            "source_identity_disclosure": False,
+            "content_disclosure": False,
+        },
+    }
+    try:
+        policy = load_json(root / "manifests/video-private-artifact-policy-v1.json")
+    except (OSError, ValueError, TypeError):
+        return ["video private artifact policy is unreadable"]
+    if policy != expected:
+        return ["video private artifact policy contains drift"]
+    return []
+
+
 def git_repository_files(root: Path) -> list[str]:
     process = subprocess.run(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
@@ -4440,6 +4477,12 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         report.errors.extend(video_semantics_errors)
     else:
         report.passes.append("video-semantics=10-contracts/public-synthetic/offline-p4a")
+
+    private_artifact_policy_errors = validate_video_private_artifact_policy_contract(root)
+    if private_artifact_policy_errors:
+        report.errors.extend(private_artifact_policy_errors)
+    else:
+        report.passes.append("video-private-artifacts=policy-v1/static-boundary")
 
     retained_schema_errors = validate_w3_retained_report_schema_contract(root)
     if retained_schema_errors:

@@ -23,6 +23,7 @@ from metis_model1.contracts import (
     validate_instance,
     validate_qualification_contract,
     validate_repository_file_contents,
+    validate_video_private_artifact_policy_contract,
     validate_video_semantics_contract,
     validate_w3_retained_report_schema_contract,
 )
@@ -85,6 +86,12 @@ def test_video_semantics_contracts_are_registered_and_semantically_valid() -> No
         == 9
     )
     assert validate_video_semantics_contract(root) == []
+
+
+def test_video_private_artifact_policy_is_registered_and_valid() -> None:
+    root = repository_root()
+    assert "manifests/video-private-artifact-policy-v1.json" in contracts.REQUIRED_FOUNDATION_PATHS
+    assert validate_video_private_artifact_policy_contract(root) == []
 
 
 def test_foundation_rejects_semantic_w2_rights_laundering(

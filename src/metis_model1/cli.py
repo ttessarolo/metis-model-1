@@ -13,6 +13,11 @@ from metis_model1.pipeline import (
     render_pilot_text,
     validate_pilot,
 )
+from metis_model1.video_private_artifacts import (
+    VideoArtifactBoundaryError,
+    prepare_artifact_boundary,
+    validate_public_receipt,
+)
 
 
 def _render_text(report: ValidationReport) -> None:
@@ -75,6 +80,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run the authenticated numeric-loopback Metis Brain service.",
     )
     brain.add_argument("--config", type=Path, required=True)
+    video_semantics = subparsers.add_parser(
+        "video-semantics",
+        description="Run bounded local preparation for video semantic grounding.",
+    )
+    video_commands = video_semantics.add_subparsers(dest="video_semantics_command", required=True)
+    video_commands.add_parser(
+        "bootstrap-artifacts",
+        description="Verify the fixed ignored private artifact boundary.",
+    )
     return parser
 
 
@@ -82,6 +96,29 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "brain-serve":
         return run_brain_server(args.config)
+    if args.command == "video-semantics":
+        if args.video_semantics_command != "bootstrap-artifacts":
+            raise AssertionError(
+                f"unhandled video semantics command: {args.video_semantics_command}"
+            )
+        try:
+            receipt = prepare_artifact_boundary()
+            validate_public_receipt(receipt)
+        except VideoArtifactBoundaryError:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation": "bootstrap-artifacts",
+                        "status": "BLOCKED",
+                        "error_code": "ARTIFACT_BOUNDARY_INVALID",
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 1
+        print(json.dumps(receipt, sort_keys=True))
+        return 0
     if args.command == "assess-experiment":
         report = assess_experiment_plan(args.root)
         if args.as_json:

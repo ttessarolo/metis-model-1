@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "policy_id": "video-private-artifact-boundary/v1",
+  "status": "ratified",
+  "root_relative": "artifacts/video-catalog-semantics-v1",
+  "tracked_payloads_allowed": false,
+  "cloud_sync": "known_path_markers_only",
+  "universal_cloud_sync_scan": "not_performed",
+  "root_mode": "0700",
+  "file_mode": "0600",
+  "symlinks_allowed": false,
+  "atomic_writes": true,
+  "sentinel_policy": "ephemeral_synthetic_only",
+  "public_receipt": {
+    "sensitive_material_accessed": false,
+    "path_disclosure": false,
+    "source_identity_disclosure": false,
+    "content_disclosure": false
+  }
+}
