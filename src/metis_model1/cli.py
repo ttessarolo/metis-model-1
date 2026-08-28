@@ -281,6 +281,26 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot.add_argument("--tenant-snapshot")
     snapshot.add_argument("--tenant-snapshot-file", type=Path)
 
+    index_v2 = video_commands.add_parser(
+        "build-index-v2",
+        description="Build the reviewed crosswalk- and constraint-bound semantic index v2.",
+    )
+    add_offline_options(index_v2)
+    index_v2.add_argument("--projection", type=Path, required=True)
+    index_v2.add_argument(
+        "--projection-receipt",
+        type=Path,
+        help="Optional for a verified catalog-capture bundle carrying its projection receipt.",
+    )
+    index_v2.add_argument("--census", type=Path, required=True)
+    index_v2.add_argument("--concepts", type=Path, required=True)
+    index_v2.add_argument("--crosswalk", type=Path, required=True)
+    index_v2.add_argument("--constraints", type=Path, required=True)
+    index_v2.add_argument("--semantic-source-revision", required=True)
+    index_v2.add_argument("--grammar-revision", required=True)
+    index_v2.add_argument("--toolchain-revision", required=True)
+    index_v2.add_argument("--tenant-snapshot-file", type=Path, required=True)
+
     ground = video_commands.add_parser(
         "ground-request",
         description="Resolve a request against a local semantic index without model execution.",
@@ -289,6 +309,34 @@ def build_parser() -> argparse.ArgumentParser:
     ground.add_argument("--index", type=Path, required=True)
     ground.add_argument("--request", type=Path, required=True)
     ground.add_argument("--catalog")
+
+    context_v2 = video_commands.add_parser(
+        "build-brain-context-v2",
+        description="Build the private reviewed semantic registry paired with index v2.",
+    )
+    add_offline_options(context_v2)
+    context_v2.add_argument("--index", type=Path, required=True)
+    context_v2.add_argument("--concepts", type=Path, required=True)
+    context_v2.add_argument("--crosswalk", type=Path, required=True)
+    context_v2.add_argument("--constraints", type=Path, required=True)
+
+    ground_v2 = video_commands.add_parser(
+        "ground-proposal-v2",
+        description="Adjudicate a clause proposal against reviewed index-v2 membership.",
+    )
+    add_offline_options(ground_v2)
+    ground_v2.add_argument("--index", type=Path, required=True)
+    ground_v2.add_argument("--context", type=Path, required=True)
+    ground_v2.add_argument("--context-receipt", type=Path, required=True)
+    ground_v2.add_argument("--context-manifest", type=Path, required=True)
+    ground_v2.add_argument(
+        "--context-manifest-sha256",
+        required=True,
+        help="Trusted manifest CAS pinned by the Brain session/context registry.",
+    )
+    ground_v2.add_argument("--request", type=Path, required=True)
+    ground_v2.add_argument("--proposal", type=Path, required=True)
+    ground_v2.add_argument("--catalog")
 
     evaluate = video_commands.add_parser(
         "evaluate-paired",
@@ -323,7 +371,10 @@ def main(argv: list[str] | None = None) -> int:
             "normalize-catalog": "normalize",
             "build-census": "census",
             "build-index": "index",
+            "build-index-v2": "index-v2",
+            "build-brain-context-v2": "context-v2",
             "ground-request": "ground",
+            "ground-proposal-v2": "ground-v2",
             "evaluate-paired": "evaluate",
             "weight-verdict": "weight-verdict",
         }.get(operation)

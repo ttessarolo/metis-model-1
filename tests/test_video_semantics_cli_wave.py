@@ -10,6 +10,7 @@ import pytest
 import metis_model1.cli as cli
 import metis_model1.video_private_artifacts as boundary
 import metis_model1.video_private_io as private_io
+import metis_model1.video_semantics_cli as video_cli
 from metis_model1.video_grounding_benchmark import benchmark_revision
 from metis_model1.video_semantics_cli import VideoSemanticsCLIError, _benchmark_tasks
 
@@ -297,3 +298,101 @@ def test_blocked_weight_verdict_is_persisted_privately_and_exits_nonzero(
     assert summary["status"] == "BLOCKED"
     verdict = _private(private_store, "receipts/blocked-verdict-run/weight-verdict.json")
     assert json.loads(verdict.read_text(encoding="utf-8"))["verdict"] == "BLOCKED"
+
+
+def test_brain_v2_cli_persists_and_requires_trusted_context_manifest(
+    tmp_path: Path,
+    private_store: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    empty = tmp_path / "empty.json"
+    _write(empty, {})
+    concepts = tmp_path / "concepts.jsonl"
+    concepts.write_text("{}\n", encoding="utf-8")
+    context_result = {
+        "context": {"revision": REV},
+        "receipt": {"receipt_sha256": REV},
+        "manifest": {"manifest_sha256": REV},
+    }
+    monkeypatch.setattr(
+        video_cli,
+        "build_brain_semantic_context_v2",
+        lambda *_args: context_result,
+    )
+    monkeypatch.setattr(video_cli, "validate_brain_context_v2_receipt", lambda *_a, **_k: [])
+    monkeypatch.setattr(video_cli, "validate_brain_context_v2_manifest", lambda *_a, **_k: [])
+    context_namespace = "work-items/context-authority-run"
+    assert (
+        cli.main(
+            [
+                "video-semantics",
+                "build-brain-context-v2",
+                "--index",
+                str(empty),
+                "--concepts",
+                str(concepts),
+                "--crosswalk",
+                str(empty),
+                "--constraints",
+                str(empty),
+                "--output-dir",
+                context_namespace,
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    context_dir = _private(private_store, context_namespace)
+    assert (
+        json.loads((context_dir / "brain-context-v2-manifest.json").read_text(encoding="utf-8"))
+        == context_result["manifest"]
+    )
+
+    request = tmp_path / "request.txt"
+    request.write_text("synthetic request", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def fake_adjudicate(index, context, text, proposal, **kwargs):
+        observed.update(
+            {
+                "index": index,
+                "context": context,
+                "text": text,
+                "proposal": proposal,
+                **kwargs,
+            }
+        )
+        return {"grounding": {"status": "clarify"}, "receipt": {"receipt_sha256": REV}}
+
+    monkeypatch.setattr(video_cli, "adjudicate_grounding_proposal_v2", fake_adjudicate)
+    monkeypatch.setattr(video_cli, "validate_grounding_v2_receipt", lambda _receipt: [])
+    assert (
+        cli.main(
+            [
+                "video-semantics",
+                "ground-proposal-v2",
+                "--index",
+                str(empty),
+                "--context",
+                str(context_dir / "brain-context-v2.json"),
+                "--context-receipt",
+                str(context_dir / "brain-context-v2-receipt.json"),
+                "--context-manifest",
+                str(context_dir / "brain-context-v2-manifest.json"),
+                "--context-manifest-sha256",
+                REV,
+                "--request",
+                str(request),
+                "--proposal",
+                str(empty),
+                "--output-dir",
+                "work-items/ground-authority-run",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert observed["context_receipt"] == context_result["receipt"]
+    assert observed["context_manifest"] == context_result["manifest"]
+    assert observed["expected_context_manifest_sha256"] == REV

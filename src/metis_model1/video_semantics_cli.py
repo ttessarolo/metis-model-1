@@ -19,6 +19,13 @@ from pathlib import Path
 from typing import Any
 
 from metis_model1.video_brain_grounding import ground_request, validate_grounding_receipt
+from metis_model1.video_brain_grounding_v2 import (
+    adjudicate_grounding_proposal_v2,
+    build_brain_semantic_context_v2,
+    validate_brain_context_v2_manifest,
+    validate_brain_context_v2_receipt,
+    validate_grounding_v2_receipt,
+)
 from metis_model1.video_catalog_projection import (
     build_catalog_semantic_projection,
     validate_catalog_projection_receipt,
@@ -38,17 +45,34 @@ from metis_model1.video_semantic_index import (
     build_semantic_index,
     validate_semantic_index_receipt,
 )
+from metis_model1.video_semantic_index_v2 import (
+    build_semantic_index_v2,
+    validate_semantic_index_v2_receipt,
+)
 from metis_model1.video_weight_verdict import decide_weight_verdict
 
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 OFFLINE_OPERATIONS = frozenset(
-    {"normalize", "census", "index", "ground", "evaluate", "weight-verdict"}
+    {
+        "normalize",
+        "census",
+        "index",
+        "index-v2",
+        "context-v2",
+        "ground",
+        "ground-v2",
+        "evaluate",
+        "weight-verdict",
+    }
 )
 _OUTPUT_ROOT_BY_OPERATION = {
     "normalize": "work-items",
     "census": "work-items",
     "index": "work-items",
+    "index-v2": "work-items",
+    "context-v2": "work-items",
     "ground": "work-items",
+    "ground-v2": "work-items",
     "evaluate": "benchmark-runs",
     "weight-verdict": "receipts",
 }
@@ -106,6 +130,26 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         raise VideoSemanticsCLIError("INPUT_TEXT_INVALID") from None
+
+
+def _read_jsonl(path: Path) -> list[Any]:
+    _regular_file(path, "INPUT_NOT_REGULAR")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if not lines or any(not line.strip() for line in lines):
+            raise VideoSemanticsCLIError("INPUT_JSONL_INVALID")
+        return [
+            json.loads(
+                line,
+                object_pairs_hook=_reject_duplicate_pairs,
+                parse_constant=_reject_constant,
+            )
+            for line in lines
+        ]
+    except VideoSemanticsCLIError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise VideoSemanticsCLIError("INPUT_JSONL_INVALID") from None
 
 
 def _output_dir(path: Path, operation: str) -> str:
@@ -365,6 +409,43 @@ def execute_video_semantics(operation: str, args: Any) -> int:
                 {"index.json": result["index"], "index-receipt.json": result["receipt"]},
                 operation,
             )
+        elif operation == "index-v2":
+            projection_input = _mapping(_read_json(Path(args.projection)))
+            if args.projection_receipt is None:
+                source_receipts = projection_input.get("source_receipts")
+                if (
+                    not isinstance(projection_input.get("projection"), Mapping)
+                    or not isinstance(source_receipts, Mapping)
+                    or not isinstance(source_receipts.get("projection"), Mapping)
+                ):
+                    raise VideoSemanticsCLIError("INPUT_PROJECTION_RECEIPT_REQUIRED")
+                projection = _mapping(projection_input["projection"])
+                projection_receipt = _mapping(source_receipts["projection"])
+            else:
+                projection = projection_input
+                projection_receipt = _mapping(_read_json(Path(args.projection_receipt)))
+            result = build_semantic_index_v2(
+                projection,
+                projection_receipt,
+                _mapping(_read_json(Path(args.census))),
+                _read_jsonl(Path(args.concepts)),
+                _mapping(_read_json(Path(args.crosswalk))),
+                _mapping(_read_json(Path(args.constraints))),
+                semantic_source_revision=args.semantic_source_revision,
+                grammar_revision=args.grammar_revision,
+                toolchain_revision=args.toolchain_revision,
+                tenant_snapshot=_mapping(_read_json(Path(args.tenant_snapshot_file))),
+            )
+            if validate_semantic_index_v2_receipt(result["receipt"]):
+                raise VideoSemanticsCLIError("INDEX_V2_RECEIPT_INVALID")
+            files = _write_outputs(
+                directory,
+                {
+                    "index-v2.json": result["index"],
+                    "index-v2-receipt.json": result["receipt"],
+                },
+                operation,
+            )
         elif operation == "ground":
             result = ground_request(
                 _mapping(_read_json(Path(args.index))),
@@ -378,6 +459,57 @@ def execute_video_semantics(operation: str, args: Any) -> int:
                 {
                     "grounding.json": result["grounding"],
                     "grounding-receipt.json": result["receipt"],
+                },
+                operation,
+            )
+        elif operation == "context-v2":
+            index = _mapping(_read_json(Path(args.index)))
+            context_result = build_brain_semantic_context_v2(
+                index,
+                _read_jsonl(Path(args.concepts)),
+                _mapping(_read_json(Path(args.crosswalk))),
+                _mapping(_read_json(Path(args.constraints))),
+            )
+            if validate_brain_context_v2_receipt(
+                context_result["receipt"], context=context_result["context"]
+            ) or validate_brain_context_v2_manifest(
+                index,
+                context_result["context"],
+                context_result["receipt"],
+                context_result["manifest"],
+            ):
+                raise VideoSemanticsCLIError("BRAIN_CONTEXT_V2_RECEIPT_INVALID")
+            files = _write_outputs(
+                directory,
+                {
+                    "brain-context-v2.json": context_result["context"],
+                    "brain-context-v2-receipt.json": context_result["receipt"],
+                    "brain-context-v2-manifest.json": context_result["manifest"],
+                },
+                operation,
+            )
+        elif operation == "ground-v2":
+            index = _mapping(_read_json(Path(args.index)))
+            context = _mapping(_read_json(Path(args.context)))
+            context_receipt = _mapping(_read_json(Path(args.context_receipt)))
+            context_manifest = _mapping(_read_json(Path(args.context_manifest)))
+            grounding_result = adjudicate_grounding_proposal_v2(
+                index,
+                context,
+                _read_text(Path(args.request)),
+                _mapping(_read_json(Path(args.proposal))),
+                context_receipt=context_receipt,
+                context_manifest=context_manifest,
+                expected_context_manifest_sha256=args.context_manifest_sha256,
+                catalog=args.catalog,
+            )
+            if validate_grounding_v2_receipt(grounding_result["receipt"]):
+                raise VideoSemanticsCLIError("GROUNDING_V2_RECEIPT_INVALID")
+            files = _write_outputs(
+                directory,
+                {
+                    "grounding-v2.json": grounding_result["grounding"],
+                    "grounding-v2-receipt.json": grounding_result["receipt"],
                 },
                 operation,
             )

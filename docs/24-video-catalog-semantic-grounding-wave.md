@@ -1,15 +1,15 @@
 # Wave `@video`: semantic grounding editoriale riservato
 
-Stato: **PERIMETRO SOFTWARE/TOOLCHAIN COMPLETO — grammatica e retrieval schema
-2 `PINNED`, source freeze P0 e preflight di estrazione P1 `GREEN`, superfici
-software P2-P14 implementate e gate repository finale verde; restano soltanto
-le evidenze operative private/live/editoriali/modello, che il codice non può
-simulare**.
+Stato: **MATERIALIZZAZIONE OFFLINE `@video` CHIUSA NEL BRANCH ISOLATO —
+grammatica e retrieval schema 2 `PINNED`, ontologia/crosswalk/review frontier,
+patch semantic-only, compiler/R8, indice Brain con CAS e gate repository
+`GREEN`; riconciliazione live e P13/P14 modello restano gate separati e non
+sono dichiarati eseguiti**.
 
 Data del piano: 27 agosto 2026.
 
 Baseline della chiusura corrente Model 1:
-`main@c6e599b1dfdeb9a8dea92f334e97bdc3d84be63d`.
+`main@7676d1f23ca907f56a2f2ff825ddabb45186b289`.
 
 Pin grammaticale Metis verificato su estrazione pulita del commit promosso:
 `main@0b41a25d4d5eeac88975e43e18e4bc3123d51667`; il retrieval schema 2 è
@@ -18,8 +18,8 @@ un parser stretto Model 1.
 
 Receipt di chiusura del gate repository Model 1: `make check` è terminato con
 exit code zero. La fondazione è `VALID` con `passes=84`, `errors=0` e
-`files=487`; i contratti pilot sono `VALID`, lint e formato sono puliti e pytest
-ha prodotto `2044 passed, 2 skipped, 0 failed` in `2579.87s`. I due skip sono
+`files=506`; i contratti pilot sono `VALID`, lint e formato sono puliti e pytest
+ha prodotto `2157 passed, 2 skipped, 0 failed` in `2791.69s`. I due skip sono
 gate opt-in con autorità distinta: il pin grammaticale successor è stato
 rieseguito separatamente col suo Node esatto e ha chiuso `15/15` evidenze e
 `7/7` probe; il contratto W3 production protetto resta un'evidenza esterna e
@@ -1189,7 +1189,7 @@ locator, pre/post hash e decisione. Non registra commenti privati non necessari.
 Dopo la promozione, il toolchain ricostruisce da zero un indice compatto con:
 
 - catalog name/label/means/aka/state/ref;
-- field path/type/domain/means/aka/state/ref;
+- field path/type/modifiers/domain/means/aka/state/ref;
 - value literal/means/aka/state/ref per domini finiti;
 - policy derivata `exact_on_demand` per `open`;
 - semantic source revision;
@@ -1206,6 +1206,18 @@ Proprietà obbligatorie:
 - stessa sorgente e stesso toolchain producono byte identici;
 - cambio semantico produce una nuova revision e rende stale le proposte Brain;
 - rollback del sorgente permette rollback dell'indice senza migrazioni opache.
+
+L'indice non basta da solo a decodificare un concetto editoriale il cui esito è
+`absent` o la cui relazione è ambigua: i `semantic_ref` sono hash, non
+definizioni. Brain costruisce quindi, nello store privato, un context registry
+reviewed legato a `index_revision`, `concepts_sha256`, `crosswalk_sha256` e
+`constraint_revision`. Il registry contiene il significato necessario al
+modello ma non diventa una seconda fonte di verità; viene sempre rigenerato
+dalle fonti semantiche validate e la receipt pubblica contiene soltanto hash e
+denominatori. La build emette anche un manifest CAS separato. La sessione Brain
+pinna il suo `manifest_sha256`; l'adjudicator richiede context, receipt,
+manifest e quel pin esterno e rifiuta un bundle interamente modificato anche se
+l'attaccante ne ha ricalcolato tutti gli hash interni.
 
 ## 16. Retrieval e grounding in Metis Brain
 
@@ -1268,6 +1280,14 @@ L'oggetto seguente è **puramente illustrativo e non consumabile**: nomi,
 
 Brain verifica che catalogo, campo e literal appartengano allo snapshot. Soltanto
 dopo consente al modello di generare il `.metis`.
+
+La proposta è valutata clausola per clausola. Il modello non può auto-dichiarare
+una scelta valida: l'adjudicator host-owned accetta `resolved` soltanto su
+membership reviewed, trasforma un dominio `open` in lookup engine-owned, blocca
+un valore su dominio `none` come `UNCLASSIFIED_DOMAIN_LOOKUP`, richiede
+chiarimento per collisioni o equivalenze legacy non dimostrate e accetta
+`unsupported` soltanto su un'assenza terminale reviewed. Il receipt non contiene
+testo della richiesta, literal, descrizioni o chain-of-thought.
 
 ### 16.4 Sicurezza del retrieval
 
@@ -1867,8 +1887,9 @@ sessione; non sono input liberi provenienti dalla chat.
 | P9 sync dry-run (`EXTERNAL/NOT RUN`) | `npm run catalog:sync-values -- --tenant <worktree-tenant> --dry-run` | commit tenant candidate + fake/authorized provider | proposed edit receipt | nessuna scrittura; semantic survivors invariati |
 | P9 schema 2 describe (`PASS/PINNED`) | consumer stretto Model 1 di `catalog:describe` schema 2 | commit Metis+tenant pinnati | projection normalizzata | technical + reviewed semantics/ref; zero valori non richiesti |
 | P9 schema 2 values (`PASS/PINNED`) | consumer stretto Model 1 di `catalog:values` schema 2 | field locator pinnato | merge per campo | literal esatti + semantics/state/ref; open senza lista |
-| P11 reproducibility (`IMPLEMENTED/OFFLINE`) | `uv run metis-model1 video-semantics build-index --projection <projection> --semantic-source-revision <sha256> --grammar-revision <sha256> --toolchain-revision <sha256> --tenant-snapshot <id> --output-dir work-items/<run-id>` | source/grammar/toolchain SHA | index + receipt | revision canonica; membership, freshness e rollback CAS verificati |
-| P12 Brain smoke (`IMPLEMENTED/OFFLINE`) | `uv run pytest -q tests/test_video_brain_grounding.py` | indice sintetico/reviewed | grounding + receipt | resolve multi-concetto/clarify/unsupported corretti; niente invenzione |
+| P11 reproducibility (`IMPLEMENTED/OFFLINE`) | `uv run metis-model1 video-semantics build-index-v2 --projection <projection-or-capture> --census <census> --concepts <reviewed-jsonl> --crosswalk <bundle> --constraints <ledger> --semantic-source-revision <sha256> --grammar-revision <sha256> --toolchain-revision <sha256> --tenant-snapshot-file <snapshot> --output-dir work-items/<run-id>` | projection/census/source/grammar/toolchain/snapshot SHA | index v2 + receipt | revision canonica; 100% dei Field conserva type/modifiers; membership e semantic/constraint refs chiusi |
+| P12 Brain context (`IMPLEMENTED/OFFLINE`) | `uv run metis-model1 video-semantics build-brain-context-v2 --index <index-v2> --concepts <reviewed-jsonl> --crosswalk <bundle> --constraints <ledger> --output-dir work-items/<run-id>` | stesso index/crosswalk/constraint SHA | private context registry + receipt redatta + manifest CAS | mapped+absent=concepts; gaps zero; context revision legata all'indice; manifest hash pinnabile dalla sessione |
+| P12 Brain grounding (`IMPLEMENTED/OFFLINE`) | `uv run metis-model1 video-semantics ground-proposal-v2 --index <index-v2> --context <context-v2> --context-receipt <receipt> --context-manifest <manifest> --context-manifest-sha256 <session-pin> --request <request> --proposal <proposal> --catalog <catalog> --output-dir work-items/<run-id>` | richiesta hashata + proposal pins + snapshot + trusted context CAS | grounding per clausola + receipt | copertura clausole completa; context/receipt/manifest legati al pin esterno; resolved/clarify/unsupported verificati; target fuori membership e valori inventati rifiutati |
 | P13 eval (`IMPLEMENTED/OFFLINE`; run modello aperto) | `uv run metis-model1 video-semantics evaluate-paired --tasks <terminal-freeze> --observations <sanitized-facts> --output-dir benchmark-runs/<run-id>` | 96 task e 384 osservazioni con pin completi | evaluation report + failure taxonomy | quattro varianti, denominatori/Wilson/critical ricalcolati dalle righe |
 | P14 verdict (`IMPLEMENTED/FAIL-CLOSED`; evidenza terminale aperta) | `uv run metis-model1 video-semantics weight-verdict --benchmark <terminal-freeze> --thresholds <ratified> --gate-receipts <receipts> --scorecards <evaluation> --output-dir receipts/<run-id>` | benchmark, soglie, receipt ed evaluation legati allo stesso hash | un solo verdict | `BLOCKED` exit non-zero; nessuna training/promotion authority |
 | Model 1 repository | `make check` | checkout corrente con Node/Metis pin | complete check log | `passes` senza `errors`; tutti i target terminano exit 0 |
