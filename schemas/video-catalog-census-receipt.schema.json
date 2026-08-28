@@ -39,11 +39,12 @@
     },
     "live_census": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "evidence_scope", "receipt_id", "profile_id", "tenant_ref", "catalog_ref", "alias_ref", "index_ref", "mode", "snapshot_ref", "mapping_sha256_before", "mapping_sha256_after", "document_count_before", "document_count_after", "field_roster_count", "query_count", "query_hashes", "state_counts", "started_at", "ended_at", "status", "values_redacted", "artifact_sha256", "attestation", "receipt_sha256"],
+      "required": ["schema_version", "evidence_scope", "receipt_id", "profile_id", "profile_revision", "tenant_ref", "catalog_ref", "alias_ref", "index_ref", "mode", "snapshot_ref", "mapping_sha256_before", "mapping_sha256_after", "document_count_before", "document_count_after", "field_roster_count", "query_count", "query_hashes", "state_counts", "started_at", "ended_at", "status", "values_redacted", "artifact_sha256", "attestation", "receipt_sha256"],
       "properties": {
         "schema_version": {"const": 1}, "evidence_scope": {"const": "live_census"},
         "receipt_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
-        "profile_id": {"const": "video-semantics-census-v1"}, "tenant_ref": {"$ref": "#/$defs/opaque"},
+        "profile_id": {"const": "video-semantics-census-v1"}, "profile_revision": {"$ref": "#/$defs/hash"},
+        "tenant_ref": {"$ref": "#/$defs/opaque"},
         "catalog_ref": {"$ref": "#/$defs/opaque"}, "alias_ref": {"$ref": "#/$defs/opaque"}, "index_ref": {"$ref": "#/$defs/opaque"},
         "mode": {"enum": ["pit", "equivalent_snapshot", "single_bounded_request"]}, "snapshot_ref": {"$ref": "#/$defs/opaque"},
         "mapping_sha256_before": {"$ref": "#/$defs/hash"}, "mapping_sha256_after": {"$ref": "#/$defs/hash"},
@@ -54,7 +55,8 @@
         "ended_at": {"type": "string", "format": "date-time"},
         "status": {"enum": ["VALID", "NON_ATOMIC", "INCONSISTENT", "BLOCKED_INCONSISTENT", "DENIED", "PARTIAL"]},
         "values_redacted": {"const": true}, "artifact_sha256": {"$ref": "#/$defs/hash"},
-        "attestation": {"enum": ["signed_read_only", "out_of_band_signed"]}, "receipt_sha256": {"$ref": "#/$defs/hash"}
+        "attestation": {"$ref": "https://metis-model1.local/schemas/video-census-attestation.schema.json"},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
       }
     }
   }

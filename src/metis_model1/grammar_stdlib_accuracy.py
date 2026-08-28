@@ -33,8 +33,18 @@ FREEZE_PATH = PROJECT_ROOT / "manifests/grammar-stdlib-accuracy-d18-freeze-v1.js
 EVIDENCE_PATH = PROJECT_ROOT / "manifests/grammar-stdlib-accuracy-d18-evaluation-v1.json"
 RUN_ROOT = PROJECT_ROOT / "artifacts/grammar-stdlib-accuracy/d18"
 ADAPTER_PATH = PROJECT_ROOT / "artifacts/initial-local-qlora-v1/run-v2/checkpoints/step-00000050"
-DEFAULT_METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
-DEFAULT_NODE = Path("/Users/tommasotessarolo/.local/bin/node")
+DEFAULT_METIS_ROOT = Path(
+    os.environ.get(
+        "METIS_MODEL1_METIS_ROOT",
+        "/Users/tommasotessarolo/Developer/ares-matioska/metis",
+    )
+)
+DEFAULT_NODE = Path(
+    os.environ.get(
+        "METIS_MODEL1_NODE",
+        "/Users/tommasotessarolo/.nvm/versions/node/v22.22.3/bin/node",
+    )
+)
 QUALIFICATION_PYTHON = PROJECT_ROOT / "qualification/.venv/bin/python"
 BENCHMARK_ID = "grammar-stdlib-accuracy-d18-v1"
 FAMILIES = tuple(f"F-{item}" for item in range(1, 7))

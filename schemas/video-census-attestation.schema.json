@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/video-census-attestation.schema.json",
+  "title": "Sanitized Ed25519 video census attestation verification receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_scope",
+    "contract_id",
+    "status",
+    "proof_type",
+    "algorithm",
+    "trust_store_id",
+    "trust_store_revision",
+    "attestation_sha256",
+    "signed_payload_sha256",
+    "issuer_ref",
+    "key_id_ref",
+    "key_fingerprint",
+    "attestation_id_ref",
+    "replay_id_ref",
+    "bindings",
+    "validity",
+    "verification",
+    "sanitized",
+    "nonclaims",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "evidence_scope": {"const": "synthetic_attestation_contract"},
+    "contract_id": {"const": "video-census-attestation-ed25519-v1"},
+    "status": {"const": "VALID"},
+    "proof_type": {"const": "out_of_band_signed_read_only"},
+    "algorithm": {"const": "Ed25519"},
+    "trust_store_id": {"$ref": "#/$defs/opaque"},
+    "trust_store_revision": {"$ref": "#/$defs/hash"},
+    "attestation_sha256": {"$ref": "#/$defs/hash"},
+    "signed_payload_sha256": {"$ref": "#/$defs/hash"},
+    "issuer_ref": {"$ref": "#/$defs/hash"},
+    "key_id_ref": {"$ref": "#/$defs/hash"},
+    "key_fingerprint": {"$ref": "#/$defs/hash"},
+    "attestation_id_ref": {"$ref": "#/$defs/hash"},
+    "replay_id_ref": {"$ref": "#/$defs/hash"},
+    "bindings": {"$ref": "#/$defs/bindings"},
+    "validity": {"$ref": "#/$defs/validity"},
+    "verification": {"$ref": "#/$defs/verification"},
+    "sanitized": {"const": true},
+    "nonclaims": {
+      "const": [
+        "no_live_census",
+        "no_live_role_observation",
+        "no_secret_or_credential_access",
+        "no_vsix_secretstorage_integration",
+        "no_p4b_completion_claim",
+        "no_p6_completion_claim",
+        "no_production_replay_store",
+        "no_cluster_write_probe"
+      ]
+    },
+    "receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "handle_ref": {"type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$"},
+    "opaque": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "utc_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "format": "date-time"
+    },
+    "capabilities": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "metadata-read"},
+        {"const": "aggregate-read"},
+        {"const": "pit-lifecycle"}
+      ],
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audience",
+        "tenant_ref",
+        "catalog_ref",
+        "alias_ref",
+        "index_ref",
+        "profile_revision",
+        "credential_handle_ref",
+        "capabilities"
+      ],
+      "properties": {
+        "audience": {"$ref": "#/$defs/opaque"},
+        "tenant_ref": {"$ref": "#/$defs/opaque"},
+        "catalog_ref": {"$ref": "#/$defs/opaque"},
+        "alias_ref": {"$ref": "#/$defs/opaque"},
+        "index_ref": {"$ref": "#/$defs/opaque"},
+        "profile_revision": {"$ref": "#/$defs/hash"},
+        "credential_handle_ref": {"$ref": "#/$defs/handle_ref"},
+        "capabilities": {"$ref": "#/$defs/capabilities"}
+      }
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "verified_at",
+        "valid_until",
+        "max_ttl_seconds",
+        "clock_skew_seconds"
+      ],
+      "properties": {
+        "issued_at": {"$ref": "#/$defs/utc_timestamp"},
+        "not_before": {"$ref": "#/$defs/utc_timestamp"},
+        "expires_at": {"$ref": "#/$defs/utc_timestamp"},
+        "verified_at": {"$ref": "#/$defs/utc_timestamp"},
+        "valid_until": {"$ref": "#/$defs/utc_timestamp"},
+        "max_ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "clock_skew_seconds": {"type": "integer", "minimum": 0, "maximum": 300}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trust_store_pin_valid",
+        "key_fingerprint_valid",
+        "signature_valid",
+        "audience_valid",
+        "scope_valid",
+        "credential_handle_valid",
+        "capability_roster_exact",
+        "time_window_valid",
+        "replay_id_consumed"
+      ],
+      "properties": {
+        "trust_store_pin_valid": {"const": true},
+        "key_fingerprint_valid": {"const": true},
+        "signature_valid": {"const": true},
+        "audience_valid": {"const": true},
+        "scope_valid": {"const": true},
+        "credential_handle_valid": {"const": true},
+        "capability_roster_exact": {"const": true},
+        "time_window_valid": {"const": true},
+        "replay_id_consumed": {"const": true}
+      }
+    }
+  }
+}

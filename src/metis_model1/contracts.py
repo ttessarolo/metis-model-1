@@ -7,7 +7,7 @@ import re
 import subprocess
 import tomllib
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -127,6 +127,7 @@ STANDALONE_SCHEMAS = (
     "schemas/video-catalog-census-receipt.schema.json",
     "schemas/video-grounding-task.schema.json",
     "schemas/video-grounding-scorecard.schema.json",
+    "schemas/video-census-attestation.schema.json",
 )
 
 REQUIRED_FOUNDATION_PATHS = (
@@ -162,6 +163,19 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/video_semantics_tooling.py",
     "src/metis_model1/video_semantics_private_runner.py",
     "src/metis_model1/video_source_extraction.py",
+    "src/metis_model1/catalog_semantic_retrieval.py",
+    "src/metis_model1/test_harness.py",
+    "src/metis_model1/video_brain_grounding.py",
+    "src/metis_model1/video_catalog_projection.py",
+    "src/metis_model1/video_census_attestation.py",
+    "src/metis_model1/video_frontier_boundary.py",
+    "src/metis_model1/video_grounding_evaluation.py",
+    "src/metis_model1/video_local_census.py",
+    "src/metis_model1/video_semantic_crosswalk.py",
+    "src/metis_model1/video_semantic_index.py",
+    "src/metis_model1/video_semantic_toolchain_pin.py",
+    "src/metis_model1/video_semantics_cli.py",
+    "src/metis_model1/video_weight_verdict.py",
     "runtime/w3_qualifier.py",
     "runtime/w3_production_worker.py",
     "runtime/w3_bridge_gate.py",
@@ -204,6 +218,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "manifests/accuracy-uplift-plan.json",
     "manifests/video-semantics-sources-v1.json",
     "manifests/video-private-artifact-policy-v1.json",
+    "manifests/video-semantic-toolchain-pin-v1.json",
     "schemas/catalog-maintenance-probe.schema.json",
     "schemas/catalog-maintenance-probe-freeze.schema.json",
     "schemas/catalog-maintenance-probe-evaluation.schema.json",
@@ -240,6 +255,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "schemas/video-catalog-census-receipt.schema.json",
     "schemas/video-grounding-task.schema.json",
     "schemas/video-grounding-scorecard.schema.json",
+    "schemas/video-census-attestation.schema.json",
     "fixtures/video-catalog-semantics-v1/concept.json",
     "fixtures/video-catalog-semantics-v1/work-item.json",
     "fixtures/video-catalog-semantics-v1/crosswalk.json",
@@ -338,6 +354,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-27-video-catalog-semantics-private-prep/SESSIONS.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-source-freeze/BLACKBOARD.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-source-freeze/SESSIONS.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-closure/BLACKBOARD.md",
+    "orchestra/runs/2026-08-27-video-catalog-semantics-closure/SESSIONS.md",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",
@@ -426,6 +444,18 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_video_semantics_private_runner.py",
     "tests/test_video_semantics_cli.py",
     "tests/test_video_source_extraction.py",
+    "tests/test_catalog_semantic_retrieval.py",
+    "tests/test_test_harness.py",
+    "tests/test_video_brain_grounding.py",
+    "tests/test_video_catalog_projection.py",
+    "tests/test_video_census_attestation.py",
+    "tests/test_video_grounding_evaluation.py",
+    "tests/test_video_local_census.py",
+    "tests/test_video_semantic_crosswalk.py",
+    "tests/test_video_semantic_index.py",
+    "tests/test_video_semantic_toolchain_pin.py",
+    "tests/test_video_semantics_cli_wave.py",
+    "tests/test_video_weight_verdict.py",
 )
 
 FORBIDDEN_REPOSITORY_PREFIXES = (
@@ -447,6 +477,7 @@ FORBIDDEN_MODEL_SUFFIXES = (
     ".safetensors",
 )
 FORBIDDEN_DATA_SUFFIXES = (".arrow", ".jsonl", ".log", ".parquet", ".sqlite")
+FORBIDDEN_RESERVED_SOURCE_SUFFIXES = (".doc", ".docx", ".pdf", ".rtf")
 FORBIDDEN_SECRET_SUFFIXES = (".key", ".p12", ".pem", ".pfx")
 FORBIDDEN_SECRET_NAMES = ("credentials.json", "secrets.json", "service-account.json")
 MAX_REPOSITORY_FILE_BYTES = 5 * 1024 * 1024
@@ -2162,6 +2193,63 @@ def _t30_v3_bound_record(root: Path, relative: str) -> dict[str, Any]:
     }
 
 
+def _t30_v3_bound_records_from_commit(
+    root: Path, revision: Any, relatives: Sequence[str]
+) -> list[dict[str, Any]] | None:
+    """Reconstruct frozen input records from their committed preimage.
+
+    A historical freeze must not start failing merely because a bound source
+    file evolved after the run.  The commit object is the authority; the
+    working tree is used only by synthetic non-Git fixtures, whose later Git
+    lineage gate still fails closed unless explicitly replaced by the test.
+    """
+
+    if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        return None
+    records: list[dict[str, Any]] = []
+    for relative in relatives:
+        try:
+            tree = subprocess.run(
+                ["git", "-C", str(root), "ls-tree", "-z", revision, "--", relative],
+                capture_output=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        entries = [item for item in tree.stdout.split(b"\0") if item]
+        if tree.returncode != 0 or len(entries) != 1:
+            return None
+        try:
+            metadata, tracked = entries[0].split(b"\t", 1)
+            mode, kind, blob_oid = metadata.decode("ascii").split(" ", 2)
+            tracked_path = tracked.decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            return None
+        if mode != "100644" or kind != "blob" or tracked_path != relative:
+            return None
+        try:
+            blob = subprocess.run(
+                ["git", "-C", str(root), "cat-file", "blob", blob_oid],
+                capture_output=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if blob.returncode != 0:
+            return None
+        records.append(
+            {
+                "path": relative,
+                "bytes": len(blob.stdout),
+                "sha256": "sha256:" + hashlib.sha256(blob.stdout).hexdigest(),
+                "git_blob_oid": blob_oid,
+            }
+        )
+    return records
+
+
 def _is_t30_v3_semantic_signature(task: Mapping[str, Any], value: Any) -> bool:
     """Check a stored Oracle signature without rerunning the Oracle."""
 
@@ -2303,7 +2391,10 @@ def _validate_t30_v3_phase_decision(
 
 
 def _validate_t30_v3_freeze_static_shape(
-    contract: Mapping[str, Any], freeze: Mapping[str, Any], truth: Mapping[str, Any] | None
+    root: Path,
+    contract: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+    truth: Mapping[str, Any] | None,
 ) -> list[str]:
     required = {
         "schema_version",
@@ -2334,6 +2425,11 @@ def _validate_t30_v3_freeze_static_shape(
         "predecessor_terminal_diagnosis",
         "freeze_sha256",
     }
+    expected_bound_records = _t30_v3_bound_records_from_commit(
+        root, freeze.get("preimage_commit"), contract["bound_paths"]
+    )
+    if expected_bound_records is None:
+        expected_bound_records = contract["bound_records"]
     if (
         set(freeze) != required
         or freeze.get("run_id") != contract["run_id"]
@@ -2347,7 +2443,7 @@ def _validate_t30_v3_freeze_static_shape(
         != (truth or {}).get("predecessor_terminal_diagnosis")
         or freeze.get("runtime_identities") != contract["runtime_identities"]
         or not isinstance(freeze.get("bound_inputs"), list)
-        or freeze.get("bound_inputs") != contract["bound_records"]
+        or freeze.get("bound_inputs") != expected_bound_records
     ):
         return ["T30-v3 freeze static evidence roster or linkage contains drift"]
     return []
@@ -2371,6 +2467,7 @@ def _t30_v3_live_semantic_replay(
 ) -> dict[str, list[dict[str, Any]]]:
     """Rescore all sixty candidates against the repository-owned clean clone."""
 
+    from metis_model1 import catalog_maintenance_pin as catalog_pin
     from metis_model1 import grammar_stdlib_t30 as t30
     from metis_model1 import grammar_stdlib_t30_v3 as successor
 
@@ -2398,26 +2495,44 @@ def _t30_v3_live_semantic_replay(
     if set(truth_by_id) != {task["task_id"] for task in tasks}:
         raise ValueError("T30-v3 semantic replay truth roster contains drift")
 
+    runtime = catalog_pin.load_catalog_maintenance_pin()["runtime"]
+    version = str(runtime["node_version"]).removeprefix("v")
+    node_candidates = (
+        Path.home() / ".nvm" / "versions" / "node" / f"v{version}" / "bin" / "node",
+        t30.DEFAULT_NODE,
+    )
+    node_path: Path | None = None
+    for candidate in node_candidates:
+        try:
+            catalog_pin._verify_node(candidate, runtime)
+        except catalog_pin.CatalogMaintenancePinError:
+            continue
+        node_path = candidate
+        break
+    if node_path is None:
+        raise ValueError("T30-v3 exact historical Node runtime is unavailable")
+
     with successor.successor_configuration():
         with t30.oracle.grammar_stdlib_oracle_session(
             metis_root=clean_root,
-            node_path=t30.DEFAULT_NODE,
+            node_path=node_path,
         ) as session:
             if dict(session.pin_identity) != truth.get("grammar_stdlib_pin"):
                 raise ValueError("T30-v3 semantic replay pin identity contains drift")
-        internal = {
-            side: [
-                t30.score_candidate(
-                    task,
-                    candidate,
-                    truth_by_id[task["task_id"]],
-                    clean_root,
-                    t30.DEFAULT_NODE,
-                )
-                for task, candidate in zip(tasks, candidate_rows[side], strict=True)
-            ]
-            for side in ("base", "adapter")
-        }
+            internal = {
+                side: [
+                    t30.score_candidate(
+                        task,
+                        candidate,
+                        truth_by_id[task["task_id"]],
+                        clean_root,
+                        node_path,
+                        session=session,
+                    )
+                    for task, candidate in zip(tasks, candidate_rows[side], strict=True)
+                ]
+                for side in ("base", "adapter")
+            }
         return t30._public_observations(internal)
 
 
@@ -3606,7 +3721,7 @@ def _validate_grammar_stdlib_t30_successor_version(root: Path, version: int) -> 
                 errors.append(f"{label} freeze {key} does not link its input")
         if version == 3:
             errors.extend(
-                _validate_t30_v3_freeze_static_shape(v3_static_contract or {}, freeze, truth)
+                _validate_t30_v3_freeze_static_shape(root, v3_static_contract or {}, freeze, truth)
             )
 
     evaluation = phases.get("evaluation")
@@ -3890,6 +4005,8 @@ def validate_artifact_policy_paths(paths: list[str]) -> list[str]:
             errors.append(f"repository model payload is forbidden: {normalized}")
         if suffix in FORBIDDEN_DATA_SUFFIXES or name.endswith(".db"):
             errors.append(f"repository materialized data is forbidden: {normalized}")
+        if suffix in FORBIDDEN_RESERVED_SOURCE_SUFFIXES:
+            errors.append(f"repository reserved source document is forbidden: {normalized}")
         if any(normalized.startswith(prefix) for prefix in FORBIDDEN_REPOSITORY_PREFIXES):
             errors.append(f"repository local-only artifact is forbidden: {normalized}")
     return errors
@@ -4537,6 +4654,18 @@ def validate_foundation(root: Path | None = None) -> ValidationReport:
         report.errors.extend(f"catalog-maintenance-pin: {error}" for error in catalog_pin_errors)
     else:
         report.passes.append("catalog-maintenance-pin-contract=18-evidence+5-probes-registered")
+
+    from metis_model1.video_semantic_toolchain_pin import (
+        validate_video_semantic_toolchain_pin_contract,
+    )
+
+    video_toolchain_pin_errors = validate_video_semantic_toolchain_pin_contract(root)
+    if video_toolchain_pin_errors:
+        report.errors.extend(
+            f"video-semantic-toolchain-pin: {error}" for error in video_toolchain_pin_errors
+        )
+    else:
+        report.passes.append("video-semantic-toolchain-pin=schema2/15-evidence+7-probes/static")
 
     from metis_model1.catalog_retrieval_refresh import (
         validate_catalog_retrieval_refresh_contract,

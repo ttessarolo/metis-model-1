@@ -12,13 +12,17 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
+from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 from metis_model1.evaluation import wilson_interval
 from metis_model1.provenance import canonical_json_hash
+from metis_model1.video_census_attestation import validate_attestation_receipt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_ROOT = PROJECT_ROOT / "schemas"
@@ -26,6 +30,16 @@ FIXTURE_ROOT = PROJECT_ROOT / "fixtures/video-catalog-semantics-v1"
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 RELATIVE_PATH_RE = re.compile(r"^(?!/)(?!.*\\)(?!.*(?:^|/)\.\.(?:/|$))[A-Za-z0-9._@+/-]+$")
+EVALUATED_FAMILY_TOTALS = {
+    "V-1": 20,
+    "V-2": 20,
+    "V-3": 16,
+    "V-4": 16,
+    "V-5": 12,
+    "V-6": 8,
+    "V-7": 4,
+}
+EVALUATED_VARIANTS = ("B0", "B1", "D0", "D1")
 
 SCHEMA_FILES = (
     "video-semantics-source-manifest.schema.json",
@@ -35,6 +49,7 @@ SCHEMA_FILES = (
     "video-semantic-crosswalk.schema.json",
     "video-editorial-constraint.schema.json",
     "video-catalog-census-profile.schema.json",
+    "video-census-attestation.schema.json",
     "video-catalog-census-receipt.schema.json",
     "video-grounding-task.schema.json",
     "video-grounding-scorecard.schema.json",
@@ -97,6 +112,19 @@ def load_json(path: Path) -> Any:
         raise VideoSemanticsContractError(f"cannot load JSON {path}") from error
 
 
+@lru_cache(maxsize=1)
+def _schema_registry() -> Registry:
+    """Build the complete local-only schema registry for cross-schema refs."""
+
+    resources: list[tuple[str, Resource[Any]]] = []
+    for name in SCHEMA_FILES:
+        schema = load_json(SCHEMA_ROOT / name)
+        if not isinstance(schema, dict) or not isinstance(schema.get("$id"), str):
+            raise VideoSemanticsContractError(f"schema has no canonical $id: {name}")
+        resources.append((schema["$id"], Resource.from_contents(schema)))
+    return Registry().with_resources(resources)
+
+
 def load_schema(name: str) -> dict[str, Any]:
     if name not in SCHEMA_FILES:
         raise VideoSemanticsContractError(f"schema is not allowlisted: {name}")
@@ -114,9 +142,11 @@ def schema_errors(name: str, value: Any) -> list[str]:
         schema = load_schema(name)
         return [
             error.message
-            for error in Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
-                value
-            )
+            for error in Draft202012Validator(
+                schema,
+                registry=_schema_registry(),
+                format_checker=FormatChecker(),
+            ).iter_errors(value)
         ]
     except Exception as error:  # contract boundary must fail closed
         return [f"{type(error).__name__}: {error}"]
@@ -487,6 +517,34 @@ def validate_census_receipt(receipt: Any) -> list[str]:
         if receipt["query_count"] != len(receipt["query_hashes"]):
             errors.append("offline receipt query_count does not equal query_hashes count")
         return errors
+
+    attestation = receipt["attestation"]
+    errors.extend(
+        f"census attestation: {error}" for error in validate_attestation_receipt(attestation)
+    )
+    bindings = attestation["bindings"]
+    for key in ("tenant_ref", "catalog_ref", "alias_ref", "index_ref", "profile_revision"):
+        if bindings[key] != receipt[key]:
+            errors.append(f"census attestation {key} differs from live receipt")
+    if bindings["audience"] != "metis-model1.video-census":
+        errors.append("census attestation audience is not the video census service")
+    try:
+        started_at = datetime.fromisoformat(receipt["started_at"].replace("Z", "+00:00"))
+        ended_at = datetime.fromisoformat(receipt["ended_at"].replace("Z", "+00:00"))
+        verified_at = datetime.fromisoformat(
+            attestation["validity"]["verified_at"].replace("Z", "+00:00")
+        )
+        valid_until = datetime.fromisoformat(
+            attestation["validity"]["valid_until"].replace("Z", "+00:00")
+        )
+        expires_at = datetime.fromisoformat(
+            attestation["validity"]["expires_at"].replace("Z", "+00:00")
+        )
+    except (AttributeError, TypeError, ValueError):
+        errors.append("census or attestation time boundary is invalid")
+    else:
+        if not (verified_at <= started_at <= ended_at <= valid_until <= expires_at):
+            errors.append("census is outside the verified attestation time boundary")
     if receipt["query_count"] != len(receipt["query_hashes"]):
         errors.append("query_count does not equal query_hashes count")
     if receipt["status"] == "VALID":
@@ -529,8 +587,9 @@ def validate_scorecard(scorecard: Any, *, task_roster_revision: str | None = Non
         ("family", item["score"]) for item in scorecard["families"]
     ]
     for label, score in scores:
-        if score["passed"] > score["total"]:
+        if score["passed"] > score["total"] or score["passed"] < 0:
             errors.append(f"{label} score exceeds denominator")
+            continue
         expected_interval = wilson_interval(score["passed"], score["total"])
         if any(
             abs(actual - expected) > 1e-12
@@ -563,6 +622,41 @@ def validate_scorecard(scorecard: Any, *, task_roster_revision: str | None = Non
             errors.append("evaluated scorecard does not contain the complete 4x7 roster")
         if critical["passed"] + critical["failed"] != critical["total"]:
             errors.append("critical score arithmetic is inconsistent")
+        if scorecard["overall"]["total"] != 384:
+            errors.append("evaluated scorecard must aggregate 96 tasks across four variants")
+        if any(score["total"] <= 1 for _, score in scores):
+            errors.append("evaluated scorecard cannot use a denominator of one")
+        family_passed = 0
+        family_total = 0
+        for item in scorecard["families"]:
+            expected_total = EVALUATED_FAMILY_TOTALS[item["family"]]
+            if item["score"]["total"] != expected_total:
+                errors.append(
+                    f"family {item['family']} denominator differs from the 96-task roster"
+                )
+            family_passed += item["score"]["passed"]
+            family_total += item["score"]["total"]
+        if family_total != scorecard["overall"]["total"]:
+            errors.append("family denominators do not sum to the overall denominator")
+        if family_passed != scorecard["overall"]["passed"]:
+            errors.append("family passes do not sum to the overall passes")
+        if sum(scorecard["error_taxonomy"].values()) != (
+            scorecard["overall"]["total"] - scorecard["overall"]["passed"]
+        ):
+            errors.append("error taxonomy does not cover every failed observation")
+        by_variant = critical.get("by_variant")
+        if not isinstance(by_variant, Mapping):
+            errors.append("critical outcomes must be explicit for every variant")
+        else:
+            for variant in EVALUATED_VARIANTS:
+                variant_score = by_variant.get(variant)
+                if not isinstance(variant_score, Mapping):
+                    errors.append(f"critical outcomes are missing for variant {variant}")
+                    continue
+                if variant_score["total"] != 12:
+                    errors.append(f"critical denominator for {variant} must be 12")
+                if variant_score["passed"] + variant_score["failed"] != variant_score["total"]:
+                    errors.append(f"critical score arithmetic is inconsistent for {variant}")
     body = {key: value for key, value in scorecard.items() if key != "receipt_sha256"}
     if scorecard["receipt_sha256"] != manifest_digest(body):
         errors.append("scorecard self-hash is invalid")

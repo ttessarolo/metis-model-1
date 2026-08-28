@@ -25,6 +25,17 @@
     },
     "critical": {
       "type": "object", "additionalProperties": false, "required": ["total", "passed", "failed"],
+      "properties": {"total": {"const": 12}, "passed": {"type": "integer", "minimum": 0, "maximum": 12}, "failed": {"type": "integer", "minimum": 0, "maximum": 12}, "by_variant": {"$ref": "#/$defs/critical_by_variant"}}
+    },
+    "critical_by_variant": {
+      "type": "object", "additionalProperties": false, "required": ["B0", "B1", "D0", "D1"],
+      "properties": {
+        "B0": {"$ref": "#/$defs/critical_variant"}, "B1": {"$ref": "#/$defs/critical_variant"},
+        "D0": {"$ref": "#/$defs/critical_variant"}, "D1": {"$ref": "#/$defs/critical_variant"}
+      }
+    },
+    "critical_variant": {
+      "type": "object", "additionalProperties": false, "required": ["total", "passed", "failed"],
       "properties": {"total": {"const": 12}, "passed": {"type": "integer", "minimum": 0, "maximum": 12}, "failed": {"type": "integer", "minimum": 0, "maximum": 12}}
     },
     "error_taxonomy": {"type": "object", "patternProperties": {"^[A-Za-z0-9._:-]+$": {"type": "integer", "minimum": 0}}, "additionalProperties": false, "minProperties": 1},
@@ -52,7 +63,7 @@
     "evaluated": {
       "allOf": [
         {"$ref": "#/$defs/common"},
-        {"type": "object", "required": ["evidence_scope", "evaluation_status", "task_roster_revision", "roster_complete"], "properties": {"evidence_scope": {"const": "evaluated"}, "evaluation_status": {"const": "evaluated"}, "task_roster_revision": {"$ref": "#/$defs/hash"}, "roster_complete": {"const": true}, "variants": {"const": ["B0", "B1", "D0", "D1"]}, "families": {"minItems": 28, "maxItems": 28}, "policy": {"type": "object", "properties": {"thresholds_ratified": {"const": true}}}, "nonclaims": {"const": ["no_accuracy99_claim", "no_training_authority"]}}}
+        {"type": "object", "required": ["evidence_scope", "evaluation_status", "task_roster_revision", "roster_complete"], "properties": {"evidence_scope": {"const": "evaluated"}, "evaluation_status": {"const": "evaluated"}, "task_roster_revision": {"$ref": "#/$defs/hash"}, "roster_complete": {"const": true}, "variants": {"const": ["B0", "B1", "D0", "D1"]}, "families": {"minItems": 28, "maxItems": 28}, "critical": {"required": ["by_variant"]}, "policy": {"type": "object", "properties": {"thresholds_ratified": {"const": true}}}, "nonclaims": {"const": ["no_accuracy99_claim", "no_training_authority"]}}}
       ],
       "unevaluatedProperties": false
     }

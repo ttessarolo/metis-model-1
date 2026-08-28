@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+from contextlib import contextmanager
 from copy import deepcopy
 
 import pytest
@@ -27,6 +28,9 @@ from metis_model1.contracts import (
     validate_video_private_artifact_policy_contract,
     validate_video_semantics_contract,
     validate_w3_retained_report_schema_contract,
+)
+from metis_model1.video_semantic_toolchain_pin import (
+    validate_video_semantic_toolchain_pin_contract,
 )
 
 
@@ -96,9 +100,55 @@ def test_video_semantics_contracts_are_registered_and_semantically_valid() -> No
     ) in contracts.CONTRACT_PAIRS
     assert (
         len([path for path in contracts.STANDALONE_SCHEMAS if path.startswith("schemas/video-")])
-        == 9
+        == 10
     )
     assert validate_video_semantics_contract(root) == []
+
+
+def test_video_semantic_closure_files_and_toolchain_pin_are_foundation_bound() -> None:
+    expected = {
+        "manifests/video-semantic-toolchain-pin-v1.json",
+        "schemas/video-census-attestation.schema.json",
+        "src/metis_model1/catalog_semantic_retrieval.py",
+        "src/metis_model1/test_harness.py",
+        "src/metis_model1/video_brain_grounding.py",
+        "src/metis_model1/video_catalog_projection.py",
+        "src/metis_model1/video_census_attestation.py",
+        "src/metis_model1/video_frontier_boundary.py",
+        "src/metis_model1/video_grounding_evaluation.py",
+        "src/metis_model1/video_local_census.py",
+        "src/metis_model1/video_semantic_crosswalk.py",
+        "src/metis_model1/video_semantic_index.py",
+        "src/metis_model1/video_semantic_toolchain_pin.py",
+        "src/metis_model1/video_semantics_cli.py",
+        "src/metis_model1/video_weight_verdict.py",
+        "tests/test_catalog_semantic_retrieval.py",
+        "tests/test_test_harness.py",
+        "tests/test_video_brain_grounding.py",
+        "tests/test_video_catalog_projection.py",
+        "tests/test_video_census_attestation.py",
+        "tests/test_video_grounding_evaluation.py",
+        "tests/test_video_local_census.py",
+        "tests/test_video_semantic_crosswalk.py",
+        "tests/test_video_semantic_index.py",
+        "tests/test_video_semantic_toolchain_pin.py",
+        "tests/test_video_semantics_cli_wave.py",
+        "tests/test_video_weight_verdict.py",
+        "orchestra/runs/2026-08-27-video-catalog-semantics-closure/BLACKBOARD.md",
+        "orchestra/runs/2026-08-27-video-catalog-semantics-closure/SESSIONS.md",
+    }
+    assert expected <= set(contracts.REQUIRED_FOUNDATION_PATHS)
+    assert validate_video_semantic_toolchain_pin_contract(repository_root()) == []
+
+
+def test_makefile_uses_the_registered_nvm_node_not_the_vanished_runtime() -> None:
+    makefile = (repository_root() / "Makefile").read_text(encoding="utf-8")
+
+    assert "/.hermes/" not in makefile
+    assert "$(HOME)/.nvm/versions/node/v22.22.3/bin/node" in makefile
+    assert "python -m metis_model1.test_harness" in makefile
+    assert '--metis-root "$(PINNED_METIS_ROOT)"' in makefile
+    assert '--node "$(PINNED_NODE)"' in makefile
 
 
 def test_video_private_artifact_policy_is_registered_and_valid() -> None:
@@ -885,6 +935,60 @@ def test_grammar_stdlib_t30_v3_realistic_complete_phase_contract_is_valid(
     assert validate_grammar_stdlib_t30_successor_contract(tmp_path) == []
 
 
+def test_t30_v3_live_replay_uses_one_verified_oracle_session(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from metis_model1 import catalog_maintenance_pin as catalog_pin
+    from metis_model1 import grammar_stdlib_t30 as t30
+
+    clean_root = tmp_path / "artifacts/t30-metis-clean-c1aca0f6"
+    clean_root.mkdir(parents=True)
+    tasks = [
+        {"task_id": "shared-session-1"},
+        {"task_id": "shared-session-2"},
+    ]
+    candidates = {
+        side: [{"task_id": task["task_id"], "text": f"{side}-{task['task_id']}"} for task in tasks]
+        for side in ("base", "adapter")
+    }
+    pin_identity = {"pin": "verified"}
+    truth = {
+        "grammar_stdlib_pin": pin_identity,
+        "tasks": [{"task_id": task["task_id"], "target": {"expected": None}} for task in tasks],
+    }
+    shared = type("SharedSession", (), {"pin_identity": pin_identity})()
+    factory_calls: list[tuple[object, object]] = []
+    score_sessions: list[object] = []
+
+    @contextmanager
+    def one_session(*, metis_root, node_path):
+        factory_calls.append((metis_root, node_path))
+        yield shared
+
+    def score(task, candidate, truth_task, metis_root, node_path, *, session=None):
+        assert truth_task["task_id"] == task["task_id"]
+        assert metis_root == clean_root
+        assert candidate["task_id"] == task["task_id"]
+        score_sessions.append(session)
+        return {"task_id": task["task_id"], "candidate": candidate["text"]}
+
+    monkeypatch.setattr(
+        catalog_pin,
+        "load_catalog_maintenance_pin",
+        lambda: {"runtime": {"node_version": "v22.22.3"}},
+    )
+    monkeypatch.setattr(catalog_pin, "_verify_node", lambda *_args, **_kwargs: b"node")
+    monkeypatch.setattr(t30.oracle, "grammar_stdlib_oracle_session", one_session)
+    monkeypatch.setattr(t30, "score_candidate", score)
+    monkeypatch.setattr(t30, "_public_observations", lambda rows: rows)
+
+    result = contracts._t30_v3_live_semantic_replay(tmp_path, tasks, truth, candidates)
+
+    assert set(result) == {"base", "adapter"}
+    assert len(factory_calls) == 1
+    assert score_sessions == [shared, shared, shared, shared]
+
+
 def test_grammar_stdlib_t30_v3_realistic_review_and_pass_chain_is_valid(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -958,6 +1062,36 @@ def test_t30_v3_git_lineage_binds_real_commits_blobs_and_freeze_bytes(tmp_path) 
     assert contracts._t30_v3_git_lineage(
         tmp_path, {"bound_paths": ["bound.txt"]}, freeze, mutated_execution
     ) == ["T30-v3 Git lineage is unavailable or contains drift"]
+
+
+def test_t30_v3_static_records_are_reconstructed_from_the_frozen_preimage(tmp_path) -> None:
+    def git(*arguments: str) -> str:
+        completed = subprocess.run(
+            ["git", "-C", str(tmp_path), *arguments],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "T30 Contract Test")
+    git("config", "user.email", "t30-contract@example.invalid")
+    bound = tmp_path / "bound.txt"
+    bound.write_text("frozen\n", encoding="utf-8")
+    git("add", "bound.txt")
+    git("commit", "-qm", "preimage")
+    preimage = git("rev-parse", "HEAD")
+    frozen = contracts._t30_v3_bound_record(tmp_path, "bound.txt")
+
+    bound.write_text("later maintenance\n", encoding="utf-8")
+    git("add", "bound.txt")
+    git("commit", "-qm", "later")
+
+    assert contracts._t30_v3_bound_records_from_commit(tmp_path, preimage, ["bound.txt"]) == [
+        frozen
+    ]
+    assert contracts._t30_v3_bound_record(tmp_path, "bound.txt") != frozen
 
 
 def test_t30_v3_git_lineage_rejects_unresolved_synthetic_oids(tmp_path) -> None:
@@ -1493,10 +1627,14 @@ def test_artifact_policy_rejects_payloads_and_secret_paths() -> None:
             "config/credentials.json",
             "qualification/train.jsonl",
             "qualification/process.log",
+            "sources/reserved.pdf",
+            "sources/reserved.doc",
+            "sources/reserved.docx",
+            "sources/reserved.rtf",
         ]
     )
 
-    assert len(errors) == 13
+    assert len(errors) == 17
 
 
 def test_artifact_policy_rejects_binary_and_disguised_private_key(tmp_path) -> None:

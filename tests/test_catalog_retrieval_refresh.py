@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from copy import deepcopy
 from pathlib import Path
 
@@ -9,9 +10,20 @@ import metis_model1.catalog_retrieval_refresh as refresh
 from metis_model1 import catalog_maintenance_pin as pin
 
 ROOT = Path(__file__).resolve().parents[1]
-METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
-NODE = Path("/Users/tommasotessarolo/.hermes/node/bin/node")
-CAN_RUN_PINNED_RUNTIME = METIS_ROOT.is_dir() and NODE.is_file()
+
+
+def _required_test_authority(name: str) -> Path:
+    configured = os.environ.get(name)
+    if configured is None:
+        raise RuntimeError(f"{name} must be supplied by the canonical test harness")
+    path = Path(configured)
+    if not path.is_absolute():
+        raise RuntimeError(f"{name} must be an absolute path")
+    return path.resolve(strict=True)
+
+
+METIS_ROOT = _required_test_authority("METIS_MODEL1_METIS_ROOT")
+NODE = _required_test_authority("METIS_MODEL1_NODE")
 
 
 def _pin_report() -> dict[str, str]:
@@ -74,8 +86,6 @@ def test_runtime_node_postcheck_mismatch_fails_closed(
 
 @pytest.fixture(scope="module")
 def public_report() -> dict[str, object]:
-    if not CAN_RUN_PINNED_RUNTIME:
-        pytest.skip("pinned Metis checkout/runtime unavailable")
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(
             pin, "verify_catalog_maintenance_pin", lambda *_args, **_kwargs: _pin_report()
@@ -113,7 +123,6 @@ def test_public_synthetic_refresh_is_archive_bound_and_redacted(
     assert refresh.validate_catalog_retrieval_refresh_report(report) == []
 
 
-@pytest.mark.skipif(not CAN_RUN_PINNED_RUNTIME, reason="pinned Metis checkout/runtime unavailable")
 def test_invalid_query_has_no_partial_stdout_and_is_deterministic() -> None:
     manifest, _ = refresh._load_manifest()
     records, _ = refresh._fixture_records(refresh.FIXTURE_ROOT, manifest)

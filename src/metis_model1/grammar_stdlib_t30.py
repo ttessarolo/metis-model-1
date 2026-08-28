@@ -2540,6 +2540,8 @@ def score_candidate(
     truth_task: Mapping[str, Any],
     metis_root: Path,
     node_path: Path,
+    *,
+    session: oracle.GrammarStdlibOracleSession | None = None,
 ) -> dict[str, Any]:
     text = response.get("text")
     if not isinstance(text, str) or not text:
@@ -2554,20 +2556,34 @@ def score_candidate(
                 failure = _source_symbol_failure(source)
             if failure is None:
                 try:
-                    with oracle.grammar_stdlib_oracle_session(
-                        metis_root=metis_root, node_path=node_path
-                    ) as session:
+
+                    def observe(
+                        active_session: oracle.GrammarStdlibOracleSession,
+                    ) -> tuple[dict[str, Any], dict[str, Any]]:
                         observed, envelope = _validate_source_envelope(
                             task,
                             source,
                             metis_root,
                             node_path,
-                            session,
+                            active_session,
                             expected_ok=True,
                         )
-                        observed_coverage = _coverage_for_task(
-                            task, envelope["result"]["ast"]["inventory"]
+                        return observed, _coverage_for_task(
+                            task,
+                            envelope["result"]["ast"]["inventory"],
                         )
+
+                    if session is None:
+                        with oracle.grammar_stdlib_oracle_session(
+                            metis_root=metis_root, node_path=node_path
+                        ) as owned_session:
+                            observed, observed_coverage = observe(owned_session)
+                    else:
+                        if not isinstance(session, oracle.GrammarStdlibOracleSession):
+                            raise GrammarStdlibT30Error(
+                                "shared oracle session has an invalid authority type"
+                            )
+                        observed, observed_coverage = observe(session)
                 except (
                     GrammarStdlibT30Error,
                     d18.GrammarStdlibAccuracyError,

@@ -54,14 +54,10 @@ class FakeTransport:
                 }
             }
         if method == "GET" and path == "/video-index/_field_caps":
-            assert query == {"fields": "genre,title,internal"}
-            return {
-                "fields": {
-                    "genre": {"keyword": {"aggregatable": True}},
-                    "title": {"keyword": {"aggregatable": True}},
-                    "internal": {"keyword": {"aggregatable": True}},
-                }
-            }
+            assert query is not None and set(query) == {"fields"}
+            requested = query["fields"].split(",") if query["fields"] else []
+            assert set(requested) <= {"genre", "title"}
+            return {"fields": {field: {"keyword": {"aggregatable": True}} for field in requested}}
         if method == "POST" and path == "/video-index/_pit":
             assert query == {"keep_alive": "2m"}
             return {"pit_id": self.pit_id}
@@ -129,6 +125,85 @@ class PagingTransport(FakeTransport):
                     "hits": {"total": {"value": 3, "relation": "eq"}},
                     "aggregations": {name: page},
                 }
+        return super().request(method, path, query=query, body=body)
+
+
+class NestedTransport(FakeTransport):
+    """Synthetic transport with one real nested mapping and parent counts."""
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: Mapping[str, str] | None = None,
+        body: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        if method == "GET" and path == "/video-index/_mapping":
+            self.calls.append((method, path, query, body))
+            return {
+                "video-index": {
+                    "mappings": {
+                        "properties": {
+                            "details": {
+                                "type": "nested",
+                                "properties": {"genre": {"type": "keyword"}},
+                            },
+                            "title": {
+                                "type": "text",
+                                "fields": {"keyword": {"type": "keyword"}},
+                            },
+                        }
+                    }
+                }
+            }
+        if method == "GET" and path == "/video-index/_field_caps":
+            self.calls.append((method, path, query, body))
+            assert query is not None and set(query) == {"fields"}
+            requested = query["fields"].split(",")
+            assert set(requested) <= {"details.genre", "title.keyword"}
+            return {
+                "indices": ["video-index"],
+                "fields": {field: {"keyword": {"aggregatable": True}} for field in requested},
+            }
+        if method == "POST" and path == "/_search" and body is not None:
+            self.calls.append((method, path, query, body))
+            aggs = body["aggs"]
+            value_names = [name for name in aggs if name.endswith("_values")]
+            if value_names:
+                name = value_names[0]
+                outer = aggs[name]
+                assert outer["nested"] == {"path": "details"}
+                inner = outer["aggs"]["values"]
+                assert inner["aggs"] == {"parent_documents": {"reverse_nested": {}}}
+                return {
+                    "hits": {"total": {"value": 3, "relation": "eq"}, "hits": []},
+                    "aggregations": {
+                        name: {
+                            "doc_count": 4,
+                            "values": {
+                                "buckets": [
+                                    {
+                                        "key": {"value": "Drama"},
+                                        "doc_count": 3,
+                                        "parent_documents": {"doc_count": 2},
+                                    }
+                                ]
+                            },
+                        }
+                    },
+                }
+            assert all(
+                "nested" in definition["filter"]
+                or "nested" in definition["filter"]["bool"]["must_not"][0]
+                for definition in aggs.values()
+            )
+            return {
+                "hits": {"total": {"value": 3, "relation": "eq"}, "hits": []},
+                "aggregations": {
+                    name: {"doc_count": 2 if name.endswith("exists") else 1} for name in aggs
+                },
+            }
         return super().request(method, path, query=query, body=body)
 
 
@@ -327,6 +402,30 @@ def test_raw_document_response_is_rejected_without_leaking_material() -> None:
     assert len(transport.calls) == 1
 
 
+def test_normal_size_zero_hits_envelope_is_allowed_but_nonempty_hits_are_denied() -> None:
+    allowed = {
+        "hits": {"total": {"value": 0, "relation": "eq"}, "hits": []},
+        "aggregations": {},
+    }
+    bridge = CensusBridge(
+        FakeTransport(raw_response=allowed), profile(FieldSpec("genre", "aggregate-counts"))
+    )
+    assert bridge._invoke("resolve", "GET", "/_alias/video-read") == allowed
+
+    denied = {
+        "hits": {
+            "total": {"value": 1, "relation": "eq"},
+            "hits": [{"sort": [1]}],
+        }
+    }
+    bridge = CensusBridge(
+        FakeTransport(raw_response=denied), profile(FieldSpec("genre", "aggregate-counts"))
+    )
+    with pytest.raises(CensusBridgeError, match="raw hits"):
+        bridge._invoke("resolve", "GET", "/_alias/video-read")
+    assert bridge.leak_findings == 1
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -417,10 +516,70 @@ def test_composite_out_of_order_literal_is_rejected() -> None:
         bridge._enumerate(bridge.profile.fields[0])
 
 
-def test_nested_fields_and_oversized_composite_budget_are_fail_closed() -> None:
-    with pytest.raises(CensusBridgeError, match="nested"):
-        FieldSpec("details.genre", "enumerate-finite-values", nested_path="details")
+def test_nested_fields_preserve_parent_document_correlation() -> None:
+    transport = NestedTransport()
+    spec = FieldSpec(
+        "details.genre",
+        "enumerate-finite-values",
+        nested_path="details",
+    )
+    result = CensusBridge(transport, profile(spec)).census()
 
+    assert result.status == "VALID"
+    assert result.fields == [
+        {
+            "field_path": "details.genre",
+            "field_status": "OK",
+            "mapping_type": "keyword",
+            "nested_path": "details",
+            "multi_valued": "unknown",
+            "exists_doc_count": 2,
+            "missing_doc_count": 1,
+            "distinct_count": 1,
+            "complete": True,
+            "pages": 1,
+            "values": [{"literal": "Drama", "doc_count": 2}],
+            "open_no_values": False,
+            "total_doc_count": 3,
+        }
+    ]
+    search_bodies = [
+        body
+        for method, path, _query, body in transport.calls
+        if method == "POST" and path == "/_search"
+    ]
+    assert search_bodies[0] is not None
+    count_aggs = search_bodies[0]["aggs"]
+    assert all(
+        definition["filter"].get("nested", {}).get("path") == "details"
+        or definition["filter"]["bool"]["must_not"][0]["nested"]["path"] == "details"
+        for definition in count_aggs.values()
+    )
+    assert search_bodies[1] is not None
+    value_agg = next(iter(search_bodies[1]["aggs"].values()))
+    assert value_agg["nested"] == {"path": "details"}
+    assert value_agg["aggs"]["values"]["aggs"] == {"parent_documents": {"reverse_nested": {}}}
+
+
+def test_nested_and_multifield_mapping_must_match_the_pinned_profile() -> None:
+    with pytest.raises(CensusBridgeError, match="strict field-path prefix"):
+        FieldSpec("details.genre", "enumerate-finite-values", nested_path="other")
+
+    nested_transport = NestedTransport()
+    flat_profile = profile(FieldSpec("details.genre", "aggregate-counts"))
+    with pytest.raises(CensusBridgeError, match="nested path"):
+        CensusBridge(nested_transport, flat_profile)._inspect_mapping()
+
+    keyword_transport = NestedTransport()
+    keyword_bridge = CensusBridge(
+        keyword_transport,
+        profile(FieldSpec("title.keyword", "aggregate-counts")),
+    )
+    keyword_bridge._inspect_mapping()
+    keyword_bridge._inspect_field_caps()
+
+
+def test_oversized_composite_budget_is_denied_before_network() -> None:
     transport = FakeTransport()
     bridge = CensusBridge(
         transport,
@@ -509,7 +668,20 @@ def test_child_boundary_is_empty_by_default_and_diagnostics_fail_closed() -> Non
     with pytest.raises(CensusBridgeError):
         build_child_environment({"PATH": "token=sentinel"}, allowed_keys=frozenset({"PATH"}))
     with pytest.raises(CensusBridgeError):
+        build_child_environment(
+            {"DYLD_INSERT_LIBRARIES": "/tmp/inject.dylib"},
+            allowed_keys=frozenset({"DYLD_INSERT_LIBRARIES"}),
+        )
+    with pytest.raises(CensusBridgeError):
         validate_child_argv(("worker", "--password=sentinel"))
     with pytest.raises(CensusBridgeError):
+        validate_child_argv(("/bin/sh", "-c", "curl https://example.invalid"))
+    assert validate_child_argv(("/usr/bin/true", "--metis-census-boundary-probe")) == (
+        "/usr/bin/true",
+        "--metis-census-boundary-probe",
+    )
+    with pytest.raises(CensusBridgeError):
         sanitize_child_diagnostic("stderr: Authorization: sentinel")
-    assert sanitize_child_diagnostic("worker ready") == "worker ready"
+    with pytest.raises(CensusBridgeError):
+        sanitize_child_diagnostic("editorial text that looks harmless")
+    assert sanitize_child_diagnostic("READY") == "READY"

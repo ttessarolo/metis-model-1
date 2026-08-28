@@ -57,6 +57,42 @@ def test_l66_public_capsule_execution_stops_before_request_filesystem_or_process
     assert observed == []
 
 
+def test_l66_registered_broker_still_stops_before_unimplemented_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("public Oracle crossed the unimplemented transport STOP")
+
+    monkeypatch.setattr(
+        oracle_module,
+        "REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256",
+        "sha256:" + "1" * 64,
+    )
+    monkeypatch.setattr(oracle_module, "_validate_capsule_request", forbidden)
+    monkeypatch.setattr(oracle_module, "_strict_canonical_path", forbidden)
+    monkeypatch.setattr(oracle_module.subprocess, "Popen", forbidden)
+    with pytest.raises(OracleError, match="transport is not implemented"):
+        oracle_module.run_oracle_from_capsule(
+            {},
+            capsule_root="absent-capsule",
+            process_root="absent-process",
+            output_path="absent-output",
+        )
+    assert observed == []
+
+
+@pytest.fixture
+def capsule_interior_test_seam(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Authorize only tests that explicitly exercise post-broker internals."""
+
+    assert oracle_module.REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None
+    monkeypatch.setattr(oracle_module, "_require_protected_execution_broker", lambda: None)
+
+
 def _oracle_open_fd_snapshot() -> dict[int, tuple[int, int, int, int]]:
     """Measure live descriptors by fstat; discard the closed /dev/fd scan handle."""
 
@@ -257,6 +293,12 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
                 pass
 
     elif case == "capsule-run-materializer-return":
+        assert oracle_module.REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None
+        monkeypatch.setattr(
+            oracle_module,
+            "_require_protected_execution_broker",
+            lambda: None,
+        )
         capsule = tmp_path / f"{case}-capsule"
         capsule.mkdir(mode=0o700)
         process = tmp_path / f"{case}-process"
@@ -1455,9 +1497,12 @@ def test_capsule_command_keyboard_interrupt_reaps_group_and_retains_partial_stre
             os.close(stream_directory_fd)
 
 
-def test_run_from_capsule_never_calls_live_checkout_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_capsule_interior_never_calls_live_checkout_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule-low-level"
     for name, raw in {
         "bin/node": b"node",
@@ -1557,9 +1602,12 @@ def test_capsule_oracle_envelope_non_string_identity_is_typed_blocked(field: str
         oracle_module.verify_capsule_oracle_envelope(envelope)
 
 
-def test_public_capsule_executes_captured_preimage_during_runner_swap_restore(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_capsule_interior_executes_captured_preimage_during_runner_swap_restore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "public-capsule-preimage"
     node = capsule / "bin/node"
     loader = capsule / "tooling/loader.mjs"
@@ -1658,9 +1706,12 @@ def test_public_capsule_executes_captured_preimage_during_runner_swap_restore(
     assert restored == measured
 
 
-def test_public_capsule_invocation_creation_rejects_preexisting_parent_symlink(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_capsule_interior_invocation_creation_rejects_preexisting_parent_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule-invocation-symlink"
     manifest = {
         "node": {"path": "bin/node"},
@@ -1705,9 +1756,12 @@ def test_public_capsule_invocation_creation_rejects_preexisting_parent_symlink(
     assert list(outside.iterdir()) == []
 
 
-def test_public_capsule_materialization_blocks_timed_invocation_symlink_swap(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_capsule_interior_materialization_blocks_timed_invocation_symlink_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule-invocation-timed-swap"
     manifest = {
         "node": {"path": "bin/node"},
@@ -1767,9 +1821,13 @@ def test_public_capsule_materialization_blocks_timed_invocation_symlink_swap(
 
 
 @pytest.mark.parametrize("mode", [0o777, 0o555])
-def test_public_capsule_invocation_creation_rejects_nonprivate_namespace_mode(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: int
+def test_capsule_interior_invocation_creation_rejects_nonprivate_namespace_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
+    mode: int,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule-invocation-mode"
     manifest = {
         "node": {"path": "bin/node"},
@@ -1813,9 +1871,12 @@ def test_public_capsule_invocation_creation_rejects_nonprivate_namespace_mode(
         )
 
 
-def test_public_capsule_output_parent_timed_symlink_swap_writes_nothing_outside(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_capsule_interior_output_parent_timed_symlink_swap_writes_nothing_outside(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule-output-swap"
     manifest = {
         "node": {"path": "bin/node"},
@@ -1880,9 +1941,13 @@ def test_public_capsule_output_parent_timed_symlink_swap_writes_nothing_outside(
 
 
 @pytest.mark.parametrize("field", ["process", "output"])
-def test_public_capsule_boundary_rejects_parent_symlink_inputs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+def test_capsule_interior_boundary_rejects_parent_symlink_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsule_interior_test_seam: None,
+    field: str,
 ) -> None:
+    del capsule_interior_test_seam
     capsule = tmp_path / "capsule"
     capsule.mkdir()
     process = tmp_path / "process"

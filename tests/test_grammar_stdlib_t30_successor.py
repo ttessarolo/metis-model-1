@@ -252,6 +252,57 @@ def test_v2_source_symbol_failures_are_specific_with_generic_oracle_fallback(
     assert core.CLASSIFY_SOURCE_SYMBOL_FAILURES is False
 
 
+def test_score_candidate_reuses_an_explicit_verified_oracle_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared = object.__new__(core.oracle.GrammarStdlibOracleSession)
+    expected = {"semantic": "expected"}
+    observed_sessions: list[core.oracle.GrammarStdlibOracleSession] = []
+
+    def forbidden_session_factory(**_kwargs):
+        pytest.fail("an explicit oracle session must not open another snapshot")
+
+    def observed_envelope(
+        _task,
+        _source,
+        _metis_root,
+        _node_path,
+        active_session,
+        *,
+        expected_ok,
+        expected_diagnostic_markers=(),
+    ):
+        assert expected_ok is True
+        assert expected_diagnostic_markers == ()
+        observed_sessions.append(active_session)
+        return expected, {"result": {"ast": {"inventory": {}}}}
+
+    monkeypatch.setattr(
+        core.oracle,
+        "grammar_stdlib_oracle_session",
+        forbidden_session_factory,
+    )
+    monkeypatch.setattr(core, "_validate_source_envelope", observed_envelope)
+    monkeypatch.setattr(core, "_coverage_for_task", lambda task, _inventory: task["coverage"])
+
+    with successor.successor_configuration():
+        _manifest, tasks, _raw = core.load_tasks()
+        task = next(row for row in tasks if row["task_id"] == "gsl_t30v2_f2_01")
+        assert core._source_symbol_failure(task["expected_repaired_source"]) is None
+        result = core.score_candidate(
+            task,
+            {"text": task["expected_repaired_source"], "peak_metal_gb": 1.0},
+            {"target": {"expected": expected}},
+            successor.PROJECT_ROOT,
+            successor.PROJECT_ROOT,
+            session=shared,
+        )
+
+    assert observed_sessions == [shared]
+    assert result["semantic_correct"] is True
+    assert result["failure_code"] is None
+
+
 def test_v2_json_duplicates_and_endpoint_type_are_contract_mismatches() -> None:
     with successor.successor_configuration():
         _manifest, tasks, _raw = core.load_tasks()

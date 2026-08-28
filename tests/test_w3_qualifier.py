@@ -1164,10 +1164,13 @@ def test_v3_mutation_matrix_is_exact_and_has_no_cosmetic_duplicates() -> None:
 
 
 def _registered_node() -> Path:
-    configured = os.environ.get(
-        "METIS_MODEL1_NODE", "/Users/tommasotessarolo/.hermes/node/bin/node"
+    configured = os.environ.get("METIS_MODEL1_NODE")
+    assert configured is not None, (
+        "METIS_MODEL1_NODE must be supplied by the canonical test harness"
     )
-    node = Path(configured).resolve(strict=True)
+    configured_path = Path(configured)
+    assert configured_path.is_absolute()
+    node = configured_path.resolve(strict=True)
     assert node.is_file()
     return node
 
@@ -5589,6 +5592,8 @@ def _execute_replay_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: 
         return rendered, result, run_artifacts
 
     monkeypatch.setattr(BRIDGE, "_run_once", fake_once)
+    assert BRIDGE.REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None
+    monkeypatch.setattr(BRIDGE, "_require_protected_execution_broker", lambda: None)
     if case == "replay-nonce-scope":
         report = BRIDGE.run_replay_gate(**arguments)
         assert report["status"] == "replay-qualified"

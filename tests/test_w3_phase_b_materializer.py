@@ -36,10 +36,23 @@ CPYTHON_ROOT = Path(
 FROZEN_WHEEL_ROOT = Path("/private/var/tmp/MetisModel1-w3-phase-b-source/wheels")
 
 
+def _registered_node() -> Path:
+    configured = os.environ.get("METIS_MODEL1_NODE")
+    if configured is None:
+        raise RuntimeError("METIS_MODEL1_NODE must be supplied by the canonical test harness")
+    node = Path(configured)
+    if not node.is_absolute():
+        raise RuntimeError("METIS_MODEL1_NODE must be an absolute path")
+    return node.resolve(strict=True)
+
+
+PINNED_NODE = _registered_node()
+
+
 @pytest.fixture(scope="module")
 def full_materialization(tmp_path_factory: pytest.TempPathFactory) -> dict[str, object]:
     root = tmp_path_factory.mktemp("w3-phase-b-materialization") / "source"
-    return materializer.build_materialization(root)
+    return materializer.build_materialization(root, node_path=PINNED_NODE)
 
 
 def _transaction_roots(base: Path) -> dict[str, Path]:
@@ -69,6 +82,7 @@ def _run_transaction(roots: dict[str, Path]) -> dict[str, object]:
         source_root=roots["source_root"],
         bootstrap_source=roots["bootstrap_source"],
         manifest_root=roots["manifest_root"],
+        node_path=PINNED_NODE,
     )
 
 
@@ -1027,6 +1041,7 @@ try:
         source_root=Path(sys.argv[2]),
         bootstrap_source=Path(sys.argv[3]),
         manifest_root=Path(sys.argv[4]),
+        node_path=Path(sys.argv[5]),
     )
 except MaterializerError:
     raise SystemExit(0)
@@ -1041,6 +1056,7 @@ raise SystemExit(2)
             str(roots["source_root"]),
             str(roots["bootstrap_source"]),
             str(roots["manifest_root"]),
+            str(PINNED_NODE),
         ],
         cwd=ROOT,
         check=False,

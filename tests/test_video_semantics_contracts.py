@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import shutil
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from jsonschema import Draft202012Validator
 
+from metis_model1 import video_census_attestation as census_attestation
+from metis_model1.evaluation import wilson_interval
+from metis_model1.provenance import canonical_json_hash
 from metis_model1.video_semantics_contracts import (
     FIXTURE_ROOT,
     PROJECT_ROOT,
@@ -38,8 +44,106 @@ def _fixture(name: str):
     return load_json(FIXTURE_ROOT / name)
 
 
-def test_all_ten_schemas_are_valid_draft_2020_12_documents() -> None:
-    assert len(SCHEMA_FILES) == 10
+def _synthetic_attestation_receipt(scope: dict) -> dict:
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    public_key = private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    authority = {
+        "issuer": "synthetic-readonly-authority",
+        "key_id": "synthetic-key-v1",
+        "algorithm": census_attestation.ALGORITHM,
+        "public_key": public_key.hex(),
+        "public_key_fingerprint": census_attestation.public_key_fingerprint(public_key),
+        "status": "active",
+    }
+    trust_store = {
+        "schema_version": 1,
+        "trust_store_id": "synthetic-census-trust-v1",
+        "trust_store_revision": "sha256:" + "0" * 64,
+        "audience": scope["audience"],
+        "max_ttl_seconds": 86400,
+        "clock_skew_seconds": 0,
+        "authorities": [authority],
+    }
+    trust_store["trust_store_revision"] = census_attestation.trust_store_revision(trust_store)
+    body = {
+        "schema_version": 1,
+        "attestation_type": census_attestation.ATTESTATION_TYPE,
+        "algorithm": census_attestation.ALGORITHM,
+        "issuer": authority["issuer"],
+        "key_id": authority["key_id"],
+        "key_fingerprint": authority["public_key_fingerprint"],
+        "attestation_id": "synthetic-attestation-v1",
+        "replay_id": "synthetic-replay-v1",
+        **scope,
+        "issued_at": "2026-08-27T09:58:00Z",
+        "not_before": "2026-08-27T09:58:00Z",
+        "expires_at": "2026-08-27T11:00:00Z",
+    }
+    signed = {
+        **body,
+        "signature": private_key.sign(census_attestation.attestation_signing_bytes(body)).hex(),
+    }
+    return census_attestation.verify_census_attestation(
+        signed,
+        trust_store=trust_store,
+        expected_trust_store_revision=trust_store["trust_store_revision"],
+        expected_scope=scope,
+        now=datetime(2026, 8, 27, 9, 59, 0, tzinfo=UTC),
+        valid_until=datetime(2026, 8, 27, 10, 0, 1, tzinfo=UTC),
+        replay_guard=census_attestation.CensusAttestationReplayGuard(),
+    )
+
+
+def _synthetic_live_census_receipt() -> dict:
+    scope = {
+        "audience": "metis-model1.video-census",
+        "tenant_ref": "synthetic-tenant-v1",
+        "catalog_ref": "video",
+        "alias_ref": "synthetic-video-alias-v1",
+        "index_ref": "synthetic-video-index-v1",
+        "profile_revision": "sha256:" + "5" * 64,
+        "credential_handle_ref": "hmac-sha256:" + "6" * 64,
+        "capabilities": list(census_attestation.EXACT_CAPABILITIES),
+    }
+    live = {
+        "schema_version": 1,
+        "evidence_scope": "live_census",
+        "receipt_id": "synthetic-live-receipt-001",
+        "profile_id": "video-semantics-census-v1",
+        "profile_revision": scope["profile_revision"],
+        "tenant_ref": scope["tenant_ref"],
+        "catalog_ref": scope["catalog_ref"],
+        "alias_ref": scope["alias_ref"],
+        "index_ref": scope["index_ref"],
+        "mode": "pit",
+        "snapshot_ref": "synthetic-snapshot-v1",
+        "mapping_sha256_before": "sha256:" + "1" * 64,
+        "mapping_sha256_after": "sha256:" + "1" * 64,
+        "document_count_before": 2,
+        "document_count_after": 2,
+        "field_roster_count": 1,
+        "query_count": 1,
+        "query_hashes": ["sha256:" + "2" * 64],
+        "state_counts": {
+            "complete": 1,
+            "partial": 0,
+            "denied": 0,
+            "non_aggregatable": 0,
+            "inconsistent": 0,
+        },
+        "started_at": "2026-08-27T10:00:00Z",
+        "ended_at": "2026-08-27T10:00:01Z",
+        "status": "VALID",
+        "values_redacted": True,
+        "artifact_sha256": "sha256:" + "3" * 64,
+        "attestation": _synthetic_attestation_receipt(scope),
+    }
+    live["receipt_sha256"] = manifest_digest(live)
+    return live
+
+
+def test_all_eleven_schemas_are_valid_draft_2020_12_documents() -> None:
+    assert len(SCHEMA_FILES) == 11
     for name in SCHEMA_FILES:
         Draft202012Validator.check_schema(load_schema(name))
 
@@ -225,44 +329,53 @@ def test_synthetic_scorecard_self_hash_drift_is_rejected() -> None:
     assert any("scorecard self-hash" in error for error in validate_scorecard(scorecard))
 
 
-def test_live_receipt_variant_is_schema_only_and_strictly_distinct() -> None:
-    live = {
-        "schema_version": 1,
-        "evidence_scope": "live_census",
-        "receipt_id": "synthetic-live-receipt-001",
-        "profile_id": "video-semantics-census-v1",
-        "tenant_ref": "synthetic-tenant-v1",
-        "catalog_ref": "video",
-        "alias_ref": "synthetic-video-alias-v1",
-        "index_ref": "synthetic-video-index-v1",
-        "mode": "pit",
-        "snapshot_ref": "synthetic-snapshot-v1",
-        "mapping_sha256_before": "sha256:" + "1" * 64,
-        "mapping_sha256_after": "sha256:" + "1" * 64,
-        "document_count_before": 2,
-        "document_count_after": 2,
-        "field_roster_count": 1,
-        "query_count": 1,
-        "query_hashes": ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
-        "state_counts": {
-            "complete": 1,
-            "partial": 0,
-            "denied": 0,
-            "non_aggregatable": 0,
-            "inconsistent": 0,
-        },
-        "started_at": "2026-08-27T10:00:00Z",
-        "ended_at": "2026-08-27T10:00:01Z",
-        "status": "VALID",
-        "values_redacted": True,
-        "artifact_sha256": "sha256:" + "3" * 64,
-        "attestation": "signed_read_only",
-        "receipt_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    }
+def test_live_receipt_requires_verified_attestation_and_is_strictly_distinct() -> None:
+    live = _synthetic_live_census_receipt()
     assert schema_errors("video-catalog-census-receipt.schema.json", live) == []
+    assert validate_census_receipt(live) == []
     offline = _fixture("census-receipt.json")
     offline["evidence_scope"] = "live_census"
     assert schema_errors("video-catalog-census-receipt.schema.json", offline)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("tenant_ref", "different-tenant"),
+        ("catalog_ref", "different-catalog"),
+        ("alias_ref", "different-alias"),
+        ("index_ref", "different-index"),
+        ("profile_revision", "sha256:" + "9" * 64),
+    ],
+)
+def test_live_census_rejects_attestation_binding_mismatch(field: str, value: str) -> None:
+    live = _synthetic_live_census_receipt()
+    live[field] = value
+    live["receipt_sha256"] = manifest_digest(
+        {key: item for key, item in live.items() if key != "receipt_sha256"}
+    )
+
+    assert any(field in error for error in validate_census_receipt(live))
+
+
+def test_live_census_rejects_attestation_receipt_tamper() -> None:
+    live = _synthetic_live_census_receipt()
+    live["attestation"]["receipt_sha256"] = "sha256:" + "0" * 64
+    live["receipt_sha256"] = manifest_digest(
+        {key: item for key, item in live.items() if key != "receipt_sha256"}
+    )
+
+    assert any("attestation receipt self-hash" in error for error in validate_census_receipt(live))
+
+
+def test_live_census_must_fit_inside_attestation_time_boundary() -> None:
+    live = _synthetic_live_census_receipt()
+    live["ended_at"] = "2026-08-27T10:00:02Z"
+    live["receipt_sha256"] = manifest_digest(
+        {key: item for key, item in live.items() if key != "receipt_sha256"}
+    )
+
+    assert any("time boundary" in error for error in validate_census_receipt(live))
 
 
 def test_evaluated_scorecard_requires_complete_four_by_seven_roster() -> None:
@@ -320,9 +433,99 @@ def test_crosswalk_and_task_revisions_are_bound_to_manifest() -> None:
     assert validate_task(task, semantic_source_revision_ref=manifest["semantic_source_revision"])
 
 
-def test_profile_requires_positive_runtime_caps_even_for_open_fields() -> None:
+def test_profile_allows_explicit_zero_cardinality_as_a_partial_census_budget() -> None:
     profile = _fixture("profile.json")
     assert validate_profile(profile) == []
     attacked = deepcopy(profile)
     attacked["fields"][1]["cardinality_cap"] = 0
-    assert schema_errors("video-catalog-census-profile.schema.json", attacked)
+    body = {key: value for key, value in attacked.items() if key != "profile_revision"}
+    attacked["profile_revision"] = "sha256:" + canonical_json_hash(body)
+    assert validate_profile(attacked) == []
+
+
+def test_profile_rejects_a_finite_value_field_without_a_literal_budget() -> None:
+    profile = _fixture("profile.json")
+    profile["fields"][0]["max_literal_bytes"] = 0
+    body = {key: value for key, value in profile.items() if key != "profile_revision"}
+    profile["profile_revision"] = "sha256:" + canonical_json_hash(body)
+    assert any("no literal budget" in error for error in validate_profile(profile))
+
+
+def _evaluated_scorecard() -> dict:
+    scorecard = _fixture("scorecard.json")
+    totals = {"V-1": 20, "V-2": 20, "V-3": 16, "V-4": 16, "V-5": 12, "V-6": 8, "V-7": 4}
+    families = []
+    passed = 0
+    total = 0
+    for family, denominator in totals.items():
+        score = {"passed": denominator - 1, "total": denominator}
+        score["wilson95"] = list(wilson_interval(score["passed"], denominator))
+        for variant in ("B0", "B1", "D0", "D1"):
+            families.append({"family": family, "variant": variant, "score": deepcopy(score)})
+            passed += score["passed"]
+            total += denominator
+    scorecard.update(
+        {
+            "evidence_scope": "evaluated",
+            "evaluation_status": "evaluated",
+            "benchmark_revision": "sha256:" + "1" * 64,
+            "task_roster_revision": "sha256:" + "1" * 64,
+            "roster_complete": True,
+            "variants": ["B0", "B1", "D0", "D1"],
+            "overall": {"passed": passed, "total": total},
+            "families": families,
+            "critical": {
+                "total": 12,
+                "passed": 10,
+                "failed": 2,
+                "by_variant": {
+                    variant: {"total": 12, "passed": 10, "failed": 2}
+                    for variant in ("B0", "B1", "D0", "D1")
+                },
+            },
+            "error_taxonomy": {"semantic_failure": total - passed},
+            "policy": {
+                "accuracy99_claim": False,
+                "training_authority": False,
+                "raw_outputs_present": False,
+                "thresholds_ratified": True,
+            },
+            "nonclaims": ["no_accuracy99_claim", "no_training_authority"],
+        }
+    )
+    scorecard["overall"]["wilson95"] = list(wilson_interval(passed, total))
+    scorecard["receipt_sha256"] = manifest_digest(
+        {key: value for key, value in scorecard.items() if key != "receipt_sha256"}
+    )
+    return scorecard
+
+
+def test_evaluated_scorecard_requires_384_observations_and_explicit_critical_variants() -> None:
+    scorecard = _evaluated_scorecard()
+    assert schema_errors("video-grounding-scorecard.schema.json", scorecard) == []
+    assert validate_scorecard(scorecard) == []
+
+
+@pytest.mark.parametrize("mutation", ["overall", "family", "taxonomy", "critical", "denominator"])
+def test_evaluated_scorecard_rejects_arithmetic_or_coverage_gaps(mutation: str) -> None:
+    scorecard = _evaluated_scorecard()
+    if mutation == "overall":
+        scorecard["overall"]["passed"] -= 1
+    elif mutation == "family":
+        scorecard["families"][0]["score"]["passed"] -= 1
+    elif mutation == "taxonomy":
+        scorecard["error_taxonomy"]["semantic_failure"] -= 1
+    elif mutation == "critical":
+        scorecard["critical"]["by_variant"]["B0"]["failed"] = 1
+    else:
+        scorecard["families"][0]["score"]["total"] = 1
+    scorecard["receipt_sha256"] = manifest_digest(
+        {key: value for key, value in scorecard.items() if key != "receipt_sha256"}
+    )
+    assert validate_scorecard(scorecard)
+
+
+def test_evaluated_scorecard_cannot_omit_critical_variant_breakdown() -> None:
+    scorecard = _evaluated_scorecard()
+    del scorecard["critical"]["by_variant"]
+    assert schema_errors("video-grounding-scorecard.schema.json", scorecard)

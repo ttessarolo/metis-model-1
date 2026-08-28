@@ -41,6 +41,14 @@ QUALIFIER = importlib.util.module_from_spec(QUALIFIER_SPEC)
 QUALIFIER_SPEC.loader.exec_module(QUALIFIER)
 
 
+@pytest.fixture
+def bridge_interior_test_seam(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Authorize only tests that explicitly exercise post-broker bridge internals."""
+
+    assert GATE.REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None
+    monkeypatch.setattr(GATE, "_require_protected_execution_broker", lambda: None)
+
+
 def _finish_manifest(body: dict) -> dict:
     return {**body, "manifest_sha256": GATE.canonical_hash(body)}
 
@@ -676,6 +684,7 @@ BRIDGE_FD_TRANSFER_CASES = (
 def test_bridge_fd_transfer_exhaustive_roster_is_baseexception_safe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
     replay_inputs: dict[str, object],
     case: str,
 ) -> None:
@@ -932,6 +941,7 @@ def test_bridge_fd_transfer_exhaustive_roster_is_baseexception_safe(
 def test_bridge_sequential_fd_acquisitions_are_baseexception_safe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
     replay_inputs: dict[str, object],
     site: str,
 ) -> None:
@@ -1205,7 +1215,9 @@ def _assert_cleanup_race_preserved_replacement(state: dict[str, object]) -> None
 
 
 def test_two_fresh_runs_emit_exact_replay_denominators_and_schema(
-    replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch
+    replay_inputs: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
 ) -> None:
     qualification, artifacts = _qualification(replay_inputs["authority_value"])
     calls = []
@@ -1240,6 +1252,8 @@ def test_two_fresh_runs_emit_exact_replay_denominators_and_schema(
 def _qualified_replay_fixture(
     replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch
 ) -> dict:
+    assert GATE.REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256 is None
+    monkeypatch.setattr(GATE, "_require_protected_execution_broker", lambda: None)
     qualification, artifacts = _qualification(replay_inputs["authority_value"])
     calls = 0
 
@@ -1330,7 +1344,9 @@ def test_replay_schema_and_manual_exact_retained_rosters_agree(
 
 
 def test_replay_finalizer_never_enters_name_based_remove_race(
-    replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch
+    replay_inputs: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
 ) -> None:
     qualification, artifacts = _qualification(replay_inputs["authority_value"])
     calls = 0
@@ -1413,7 +1429,10 @@ def test_recursive_cleanup_child_swap_never_deletes_nonowned_replacement(
 
 @pytest.mark.parametrize("drift", ["artifact", "role", "count"])
 def test_replay_drift_fails_closed(
-    replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch, drift: str
+    replay_inputs: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
+    drift: str,
 ) -> None:
     qualification, artifacts = _qualification(replay_inputs["authority_value"])
     calls = 0
@@ -1493,7 +1512,9 @@ def test_normalized_projection_rejects_forbidden_semantic_substitutions(field: s
 
 
 def test_replay_rejects_a_copied_physical_descriptor_across_runs(
-    replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch
+    replay_inputs: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
 ) -> None:
     qualification, artifacts = _qualification(replay_inputs["authority_value"])
     copied = _physicalize_qualification(qualification, 1)
@@ -1699,7 +1720,10 @@ def test_all_six_report_variants_have_schema_manual_and_bridge_key_agreement() -
 
 @pytest.mark.parametrize("status", ["blocked", "no-report"])
 def test_blocked_replay_carries_child_or_no_report_and_retained_holder_evidence(
-    replay_inputs: dict[str, object], monkeypatch: pytest.MonkeyPatch, status: str
+    replay_inputs: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
+    status: str,
 ) -> None:
     def blocked_once(**_kwargs: object):
         error = GATE.BridgeGateBlocked("injected child stop")
@@ -2501,7 +2525,9 @@ def test_qualification_rejects_boolean_role_count(replay_inputs: dict[str, objec
 
 
 def test_forged_qualifier_and_empty_authority_are_blocked_before_execution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
 ) -> None:
     qualifier = tmp_path / "forged.py"
     qualifier.write_text("print('forged')\n")
@@ -2535,7 +2561,10 @@ def test_forged_qualifier_and_empty_authority_are_blocked_before_execution(
     assert called is False
 
 
-def test_one_byte_qualifier_drift_fails_even_with_matching_caller_digest(tmp_path: Path) -> None:
+def test_one_byte_qualifier_drift_fails_even_with_matching_caller_digest(
+    tmp_path: Path,
+    bridge_interior_test_seam: None,
+) -> None:
     qualifier = tmp_path / "w3_qualifier.py"
     qualifier.write_bytes(QUALIFIER_PATH.read_bytes() + b"\n")
     authority = tmp_path / "authority.json"
@@ -3027,7 +3056,10 @@ def test_l66_combined_launcher_policy_pin_is_recomputed_from_exact_templates() -
     ],
 )
 def test_bridge_rejects_symlink_in_every_external_input_parent(
-    replay_inputs: dict[str, object], tmp_path: Path, field: str
+    replay_inputs: dict[str, object],
+    tmp_path: Path,
+    bridge_interior_test_seam: None,
+    field: str,
 ) -> None:
     arguments = _gate_arguments(replay_inputs)
     original = Path(arguments[field])
@@ -3043,6 +3075,7 @@ def test_bridge_missing_artifact_root_parent_swap_writes_nothing_outside(
     replay_inputs: dict[str, object],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    bridge_interior_test_seam: None,
 ) -> None:
     arguments = _gate_arguments(replay_inputs)
     parent = tmp_path / "bridge-artifact-parent"
@@ -3232,6 +3265,38 @@ def test_l66_bridge_production_stops_before_path_or_process_access(
     monkeypatch.setattr(GATE, "_strict_canonical_path", forbidden)
     monkeypatch.setattr(GATE.subprocess, "Popen", forbidden)
     with pytest.raises(GATE.BridgeGateBlocked, match="protected execution broker"):
+        GATE.run_replay_gate(
+            qualifier_path="absent-qualifier",
+            qualifier_sha256="sha256:" + "0" * 64,
+            authority_path="absent-authority",
+            authority_sha256="sha256:" + "1" * 64,
+            source_bundle_root="absent-source",
+            dependency_bundle_root="absent-dependency",
+            capsule_root="absent-capsule",
+            node_path="absent-node",
+            artifact_root="absent-artifact",
+        )
+    assert observed == []
+
+
+def test_l66_bridge_registered_broker_stops_before_unimplemented_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        observed.append("forbidden-boundary")
+        raise AssertionError("bridge crossed the unimplemented transport STOP")
+
+    monkeypatch.setattr(
+        GATE,
+        "REGISTERED_PROTECTED_EXECUTION_BROKER_SHA256",
+        "sha256:" + "1" * 64,
+    )
+    monkeypatch.setattr(GATE, "_strict_canonical_path", forbidden)
+    monkeypatch.setattr(GATE.subprocess, "Popen", forbidden)
+    with pytest.raises(GATE.BridgeGateBlocked, match="transport is not implemented"):
         GATE.run_replay_gate(
             qualifier_path="absent-qualifier",
             qualifier_sha256="sha256:" + "0" * 64,

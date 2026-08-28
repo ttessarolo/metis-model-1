@@ -21,7 +21,12 @@ from metis_model1.w3_oracles import canonical_hash
 from metis_model1.w3_production_adapter import ProductionW3Adapter
 
 PROJECT_ROOT = Path(__file__).parents[1]
-METIS_ROOT = Path("/Users/tommasotessarolo/Developer/ares-matioska/metis")
+METIS_ROOT = Path(
+    os.environ.get(
+        "METIS_MODEL1_METIS_ROOT",
+        "/Users/tommasotessarolo/Developer/ares-matioska/metis",
+    )
+).resolve()
 CANDIDATES_PATH = PROJECT_ROOT / "manifests/w3-f1-f3-smoke-candidates.json"
 REGISTRY_PATH = PROJECT_ROOT / "manifests/w3-f1-f3-smoke-semantic-specs.json"
 SEMANTIC_SCHEMA_PATH = PROJECT_ROOT / "schemas/w3-semantic-spec.schema.json"

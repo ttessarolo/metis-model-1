@@ -18,6 +18,7 @@ from metis_model1.video_private_artifacts import (
     validate_public_receipt,
 )
 from metis_model1.video_private_io import VideoPrivateIOError
+from metis_model1.video_semantics_cli import execute_video_semantics
 from metis_model1.video_semantics_private_runner import (
     BLOCKED_ERROR_CODES,
     BLOCKED_PUBLIC_RESULT_KEYS,
@@ -236,6 +237,79 @@ def build_parser() -> argparse.ArgumentParser:
         "extract-sources",
         description="Extract the frozen source roster inside the local sandbox.",
     )
+
+    def add_offline_options(command: argparse.ArgumentParser) -> None:
+        command.add_argument(
+            "--output-dir",
+            type=Path,
+            required=True,
+            help=(
+                "Immutable namespace relative to the private video artifact store, "
+                "for example work-items/run-001."
+            ),
+        )
+
+    normalize = video_commands.add_parser(
+        "normalize-catalog",
+        description="Join explicit schema-2 describe and per-field values files offline.",
+    )
+    add_offline_options(normalize)
+    normalize.add_argument("--describe", type=Path, required=True)
+    normalize.add_argument("--values", type=Path, action="append", required=True)
+    normalize.add_argument("--catalog-ref")
+
+    census = video_commands.add_parser(
+        "build-census",
+        description="Build a local payload-bearing census from a normalized projection.",
+    )
+    add_offline_options(census)
+    census.add_argument("--projection", type=Path, required=True)
+    census.add_argument("--semantic-source-revision", required=True)
+    census.add_argument("--tenant-ref")
+    census.add_argument("--catalog-ref")
+
+    index = video_commands.add_parser(
+        "build-index",
+        description="Build a deterministic semantic index from a normalized projection.",
+    )
+    add_offline_options(index)
+    index.add_argument("--projection", type=Path, required=True)
+    index.add_argument("--semantic-source-revision", required=True)
+    index.add_argument("--grammar-revision", required=True)
+    index.add_argument("--toolchain-revision", required=True)
+    snapshot = index.add_mutually_exclusive_group(required=True)
+    snapshot.add_argument("--tenant-snapshot")
+    snapshot.add_argument("--tenant-snapshot-file", type=Path)
+
+    ground = video_commands.add_parser(
+        "ground-request",
+        description="Resolve a request against a local semantic index without model execution.",
+    )
+    add_offline_options(ground)
+    ground.add_argument("--index", type=Path, required=True)
+    ground.add_argument("--request", type=Path, required=True)
+    ground.add_argument("--catalog")
+
+    evaluate = video_commands.add_parser(
+        "evaluate-paired",
+        description="Recompute the paired B0/B1/D0/D1 scorecard from sanitized facts.",
+    )
+    add_offline_options(evaluate)
+    evaluate.add_argument("--tasks", type=Path, required=True)
+    evaluate.add_argument("--observations", type=Path, required=True)
+
+    verdict = video_commands.add_parser(
+        "weight-verdict",
+        description="Compute the fail-closed maintenance verdict from explicit receipts.",
+    )
+    add_offline_options(verdict)
+    verdict.add_argument("--benchmark", type=Path, required=True)
+    verdict.add_argument("--thresholds", type=Path, required=True)
+    verdict.add_argument("--gate-receipts", type=Path, required=True)
+    verdict.add_argument("--scorecards", type=Path, required=True)
+    verdict.add_argument("--contract-changed", action="store_true")
+    verdict.add_argument("--new-structural-family", action="store_true")
+    verdict.add_argument("--delta-attempted", action="store_true")
     return parser
 
 
@@ -245,6 +319,16 @@ def main(argv: list[str] | None = None) -> int:
         return run_brain_server(args.config)
     if args.command == "video-semantics":
         operation = args.video_semantics_command
+        offline_operation = {
+            "normalize-catalog": "normalize",
+            "build-census": "census",
+            "build-index": "index",
+            "ground-request": "ground",
+            "evaluate-paired": "evaluate",
+            "weight-verdict": "weight-verdict",
+        }.get(operation)
+        if offline_operation is not None:
+            return execute_video_semantics(offline_operation, args)
         if operation == "bootstrap-artifacts":
             try:
                 receipt = prepare_artifact_boundary()

@@ -10,8 +10,10 @@ provide a transport, but this module remains the request and receipt contract.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
+import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -55,12 +57,27 @@ _SECRET_RE = re.compile(
     r"begin [a-z ]*private key|bearer)"
 )
 _FORBIDDEN_ENV_KEY_RE = re.compile(
-    r"(?i)(secret|token|password|credential|authorization|api[_-]?key|private[_-]?key)"
+    r"(?i)(secret|token|password|credential|authorization|api[_-]?key|private[_-]?key|"
+    r"^dyld_|^ld_|^python|^node_options$|^rubyopt$|^perl5opt$|^bash_env$|^env$|"
+    r"^zdotdir$|^git_|^aws_|^azure_|^gcp_|^google_|^home$)"
 )
 _FORBIDDEN_ARG_RE = re.compile(
     r"(?i)(password|secret|token|credential|authorization|api[_-]?key|private[_-]?key)"
 )
 _HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_CHILD_ENV_KEYS = frozenset({"PATH", "LANG", "LC_ALL", "TMPDIR", "METIS_WORKER_FD"})
+_CHILD_ENV_FIXED_VALUES = {
+    "PATH": frozenset({"/usr/bin", "/usr/bin:/bin"}),
+    "LANG": frozenset({"C", "C.UTF-8"}),
+    "LC_ALL": frozenset({"C", "C.UTF-8"}),
+}
+_CHILD_COMMAND_PROFILES = frozenset(
+    {
+        ("/usr/bin/true", "--metis-census-boundary-probe"),
+        ("/usr/bin/false", "--metis-census-boundary-probe"),
+    }
+)
+_CHILD_DIAGNOSTIC_CODES = frozenset({"READY", "COMPLETE", "DENIED", "INVALID", "BOUNDARY_PROBE_OK"})
 
 
 def _is_hash(value: Any) -> bool:
@@ -112,7 +129,9 @@ class FieldSpec:
         ):
             raise CensusBridgeError("invalid mapping type")
         if self.nested_path is not None:
-            raise CensusBridgeError("nested fields are not supported by P4A")
+            _bounded_field(self.nested_path)
+            if not self.field_path.startswith(self.nested_path + "."):
+                raise CensusBridgeError("nested path must be a strict field-path prefix")
         if type(self.cardinality_cap) is not int or not 0 <= self.cardinality_cap <= 1_000_000:
             raise CensusBridgeError("invalid cardinality cap")
         _bounded_positive(self.max_pages, "page cap")
@@ -327,14 +346,18 @@ def build_child_environment(
 ) -> dict[str, str]:
     """Build an empty-by-default child environment without reading process env.
 
-    The P4A contract does not authorize credentials in this helper.  A caller
-    may explicitly allow non-secret operational keys such as a pinned socket,
-    but unknown or secret-looking keys/values fail closed.
+    The P4A contract does not authorize credentials in this helper.  The caller
+    may only narrow the fixed operational roster; it cannot add an injection
+    variable by placing it in ``allowed_keys``.
     """
 
     if supplied is None:
         return {}
-    if not isinstance(supplied, Mapping) or not isinstance(allowed_keys, frozenset):
+    if (
+        not isinstance(supplied, Mapping)
+        or not isinstance(allowed_keys, frozenset)
+        or not allowed_keys <= _CHILD_ENV_KEYS
+    ):
         raise CensusBridgeError("child environment allowlist is invalid")
     result: dict[str, str] = {}
     for key, value in supplied.items():
@@ -342,8 +365,18 @@ def build_child_environment(
             not isinstance(key, str)
             or not isinstance(value, str)
             or key not in allowed_keys
+            or key not in _CHILD_ENV_KEYS
             or _FORBIDDEN_ENV_KEY_RE.search(key)
             or _SECRET_RE.search(value)
+            or any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
+        ):
+            raise CensusBridgeError("child environment is not allowlisted")
+        if key in _CHILD_ENV_FIXED_VALUES and value not in _CHILD_ENV_FIXED_VALUES[key]:
+            raise CensusBridgeError("child environment is not allowlisted")
+        if key == "METIS_WORKER_FD" and (not value.isascii() or not value.isdigit()):
+            raise CensusBridgeError("child environment is not allowlisted")
+        if key == "TMPDIR" and (
+            not value.startswith("/private/tmp/metis-") or ".." in value or len(value) > 256
         ):
             raise CensusBridgeError("child environment is not allowlisted")
         result[key] = value
@@ -351,23 +384,31 @@ def build_child_environment(
 
 
 def validate_child_argv(argv: Sequence[str]) -> tuple[str, ...]:
-    """Validate argv without consulting or exposing the process argv."""
+    """Accept only one of the finite synthetic boundary-probe commands.
+
+    This is intentionally not a generic command sanitizer.  A future real
+    census worker must add a reviewed fixed profile instead of supplying an
+    arbitrary executable, shell or interpreter command here.
+    """
 
     if not isinstance(argv, Sequence) or isinstance(argv, str | bytes):
         raise CensusBridgeError("child argv is invalid")
     result = tuple(argv)
-    if not result or any(
-        not isinstance(item, str) or _FORBIDDEN_ARG_RE.search(item) for item in result
+    if (
+        not result
+        or any(not isinstance(item, str) or _FORBIDDEN_ARG_RE.search(item) for item in result)
+        or result not in _CHILD_COMMAND_PROFILES
     ):
         raise CensusBridgeError("child argv is not sanitized")
     return result
 
 
 def sanitize_child_diagnostic(data: str) -> str:
-    """Permit only non-sensitive child diagnostics; never redact-and-forward."""
+    """Permit only finite machine status codes; never forward child prose."""
 
     if (
         not isinstance(data, str)
+        or data not in _CHILD_DIAGNOSTIC_CODES
         or _SECRET_RE.search(data)
         or "_source" in data.lower()
         or "raw-document" in data.lower()
@@ -396,7 +437,9 @@ def _reject_response_material(serialized: str, value: Any) -> None:
                 }:
                     raise CensusBridgeError("transport response contains document material")
                 if key == "hits" and isinstance(child, Mapping) and "hits" in child:
-                    raise CensusBridgeError("transport response contains raw hits")
+                    raw_hits = child["hits"]
+                    if not isinstance(raw_hits, list) or raw_hits:
+                        raise CensusBridgeError("transport response contains raw hits")
                 walk(child)
         elif isinstance(node, list):
             for child in node:
@@ -430,6 +473,7 @@ class CensusBridge:
         self.stats = BridgeStats()
         self._pit_id: str | None = None
         self._query_hashes: list[str] = []
+        self._query_hmac_key = secrets.token_bytes(32)
 
     @property
     def deny_before_network(self) -> int:
@@ -474,8 +518,17 @@ class CensusBridge:
             self._deny("request validation")
             raise
         self.stats.transport_calls += 1
+        request_material = json.dumps(
+            {"method": method, "path": path, "query": query, "body": body},
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        # PIT IDs are bearer material.  A per-run HMAC proves request roster
+        # consistency without persisting the token or a reversible plain hash.
         self._query_hashes.append(
-            _canonical_hash({"method": method, "path": path, "query": query, "body": body})
+            "sha256:" + hmac.new(self._query_hmac_key, request_material, hashlib.sha256).hexdigest()
         )
         try:
             response = self._transport.request(method, path, query=query, body=body)
@@ -501,13 +554,16 @@ class CensusBridge:
         body: Mapping[str, Any] | None,
     ) -> None:
         index = self.profile.index_ref
+        active_fields = [
+            item.field_path for item in self.profile.fields if item.capability != "deny"
+        ]
         expected: dict[str, tuple[str, str, Mapping[str, str] | None]] = {
             "resolve": ("GET", f"/_alias/{self.profile.alias}", None),
             "mapping": ("GET", f"/{index}/_mapping", None),
             "field_caps": (
                 "GET",
                 f"/{index}/_field_caps",
-                {"fields": ",".join(item.field_path for item in self.profile.fields)},
+                {"fields": ",".join(active_fields)},
             ),
         }
         if operation == "pit_open":
@@ -555,88 +611,140 @@ class CensusBridge:
         for name, definition in aggs.items():
             if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name):
                 raise CensusBridgeError("aggregation name is invalid")
-            if (
-                not isinstance(definition, Mapping)
-                or set(definition) != {"filter"}
-                and set(definition) != {"composite"}
-            ):
+            if not isinstance(definition, Mapping):
                 raise CensusBridgeError("aggregation is not allowlisted")
-            if "filter" in definition:
-                filter_body = definition["filter"]
-                if not isinstance(filter_body, Mapping):
-                    raise CensusBridgeError("filter aggregation is invalid")
-                if set(filter_body) == {"exists"}:
-                    exists = filter_body["exists"]
-                    if not isinstance(exists, Mapping) or set(exists) != {"field"}:
-                        raise CensusBridgeError("exists aggregation is invalid")
-                    field = exists["field"]
-                    if field not in allowed_fields or allowed_fields[field].capability == "deny":
-                        raise CensusBridgeError("field is not allowlisted")
-                    if allowed_fields[field].capability not in CAPABILITIES - {"deny"}:
-                        raise CensusBridgeError("field capability denies aggregate")
-                elif set(filter_body) == {"bool"}:
-                    bool_body = filter_body["bool"]
-                    if not isinstance(bool_body, Mapping) or set(bool_body) != {"must_not"}:
-                        raise CensusBridgeError("missing aggregation is invalid")
-                    clauses = bool_body["must_not"]
-                    if (
-                        not isinstance(clauses, list)
-                        or len(clauses) != 1
-                        or not isinstance(clauses[0], Mapping)
-                        or set(clauses[0]) != {"exists"}
-                    ):
-                        raise CensusBridgeError("missing aggregation is invalid")
-                    exists = clauses[0]["exists"]
-                    if not isinstance(exists, Mapping) or set(exists) != {"field"}:
-                        raise CensusBridgeError("missing aggregation is invalid")
-                    field = exists["field"]
-                    if field not in allowed_fields or allowed_fields[field].capability == "deny":
-                        raise CensusBridgeError("field is not allowlisted")
-                else:
-                    raise CensusBridgeError("filter is not allowlisted")
+            if set(definition) == {"filter"}:
+                self._validate_filter_aggregation(definition["filter"], allowed_fields)
+            elif set(definition) == {"composite"}:
+                self._validate_composite_aggregation(definition, allowed_fields, nested_path=None)
+            elif set(definition) == {"nested", "aggs"}:
+                nested = definition["nested"]
+                children = definition["aggs"]
+                if (
+                    not isinstance(nested, Mapping)
+                    or set(nested) != {"path"}
+                    or not isinstance(nested.get("path"), str)
+                    or not isinstance(children, Mapping)
+                    or set(children) != {"values"}
+                    or not isinstance(children["values"], Mapping)
+                ):
+                    raise CensusBridgeError("nested aggregation is invalid")
+                self._validate_composite_aggregation(
+                    children["values"], allowed_fields, nested_path=nested["path"]
+                )
             else:
-                composite = definition["composite"]
-                if not isinstance(composite, Mapping) or set(composite) - {
-                    "size",
-                    "sources",
-                    "after",
-                }:
-                    raise CensusBridgeError("composite aggregation is invalid")
-                size = composite.get("size")
-                sources = composite.get("sources")
-                if (
-                    type(size) is not int
-                    or size < 1
-                    or not isinstance(sources, list)
-                    or len(sources) != 1
-                ):
-                    raise CensusBridgeError("composite aggregation is invalid")
-                source = sources[0]
-                if not isinstance(source, Mapping) or set(source) != {"value"}:
-                    raise CensusBridgeError("composite source is invalid")
-                value = source["value"]
-                if not isinstance(value, Mapping) or set(value) != {"terms"}:
-                    raise CensusBridgeError("composite terms are invalid")
-                terms = value["terms"]
-                if not isinstance(terms, Mapping) or set(terms) != {"field", "order"}:
-                    raise CensusBridgeError("composite terms are invalid")
-                field = terms["field"]
-                if (
-                    field not in allowed_fields
-                    or allowed_fields[field].capability != "enumerate-finite-values"
-                    or terms["order"] != "asc"
-                ):
-                    raise CensusBridgeError("field enumeration is not allowlisted")
-                if "after" in composite:
-                    if not isinstance(composite["after"], Mapping):
-                        raise CensusBridgeError("composite cursor is invalid")
-                    self._validate_cursor(
-                        composite["after"], allowed_fields[field].max_literal_bytes
-                    )
-                if size > min(
-                    allowed_fields[field].page_size, allowed_fields[field].cardinality_cap
-                ):
-                    raise CensusBridgeError("composite size exceeds field budget")
+                raise CensusBridgeError("aggregation is not allowlisted")
+
+    @staticmethod
+    def _exists_clause(field: str, nested_path: str | None) -> dict[str, Any]:
+        exists = {"exists": {"field": field}}
+        if nested_path is None:
+            return exists
+        return {
+            "nested": {
+                "path": nested_path,
+                "query": exists,
+                "score_mode": "none",
+            }
+        }
+
+    def _validate_filter_aggregation(
+        self, filter_body: Any, allowed_fields: Mapping[str, FieldSpec]
+    ) -> None:
+        if not isinstance(filter_body, Mapping):
+            raise CensusBridgeError("filter aggregation is invalid")
+        missing = False
+        clause: Any = filter_body
+        if set(filter_body) == {"bool"}:
+            bool_body = filter_body["bool"]
+            if not isinstance(bool_body, Mapping) or set(bool_body) != {"must_not"}:
+                raise CensusBridgeError("missing aggregation is invalid")
+            clauses = bool_body["must_not"]
+            if not isinstance(clauses, list) or len(clauses) != 1:
+                raise CensusBridgeError("missing aggregation is invalid")
+            clause = clauses[0]
+            missing = True
+        if not isinstance(clause, Mapping):
+            raise CensusBridgeError("exists aggregation is invalid")
+        if set(clause) == {"exists"}:
+            exists = clause["exists"]
+            nested_path = None
+        elif set(clause) == {"nested"}:
+            nested = clause["nested"]
+            if (
+                not isinstance(nested, Mapping)
+                or set(nested) != {"path", "query", "score_mode"}
+                or nested.get("score_mode") != "none"
+                or not isinstance(nested.get("query"), Mapping)
+                or set(nested["query"]) != {"exists"}
+            ):
+                raise CensusBridgeError("nested exists aggregation is invalid")
+            exists = nested["query"]["exists"]
+            nested_path = nested.get("path")
+        else:
+            raise CensusBridgeError(
+                "missing aggregation is invalid" if missing else "filter is not allowlisted"
+            )
+        if not isinstance(exists, Mapping) or set(exists) != {"field"}:
+            raise CensusBridgeError("exists aggregation is invalid")
+        field = exists["field"]
+        spec = allowed_fields.get(field)
+        if spec is None or spec.capability == "deny" or spec.nested_path != nested_path:
+            raise CensusBridgeError("field or nested path is not allowlisted")
+
+    def _validate_composite_aggregation(
+        self,
+        definition: Mapping[str, Any],
+        allowed_fields: Mapping[str, FieldSpec],
+        *,
+        nested_path: str | None,
+    ) -> None:
+        expected_keys = {"composite"} if nested_path is None else {"composite", "aggs"}
+        if set(definition) != expected_keys:
+            raise CensusBridgeError("composite aggregation is invalid")
+        if nested_path is not None:
+            subaggs = definition["aggs"]
+            if (
+                not isinstance(subaggs, Mapping)
+                or set(subaggs) != {"parent_documents"}
+                or subaggs["parent_documents"] != {"reverse_nested": {}}
+            ):
+                raise CensusBridgeError("nested parent-count aggregation is invalid")
+        composite = definition["composite"]
+        if not isinstance(composite, Mapping) or set(composite) - {
+            "size",
+            "sources",
+            "after",
+        }:
+            raise CensusBridgeError("composite aggregation is invalid")
+        size = composite.get("size")
+        sources = composite.get("sources")
+        if type(size) is not int or size < 1 or not isinstance(sources, list) or len(sources) != 1:
+            raise CensusBridgeError("composite aggregation is invalid")
+        source = sources[0]
+        if not isinstance(source, Mapping) or set(source) != {"value"}:
+            raise CensusBridgeError("composite source is invalid")
+        value = source["value"]
+        if not isinstance(value, Mapping) or set(value) != {"terms"}:
+            raise CensusBridgeError("composite terms are invalid")
+        terms = value["terms"]
+        if not isinstance(terms, Mapping) or set(terms) != {"field", "order"}:
+            raise CensusBridgeError("composite terms are invalid")
+        field = terms["field"]
+        spec = allowed_fields.get(field)
+        if (
+            spec is None
+            or spec.capability != "enumerate-finite-values"
+            or spec.nested_path != nested_path
+            or terms["order"] != "asc"
+        ):
+            raise CensusBridgeError("field enumeration or nested path is not allowlisted")
+        if "after" in composite:
+            if not isinstance(composite["after"], Mapping):
+                raise CensusBridgeError("composite cursor is invalid")
+            self._validate_cursor(composite["after"], spec.max_literal_bytes)
+        if size > min(spec.page_size, spec.cardinality_cap):
+            raise CensusBridgeError("composite size exceeds field budget")
 
     def _resolve(self) -> None:
         response = self._invoke("resolve", "GET", f"/_alias/{self.profile.alias}")
@@ -677,24 +785,49 @@ class CensusBridge:
         for spec in self.profile.fields:
             if spec.capability == "deny":
                 continue
-            node: Any = properties
+            node: Any = {"properties": properties}
+            nested_paths: list[str] = []
+            traversed: list[str] = []
             for part in spec.field_path.split("."):
-                node = node.get(part) if isinstance(node, Mapping) else None
+                if not isinstance(node, Mapping):
+                    node = None
+                    break
+                child = None
+                raw_properties = node.get("properties")
+                raw_fields = node.get("fields")
+                if isinstance(raw_properties, Mapping) and part in raw_properties:
+                    child = raw_properties[part]
+                elif isinstance(raw_fields, Mapping) and part in raw_fields:
+                    child = raw_fields[part]
+                node = child
+                traversed.append(part)
+                if isinstance(node, Mapping) and node.get("type") == "nested":
+                    nested_paths.append(".".join(traversed))
             if not isinstance(node, Mapping) or node.get("type") != spec.mapping_type:
                 raise CensusBridgeError("mapping does not match profile")
+            if len(nested_paths) > 1:
+                raise CensusBridgeError("multiple nested levels are not supported by this profile")
+            observed_nested = nested_paths[0] if nested_paths else None
+            if observed_nested != spec.nested_path:
+                raise CensusBridgeError("mapping nested path does not match profile")
 
     def _inspect_field_caps(self) -> None:
-        query = {"fields": ",".join(item.field_path for item in self.profile.fields)}
+        active = [item for item in self.profile.fields if item.capability != "deny"]
+        if not active:
+            return
+        query = {"fields": ",".join(item.field_path for item in active)}
         response = self._invoke(
             "field_caps", "GET", f"/{self.profile.index_ref}/_field_caps", query=query
         )
+        if set(response) - {"indices", "fields"}:
+            raise CensusBridgeError("field capabilities response has unexpected fields")
+        if "indices" in response and response["indices"] != [self.profile.index_ref]:
+            raise CensusBridgeError("field capabilities response is outside the pinned index")
         fields = response.get("fields", {})
         fields = _mapping(fields, "field capabilities")
-        if any(key not in {item.field_path for item in self.profile.fields} for key in fields):
+        if set(fields) != {item.field_path for item in active}:
             raise CensusBridgeError("field capabilities contain non-profile fields")
-        for spec in self.profile.fields:
-            if spec.capability == "deny":
-                continue
+        for spec in active:
             entry = fields.get(spec.field_path)
             if not isinstance(entry, Mapping) or spec.mapping_type not in entry:
                 raise CensusBridgeError("field capabilities do not match profile")
@@ -748,9 +881,15 @@ class CensusBridge:
         name = "f_" + hashlib.sha256(spec.field_path.encode()).hexdigest()[:12]
         response = self._search(
             {
-                name + "_exists": {"filter": {"exists": {"field": spec.field_path}}},
+                name + "_exists": {
+                    "filter": self._exists_clause(spec.field_path, spec.nested_path)
+                },
                 name + "_missing": {
-                    "filter": {"bool": {"must_not": [{"exists": {"field": spec.field_path}}]}}
+                    "filter": {
+                        "bool": {
+                            "must_not": [self._exists_clause(spec.field_path, spec.nested_path)]
+                        }
+                    }
                 },
             }
         )
@@ -791,20 +930,45 @@ class CensusBridge:
             }
             if after is not None:
                 composite["after"] = dict(after)
-            response = self._search({name + "_values": {"composite": composite}})
+            definition: dict[str, Any] = {"composite": composite}
+            if spec.nested_path is not None:
+                definition["aggs"] = {"parent_documents": {"reverse_nested": {}}}
+                request_aggs = {
+                    name + "_values": {
+                        "nested": {"path": spec.nested_path},
+                        "aggs": {"values": definition},
+                    }
+                }
+            else:
+                request_aggs = {name + "_values": definition}
+            response = self._search(request_aggs)
             aggs = _mapping(response.get("aggregations"), "aggregations")
             aggregate = _mapping(aggs.get(name + "_values"), "values aggregation")
+            if spec.nested_path is not None:
+                aggregate = _mapping(aggregate.get("values"), "nested values aggregation")
             buckets = aggregate.get("buckets")
             if not isinstance(buckets, list):
                 raise CensusBridgeError("value buckets are invalid")
             for bucket in buckets:
-                if not isinstance(bucket, Mapping) or set(bucket) - {"key", "doc_count"}:
+                expected_bucket = (
+                    {"key", "doc_count", "parent_documents"}
+                    if spec.nested_path is not None
+                    else {"key", "doc_count"}
+                )
+                if not isinstance(bucket, Mapping) or set(bucket) != expected_bucket:
                     raise CensusBridgeError("value bucket is invalid")
                 key = bucket.get("key")
                 if not isinstance(key, Mapping) or set(key) != {"value"}:
                     raise CensusBridgeError("value bucket key is invalid")
                 literal = key.get("value")
                 count = bucket.get("doc_count")
+                if spec.nested_path is not None:
+                    parent_documents = bucket.get("parent_documents")
+                    if not isinstance(parent_documents, Mapping) or set(parent_documents) != {
+                        "doc_count"
+                    }:
+                        raise CensusBridgeError("nested parent document count is invalid")
+                    count = parent_documents["doc_count"]
                 if (
                     not isinstance(literal, str)
                     or not _SAFE_LITERAL_RE.fullmatch(literal)

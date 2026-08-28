@@ -76,7 +76,7 @@ PINNED_CAPSULE_EXECUTION_POLICY = {
 }
 # Frozen after the qualifier's final formatter pass.  The bridge never imports
 # the file being authenticated and cannot accept a caller-selected root.
-PINNED_QUALIFIER_SHA256 = "sha256:248549cf7dceab4a878daa3fae58bc7f39237c9fbea72344849c8c86d5ec4e26"
+PINNED_QUALIFIER_SHA256 = "sha256:566c19132ff4d4f0dc7dd974e0d8818c22f6aa5c32ce3ee173104a9cad1c1df2"
 QUALIFIER_BOOTSTRAP = """import hashlib
 import sys
 

@@ -32,10 +32,10 @@
         "nested_path": {"type": ["string", "null"], "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._@+/-]+$", "maxLength": 512},
         "capability": {"enum": ["metadata-only", "aggregate-counts", "enumerate-finite-values", "open-no-values", "deny"]},
         "multi_valued": {"enum": ["observed", "declared", "unknown"]},
-        "cardinality_cap": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "cardinality_cap": {"type": "integer", "minimum": 0, "maximum": 1000000},
         "max_pages": {"type": "integer", "minimum": 1, "maximum": 100000},
         "page_size": {"type": "integer", "minimum": 1, "maximum": 10000},
-        "max_literal_bytes": {"type": "integer", "minimum": 1, "maximum": 1048576}
+        "max_literal_bytes": {"type": "integer", "minimum": 0, "maximum": 1048576}
       }
     }
   }

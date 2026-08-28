@@ -5936,7 +5936,6 @@ def _blocked(reason: str, cleanup: dict[str, Any] | None = None) -> dict[str, An
         "status": "blocked",
         "claim": "no_qualification_claim",
         "reason": reason,
-        "native_evidence": dict(V3_NATIVE_EVIDENCE),
         "cleanup": _empty_cleanup() if cleanup is None else cleanup,
     }
     return _validate_blocked_report(report, production=False)
@@ -5950,6 +5949,7 @@ def _blocked_v3(reason: str, cleanup: dict[str, Any] | None = None) -> dict[str,
         "status": "blocked",
         "claim": "no_qualification_claim",
         "reason": reason,
+        "native_evidence": dict(V3_NATIVE_EVIDENCE),
         "cleanup": _empty_cleanup() if cleanup is None else cleanup,
     }
     return _validate_blocked_report(report, production=True)

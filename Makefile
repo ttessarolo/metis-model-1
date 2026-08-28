@@ -1,4 +1,4 @@
-PINNED_NODE ?= /Users/tommasotessarolo/.hermes/node/bin/node
+PINNED_NODE ?= $(HOME)/.nvm/versions/node/v22.22.3/bin/node
 PINNED_METIS_ROOT ?= /Users/tommasotessarolo/Developer/ares-matioska/metis
 
 .PHONY: setup validate validate-pilot assess-experiment assess-w5 lint format-check test check
@@ -25,8 +25,8 @@ format-check:
 	uv run ruff format --check .
 
 test:
-	METIS_MODEL1_NODE="$(PINNED_NODE)" \
-	METIS_MODEL1_METIS_ROOT="$(PINNED_METIS_ROOT)" \
-	uv run pytest
+	uv run python -m metis_model1.test_harness \
+		--metis-root "$(PINNED_METIS_ROOT)" \
+		--node "$(PINNED_NODE)"
 
 check: validate validate-pilot lint format-check test

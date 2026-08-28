@@ -1,25 +1,30 @@
 # Wave `@video`: semantic grounding editoriale riservato
 
-Stato: **ESECUZIONE ATTIVA — prerequisito grammaticale `GREEN`, source freeze
-P0 chiuso e preflight di estrazione P1 `GREEN`; ontologia P1 e scrittura
-canonica ancora non autorizzate**.
+Stato: **PERIMETRO SOFTWARE/TOOLCHAIN COMPLETO — grammatica e retrieval schema
+2 `PINNED`, source freeze P0 e preflight di estrazione P1 `GREEN`, superfici
+software P2-P14 implementate e gate repository finale verde; restano soltanto
+le evidenze operative private/live/editoriali/modello, che il codice non può
+simulare**.
 
 Data del piano: 27 agosto 2026.
 
-Baseline della wave corrente Model 1:
-`main@421bc30cda08cec4f4ec7d3641ad8a0faa8249c9`.
+Baseline della chiusura corrente Model 1:
+`main@c6e599b1dfdeb9a8dea92f334e97bdc3d84be63d`.
 
 Pin grammaticale Metis verificato su estrazione pulita del commit promosso:
-`main@53fe68949ce4a0a46fd1825c1a071255c500eec6`. Il successivo lavoro sul
-retrieval schema 2 resta una lane upstream distinta e non è ancora un pin di
-integrazione per questa wave.
+`main@0b41a25d4d5eeac88975e43e18e4bc3123d51667`; il retrieval schema 2 è
+pinnato all'ancestor `a84d3db062b61096558200e33354c23c8ebfa16b` ed è consumato da
+un parser stretto Model 1.
 
-Snapshot corrente del gate repository Model 1: `make check` ha raggiunto
-`passes=80 errors=2 files=458`. Le due failure sono i blocker storici
-T30-v3 di freeze/linkage statico e replay semantico sul Node pinnato: non
-bloccano P0-P5, ma continuano a bloccare la Definition of Done globale finché
-una nuova esecuzione non chiude `errors=0` e l'intera catena termina con exit
-code zero.
+Receipt di chiusura del gate repository Model 1: `make check` è terminato con
+exit code zero. La fondazione è `VALID` con `passes=84`, `errors=0` e
+`files=487`; i contratti pilot sono `VALID`, lint e formato sono puliti e pytest
+ha prodotto `2044 passed, 2 skipped, 0 failed` in `2579.87s`. I due skip sono
+gate opt-in con autorità distinta: il pin grammaticale successor è stato
+rieseguito separatamente col suo Node esatto e ha chiuso `15/15` evidenze e
+`7/7` probe; il contratto W3 production protetto resta un'evidenza esterna e
+non è contato come eseguito. Le cause storiche T30-v3 e del locator Node sono
+state corrette senza riscrivere gli artifact sigillati.
 
 Documenti superiori che questo piano applica senza sostituire:
 
@@ -86,7 +91,7 @@ SEMANTIC_GRAMMAR_SURFACE_FROZEN
 ```
 
 Il prerequisito è soddisfatto sul commit Metis pulito e promosso
-`53fe68949ce4a0a46fd1825c1a071255c500eec6`. Questo non promuove da solo alcuna
+`0b41a25d4d5eeac88975e43e18e4bc3123d51667`. Questo non promuove da solo alcuna
 annotazione: i gate semantici, di provenance, review, sicurezza e retrieval
 restano indipendenti.
 
@@ -98,13 +103,14 @@ restano indipendenti.
 | validator `aka -> means`, `label -> means` | verde sul pin | invariante sintattica verificata |
 | R8 Catalog/Field/ValueItem/ListEntry | verde sul pin | artifact tecnici byte-invarianti |
 | G2 sync strutturale | verde sul pin | literal sopravvissuti preservati; transizioni e stale-source coperti |
-| G3 full-corpus/collision census | verde sul pin | `404` documenti, zero errori inattesi e zero collisioni |
-| retrieval `--semantic` schema 2 | candidate upstream verde nei test dedicati | non ancora committato, pinnato o incluso nella test chain; Brain resta scollegato |
+| G3 full-corpus/collision census | verde sul pin | `411` documenti, zero errori inattesi e zero collisioni |
+| retrieval `--semantic` schema 2 | **PASS/PINNED** sul commit promosso | test nella chain upstream; pin e consumer stretto presenti in Model 1 |
 | quattro gate di freeze grammaticale | **PASS** | prerequisito grammaticale chiuso sullo stesso SHA |
 
 Il blocker corrente non è più la grammatica. Sono ancora aperti la produzione
 e validazione dell'ontologia privata, il census completo del catalogo, il
-crosswalk, la review e la promozione del retrieval schema 2 necessario a Brain.
+crosswalk finale, la review editoriale e l'esecuzione modello sul benchmark
+terminale. Il codice non sostituisce queste evidenze e non autorizza training.
 
 ## 2. Obiettivo di prodotto
 
@@ -325,6 +331,7 @@ schemas/video-semantic-crosswalk.schema.json
 schemas/video-editorial-constraint.schema.json
 schemas/video-catalog-census-profile.schema.json
 schemas/video-catalog-census-receipt.schema.json
+schemas/video-census-attestation.schema.json
 schemas/video-grounding-task.schema.json
 schemas/video-grounding-scorecard.schema.json
 manifests/video-semantics-sources-v1.json
@@ -1592,7 +1599,8 @@ Exit: `VIDEO_LOCAL_SNAPSHOT_CENSUS_VALID`.
 
 Deliverable:
 
-- dieci schemi JSON elencati in §7.1;
+- undici schemi JSON elencati in §7.1: dieci standalone e il source manifest
+  validato con il relativo manifest versionato;
 - fixture sintetiche;
 - fake Census Bridge;
 - test deny-before-network;
@@ -1831,8 +1839,10 @@ first-class li ha superati.
 
 Le entry ancora marcate `PLANNED` sono parte esplicita del deliverable: il gate
 resta aperto finché il comando non esiste, non è nella test chain e non produce
-la receipt indicata. I placeholder `<...>` vengono sostituiti da path o SHA
-pinnati nella sessione; non sono input liberi provenienti dalla chat.
+la receipt indicata. `IMPLEMENTED/OFFLINE` significa che il contratto e la
+test-chain esistono, non che l'evidenza live, editoriale o modello sia già stata
+prodotta. I placeholder `<...>` vengono sostituiti da path o SHA pinnati nella
+sessione; non sono input liberi provenienti dalla chat.
 
 | Fase/gate | Entrypoint | Input pinnato | Artifact/receipt | Expected result |
 |---|---|---|---|---|
@@ -1841,25 +1851,26 @@ pinnati nella sessione; non sono input liberi provenienti dalla chat.
 | P0 source freeze (`IMPLEMENTED`) | `uv run metis-model1 video-semantics freeze-sources` | private acquisition bundle a locator fisso | private source freeze deterministico | schema valido; digest stabili; zero volatile field nel digest |
 | P1 source extraction preflight (`IMPLEMENTED`, `LOCAL ONLY`, `PASS`) | `uv run metis-model1 video-semantics extract-sources` | acquisition bundle + source freeze a locator fisso | private page/document envelope | formati supportati; sandbox verificata; roster completo; replay indipendente esatto; `gaps=0` |
 | P1 ontology validation (`IMPLEMENTED`; produzione ancora aperta) | `uv run metis-model1 video-semantics validate-ontology` | JSONL, source bundle e disposition roster privati a locator fissi | ontology receipt sanitizzata | source/unit roster completi; `in=out=distinct`, `gaps=0`; zero dangling opaque ref |
-| P2 local census (`PLANNED`) | `uv run metis-model1 video-semantics census-local --tenant <pinned-tenant> --catalog <catalog-ref>` | tenant SHA + catalog/value-set files | local census receipt | `private_roster_complete=true`, `gaps=0`; ogni field status terminale |
+| P2 local census (`IMPLEMENTED/OFFLINE`; roster reale aperto) | `uv run metis-model1 video-semantics build-census --projection <schema2-projection> --semantic-source-revision <sha256> --catalog-ref <catalog> --output-dir work-items/<run-id>` | proiezione schema 2 normalizzata + revision pinnata | census e receipt nello store privato | `in=out=distinct`, `gaps=0`; valori esclusi dalla receipt |
 | P3 schema (`IMPLEMENTED`) | `uv run pytest -q tests/test_video_semantics_contracts.py` | schemi + fixture sintetiche | test report | schema valid/invalid roster completo, exit 0 |
 | P3/P4A security (`IMPLEMENTED`) | `uv run pytest -q tests/test_census_bridge_boundary.py` | fake transport + real child boundary | security receipt | write/path denied before network; sentinel leaks `0` |
-| P3 frontier egress (`PLANNED`) | `uv run pytest -q tests/test_frontier_egress_boundary.py` | runner+model executable, exact peer/socket, network-deny profile | egress receipt | canary attempted/denied `2/2`; unexpected/successful external `0/0` |
-| P5/P7 crosswalk (`PLANNED`) | `uv run pytest -q tests/test_video_semantic_crosswalk.py` | concepts + local/live census | crosswalk receipt | zero duplicate key; zero dangling ref; critical unresolved `0` |
+| P3 frontier egress (`IMPLEMENTED/SYNTHETIC`; runner reale aperto) | `uv run pytest -q tests/test_frontier_egress_boundary.py` | runner+model process sintetici, exact peer/socket, network-deny profile | egress receipt | DNS/TCP deny `4/4`; IPC peer-bound verde; nessun claim sul runner modello reale |
+| P5/P7 crosswalk (`IMPLEMENTED/OFFLINE`; decisioni reali aperte) | `uv run pytest -q tests/test_video_semantic_crosswalk.py` | concepts + local/live census | crosswalk receipt | zero duplicate key; zero dangling ref; gap e critical unresolved espliciti |
 | G1 parser/generated | `npm run langium:generate && npm run typecheck` da `metis/tooling` | commit Metis candidate | build log | exit 0; generated diff atteso soltanto |
 | G1/R8 | `node --import tsx test/r8-description-invariant.ts` e `node --import tsx test/r8-semantic-surface.ts` | fixture Catalog/Field/ValueItem/ListEntry | R8 receipt | artifact tecnico pre/post byte-identico; roster nodi completo |
 | G2 structural sync (`PASS`) | test promosso `catalog-sync-values-merge.ts` | transizioni inline/enum/list/open annotate | sync receipt | survivor exact-literal byte-identico; new unannotated; remove roster; no inferred rename |
-| G3 full corpus (`PASS`) | test promosso `full-corpus-grammar-compat.ts` | stdlib, demo, upstream corpus, collision corpus | full-corpus receipt | `404` documenti; errori inattesi e collisioni `0` |
-| Freeze grammatica | `git status --short` + `git rev-parse HEAD` + `npm test` | commit Metis promosso | grammar freeze receipt | checkout pulito; G1/G2/G3/R8/full-corpus verdi sullo stesso SHA |
-| P4B boundary | smoke VSIX `metis.catalog.censusReadOnly` su fake e profilo reale | VSIX worktree + SecretStorage tenant | VSIX receipt | signed role valid; effective handle match; TLS valid; no secret/raw document |
-| P6 census (`PLANNED`) | Census Bridge con profilo `video-semantics-census-v1` | indice fisico + PIT + allowlist hash | census artifact + sanitized receipt | exactly one `VALID`; complete fields; zero denied-value leakage |
-| P8 benchmark build (`PLANNED`) | `uv run pytest -q tests/test_video_grounding_benchmark.py` | 96 tasks + oracle | benchmark freeze manifest | `64+32=96`; leakage groups disgiunti; 12 critical; threshold ratified |
-| P9 sync dry-run | `npm run catalog:sync-values -- --tenant <worktree-tenant> --dry-run` | commit tenant candidate + fake/authorized provider | proposed edit receipt | nessuna scrittura; semantic survivors invariati |
-| P9 schema 2 describe (`PLANNED`) | `npm run catalog:describe -- --tenant <worktree-tenant> --catalog video --semantic` | commit Metis+tenant pinnati | describe JSON schema 2 | technical + reviewed semantics/ref; zero live values non richiesti |
-| P9 schema 2 values (`PLANNED`) | `npm run catalog:values -- --tenant <worktree-tenant> --catalog video --field <allowlisted-field> --semantic` | field locator pinnato | values JSON schema 2 | literal esatti + semantics/state/ref; open senza lista |
-| P11 reproducibility (`PLANNED`) | `uv run metis-model1 video-semantics build-index --tenant <worktree-tenant> --repeat 2` | source/grammar/toolchain SHA | two index hashes | byte-identici; semantic revision deterministica |
-| P12 Brain smoke | test sessione Brain con catalog fake prima, snapshot reviewed poi | Brain build + target fixture | protocol/apply receipt | resolve/clarify/unsupported corretti; CAS/stale safe |
-| P13 eval (`PLANNED`) | `uv run metis-model1 video-semantics evaluate --benchmark <freeze> --variants B0,B1,D0,D1` | modello/adapter/context/seed pinnati | scorecard + failure taxonomy | soglie ratificate; critical 12/12; zero hallucination |
+| G3 full corpus (`PASS`) | test promosso `full-corpus-grammar-compat.ts` | stdlib, demo, upstream corpus, collision corpus | full-corpus receipt | `411` documenti; errori inattesi e collisioni `0` |
+| Freeze grammatica (`PASS`, `PINNED`) | pin Model 1 + audit da archivio Git | commit Metis promosso `0b41a25d4d5eeac88975e43e18e4bc3123d51667` | `video-semantic-toolchain-pin-v1.json` | G1/G2/G3/R8/schema 2 legati a 15 blob e 7 probe |
+| P4B boundary (`EXTERNAL/NOT RUN`) | smoke VSIX `metis.catalog.censusReadOnly` su fake e profilo reale | VSIX worktree + SecretStorage tenant | VSIX receipt | signed role valid; effective handle match; TLS valid; no secret/raw document |
+| P6 census (`EXTERNAL/NOT RUN`) | Census Bridge con profilo `video-semantics-census-v1` | indice fisico + PIT + allowlist hash | census artifact + sanitized receipt | exactly one `VALID`; complete fields; zero denied-value leakage |
+| P8 benchmark build (`IMPLEMENTED/PRE-OUTPUT`; freeze terminale aperto) | `uv run pytest -q tests/test_video_grounding_benchmark.py` | 96 tasks + oracle | benchmark freeze candidate | `64+32=96`; leakage groups disgiunti; 12 critical; nessun output modello |
+| P9 sync dry-run (`EXTERNAL/NOT RUN`) | `npm run catalog:sync-values -- --tenant <worktree-tenant> --dry-run` | commit tenant candidate + fake/authorized provider | proposed edit receipt | nessuna scrittura; semantic survivors invariati |
+| P9 schema 2 describe (`PASS/PINNED`) | consumer stretto Model 1 di `catalog:describe` schema 2 | commit Metis+tenant pinnati | projection normalizzata | technical + reviewed semantics/ref; zero valori non richiesti |
+| P9 schema 2 values (`PASS/PINNED`) | consumer stretto Model 1 di `catalog:values` schema 2 | field locator pinnato | merge per campo | literal esatti + semantics/state/ref; open senza lista |
+| P11 reproducibility (`IMPLEMENTED/OFFLINE`) | `uv run metis-model1 video-semantics build-index --projection <projection> --semantic-source-revision <sha256> --grammar-revision <sha256> --toolchain-revision <sha256> --tenant-snapshot <id> --output-dir work-items/<run-id>` | source/grammar/toolchain SHA | index + receipt | revision canonica; membership, freshness e rollback CAS verificati |
+| P12 Brain smoke (`IMPLEMENTED/OFFLINE`) | `uv run pytest -q tests/test_video_brain_grounding.py` | indice sintetico/reviewed | grounding + receipt | resolve multi-concetto/clarify/unsupported corretti; niente invenzione |
+| P13 eval (`IMPLEMENTED/OFFLINE`; run modello aperto) | `uv run metis-model1 video-semantics evaluate-paired --tasks <terminal-freeze> --observations <sanitized-facts> --output-dir benchmark-runs/<run-id>` | 96 task e 384 osservazioni con pin completi | evaluation report + failure taxonomy | quattro varianti, denominatori/Wilson/critical ricalcolati dalle righe |
+| P14 verdict (`IMPLEMENTED/FAIL-CLOSED`; evidenza terminale aperta) | `uv run metis-model1 video-semantics weight-verdict --benchmark <terminal-freeze> --thresholds <ratified> --gate-receipts <receipts> --scorecards <evaluation> --output-dir receipts/<run-id>` | benchmark, soglie, receipt ed evaluation legati allo stesso hash | un solo verdict | `BLOCKED` exit non-zero; nessuna training/promotion authority |
 | Model 1 repository | `make check` | checkout corrente con Node/Metis pin | complete check log | `passes` senza `errors`; tutti i target terminano exit 0 |
 | Metis repository | `npm test` da `metis/tooling` | checkout pulito promosso | suite log | exit 0 sullo SHA dichiarato |
 
@@ -1867,6 +1878,11 @@ Il nuovo script full-corpus G3 deve rendere espliciti almeno: file scoperti,
 file parsati, errori, warning, collisioni keyword, endpoint/artefatti compilati,
 hash baseline pre/post e gap. Un generico `npm test` verde senza questi
 denominatori non chiude `FULL_CORPUS_GRAMMAR_COMPAT`.
+
+Gli output dei nuovi comandi offline accettano soltanto namespace relativi e
+immutabili nello store privato ignorato. Ogni file è no-overwrite e il manifest
+del bundle viene scritto per ultimo: file parziali senza manifest sono orfani
+privati, non un risultato pubblicato.
 
 ## 22. Stop rule e failure matrix
 
@@ -2025,13 +2041,15 @@ Appena viene dato il GO esecutivo alla preparazione:
 
 1. creare `orchestra/runs/<date>-video-catalog-semantics/`;
 2. registrare L0, lane, modelli, write-set, esclusioni e comandi;
-3. registrare il blocker corrente `make check passes=80 errors=2`, assegnarne la
-   diagnosi e non confonderlo con un failure della nuova wave;
+3. registrare lo snapshot storico `make check passes=80 errors=2`, correggerne
+   la causa senza riscrivere gli artifact storici e non confonderlo con un
+   failure della nuova wave;
 4. creare artifact root privata, verificarne realpath/permessi e provare
    `git check-ignore -v` più `git status --short`;
 5. verificare il registro riservato soltanto nel perimetro locale escluso da Git;
 6. separare canonical source manifests dalle acquisition receipts;
-7. creare gli schemi intermedi e gli entrypoint `PLANNED` della matrice 21.2;
+7. creare gli schemi intermedi e gli entrypoint ora marcati
+   `IMPLEMENTED/OFFLINE` nella matrice 21.2;
 8. materializzare l'estrazione meccanica soltanto sotto artifact root ignorato,
    nel sandbox parser; applicare `egress=none` separatamente al futuro processo
    modello soltanto dopo il relativo gate;
@@ -2064,7 +2082,6 @@ Appena viene dato il GO esecutivo alla preparazione:
 Non sono decisioni architetturali mancanti; sono evidenze che l'esecuzione deve
 registrare:
 
-- SHA promosso e test-chain del retrieval semantico schema 2;
 - identità live dell'indice al momento del census;
 - numero reale di campi/subfield e domini;
 - prova osservata o attestazione firmata/verificata del ruolo remoto read-only

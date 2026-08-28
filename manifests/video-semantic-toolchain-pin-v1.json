@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "pin_id": "video-semantic-toolchain/2026-08-27-v1",
+  "repository": "ares-matioska/metis",
+  "revision": "0b41a25d4d5eeac88975e43e18e4bc3123d51667",
+  "tree": "0c47611239d98020fc3a68d1efff2e213ed9df96",
+  "remote_url": "git@github.com:ttessarolo/metis.git",
+  "remote_ref": "refs/remotes/origin/main",
+  "language_version": "0.43",
+  "retrieval_schema": 2,
+  "delivery_ancestors": {
+    "grammar": "291f0b787d85a13e7a2e77e893520c4679cd131d",
+    "full_corpus": "96b383faeb5f738e4cf205050d7090eeea93dbe4",
+    "structured_sync": "53fe68949ce4a0a46fd1825c1a071255c500eec6",
+    "semantic_retrieval": "a84d3db062b61096558200e33354c23c8ebfa16b"
+  },
+  "runtime": {
+    "node_version": "v22.20.0",
+    "node_sha256": "sha256:49161ba4e67afda85c25b2daa1f0e91d1bffc023d2dbc4886eda7a9ba38bca62",
+    "node_bytes": 111332720,
+    "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
+  },
+  "full_corpus_dependency": {
+    "repository": "play-demo",
+    "revision": "f8cc3fd43efc8ea9661c6f051b31e6a1291da1b0",
+    "tree": "72e2958484daf743432cba3ed4f369b66cbfa65f",
+    "remote_ref": "refs/remotes/origin/main"
+  },
+  "evidence": [
+    {"id": "retrieval_contract", "path": "docs/design/catalog-values/retrieval-api.md", "blob_oid": "0421abfd0ebd31f72f8abb4f89171726ce6d106b", "sha256": "sha256:221577113de09cbe8c78c6c3cfdae9d6e2b0b35d96278c9a267f0c2595d924c9"},
+    {"id": "grammar", "path": "tooling/src/language/metis.langium", "blob_oid": "5295c6dae1308181e0212cf84f688786c0556402", "sha256": "sha256:91653388f9e9483513842bc413d4abee5ac56e1a276a7fe6707ac1f8539871f7"},
+    {"id": "generated_ast", "path": "tooling/src/language/generated/ast.ts", "blob_oid": "298b1806ed373ae1ce9a33f130eaed626df76eb8", "sha256": "sha256:0990ecf3bbc52437c066bc001ff9ff259cffc0b1c1bdf4c76057665745414828"},
+    {"id": "semantic_authority", "path": "tooling/src/language/catalog-semantics.ts", "blob_oid": "6200b609a5409635f940bb4f9cb6d8ca7916cde1", "sha256": "sha256:7b822a9a506e985465af770e8207b3992d584c8d739bc2f44fbeb425761ab2f1"},
+    {"id": "validator", "path": "tooling/src/language/metis-validator.ts", "blob_oid": "422f3c3b02f6c85617a131aff5cb058b8ec51835", "sha256": "sha256:db10334ef1cbd6bdb15c54a03ed7c32f9e18b28df0d7bd725485d8be9bb5ded5"},
+    {"id": "structured_sync", "path": "tooling/src/cli/catalog-sync-values.ts", "blob_oid": "24f9004e40a16ceb0e30823d5998912f27c897d6", "sha256": "sha256:50024a25414cee3c1eeeb9d41d53177269d3b4d44f4da8c42840bd02ed7bac50"},
+    {"id": "retrieval_cli", "path": "tooling/src/cli/catalog-domain.ts", "blob_oid": "a0847d47944b00e307d4dcfd3f4ce85ab001ab79", "sha256": "sha256:59810b68547334b9b08acb242b37cedfae2cd917c060fb7417405f3dae4866df"},
+    {"id": "semantic_retrieval_oracle", "path": "tooling/test/catalog-semantic.ts", "blob_oid": "c63dfaa43929b23395add6bec84eebd0148ab78c", "sha256": "sha256:e9e02bed80c74533115a9b275e5dddb5351d86fdb69aa61e88d2e04c02e1d52e"},
+    {"id": "retrieval_oracle", "path": "tooling/test/catalog-domain.ts", "blob_oid": "869782fda6af7ea5a967a5e5ee047b911689ec2e", "sha256": "sha256:8ad6373373fd26fb28165251138a8eaa5c9ac8f34976f8426474ceed0f0c65e2"},
+    {"id": "r8_description", "path": "tooling/test/r8-description-invariant.ts", "blob_oid": "0350c44490ebb20538211f3c8500d25d65da83b0", "sha256": "sha256:651f52b8ed82f584cad8209a136a90022c4019ab4a64a13b8416c4e73a2cf70d"},
+    {"id": "r8_surface", "path": "tooling/test/r8-semantic-surface.ts", "blob_oid": "6bb94d02c32cf0f80a645f607bc55992b7d31718", "sha256": "sha256:0a21cab1a52ed4a8d67374cbddae81e55eac415f7da6e5e048586dfd055659b5"},
+    {"id": "sync_oracle", "path": "tooling/test/catalog-sync-values-merge.ts", "blob_oid": "fd670848ece8de95cf3797ac00aaa4edc15f041f", "sha256": "sha256:3599029c6a1e6f8853ed166b591dbc6fda95d45a1760f7dcf04f95456f038573"},
+    {"id": "full_corpus_oracle", "path": "tooling/test/full-corpus-grammar-compat.ts", "blob_oid": "06ad9b4fb59065fa773b732a1260dc690fbd3ad0", "sha256": "sha256:385604b3b87eb8304e2dfc9070583eaef0ed7c5ff7613094384dffb644a79b2e"},
+    {"id": "test_chain", "path": "tooling/package.json", "blob_oid": "6189d81fe723e02af31fa3df93d95a61dff81d27", "sha256": "sha256:a97284264906a546800ad121b7671be5a2917549cf30f26e43d24ee4ad0324b2"},
+    {"id": "tooling_lock", "path": "tooling/package-lock.json", "blob_oid": "547d10d9a8f7806364869bee4ddeb605fba85fd6", "sha256": "sha256:a2e3c9b6bc55412c8f186a162e6c811d6376930262c258aafee7ad0c3336bcda"}
+  ],
+  "probes": [
+    {"id": "typecheck", "argv": ["node", "node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.probes.json"], "success_marker": null},
+    {"id": "semantic_retrieval", "argv": ["node", "--import", "tsx", "test/catalog-semantic.ts"], "success_marker": "catalog semantic retrieval (schema 2): VERDE ✓"},
+    {"id": "catalog_retrieval", "argv": ["node", "--import", "tsx", "test/catalog-domain.ts"], "success_marker": "catalog:describe / catalog:values — API di retrieval: VERDE ✓"},
+    {"id": "r8_description", "argv": ["node", "--import", "tsx", "test/r8-description-invariant.ts"], "success_marker": "R8 invariante (esteso a Catalog/Field/ValueItem/ListEntry): OK"},
+    {"id": "r8_surface", "argv": ["node", "--import", "tsx", "test/r8-semantic-surface.ts"], "success_marker": "superficie semantica: OK"},
+    {"id": "structured_sync", "argv": ["node", "--import", "tsx", "test/catalog-sync-values-merge.ts"], "success_marker": "catalog:sync-values merge (G2): VERDE ✓"},
+    {"id": "full_corpus", "argv": ["node", "--import", "tsx", "test/full-corpus-grammar-compat.ts"], "success_marker": "FULL_CORPUS_GRAMMAR_COMPAT: VERDE ✓"}
+  ],
+  "expected_denominators": {
+    "schema2_traced_annotations": 9,
+    "schema2_ast_nodes": 27,
+    "full_corpus_documents": 411,
+    "unexpected_errors": 0,
+    "sentinel_collisions": 0,
+    "expected_negative_parse_errors": 31
+  },
+  "policy": {
+    "git_objects_only": true,
+    "schema1_byte_compat_required": true,
+    "schema2_test_chain_required": true,
+    "archive_execution": true,
+    "network_denied": true,
+    "external_repository_writes_denied": true
+  },
+  "nonclaims": [
+    "no_tenant_semantics",
+    "no_live_census",
+    "no_canonical_patch",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim"
+  ]
+}
