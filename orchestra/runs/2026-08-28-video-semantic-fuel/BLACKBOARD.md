@@ -242,4 +242,114 @@ opaque identity and sanitized counts.
 
 ## Current status
 
-`VIDEO_SEMANTIC_FUEL_OFFLINE_CLOSED_LIVE_AND_MODEL_GATES_EXPLICIT`
+`VIDEO_SEMANTIC_NODES_GREEN_DOMAIN_CENSUS_BLOCKED`
+
+## Successor completion wave — 28 August 2026
+
+- DECISION — The product owner has superseded the earlier selective R5 stopping
+  point for `play-demo.video`: this successor must complete the catalog label,
+  all field semantics, all finite value semantics and an explicit domain
+  disposition. Tautological filler and invented finite domains remain invalid.
+- FACT — The canonical tenant baseline is the clean, already promoted
+  `play-demo/main@67564ed18b8821c8556067519f5a46742bca32d3`; this is also the
+  normal checkout opened by VS Code. The Model 1 evidence baseline is clean
+  `main@aca03a3bed49e3165ec5ce74ac710d3c3a792195`.
+- FACT — The supplied measured snapshot reports `fields means=49/113`, external
+  values `23/297`, `aka=1` and no Catalog label, while its domain paragraph also
+  mentions `92/108` undecided nodes. L47-L49 must reconcile both denominators
+  from the exact AST before any completion claim.
+- STOP — A missing domain is never converted to `enum` without a complete,
+  versioned finite roster, and a genuinely open domain is never materialized as
+  a convenience list. Non-keyword scalar types are classified according to the
+  grammar's actual representational contract rather than forced into keyword
+  syntax.
+- STOP — Delegates remain barred from reserved sources, ignored private
+  artifacts, credentials, Keychain and live data. L0 Frontier owns all semantic
+  prose, ambiguity decisions and final review; delegated lanes are read-only
+  censuses and deterministic gates only.
+
+## Successor evidence — 28 August 2026
+
+- DONE — L47 independently reconciled the current AST roster:
+  `Catalog in=1 out=1 distinct=1 gaps=0`,
+  `Field in=113 out=113 distinct=113 gaps=0`,
+  `ValueItem in=363 out=363 distinct=363 gaps=0`. The earlier `108/92`
+  paragraph is not the parser roster: the exact preimage had `15` explicit
+  domains and `98` `none` fields.
+- FIX — L0 added `label "Video"`, authored and reviewed the missing field/value
+  semantics, and added `open` only to the `25` text, title, person and identifier
+  fields whose domain is genuinely the live index. No delegate authored or
+  promoted prose.
+- DONE — The postimage semantic recount is exact: Catalog `1/1 reviewed`, Fields
+  `113/113 reviewed`, finite ValueItems `363/363 reviewed`, `draft=0`,
+  `unannotated=0`. The source now contains `477` `means` nodes, one Catalog
+  label and three nodes with evidence-backed aliases.
+- DONE — Field domain dispositions are exhaustive even though not all are
+  materializable: `in=113 out=113 distinct=113 gaps=0` = `15` already explicit
+  finite domains + `25` genuine `open` + `38` intentional type-defined `none`
+  (`32` range/date/number nodes and `6` booleans) + `35` blocked keyword
+  taxonomies. The retrieval contract explicitly permits intentional `none` for
+  range/technical fields; it does not require a false `open` marker.
+- STOP — The following `35` keyword taxonomies have no exhaustive canonical
+  roster in the authorized versioned sources and therefore cannot yet become
+  `enum(N)` or `open`: `genere_mcm_primario`, `video_format`, `video_formats`,
+  `mythematics_source`, `audio_language`, `subtitle_language`, `basicplot`,
+  `brand_category`, `content_rights`, `content_channels_rights`,
+  `current_season`, `esg_enabled`, `generediegetico`, `generepatemico_sub`,
+  `generetematico`, `generetematico_sub`, `last_live_channel`, `mood`,
+  `paesiorigine`, `tematismigenerediegetico`, `tematismigeneretematico`,
+  `tematismimacrogeneripatemici`, `published_flag`, `categorieiab_sub`, `epoca`,
+  `epoca_sub`, `generediegetico_sub`,
+  `genereintrattenimentoeinformazione_ter`,
+  `genereintrattenimentoeinformazione_sub`, `messainscena_sub`,
+  `protagonistaFiguraRicorrenteGenereTematico`,
+  `protagonistaPerformanceDelPersonaggio`, `protagonistaSesso`,
+  `protagonistaSpecie`, `settingambientazione`. Consumer literals and endpoint
+  lists are partial filters, not proof of a complete domain. Closure requires a
+  sanitized, read-only canonical domain export; credentials or live payloads
+  are not admitted into this repository or run.
+- OPEN — The admissible unblock artifact is a sanitized per-field census bound
+  to tenant/index authority, with exact distinct count, overflow flag, ordered
+  canonical literals, null/missing counts and normalization collisions for all
+  `35` fields. It must contain no documents, credentials or free-text payloads.
+  L0 will then choose inline versus `enum(N)`, author value semantics, rerun the
+  same gates and close the remaining domain roster without retraining Model 1.
+- DONE — L0 compared the exact preimage and postimage: all `113` field
+  name/type/modifier tuples are byte-equivalent, all `363` finite literals and
+  their declaration order are identical, and the only domain movements are the
+  expected `25` `none -> open` transitions.
+- DONE — The clean pinned toolchain passed the semantic invariant, semantic
+  validator/formatter, sync rewrite, sync merge, catalog-domain,
+  catalog-semantic and TypeScript gates. VSIX `0.23.93`
+  (`sha256:3a05231140cf52ccd13f30a72ae781d3712b22918e54b281e0b7ab7bae9b1d29`)
+  validated `170` tenant endpoints with `0` errors and is the installed editor
+  version.
+- DONE — Clean preimage/postimage main builds each produced `10` endpoints,
+  `5` catalogs and `123` runtime fields. Their complete output directories are
+  byte-identical, including artifact-set identity
+  `1ecabb4fdd29852cbace5b5d637b8f1d497f8bb50bf2460c449cb0e851a98a77`.
+  The declared A/B branch remains behind current main; this is pre-existing
+  branch maintenance and does not invalidate the main build comparison.
+- DONE — The candidate diff is restricted to the two authorized catalog files;
+  no reserved source, credential, ignored artifact, live payload, manual or
+  official citation to reserved material enters the tenant commit.
+- DONE — The tenant change was rebased over the concurrent experiments-state
+  update, reverified, committed and pushed directly to
+  `play-demo/main@3506dda7ea08d6a06c68dc2f5a37a4e18ad24780`; the normal VS Code checkout
+  is clean and exactly aligned with `origin/main`.
+- RISK — The required Model 1 `make check` was run on this board-only candidate.
+  Foundation (`84` passes, `0` errors, `506` files), pilot contracts, Ruff and
+  format were green; pytest closed `2156 passed, 2 skipped, 1 failed`. The sole
+  failure is the pre-existing W3 adversarial FIFO timing case
+  `test_transaction_rejects_preexisting_fifo_without_blocking_or_publication[manifest]`:
+  its child exceeded the hard-coded `45s` timeout. The same case passed outside
+  the canonical harness in about `35s` but reproduced the timeout inside the
+  canonical harness (`1 failed in 45.21s`). Neither changed board file is on
+  that runtime/test surface, so this is not attributed to the semantic tenant
+  patch; it is nevertheless reported as non-green and not hidden.
+- DECISION — The W3 FIFO fail-fast repair is a separate security-boundary wave:
+  it requires descriptor-relative early preflight plus race-preserving late
+  verification and dedicated adversarial tests. This semantic-catalog wave
+  does not opportunistically change that runtime merely to make its board
+  commit green. The documentary promotion is therefore conditional and the
+  global Model 1 gate remains non-green.
