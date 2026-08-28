@@ -242,7 +242,11 @@ opaque identity and sanitized counts.
 
 ## Current status
 
-`VIDEO_DOMAIN_SEMANTICS_PROMOTED`
+`VIDEO_CHANNEL_DECODING_PROMOTED_EQUIVALENCE_OPEN`
+
+The earlier `VIDEO_DOMAIN_SEMANTICS_PROMOTED` verdict is retained below as a
+historical technical-coverage checkpoint. It is superseded for editorial
+quality by the decoding audit opened on 28 August 2026.
 
 ## Successor completion wave — 28 August 2026
 
@@ -487,3 +491,118 @@ opaque identity and sanitized counts.
 - DECISION — Domain semantics remain retrieval-owned tenant data. This wave did
   not train, retune, inject catalog literals into, or otherwise mutate Model 1
   weights, adapter, checkpoints or optimizer state.
+
+## Semantic decoding audit — 28 August 2026
+
+- RISK — The owner review found that all `27/27` values of
+  `last_live_channel_code` were marked `reviewed` with repeated prose declaring
+  each code opaque, while the sibling `last_live_channel` domain contains the
+  human channel names required by natural-language retrieval. A coverage count
+  of `reviewed=1792/1792` therefore overstated semantic quality: reviewed syntax
+  is not proof of decoded meaning.
+- STOP — The editorial gate is reopened. No final semantic-accuracy claim is
+  valid until an authoritative `code -> channel name` relation is established,
+  the affected values carry discriminative retrieval semantics/aliases, and a
+  catalog-wide anti-pattern census has classified analogous code-like or
+  boilerplate-reviewed values.
+- DECISION — L0 alone owns mapping acceptance and editorial promotion. Delegated
+  lanes may perform read-only censuses and design a payload-safe aggregate
+  check, but may not infer mappings, inspect credentials or raw documents,
+  modify repositories, or promote a result.
+- DECISION — Catalog keys and values remain retrieval-owned tenant state. This
+  remediation changes catalog semantics only; it does not inject channel codes,
+  names or any other tenant value into Model 1 weights.
+- FACT — An ephemeral aggregate-only read through the pinned read-only client
+  returned `hits=0`, `_source=false`, document IDs/samples/credentials `0` and
+  exhaustively reconciled `27` codes, `26` names and `26` observed pairs. Two
+  consecutive complete passes were byte-identical (`13216` sanitized output
+  bytes each), so no between-pass drift was observed.
+- FACT — `24/27` channel codes have at least one observed human label. `20` are
+  one-label complete, `EC` and `ER` have one unique observed label plus `8` and
+  `1` unlabeled documents, `KF` has the historical labels `TGCom|Tgcom24`, and
+  `QY` has `Mediaset Infinity|Mediaset Play`. `FT`, `KN` and `N4` have no
+  observed human label (`26`, `8` and `5` unlabeled documents respectively).
+- FIX — The isolated decoding candidate replaces the `27/27` opaque boilerplate
+  with the observed human mapping and retrieval aliases. The owner-observed
+  surface `Italia1` maps to literal `I1`; the spaced `Italia 1` label is also
+  retained. `FT`, `KN` and `N4` are deliberately downgraded to `draft`, with no
+  invented channel name or alias.
+- RISK — The exhaustive anti-pattern audit examined all `1792` finite values.
+  Beyond the channel field it found `7` definite undecoded code literals:
+  `published_flag={CMS,RDY,WKP}` and
+  `audio_language={afg,csk,ing,yug}`; `UCL` and `UCL_SVOD` are expansion/alias
+  candidates. These require a versioned/authoritative dictionary, not initials
+  or model intuition.
+- RISK — Separate P1 retrieval debt is not to be conflated with opaque codes:
+  human-readable but template-heavy domains include `genere_mcm`,
+  `content_channels`, `content_channels_rights`, `last_live_channel` and
+  `paesiorigine`. In particular `paesiorigine` has `42` proven same-meaning
+  groups over `89` physical literals; an Italy request must be verified against
+  the emitted predicate, because `aka` alone cannot safely imply selection of
+  every dirty stored variant.
+- DECISION — The reserved tagging guidance was used by L0 only for the
+  editorial taxonomies that it actually defines (narrative, thematic,
+  protagonist, mood and setting semantics). It is not authority for operational
+  source codes. No reserved source, filename, quotation, locator or derived raw
+  text is present in the tenant candidate, repository documentation or receipts.
+- DONE — The channel relation was established independently of the reserved
+  guidance through a payload-free aggregate-only current census plus versioned
+  consumer evidence: `codes in=27 out=27 distinct=27 gaps=0`, current mapped
+  codes `24`, unresolved `3`. The three unresolved codes remain `draft` and
+  carry no invented alias.
+- FIX — Seven analogous opaque-code annotations were also corrected instead of
+  being left falsely reviewed: `published_flag={CMS,RDY,WKP}` and
+  `audio_language={afg,csk,ing,yug}` are now `means draft`. The exact finite
+  recount is therefore `values=1792 reviewed=1782 draft=10 unannotated=0`;
+  semantic state is reported as review authority, not coverage theater.
+- DONE — Independent candidate-diff census closed `changed ValueItem in=34
+  out=34 distinct=34 gaps=0`. Field count remains `113`, finite literal roster
+  and order remain `1792/1792`, and name/type/modifier/domain surfaces are
+  unchanged. The candidate adds `43` distinct aliases with no alias shared by
+  two channel codes; `26` intentionally coincide with the sibling human channel
+  literals.
+- FIX — Brain's exact resolver now applies strict maximal-span selection before
+  rank/tie adjudication. A full reviewed surface such as `Italia 1` therefore
+  suppresses the contained country surface `Italia`, while disjoint and
+  crossing spans remain independent and equal spans still use the existing
+  deterministic rank/fail-closed contract. The production-shaped regression
+  uses `last_live_channel_code=I1` with aliases `Italia 1|Italia1`.
+- DONE — Real candidate grounding through the pinned schema-2 projection is
+  green for `Italia1`, `Italia 1`, `Canale5`, `Rete4`, `TopCrime` and
+  `pubblicato`; each resolves to an exact snapshot member. The focused Model 1
+  regression is `8 passed`, with Ruff and format checks green.
+- DONE — The exact candidate parses on pinned Metis and the targeted toolchain
+  gates are green: typecheck, R8 description invariant, R8 semantic surface,
+  catalog-domain, sync rewrite and sync merge. Direct baseline/candidate
+  compilation closed at `documents=29 endpoints=10`; runtime and endpoint IR
+  are byte-identical with hashes
+  `4b238459546f087a2a7aa365b9f12ab2fca48bc9931b872042da8487cfed5f8a` and
+  `340315a0af3683107734b247c2b3ff95b38687cb0edec32cbaa8c8a07cef5513`.
+- OPEN — `audio italiano`, `sottotitoli inglesi` and `prodotto in Italia`
+  expose a different P1 contract gap: one human concept may need an OR-group of
+  several physical literals (`ENG|eng`, `ITA|ita`, or multiple country
+  variants). Repeating one `aka` would create a tie, while choosing one literal
+  would miss real records. Pinned Metis lists are executable but have no
+  list-level `means`/`aka`, and Model 1 does not currently index list groups.
+  This requires an explicit tenant-owned semantic-group contract; it must not be
+  hidden by an unsafe alias shortcut.
+- DONE — The reviewed tenant correction was committed as
+  `654beba326bc824bc40f9f618b94eebe29dea2bb` and pushed to canonical
+  `play-demo/main`. A concurrent experiments-state commit then advanced remote
+  main to `5f7b1d7d4191ced705736eba423983f7b2309f4d`; it contains the semantic commit
+  as a direct ancestor. The normal VS Code checkout was fast-forwarded and is
+  clean/aligned with that remote head; no concurrent work was overwritten.
+- RISK — The required Model 1 `make check` is not globally green on this exact
+  code/document candidate: foundation is `84/84`, pilot contracts, Ruff and
+  format are green, and pytest is `2156 passed, 2 skipped, 2 failed`. Both
+  failures are the pre-existing W3 FIFO fail-fast timing cases
+  `test_transaction_rejects_preexisting_fifo_without_blocking_or_publication`
+  for `manifest` and `bootstrap`, each exceeding its hard-coded `45s` timeout.
+  Isolated replay made `manifest` pass, while `bootstrap` reproduced the same
+  timeout alone. These tests do not touch the catalog or resolver surfaces, but
+  the global gate remains non-green and is not reported otherwise.
+- DECISION — The W3 descriptor-relative fail-fast repair remains a distinct
+  security-boundary wave. This semantic correction does not change or weaken
+  W3 merely to obtain a green receipt. Its scoped acceptance rests on the
+  focused resolver tests, pinned parser/compiler/R8/sync gates, exact technical
+  invariance and canonical tenant promotion recorded above.

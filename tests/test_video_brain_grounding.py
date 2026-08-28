@@ -222,6 +222,98 @@ def test_catalog_ambiguity_and_ties_require_confirmation() -> None:
     assert ground_request(tied, "genere")["grounding"]["status"] == "clarify"
 
 
+def test_longer_channel_surface_suppresses_contained_country_collision() -> None:
+    index = deepcopy(_build()["index"])
+    country_field = next(
+        item
+        for item in index["entries"]
+        if item["node_kind"] == "field" and item["field"] == "country"
+    )
+    country_field["domain"]["size"] = 3
+    country_value = next(
+        item
+        for item in index["entries"]
+        if item["node_kind"] == "value" and item["field"] == "country"
+    )
+    country_value["domain"]["size"] = 3
+    for line, literal in ((41, "ITALIA"), (42, "italia")):
+        index["entries"].append(
+            {
+                **deepcopy(country_value),
+                "literal": literal,
+                "at": {"file": "catalogs/video.metis", "line": line},
+            }
+        )
+    channel_domain = {"kind": "enum", "size": 1, "nature": "reflected"}
+    index["entries"].extend(
+        [
+            {
+                "node_kind": "field",
+                "catalog": "public.video",
+                "field": "last_live_channel_code",
+                "literal": None,
+                "state": "reviewed",
+                "at": {"file": "catalogs/video.metis", "line": 50},
+                "means": {
+                    "text": "ultimo canale lineare",
+                    "at": {"file": "catalogs/video.metis", "line": 51},
+                },
+                "domain": channel_domain,
+            },
+            {
+                "node_kind": "value",
+                "catalog": "public.video",
+                "field": "last_live_channel_code",
+                "literal": "I1",
+                "state": "reviewed",
+                "at": {"file": "catalogs/video.metis", "line": 52},
+                "means": {
+                    "text": "codice sorgente del canale televisivo Italia 1",
+                    "at": {"file": "catalogs/video.metis", "line": 53},
+                },
+                "aka": {
+                    "items": ["Italia 1", "Italia1"],
+                    "at": {"file": "catalogs/video.metis", "line": 54},
+                },
+                "domain": channel_domain,
+            },
+        ]
+    )
+    index["entries"].sort(
+        key=lambda item: (
+            item["catalog"],
+            item["field"] or "",
+            item["literal"] or "",
+            item["node_kind"],
+        )
+    )
+    index["revision"] = index_revision(index)
+
+    spaced = ground_request(index, "Italia 1")["grounding"]
+    assert spaced["status"] == "resolved"
+    assert (spaced["selected"]["field"], spaced["selected"]["literal"]) == (
+        "last_live_channel_code",
+        "I1",
+    )
+    compact = ground_request(index, "Italia1")["grounding"]
+    assert compact["status"] == "resolved"
+    assert compact["selected"]["literal"] == "I1"
+
+    multi = ground_request(index, "Film su Italia 1")["grounding"]
+    assert multi["status"] == "resolved"
+    assert [(item["field"], item["literal"]) for item in multi["selections"]] == [
+        ("genre", "Film"),
+        ("last_live_channel_code", "I1"),
+    ]
+
+    # The overlap repair must not pretend that dirty country literals are one
+    # value: without an explicit equivalence contract the same maximal surface
+    # remains a real tie and still requires clarification.
+    country = ground_request(index, "prodotto in Italia")["grounding"]
+    assert country["status"] == "clarify"
+    assert country["reason"] == "grounding candidates tie for the same request surface"
+
+
 def test_grounding_rejects_wrong_catalog_stale_index_and_tampered_receipt() -> None:
     index = _build()["index"]
     wrong = ground_request(index, "Film", catalog="missing")["grounding"]

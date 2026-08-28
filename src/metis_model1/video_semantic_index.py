@@ -665,6 +665,31 @@ def _contains(text: str, phrase: str) -> bool:
     return bool(_match_spans(text, phrase))
 
 
+def _maximal_match_spans(matches: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    """Keep only surfaces not strictly contained by a more specific match.
+
+    Natural labels can contain another valid catalog surface: ``Italia 1``
+    contains the country literal ``Italia``.  Treating both spans as independent
+    concepts makes the shorter surface manufacture an ambiguity before the
+    full channel label can win.  Equal spans still compete by rank/identity and
+    overlapping-but-not-contained spans remain separate; only strict lexical
+    containment is suppressed.
+    """
+
+    spans = sorted(
+        {item["span"] for item in matches},
+        key=lambda span: (span[0], -span[1]),
+    )
+    maximal: list[tuple[int, int]] = []
+    furthest_end = -1
+    for span in spans:
+        if span[1] <= furthest_end:
+            continue
+        maximal.append(span)
+        furthest_end = span[1]
+    return sorted(maximal)
+
+
 def _catalog_filter(
     index: Mapping[str, Any], request: str, catalog: str | None
 ) -> tuple[list[str], str | None]:
@@ -771,7 +796,7 @@ def resolve_grounding(
         }
 
     best_by_span: list[dict[str, Any]] = []
-    for span in sorted({item["span"] for item in matches}):
+    for span in _maximal_match_spans(matches):
         span_matches = [item for item in matches if item["span"] == span]
         best_rank = min(item["rank"] for item in span_matches)
         best = [item for item in span_matches if item["rank"] == best_rank]
