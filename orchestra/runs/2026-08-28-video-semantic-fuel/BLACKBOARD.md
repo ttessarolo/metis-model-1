@@ -242,7 +242,7 @@ opaque identity and sanitized counts.
 
 ## Current status
 
-`VIDEO_SEMANTIC_NODES_GREEN_DOMAIN_CENSUS_BLOCKED`
+`VIDEO_DOMAIN_SEMANTICS_PROMOTED`
 
 ## Successor completion wave — 28 August 2026
 
@@ -250,7 +250,7 @@ opaque identity and sanitized counts.
   point for `play-demo.video`: this successor must complete the catalog label,
   all field semantics, all finite value semantics and an explicit domain
   disposition. Tautological filler and invented finite domains remain invalid.
-- FACT — The canonical tenant baseline is the clean, already promoted
+- FACT — The successor wave began from the clean, already promoted
   `play-demo/main@67564ed18b8821c8556067519f5a46742bca32d3`; this is also the
   normal checkout opened by VS Code. The Model 1 evidence baseline is clean
   `main@aca03a3bed49e3165ec5ce74ac710d3c3a792195`.
@@ -258,6 +258,75 @@ opaque identity and sanitized counts.
   values `23/297`, `aka=1` and no Catalog label, while its domain paragraph also
   mentions `92/108` undecided nodes. L47-L49 must reconcile both denominators
   from the exact AST before any completion claim.
+
+## Canonical domain-completion evidence — 28 August 2026
+
+- DONE — The exact schema-2 successor census closes the canonical roster at
+  `catalogs in=1 out=1 distinct=1 gaps=0`, `fields in=113 out=113 distinct=113
+  gaps=0`. All `113/113` fields and the Catalog node are `reviewed`; there are
+  no `draft` or `unannotated` field nodes.
+- DONE — Every non-scalar field now has an explicit domain contract. The final
+  disposition is `enum=23`, `inline=26`, `open=26`, `none=38`; all `38` none
+  fields are intentionally scalar-only (`date=20 number=12 boolean=6`) and
+  `none_non_scalar=0`.
+- DONE — The formerly unresolved domain roster closed `in=35 out=35 distinct=35
+  gaps=0`: live sanitized terms produced `external enum=18`, `inline=15` and
+  `open=1`; the one live-empty field `current_season` was materialized inline
+  as the exact versioned consumer literals `false/true`. No production payload,
+  credential or credential value entered logs or Git.
+- DONE — The finite-domain denominator is now `fields in=49 out=49 distinct=49
+  gaps=0`, `values in=1792 out=1792 distinct-by-field-and-literal=1792 gaps=0`.
+  Every finite value is `reviewed`; `draft=0`, `unannotated=0`. The successor
+  adds and frontier-reviews `1429` finite values across `34` newly finite
+  domains: `1427` terms-census values across `33` domains plus the two
+  consumer-backed `current_season` values. Existing finite values remain
+  reviewed.
+- DONE — Product-critical gaps are materially closed, including `mood=20`,
+  `basicplot=80`, `protagonistaSesso=3`, `protagonistaSpecie=8`,
+  `protagonistaFiguraRicorrenteGenereTematico=171`,
+  `settingambientazione=225` and `paesiorigine=182` reviewed values.
+- FIX — Frontier review rejected generic descriptions and unsupported
+  normalizations before promotion. The final quality audit closes
+  newly added `records in=1429 out=1429 distinct=1429 gaps=0`; the full finite
+  denominator is `reviewed=1792/1792`. Order mismatches, grammar hazards, short
+  meanings, generic IAB filler, generic setting filler, normalized template
+  clusters and cross-value alias collisions are all `0`. Ambiguous/sensitive
+  legacy literals remain explicitly fail-closed rather than being silently
+  normalized.
+- DONE — Official `catalog:sync-values --only-empty --dry-run` is a fixed point:
+  `skip-not-empty=75`, fetches/edits `0`. No eligible keyword/text/search field
+  remains unresolved.
+- DONE — Final pinned-toolchain gates exited `0`: typecheck, catalog-domain,
+  catalog-semantic, sync rewrite, sync merge, R8 description invariance and R8
+  semantic surface. Full-corpus grammar compatibility traversed `411` documents
+  with unexpected errors `0` and sentinel collisions `0`.
+- DONE — Final tenant compilation produces `10` endpoints, `5` catalogs and
+  `123` runtime fields. Baseline and successor IR trees are byte-identical,
+  runtime context is byte-identical, and both artifact sets have SHA-256
+  `1ecabb4fdd29852cbace5b5d637b8f1d497f8bb50bf2460c449cb0e851a98a77`.
+  The build CLI's non-zero aggregate status is solely the pre-existing declared
+  A/B branch being four main commits behind; both baseline and successor report
+  the same branch-maintenance condition.
+- FACT — A concurrent upstream `play-demo/main` change from `3506dda7` to
+  `7d05c34d` touched only `experiments/_state.json`. The catalog candidate was
+  subsequently rebased onto that exact remote head before fast-forward
+  promotion; no concurrent file was overwritten.
+- DONE — The candidate was committed, rebased without conflict onto exact
+  `origin/main@7d05c34dcb699e664d0bad5b9e49e469f2b1c351`, fast-forwarded through the
+  normal VS Code checkout and pushed as semantic commit
+  `c4f278d8e4f4bf065ba8d919d6a13d09079b0f5f` on `play-demo/main`.
+- FACT — A subsequent concurrent experiments-state commit advanced remote main
+  to `78a29b22e6f21ad3e1871262ce3dbc5c2d4e64a8`. It is a direct descendant of
+  the semantic commit and changes only `experiments/_state.json`; the two
+  catalog files are byte-identical. The normal VS Code checkout was
+  fast-forwarded and is clean with local `main=origin/main=78a29b22`.
+- DONE — Post-push schema-2 verification ran against the normal `play-demo`
+  checkout opened in VS Code, not the isolated candidate: `fields
+  reviewed=113/113`, domains
+  `enum=23 inline=26 open=26 none=38`, `none_non_scalar=0`, finite values
+  `reviewed=1792/1792`. Critical post-push counts are `mood=20`,
+  `protagonistaSesso=3`, `protagonistaSpecie=8`, `basicplot=80`, recurring
+  protagonist figures `171` and narrative settings `225`, all reviewed.
 - STOP — A missing domain is never converted to `enum` without a complete,
   versioned finite roster, and a genuinely open domain is never materialized as
   a convenience list. Non-keyword scalar types are classified according to the
@@ -269,6 +338,10 @@ opaque identity and sanitized counts.
   censuses and deterministic gates only.
 
 ## Successor evidence — 28 August 2026
+
+- DECISION — This section is a historical pre-domain checkpoint. Its 35-field
+  `STOP`/`OPEN`, `@3506dda7` promotion and conditional gate verdict are
+  superseded by the canonical completion evidence above and lane L0-D.
 
 - DONE — L47 independently reconciled the current AST roster:
   `Catalog in=1 out=1 distinct=1 gaps=0`,
@@ -353,3 +426,64 @@ opaque identity and sanitized counts.
   does not opportunistically change that runtime merely to make its board
   commit green. The documentary promotion is therefore conditional and the
   global Model 1 gate remains non-green.
+
+## Canonical domain materialization — 28 August 2026
+
+- DECISION — The product owner authorized closure of the `35` unresolved
+  domains. L0 retained semantic/editorial authority and opened three disjoint
+  frontier review lanes; delegated versioned-source censuses remain supporting
+  evidence, never promotion authority.
+- FACT — From clean `play-demo/main@3506dda7ea08d6a06c68dc2f5a37a4e18ad24780`,
+  L0 created isolated candidate `codex/video-domain-census` and ran the pinned
+  official read-only catalog terms census through a credential-contained
+  boundary. The operation exposed only per-field literals/counts: no documents,
+  payloads or credential values entered the candidate, board or logs.
+- DONE — The live census disposition is exact over the blocked roster:
+  `in=35 out=35 distinct=35 gaps=0` = `18` external finite value-sets + `15`
+  inline finite domains + `1` genuine `open` domain + `1` field absent from the
+  current live snapshot but carrying the exact two boolean-like literals
+  `false`/`true` in versioned tenant consumers. That last pair is materialized
+  as explicit consumer-backed values, not invented from live data.
+- FACT — High-impact recovered denominators include `mood=20`,
+  `basicplot=80`, `protagonistaSesso=3`, `protagonistaSpecie=8`,
+  `protagonistaFiguraRicorrenteGenereTematico=171` and
+  `settingambientazione=225`. `tematismigeneretematico` crossed the tenant
+  `enum-max=300` guard and is therefore correctly `open`; no truncated enum was
+  written.
+- DONE — The post-census field disposition is exhaustive:
+  `Field in=113 out=113 distinct=113 gaps=0` = `23 enum + 26 inline + 26 open +
+  38 scalar none`. Every remaining `none` is type-defined (`20 date + 12 number
+  + 6 boolean`); no keyword, text, identifier or person/title field remains
+  without a retrieval disposition.
+- DONE — Before value prose was added, clean pinned builds of baseline and
+  candidate each produced `10` endpoint IR files, `5` catalogs and `123`
+  runtime fields with byte-identical IR/runtime hashes and artifact-set identity
+  `1ecabb4fdd29852cbace5b5d637b8f1d497f8bb50bf2460c449cb0e851a98a77`.
+  The already-known stale declared A/B branch remains a separate maintenance
+  finding in both builds.
+- DECISION — This historical pre-review `OPEN` is closed and superseded. The
+  final finite denominator is `reviewed=1792/1792`; semantic recount, retrieval,
+  sync idempotence, compiler invariance, VSIX, diff/privacy and normal-checkout
+  gates closed before semantic commit
+  `c4f278d8e4f4bf065ba8d919d6a13d09079b0f5f`, now contained unchanged in
+  `play-demo/main@78a29b22e6f21ad3e1871262ce3dbc5c2d4e64a8`.
+
+## Final closure receipt — 28 August 2026
+
+- DONE — Independent post-promotion audit on current clean `play-demo/main`
+  closes `Catalog reviewed=1/1`, `Fields reviewed=113/113`, retrieval fields
+  `in=75 out=75 distinct=75 gaps=0`, `none_non_scalar=0`, finite fields
+  `reviewed=49/49` and finite values `reviewed=1792/1792`; `draft=0`,
+  `unannotated=0`, reserved-source/path/credential leaks `0`.
+- DONE — Current local `main`, tracking `origin/main` and remote live all resolve
+  to `78a29b22e6f21ad3e1871262ce3dbc5c2d4e64a8`. The semantic commit is its direct
+  ancestor `c4f278d8e4f4bf065ba8d919d6a13d09079b0f5f`; both catalog blobs are
+  unchanged by the intervening experiments-state commit.
+- DONE — The required Model 1 repository gate completed with exit `0`:
+  foundation `passes=84 errors=0 files=506`, pilot contracts `VALID`, Ruff and
+  formatting green, pytest `2157 passed, 2 skipped, 0 failed, 22 warnings` in
+  `2809.44s`. This fresh green run supersedes the historical FIFO-timeout risk
+  recorded in the pre-domain checkpoint.
+- DECISION — Domain semantics remain retrieval-owned tenant data. This wave did
+  not train, retune, inject catalog literals into, or otherwise mutate Model 1
+  weights, adapter, checkpoints or optimizer state.
