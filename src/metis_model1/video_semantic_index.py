@@ -665,6 +665,56 @@ def _contains(text: str, phrase: str) -> bool:
     return bool(_match_spans(text, phrase))
 
 
+def _alias_key(value: str) -> str:
+    return value.casefold().strip()
+
+
+def _value_alias_registry(index: Mapping[str, Any]) -> dict[str, Any]:
+    """Classify reviewed value aliases without inventing equivalence.
+
+    A reviewed alias that occurs on more than one physical value of the same
+    catalog field is an explicit tenant-owned OR group.  The group is usable
+    only when every node carrying that alias is reviewed; a draft member makes
+    the entire alias unavailable rather than silently shrinking the group.
+    Cross-field reuse remains separate and is adjudicated as an ambiguity by
+    the normal span/tie logic.
+    """
+
+    by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for entry in index["entries"]:
+        if entry["node_kind"] != "value":
+            continue
+        aka = entry.get("aka")
+        if not isinstance(aka, Mapping) or not isinstance(aka.get("items"), list):
+            continue
+        for surface in aka["items"]:
+            key = (entry["catalog"], entry["field"], _alias_key(surface))
+            group = by_key.setdefault(key, {"surfaces": set(), "entries": []})
+            group["surfaces"].add(surface)
+            if entry not in group["entries"]:
+                group["entries"].append(entry)
+
+    duplicate_keys: set[tuple[str, str, str]] = set()
+    groups: list[dict[str, Any]] = []
+    for key, raw in sorted(by_key.items()):
+        entries = raw["entries"]
+        if len(entries) < 2:
+            continue
+        duplicate_keys.add(key)
+        if any(entry.get("state") != "reviewed" for entry in entries):
+            continue
+        groups.append(
+            {
+                "catalog": key[0],
+                "field": key[1],
+                "alias_key": key[2],
+                "surface": sorted(raw["surfaces"], key=lambda item: (item.casefold(), item))[0],
+                "entries": sorted(entries, key=lambda item: item["literal"]),
+            }
+        )
+    return {"duplicate_keys": duplicate_keys, "groups": groups}
+
+
 def _maximal_match_spans(matches: list[dict[str, Any]]) -> list[tuple[int, int]]:
     """Keep only surfaces not strictly contained by a more specific match.
 
@@ -747,6 +797,8 @@ def resolve_grounding(
             "lookups": [],
             "lookup": None,
         }
+    alias_registry = _value_alias_registry(index)
+    duplicate_alias_keys = alias_registry["duplicate_keys"]
     matches: list[dict[str, Any]] = []
     for entry in index["entries"]:
         if entry["node_kind"] not in {"field", "value"} or entry["catalog"] not in allowed_catalogs:
@@ -767,7 +819,11 @@ def resolve_grounding(
                 if isinstance(entry.get("aka"), Mapping)
                 else []
             )
-            surfaces.extend((2, "reviewed_aka_exact", item) for item in aka_items)
+            surfaces.extend(
+                (2, "reviewed_aka_exact", item)
+                for item in aka_items
+                if (entry["catalog"], field, _alias_key(item)) not in duplicate_alias_keys
+            )
             means = (
                 entry.get("means", {}).get("text")
                 if isinstance(entry.get("means"), Mapping)
@@ -780,11 +836,45 @@ def resolve_grounding(
                 matches.append(
                     {
                         "entry": entry,
+                        "entries": [entry],
                         "rank": rank,
                         "matched_by": matched_by,
                         "span": (start, end),
                     }
                 )
+    group_matches: list[dict[str, Any]] = []
+    for group in alias_registry["groups"]:
+        if group["catalog"] not in allowed_catalogs:
+            continue
+        for start, end in _match_spans(request, group["surface"]):
+            group_matches.append(
+                {
+                    "entry": None,
+                    "entries": group["entries"],
+                    "rank": 2,
+                    "matched_by": "reviewed_aka_group",
+                    "span": (start, end),
+                }
+            )
+    for group_match in group_matches:
+        member_ids = {
+            (entry["catalog"], entry["field"], entry["literal"]) for entry in group_match["entries"]
+        }
+        matches = [
+            item
+            for item in matches
+            if not (
+                item["span"] == group_match["span"]
+                and len(item["entries"]) == 1
+                and (
+                    item["entries"][0]["catalog"],
+                    item["entries"][0]["field"],
+                    item["entries"][0].get("literal"),
+                )
+                in member_ids
+            )
+        ]
+    matches.extend(group_matches)
     if not matches:
         return {
             "status": "unsupported",
@@ -801,19 +891,29 @@ def resolve_grounding(
         best_rank = min(item["rank"] for item in span_matches)
         best = [item for item in span_matches if item["rank"] == best_rank]
         identities = {
-            (item["entry"]["catalog"], item["entry"]["field"], item["entry"].get("literal"))
+            (
+                tuple(
+                    (entry["catalog"], entry["field"], entry.get("literal"))
+                    for entry in item["entries"]
+                ),
+                item["matched_by"] == "reviewed_aka_group",
+            )
             for item in best
         }
         if len(identities) != 1:
-            candidates = [
-                {
-                    "catalog": item["entry"]["catalog"],
-                    "field": item["entry"]["field"],
-                    "literal": item["entry"].get("literal"),
+            candidates: list[dict[str, Any]] = []
+            for item in best:
+                entries = item["entries"]
+                candidate = {
+                    "catalog": entries[0]["catalog"],
+                    "field": entries[0]["field"],
+                    "literal": entries[0].get("literal") if len(entries) == 1 else None,
                     "matched_by": item["matched_by"],
                 }
-                for item in best
-            ]
+                if len(entries) > 1:
+                    candidate["literals"] = [entry["literal"] for entry in entries]
+                    candidate["value_mode"] = "any_of"
+                candidates.append(candidate)
             candidates.sort(
                 key=lambda item: (
                     item["catalog"],
@@ -832,12 +932,10 @@ def resolve_grounding(
             }
         best_by_span.append(best[0])
 
-    selected_by_identity: dict[tuple[str, str, str | None], dict[str, Any]] = {}
+    selected_by_identity: dict[tuple[tuple[str, str, str | None], ...], dict[str, Any]] = {}
     for item in best_by_span:
-        identity = (
-            item["entry"]["catalog"],
-            item["entry"]["field"],
-            item["entry"].get("literal"),
+        identity = tuple(
+            (entry["catalog"], entry["field"], entry.get("literal")) for entry in item["entries"]
         )
         previous = selected_by_identity.get(identity)
         if previous is None or (item["rank"], item["span"]) < (
@@ -850,21 +948,25 @@ def resolve_grounding(
         key=lambda item: (
             item["span"],
             item["rank"],
-            item["entry"]["catalog"],
-            item["entry"]["field"],
-            item["entry"].get("literal") or "",
+            item["entries"][0]["catalog"],
+            item["entries"][0]["field"],
+            item["entries"][0].get("literal") or "",
         ),
     )
-    selections = [
-        {
-            "catalog": item["entry"]["catalog"],
-            "field": item["entry"]["field"],
-            "literal": item["entry"].get("literal"),
-            "domain": item["entry"]["domain"],
+    selections: list[dict[str, Any]] = []
+    for item in ordered:
+        entries = item["entries"]
+        selection = {
+            "catalog": entries[0]["catalog"],
+            "field": entries[0]["field"],
+            "literal": entries[0].get("literal") if len(entries) == 1 else None,
+            "domain": entries[0]["domain"],
             "matched_by": item["matched_by"],
         }
-        for item in ordered
-    ]
+        if len(entries) > 1:
+            selection["literals"] = [entry["literal"] for entry in entries]
+            selection["value_mode"] = "any_of"
+        selections.append(selection)
     lookups = [
         {
             "mode": "exact_on_demand",

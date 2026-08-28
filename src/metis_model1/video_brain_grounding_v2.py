@@ -29,7 +29,12 @@ HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 MAPPED_RELATIONS = frozenset({"exact", "renamed", "synonym", "split", "merged"})
 RESOLVED_REASONS = frozenset(
-    {"EXACT_SNAPSHOT_MEMBER", "SEMANTIC_SNAPSHOT_MEMBER", "OPEN_LOOKUP_REQUIRED"}
+    {
+        "EXACT_SNAPSHOT_MEMBER",
+        "SEMANTIC_SNAPSHOT_MEMBER",
+        "OPEN_LOOKUP_REQUIRED",
+        "REVIEWED_AKA_GROUP",
+    }
 )
 CLARIFY_REASONS = frozenset(
     {
@@ -257,6 +262,59 @@ def _surface_supported(
         return shared >= 1
     minimum = 1 if len(surface_tokens) == 1 else 2
     return shared >= minimum and shared * 3 >= len(surface_tokens) * 2
+
+
+def _reviewed_aka_group(
+    surface: str,
+    targets: Sequence[Mapping[str, Any]],
+    all_entries: Sequence[Mapping[str, Any]],
+) -> bool:
+    """Prove that targets are the complete same-field roster for one alias.
+
+    Repeating one reviewed ``aka`` across physical values is the tenant-owned
+    declaration that the natural surface expands to all of them.  The proof is
+    exact and closed: one field only, value nodes only, every alias carrier
+    reviewed, and no omitted member.
+    """
+
+    if len(targets) < 2:
+        return False
+    first = targets[0]
+    if any(
+        item.get("node_kind") != "value"
+        or item.get("state") != "reviewed"
+        or item.get("catalog") != first.get("catalog")
+        or item.get("field") != first.get("field")
+        for item in targets
+    ):
+        return False
+    surface_key = surface.casefold().strip()
+
+    def carries_alias(entry: Mapping[str, Any]) -> bool:
+        aka = entry.get("aka")
+        return isinstance(aka, Mapping) and any(
+            isinstance(item, str) and item.casefold().strip() == surface_key
+            for item in aka.get("items", [])
+        )
+
+    if not all(carries_alias(item) for item in targets):
+        return False
+    catalog_carriers = [
+        item
+        for item in all_entries
+        if item.get("catalog") == first.get("catalog") and carries_alias(item)
+    ]
+    if any(
+        item.get("node_kind") != "value" or item.get("field") != first.get("field")
+        for item in catalog_carriers
+    ):
+        return False
+    complete = catalog_carriers
+    if len(complete) < 2 or any(item.get("state") != "reviewed" for item in complete):
+        return False
+    return {item["canonical_locator"] for item in targets} == {
+        item["canonical_locator"] for item in complete
+    }
 
 
 def _hash(value: Any) -> str:
@@ -911,7 +969,11 @@ def adjudicate_grounding_proposal_v2(
         surface = _text(raw.get("surface"), f"clause[{position}].surface", maximum=1024)
         occupied_spans.append(_surface_span(request, surface, occupied_spans))
         resolution = raw.get("resolution")
-        if resolution not in {"resolved", "clarify", "unsupported"}:
+        if not isinstance(resolution, str) or resolution not in {
+            "resolved",
+            "clarify",
+            "unsupported",
+        }:
             raise BrainGroundingV2Error(f"clause[{position}] resolution is invalid")
         refs = _hash_roster(raw.get("semantic_refs"), f"clause[{position}].semantic_refs")
         if not set(refs) <= semantic_roster:
@@ -937,10 +999,42 @@ def adjudicate_grounding_proposal_v2(
                 requested_value, f"clause[{position}].requested_value", maximum=1024
             )
         reason_code = raw.get("reason_code")
+        if not isinstance(reason_code, str):
+            raise BrainGroundingV2Error(f"clause[{position}] reason code is invalid")
         lookup = None
 
         if resolution == "resolved":
-            if reason_code not in RESOLVED_REASONS or len(target_entries) != 1 or candidates:
+            is_alias_group = reason_code == "REVIEWED_AKA_GROUP"
+            if reason_code not in RESOLVED_REASONS or candidates:
+                raise BrainGroundingV2Error(f"clause[{position}] resolved shape is invalid")
+            if is_alias_group:
+                if (
+                    refs
+                    or requested_value is not None
+                    or not _reviewed_aka_group(surface, target_entries, index["entries"])
+                ):
+                    raise BrainGroundingV2Error(
+                        f"clause[{position}] reviewed alias group is incomplete or invalid"
+                    )
+                normalized_targets = [
+                    _entry_view(item, entries_by_field) for item in target_entries
+                ]
+                normalized_candidates = []
+                normalized.append(
+                    {
+                        "clause_id": clause_id,
+                        "surface": surface,
+                        "resolution": resolution,
+                        "reason_code": reason_code,
+                        "semantic_refs": refs,
+                        "selected": normalized_targets,
+                        "candidates": normalized_candidates,
+                        "requested_value": None,
+                        "lookup": None,
+                    }
+                )
+                continue
+            if len(target_entries) != 1:
                 raise BrainGroundingV2Error(f"clause[{position}] resolved shape is invalid")
             selected = target_entries[0]
             if selected["state"] != "reviewed" or selected["node_kind"] == "catalog":

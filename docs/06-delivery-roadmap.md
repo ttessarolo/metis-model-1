@@ -304,3 +304,11 @@ qualification e pin: nessun floating `latest`.
 Il supporto Windows non appartiene al percorso W8 della demo e non costituisce
 un gate corrente. Potrà essere pianificato separatamente dopo l'approvazione del
 progetto.
+
+### Coda semantica dei cataloghi
+
+La chiusura del verticale `@video`, il contratto per le equivalenze fisiche e
+la coda misurata `users -> video_pg/smart_index -> user_session` sono
+versionati in `docs/25-catalog-semantic-completion-backlog.md`. Quel documento
+non estende il claim a cataloghi assenti dal checkout e mantiene il hardening
+runtime della demo separato dalla qualità del retrieval semantico.

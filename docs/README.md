@@ -2,8 +2,10 @@
 
 Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; accuracy
 catalog-domain chiusa a 12/12 e grammar+standard-library T30-v3 chiusa a 30/30
-con `NO_RETRAIN`; core sessioni/compilatore di Metis Brain implementato; inferenza,
-app installabile e integrazione VSIX/Metis Fast ancora aperte — 26 agosto 2026**.
+con `NO_RETRAIN`; annotazione ed equivalenze del verticale `@video` chiuse;
+core sessioni/compilatore di Metis Brain implementato; gli altri cataloghi,
+l'inferenza applicativa, l'app installabile e l'integrazione VSIX/Metis Fast
+restano aperti — 28 agosto 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -71,6 +73,9 @@ sempre quattro livelli epistemici:
     — piano esecutivo completo per trasformare fonti editoriali riservate e il
     census read-only di `@video` in semantica tenant-owned, retrieval Brain,
     benchmark Giulia e decisione `NO_RETRAIN`/delta.
+26. [`25-catalog-semantic-completion-backlog.md`](25-catalog-semantic-completion-backlog.md)
+    — chiusura misurata di `@video`, contratto OR per varianti fisiche, coda
+    esplicita degli altri cataloghi e hardening operativo separato della demo.
 
 ## Tesi operativa
 

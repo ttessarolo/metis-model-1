@@ -242,7 +242,7 @@ opaque identity and sanitized counts.
 
 ## Current status
 
-`VIDEO_CHANNEL_DECODING_PROMOTED_EQUIVALENCE_OPEN`
+`VIDEO_SEMANTIC_EQUIVALENCE_READY`
 
 The earlier `VIDEO_DOMAIN_SEMANTICS_PROMOTED` verdict is retained below as a
 historical technical-coverage checkpoint. It is superseded for editorial
@@ -606,3 +606,150 @@ quality by the decoding audit opened on 28 August 2026.
   W3 merely to obtain a green receipt. Its scoped acceptance rests on the
   focused resolver tests, pinned parser/compiler/R8/sync gates, exact technical
   invariance and canonical tenant promotion recorded above.
+
+## Equivalence closure and proposal reconciliation — 28 August 2026
+
+- FACT — The external P0/P1 proposal is an input, not authority. Its
+  `1628`-value, `7`-draft and single-`aka` snapshot is superseded by the current
+  parser census: `fields=113`, `finite fields=49`, `values=1792`,
+  `reviewed=1782`, `draft=10`, `unannotated=0`.
+- DECISION — The proposal's `zero draft` stopping rule is rejected. The ten
+  unresolved operational codes remain quarantined and cannot ground a natural
+  request; removing `draft` without a tenant-owned dictionary would fabricate
+  authority.
+- DONE — L62 inspected grammar, lists and both Brain resolvers. No existing
+  named-list mechanism simultaneously owns natural semantics, exact membership
+  and resolver execution. A sidecar would duplicate truth.
+- DONE — L63/L65 mechanically enumerated only equivalences already stated by
+  reviewed tenant semantics. L0 independently recomputed the roster and
+  corrected the delegated arithmetic by one: `concepts in=57 out=57
+  distinct=57 gaps=0`, physical members `in=132 out=132 gaps=0`, not `131`.
+  Ambiguous near-neighbours remain deliberately separate.
+- DECISION — One reviewed `aka` repeated on all and only the ValueItem nodes of
+  one catalog+field declares a tenant-owned physical OR group. The group is
+  executable only with at least two reviewed members and exact complete
+  membership. Draft, omitted, extra and cross-field targets fail closed.
+- FIX — Model 1 v1 now returns one `reviewed_aka_group` selection with
+  `literal=null`, deterministic `literals=[...]` and `value_mode=any_of`.
+  Brain v2 accepts `REVIEWED_AKA_GROUP` only after independently rebuilding the
+  exact same-field reviewed alias roster from the pinned index and proving that
+  no same-catalog carrier exists on another field; semantic refs cannot
+  substitute for or expand it.
+- FIX — The `play-demo/main` candidate adds contextual aliases to all 57 proven
+  equivalence concepts, including the complete country, subtitle, legacy genre,
+  IAB, thematic and setting rosters. It also adds natural aliases to all 29
+  reviewed audio-language codes; the four draft audio codes remain without
+  aliases.
+- DONE — Current parser replay is `fields=113`, `finite_fields=49`,
+  `values=1792`, `reviewed=1782`, `draft=10`, `unannotated=0`; alias grouping is
+  `shared surfaces=247`, `equivalence concepts=57`, `physical members=132`,
+  `unsafe shared surfaces=0`.
+- DONE — Real schema-2 projection replay resolves “prodotti in Italia con audio
+  in italiano e sottotitoli inglesi” to exactly three selections: country
+  `any_of=4`, audio `ita`, subtitles `any_of=2`. Separate real probes resolve
+  the reviewed US, setting, primary-genre and thematic groups.
+- DONE — L67 verified the compiler surface and lowering: scalar membership is
+  `@field in ["A", "B"]`, multi membership is
+  `@field has any ["A", "B"]`; both already lower and render as OR semantics.
+  `contains any` remains a distinct legacy containment operator.
+- OPEN — Model 1 currently stops at grounding/adjudication and has no
+  grounding-to-DSL emitter. That seam is required by the future distributable
+  Brain/Fast product but is not falsely claimed as part of this catalog audit.
+  It needs no grammar change and must compile every emitted constraint against
+  the pinned toolchain.
+- DONE — L64 closed the current tenant catalog roster at `fields in=167 out=167
+  distinct=167 gaps=0`: `video=113`, `video_pg=40`, `users=9`,
+  `smart_index=3`, `user_session=2`. The explicit next order is `users` P0,
+  `video_pg` and `smart_index` P1, then `user_session` P2. `video_pg` must reuse
+  rather than duplicate the `@video` vocabulary.
+- OPEN — Runtime demo hardening from the proposal (M6 recapture, cold PostgreSQL
+  diagnosis/warm-up and Grafana click-through) is a separate Metis/runtime
+  wave. M6's supplied expectation is internally inconsistent between
+  `search:play-demo:video` and `search:play-demo:users` and must be ratified
+  before execution.
+- FACT — The claimed VSIX `0.23.94` is not present in the current Metis
+  checkout; the highest verified semantic package is `0.23.93`. No unpublished
+  version is made a gate. The four grammar/sync ratifications are already
+  represented in the upstream team's active plan; this repository does not
+  overwrite that dirty owner surface.
+
+## Frontier closure pass — 28 August 2026
+
+- FIX — The proposal's complete confusable-field roster now has discriminative
+  field aliases: `36` fields carry `59` alias surfaces, with duplicate aliases
+  within a field `0` and exact collisions between fields `0`. Search-only
+  technical fields were deliberately not decorated for coverage theater.
+- FIX — L0 removed `29` mechanically generated, grammatically noisy audio
+  aliases of the form “audio in lingua <masculine>”. All `29` reviewed audio
+  codes retain two natural retrieval surfaces; the four draft codes retain
+  none. The final value-alias census is `421` carrier nodes / `1106` surfaces.
+- DONE — The exact semantic denominator remains
+  `values in=1792 out=1792 distinct=1792 gaps=0`, with `reviewed=1782`,
+  `draft=10`, `unannotated=0`. Same-field equivalence remains
+  `shared_surfaces=247`, `concepts=57`, `physical_members=132`,
+  `unsafe=0`. Eight reviewed alias surfaces occur on values in different
+  fields and remain explicit clarification cases, never equivalence groups.
+- RISK — L68 found a v1 catalog-scope bypass in the first group implementation:
+  OR groups were constructed before filtering the caller-selected catalog.
+  It also found that non-string v2 `resolution`/`reason_code` values could leak
+  raw `TypeError` exceptions.
+- FIX — Both findings are closed. V1 filters groups by `allowed_catalogs`; v2
+  validates both enum-shaped inputs before membership checks. L0 additionally
+  found and closed a hidden v2 arbitrary-choice path: a same-surface alias on a
+  different field of the same catalog now invalidates the proposed group even
+  when omitted from the target roster.
+- DONE — The focused combined resolver/index suite is `50 passed`, including
+  explicit catalog-scope escape, malformed enum, incomplete/draft/extra roster,
+  visible cross-field target and hidden cross-field competitor regressions.
+  L68 independently replayed each repair and returned PASS.
+- DONE — Real schema-2 replay after the final aliases remains closed at
+  `catalogs=1 fields=113 finite_fields=49 value_responses=49 values=1792
+  gaps=0`, index entries `1906`. “prodotti in Italia con audio in italiano e
+  sottotitoli inglesi” resolves to country `any_of=4`, audio `ita`, subtitles
+  `any_of=2`; reviewed US and discriminative field-alias probes also resolve.
+- DONE — Direct `play-demo` baseline/candidate compilation on the current
+  toolchain closes `documents=29 endpoints=10`, parser/validation errors `0/0`;
+  runtime and IR are byte-identical. Runtime hash is
+  `4b238459546f087a2a7aa365b9f12ab2fca48bc9931b872042da8487cfed5f8a`
+  and the canonical endpoint-set digest used in this replay is
+  `4c40ed98bb19dccb85fb3c8b4b55bc9c097c08f2a60d33830133fa5bb6a7e8c8`.
+- DONE — Current Metis typecheck, R8 description, R8 semantic surface,
+  catalog-domain, catalog-semantic, sync rewrite, sync merge and formatter are
+  green. A clean archive of pin `0b41a25d...` independently parses the candidate
+  at `113/113` reviewed fields and `1792` values (`1782 reviewed`, `10 draft`,
+  `0 unannotated`); every gate available at that pin is green. The later
+  formatter probe is verified on current Metis, not falsely attributed to the
+  older archive where that test file does not exist.
+- DECISION — `@video` closure does not close the tenant. The measured queue is
+  retained as `users` P0, `video_pg` and `smart_index` P1, `user_session` P2;
+  later catalog additions require a new pinned census. Runtime M6/cold-PG/
+  Grafana hardening and the future grounding-to-DSL emitter remain distinct
+  executable waves.
+- DONE — The required Model 1 repository gate completed on the exact integrated
+  candidate with exit `0`: foundation `passes=84 errors=0 files=508`, pilot
+  contracts `VALID`, Ruff and formatting green, pytest `2175 passed, 2 skipped,
+  0 failed, 22 warnings` in `3029.00s`. The two skips are declared opt-in
+  authority gates and are not counted as executed. The known W5 readiness
+  verdict remains `BLOCKED` for its historical dataset/seal/authority reasons;
+  it is not a regression of this semantic wave.
+
+## Promotion receipt — 28 August 2026
+
+- DONE — The canonical tenant patch is committed and pushed as
+  `play-demo/main@484768ed486281878c9e1bc61ab469ac6bd5e387`. A concurrent,
+  non-overlapping experiment-state commit advanced the remote immediately
+  afterwards; it descends from the semantic commit. The local checkout was
+  fast-forwarded without rewriting history and is clean and aligned at
+  `main@f18819fc5fddd3a92dec34ab9ae928db51b621ce`.
+- DONE — L0 repeated the direct compile comparison after the final alias byte:
+  baseline and promoted candidate both load `29` documents, produce `10`
+  endpoints and report parser/validation errors `0/0`. Runtime bytes are equal
+  at `sha256:4b238459546f087a2a7aa365b9f12ab2fca48bc9931b872042da8487cfed5f8a`;
+  the combined canonical runtime-plus-endpoint digest is equal at
+  `sha256:7fb0d5383f993aecae14ef1ff39f4774c470170df6bf29de5bab9110e3daf899`.
+- DONE — Final scoped diff checks, formatter/lint, foundation `84/0/508`,
+  focused resolver replay and restricted-source scan are green. Repository
+  documentation contains no restricted-source locator or credential material.
+- DECISION — `VIDEO_SEMANTIC_EQUIVALENCE_READY` closes this `@video` wave only.
+  The catalog queue, application emitter and runtime-demo hardening remain
+  explicit subsequent waves and cannot inherit this verdict by implication.

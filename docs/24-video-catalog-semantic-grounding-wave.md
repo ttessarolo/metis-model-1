@@ -1,30 +1,32 @@
 # Wave `@video`: semantic grounding editoriale riservato
 
-Stato: **MATERIALIZZAZIONE OFFLINE `@video` CHIUSA NEL BRANCH ISOLATO —
-grammatica e retrieval schema 2 `PINNED`, ontologia/crosswalk/review frontier,
-patch semantic-only, compiler/R8, indice Brain con CAS e gate repository
-`GREEN`; riconciliazione live e P13/P14 modello restano gate separati e non
-sono dichiarati eseguiti**.
+Stato: **MATERIALIZZAZIONE ED EQUIVALENZA SEMANTICA `@video` CHIUSE — grammatica
+e retrieval schema 2 `PINNED`, review frontier, compiler/R8, indice Brain con
+CAS, gruppi fisici OR fail-closed e alias discriminativi verificati. I dieci
+codici privi di dizionario autorevole restano correttamente `draft`; gli altri
+cataloghi, il hardening runtime della demo e l'emitter grounding -> DSL restano
+gate separati e non sono dichiarati chiusi**.
 
 Data del piano: 27 agosto 2026.
 
-Baseline della chiusura corrente Model 1:
-`main@7676d1f23ca907f56a2f2ff825ddabb45186b289`.
+Addendum di chiusura corrente: il contratto per un concetto naturale che
+espande su più literal fisici è definito nei §§12.2-b e 16.2 e il roster degli
+altri cataloghi è mantenuto in
+`docs/25-catalog-semantic-completion-backlog.md`. La chiusura locale di
+`@video` non promuove il gate semantico globale del tenant.
+
+Preimage Model 1 da cui parte la chiusura di equivalenza corrente:
+`main@813f9ef37882ea5e9825504139176061b48a5bfb`.
 
 Pin grammaticale Metis verificato su estrazione pulita del commit promosso:
 `main@0b41a25d4d5eeac88975e43e18e4bc3123d51667`; il retrieval schema 2 è
 pinnato all'ancestor `a84d3db062b61096558200e33354c23c8ebfa16b` ed è consumato da
 un parser stretto Model 1.
 
-Receipt di chiusura del gate repository Model 1: `make check` è terminato con
-exit code zero. La fondazione è `VALID` con `passes=84`, `errors=0` e
-`files=506`; i contratti pilot sono `VALID`, lint e formato sono puliti e pytest
-ha prodotto `2157 passed, 2 skipped, 0 failed` in `2791.69s`. I due skip sono
-gate opt-in con autorità distinta: il pin grammaticale successor è stato
-rieseguito separatamente col suo Node esatto e ha chiuso `15/15` evidenze e
-`7/7` probe; il contratto W3 production protetto resta un'evidenza esterna e
-non è contato come eseguito. Le cause storiche T30-v3 e del locator Node sono
-state corrette senza riscrivere gli artifact sigillati.
+La receipt esatta del gate repository eseguito sulla consegna corrente vive
+nella lavagna attiva; questo documento non congela numeri di test destinati a
+diventare obsoleti. Pin grammaticale, gate opt-in e runtime protetto conservano
+autorità e ricevute distinte: nessuno viene contato come eseguito per deduzione.
 
 Documenti superiori che questo piano applica senza sostituire:
 
@@ -66,11 +68,11 @@ scrivere nel tenant:
 11. preparazione di una patch candidate neutrale, ma non ancora applicabile ai
     `.metis` canonici.
 
-### `CANONICAL PROMOTION MUST WAIT`
+### Gate storico di promozione canonica — soddisfatto per `@video`
 
-Il commit grammaticale richiesto è ora promosso e verificato. Restano però
-bloccate fino alla chiusura dei census, del crosswalk, della review editoriale e
-dei rispettivi gate di sicurezza:
+All'apertura del piano, anche dopo la promozione del commit grammaticale, le
+azioni seguenti restavano bloccate fino alla chiusura dei census, del
+crosswalk, della review editoriale e dei rispettivi gate di sicurezza:
 
 1. scrittura di `label`, `means`, `aka` o rimozione di `draft` nei cataloghi
    canonici;
@@ -80,6 +82,14 @@ dei rispettivi gate di sicurezza:
 5. uso del censimento live come pin definitivo delle annotazioni;
 6. valutazione finale base/adapter col contratto nuovo;
 7. qualsiasi decisione di delta QLoRA.
+
+Per `@video`, la consegna del 28 agosto chiude i punti 1-3 e 5 sul tenant
+canonico, con ricevute di censimento, review, retrieval e invarianza tecnica.
+Il punto 4 resta una wave di integrazione applicativa Brain/VSIX; i punti 6-7
+restano condizionali a una futura wave di valutazione del modello. Nessuno dei
+tre è necessario per dichiarare chiusa l'annotazione semantica. La stessa
+checklist resta invece bloccante, dall'inizio, per ciascun catalogo ancora in
+coda.
 
 Il prerequisito grammaticale esatto per la scrittura canonica è:
 
@@ -149,22 +159,26 @@ scope, cardinalità, sinonimi, domini legacy e giudizio umano. Questa wave deve
 consegnare anche pipeline, schemi, bridge, review flow e benchmark builder
 riutilizzabili.
 
-La sua chiusura non dichiara automaticamente pronti gli altri sette cataloghi
-della fixture. Dopo `@video`, W0-S applica la stessa pipeline a `@users` e poi a
-`@user_session`, `@user_clusters`, `@unified_clusters`, `@link`, `@trending` e
-`@smart_index`. Brain non ottiene il gate globale `SEMANTIC_CATALOG_READY`
-finché il perimetro richiesto dal piano superiore non è chiuso.
+La sua chiusura non dichiara automaticamente pronti gli altri cataloghi. Il
+censimento del checkout corrente trova cinque cataloghi e `167` campi:
+`video=113`, `video_pg=40`, `users=9`, `smart_index=3` e `user_session=2`. I
+cataloghi nominati dal piano superiore ma non presenti in questo checkout non
+vengono inventati né contati come chiusi. Brain non ottiene il gate globale
+`SEMANTIC_CATALOG_READY` finché il perimetro realmente materializzato e
+pinnato non è stato censito, annotato e verificato.
 
 La sequenza di prodotto è quindi:
 
 1. `@video` come verticale editoriale completo e generatore della pipeline;
 2. `@users` come secondo verticale prioritario;
-3. censimento degli altri sei cataloghi;
-4. `label`/`means` minimi a livello Catalog e descrizioni selettive R5;
-5. nessun obbligo di inventare descrizioni o alias per nodi che possono restare
-   correttamente `unannotated`.
+3. `@video_pg` e `@smart_index`, senza duplicare il vocabolario di `@video`;
+4. `@user_session`;
+5. censimento separato di ogni catalogo aggiunto in una successiva revisione
+   tenant pinnata.
 
-Il gate locale di `@video` non sostituisce il gate globale sugli otto cataloghi.
+Il gate locale di `@video` non sostituisce il gate globale del tenant. Il roster
+e le priorità operative restano normativi in
+`docs/25-catalog-semantic-completion-backlog.md`.
 
 ## 3. Non-obiettivi e confini
 
@@ -1031,6 +1045,38 @@ Non sono alias automatici:
 - concetti più larghi o più stretti;
 - parole condivise da campi semanticamente diversi.
 
+### 12.2-b Alias reviewed come gruppo di equivalenza fisica
+
+Ripetere la stessa superficie `aka` su più ValueItem non è un riempitivo e non
+autorizza una normalizzazione del dato. Nel perimetro di un unico catalogo e
+campo, costituisce una dichiarazione tenant-owned che quella superficie
+naturale deve selezionare **tutti** i literal fisici elencati.
+
+Il gruppo è eseguibile soltanto se:
+
+- contiene almeno due ValueItem;
+- tutti i nodi che portano l'alias sono `reviewed`;
+- il resolver riceve il roster completo e nessun target extra;
+- catalogo e field path sono identici per tutti i membri;
+- nessun altro nodo dello stesso catalogo porta la superficie su un campo
+  differente;
+- la superficie proposta coincide con l'alias dichiarato, senza inferenza da
+  casing, refusi, `means` o somiglianza vettoriale.
+
+Un membro `draft`, un'omissione o un attraversamento di campo invalida l'intero
+gruppo. Lo stesso alias su campi diversi resta un tie e produce chiarimento.
+L'esito strutturato usa `value_mode=any_of`, `literal=null` e `literals=[...]`;
+nessun literal viene rinominato, cancellato o scelto come rappresentante
+silenzioso. Il consumer DSL deve abbassare il gruppo a membership per un campo
+scalare e a `has any` per un campo multi e sottoporlo poi a parser, validator,
+compiler e oracle; il solo resolver non rivendica che quel downstream sia già
+integrato nel prodotto distribuibile.
+
+Questa forma resta interamente nei `.metis`: non introduce sidecar autorevoli e
+non mette valori tenant nei pesi. Un futuro costrutto grammaticale nominato può
+sostituire la convenzione soltanto con migrazione, pin e maintenance gate
+separati.
+
 ### 12.3 Stati
 
 | Forma | Stato | Autorità |
@@ -1245,11 +1291,12 @@ Ordine di evidenza consigliato:
 
 1. nome tecnico esatto richiesto esplicitamente;
 2. literal canonico esatto;
-3. alias `reviewed` esatto;
-4. descrizione `reviewed`;
-5. relazione strutturale e tipo;
-6. descrizione `draft`, soltanto come candidato;
-7. nodo `unannotated`, soltanto per riferimento tecnico inequivocabile.
+3. gruppo completo di alias `reviewed` esatto, restituito come `any_of`;
+4. alias `reviewed` esatto su un singolo nodo;
+5. descrizione `reviewed`;
+6. relazione strutturale e tipo;
+7. descrizione `draft`, soltanto come candidato;
+8. nodo `unannotated`, soltanto per riferimento tecnico inequivocabile.
 
 Un `draft` o `unannotated` non può essere l'unica prova di una risoluzione
 naturale ambigua.
@@ -1269,6 +1316,8 @@ L'oggetto seguente è **puramente illustrativo e non consumabile**: nomi,
       "catalog": "<CATALOG_REF>",
       "field": "<FIELD_REF>",
       "value": "<LITERAL_EXAMPLE>",
+      "values": null,
+      "value_mode": null,
       "semantic_ref": "...",
       "constraint_refs": ["..."],
       "review_state": "reviewed",
@@ -1278,8 +1327,13 @@ L'oggetto seguente è **puramente illustrativo e non consumabile**: nomi,
 }
 ```
 
-Brain verifica che catalogo, campo e literal appartengano allo snapshot. Soltanto
-dopo consente al modello di generare il `.metis`.
+Brain verifica che catalogo, campo e ogni literal proposto appartengano allo
+snapshot. Soltanto dopo consente al modello di generare il `.metis`.
+
+Per un gruppo di equivalenza `value` è `null`, `values` contiene il roster
+completo dei literal e `value_mode` è `any_of`. L'adjudicator ricalcola il
+gruppo dai `.metis` e rifiuta una proposta parziale anche se tutti i singoli
+literal appartengono allo snapshot.
 
 La proposta è valutata clausola per clausola. Il modello non può auto-dichiarare
 una scelta valida: l'adjudicator host-owned accetta `resolved` soltanto su
@@ -2031,7 +2085,9 @@ La wave `@video` è chiusa soltanto quando:
    `absent/unsupported` esplicita;
 10. tutti i cataloghi esposti hanno label/means secondo il contratto superiore;
 11. tutti i nodi R5/benchmark-critical hanno descrizione e review state;
-12. nessun alias è privo di evidenza;
+12. nessun alias è privo di evidenza; ogni alias condiviso eseguibile ha un
+    roster reviewed completo nello stesso campo, mentre draft, omissioni,
+    extra e cross-field falliscono chiusi;
 13. nessun literal o tipo tecnico è cambiato accidentalmente;
 14. review frontier ed editoriale sono distinte e tracciate;
 15. `FRONTIER_EGRESS_DENY_VALID` è verde oppure esiste il mandato remoto
