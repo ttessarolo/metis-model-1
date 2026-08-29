@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "manifest_id": "catalog-semantics/play-demo-video-pg-v1",
+  "tenant_revision": "6d6ce2cb00c941cb2700dccdd6c7f7a644dc55b8",
+  "semantic_catalog": "play-demo.video",
+  "execution_catalog": "play-demo.video_pg",
+  "mapping": {
+    "field_identity": "exact-same-name-subset",
+    "values_owner": "semantic_catalog",
+    "draft_policy": "retain-for-audit-but-never-resolve",
+    "modifier_allowlist": {
+      "genere_mcm": {
+        "source": [],
+        "execution": ["multi"]
+      }
+    },
+    "finite_to_none_fields": [
+      "audio_language",
+      "categoriecritichestoriche",
+      "content_channels",
+      "editorial_type",
+      "etichetteEditoriali",
+      "fattoriproductionvalue",
+      "genere_mcm",
+      "genere_mcm_primario",
+      "genereintrattenimentoeinformazione_sub",
+      "genereintrattenimentoeinformazione_ter",
+      "last_live_channel_code",
+      "mood",
+      "mythematics_source",
+      "programtype",
+      "subtitle_language",
+      "tipologia",
+      "video_format",
+      "video_formats"
+    ]
+  },
+  "expected": {
+    "source_fields_available": 113,
+    "execution_fields": 40,
+    "finite_fields_projected": 18,
+    "values_projected": 521,
+    "values_reviewed": 514,
+    "values_draft": 7,
+    "gaps": 0
+  }
+}

@@ -1,156 +1,165 @@
-# Chiusura semantica dei cataloghi e backlog demo
+# Chiusura semantica dei cataloghi `play-demo`
 
-Stato: **`@video` chiuso nel perimetro semantico; gli altri cataloghi restano
-una coda esplicita e il hardening operativo della demo è un gate separato**.
+Stato: **`SEMANTIC_CATALOG_READY`**.
 
-Data di riferimento: 28 agosto 2026.
+Data di riferimento: 29 agosto 2026.
 
-Questo documento impedisce che la chiusura del verticale `@video` venga
-scambiata per la chiusura semantica dell'intero tenant o per la prova generale
-della demo. I valori dei cataloghi restano contesto tenant-owned recuperato a
-runtime: non entrano nei pesi di Model 1 e non autorizzano retraining.
+Autorità tenant: `play-demo/main@6d6ce2cb00c941cb2700dccdd6c7f7a644dc55b8`.
 
-## 1. Stato misurato di `@video`
+La coda semantica del tenant corrente è chiusa: tutti i cataloghi e tutti i
+campi dichiarati hanno una descrizione reviewed, i domini hanno una
+disposizione esplicita e i valori editoriali restano posseduti dal catalogo
+canonico. Questo gate non equivale alla prova end-to-end di Metis Brain, del
+compilatore in sessione o della UI della demo.
 
-La patch semantica è il commit
-`play-demo/main@484768ed486281878c9e1bc61ab469ac6bd5e387`, contenuto nel `main`
-corrente `f18819fc5fddd3a92dec34ab9ae928db51b621ce`:
+## 1. Denominatore globale
 
-- campi: `in=113 out=113 distinct=113 gaps=0`, tutti `reviewed`;
+Il checkout contiene cinque cataloghi:
+
+| Catalogo | Field node | Stato | Disposizione dominio |
+|---|---:|---|---|
+| `play-demo.video` | 113 | 113 reviewed | 49 finiti, 26 open, 38 none |
+| `play-demo.users` | 19 | 19 reviewed | 19 none, inclusi 10 subfield object |
+| `play-demo.video_pg` | 40 | 40 reviewed | 12 open, 18 finiti proiettati da `@video`, 10 none |
+| `play-demo.smart_index` | 3 | 3 reviewed | 3 open |
+| `play-demo.user_session` | 2 | 2 reviewed | 2 none |
+
+Chiusura misurata:
+
+- Catalog node: `in=5 out=5 distinct=5 gaps=0`, tutti reviewed;
+- Field node: `in=177 out=177 distinct=177 gaps=0`, tutti reviewed;
+- stati campo: `reviewed=177 draft=0 unannotated=0`;
+- domini fisici nel tenant: `inline=26 enum=23 open=41 none=87`;
+- collisioni di alias campo nello stesso catalogo: `0`;
+- deriva di tipo o modificatore rispetto al baseline: `0`.
+
+I campi object di `@users` vengono contati sia come contenitore sia come
+subfield. Il totale corretto è quindi 177 e non soltanto i 167 campi top-level.
+
+## 2. Valori canonici di `@video`
+
+`@video` resta l'unica autorità per i suoi valori editoriali:
+
 - campi finiti: `49`;
-- ValueItem finiti: `in=1792 out=1792 distinct=1792 gaps=0`;
-- ValueItem `reviewed=1782`, `draft=10`, `unannotated=0`;
+- ValueItem: `in=1792 out=1792 distinct=1792 gaps=0`;
+- stati: `reviewed=1782 draft=10 unannotated=0`;
 - equivalenze fisiche esplicite: `57` concetti su `132` literal;
-- superfici `aka` condivise che dichiarano tali equivalenze: `247`;
-- gruppi condivisi che includono un nodo non reviewed: `0`;
-- alias di campo discriminativi: `59` superfici su `36` campi, collisioni
-  esatte tra campi `0`;
-- alias di valore riusati tra campi diversi: `8`, tutti reviewed e mantenuti
-  come ambiguità esplicite, mai come equivalenze.
+- alias di campo discriminativi: `59` superfici su `36` campi;
+- alias di valore riusati fra campi diversi: `8`, mantenuti fail-closed.
 
-I `10` draft non sono copertura mancante né un invito a indovinare:
+I dieci valori draft restano nel censimento, ma non sono autorità di
+grounding. Il resolver non accetta più neppure il literal tecnico esatto di un
+ValueItem draft: il valore è conservato per audit e quarantinato fino a review.
 
-- `published_flag`: `CMS`, `RDY`, `WKP`;
-- `audio_language`: `afg`, `csk`, `ing`, `yug`;
-- `last_live_channel_code`: `FT`, `KN`, `N4`.
+## 3. Proiezione semantica `@video` -> `@video_pg`
 
-Rimangono non eseguibili come superfici naturali finché un dizionario
-tenant-owned autorevole non ne conferma il significato. Togliere `draft` solo
-per ottenere uno zero cosmetico sarebbe una regressione semantica.
+`@video_pg` è un mirror di esecuzione PostgreSQL, non una seconda ontologia.
+Per questo non esiste un duplicato dei 1.792 valori e non è stato creato un
+`video_pg.values.metis`.
 
-## 2. Contratto di equivalenza dei valori
+La proiezione fail-closed è implementata in
+`src/metis_model1/catalog_semantic_projection.py` e fissata dalla policy
+`manifests/catalog-semantic-execution-play-demo-video-pg-v1.json`. Il gate:
 
-Un unico concetto editoriale può corrispondere a più literal fisici legacy. Il
-tenant lo dichiara ripetendo lo stesso `aka` reviewed su tutti e soli i
-ValueItem equivalenti dello stesso catalogo e campo.
+1. richiede tenant e soglie identici;
+2. richiede che i 40 campi execution siano un sottoinsieme same-name dei 113
+   campi semantici;
+3. confronta tipo, nesting e modificatori;
+4. consente una sola eccezione di cardinalità: `genere_mcm`, scalare in
+   `@video` e multi nel mirror;
+5. richiede una disposizione esplicita per tutti i 18 domini finiti che nello
+   scheletro execution sono `none`;
+6. trasferisce i ValueItem ordinati soltanto dalla fonte canonica;
+7. produce un receipt standard consumabile dal percorso V2 e un secondo
+   receipt che lega fonte, execution describe, policy e risultato;
+8. richiede binding esterno: un self-hash isolato non è autorità;
+9. conserva i draft per audit ma ne impedisce ogni risoluzione.
 
-Il resolver host-owned accetta il gruppo soltanto se:
+Risultato sul tenant fissato:
 
-1. i membri sono almeno due;
-2. appartengono allo stesso catalogo e campo;
-3. sono tutti ValueItem `reviewed`;
-4. ogni membro contiene esattamente la stessa superficie `aka`;
-5. il roster proposto coincide con l'intero roster che porta quell'alias;
-6. non esistono membri draft omessi, target extra o altri portatori della
-   stessa superficie su un campo differente dello stesso catalogo.
+- source fields disponibili: `113`;
+- execution fields: `in=40 out=40 distinct=40 gaps=0`;
+- domini finiti proiettati: `18`;
+- ValueItem proiettati: `in=521 out=521 gaps=0`;
+- ValueItem proiettati: `reviewed=514 draft=7`;
+- eccezioni modificatore: `1`;
+- projection SHA-256:
+  `adde34cb70dee35008604ca8733151a3a75488ae0407fe78e92ccd4931f9d622`.
 
-L'esito è un unico vincolo `any_of` con tutti i literal fisici. Il consumer DSL
-deve abbassarlo a membership (`in [...]`) per un campo scalare e a intersezione
-non vuota (`has any [...]`) per un campo multi, quindi compilarlo e verificarlo.
-Un alias ripetuto tra campi diversi resta un'ambiguità e richiede chiarimento.
-L'ordine dei literal è deterministico ma non ha significato editoriale.
+Prove di grounding sul catalogo execution:
 
-Questo contratto evita entrambe le scorciatoie scorrette:
+- `mood Romantico` -> `@video_pg.mood = "Romantico"`;
+- `ultimo canale Italia 1` -> `@video_pg.last_live_channel_code = "I1"`;
+- `tipologia Film` -> `@video_pg.tipologia = "Film"`;
+- `title` -> lookup esatto lazy, posseduto dal retrieval engine;
+- `codice canale FT` -> `unsupported`, perché `FT` è draft.
 
-- scegliere una sola variante e perdere record reali;
-- normalizzare o riscrivere i literal legacy nel catalogo o nell'indice.
+## 4. Domini aperti, tecnici e dati utente
 
-La grammatica e il compilatore Metis supportano già entrambi gli abbassamenti.
-Model 1 non possiede ancora l'emitter grounding -> `.metis`: è un seam della
-wave applicativa Brain/Fast, non un motivo per cambiare grammatica o mettere i
-valori nei pesi. Prima della demo end-to-end dovrà emettere la forma coerente
-con la cardinalità, compilarla col toolchain pinnato e verificare che il roster
-IR coincida esattamente con quello adjudicato.
+`open` significa che il dominio è l'indice live e che il retrieval engine deve
+fare lookup on-demand; non autorizza a materializzare o inventare valori.
+Questa è la disposizione di `@smart_index` e dei dodici campi realmente aperti
+del mirror video.
 
-## 3. Coda degli altri cataloghi nel checkout corrente
+Gli identificatori, i fingerprint e le collezioni evento di `@users` e
+`@user_session` restano invece `none`. Sono dati tecnici o personali da usare
+soltanto nel lookup autorizzato della sessione, non domini editoriali da
+enumerare, suggerire o consegnare al modello. Le descrizioni chiariscono anche
+che non si possono dedurre attributi personali o demografici.
 
-Il censimento del checkout corrente contiene cinque cataloghi e chiude il
-roster a `in=167 out=167 distinct=167 gaps=0` campi:
+Resta una verifica privacy separata: il tenant versiona identificatori demo
+mentre una sua nota descrive un confine local-only più restrittivo. Questa wave
+non li ha copiati o ampliati e non maschera la discrepanza come problema
+semantico.
 
-| Priorità | Catalogo | Campi | Stato semantico corrente | Prossima consegna |
-|---|---|---:|---|---|
-| chiusura corrente | `video` | 113 | 113 reviewed; valori come §1 | mantenere receipt e regressioni |
-| P0 | `users` | 9 | 9 senza semantica | significato, privacy, domini e alias per richieste utente |
-| P1 | `video_pg` | 40 | 40 senza semantica | descrivere il mirror PostgreSQL e riferire il vocabolario `@video` |
-| P1 | `smart_index` | 3 | 3 senza semantica | pagine smart e similarità editoriale |
-| P2 | `user_session` | 2 | 2 senza semantica | fingerprint e sessione runtime |
+## 5. Ambiguità tra cataloghi
 
-`video_pg` non deve copiare i `1792` valori di `@video`: duplicare il
-vocabolario creerebbe due fonti di verità. Serve un collegamento semantico
-esplicito al catalogo proprietario e un gate che ne provi la compatibilità.
+Il resolver indicizza sempre per `(catalog, field)`, mai per nome globale.
 
-I cataloghi nominati dal piano superiore ma assenti dal checkout corrente non
-vengono inventati né contati come completati. Entrano nel roster soltanto
-quando una revisione tenant pinnata li materializza.
+- i 40 nomi condivisi fra `@video` e `@video_pg` sono un mirror intenzionale;
+- `fingerprint` compare in quattro cataloghi;
+- `title` compare in tre cataloghi;
+- `user_id` compare in `@users` e `@user_session`;
+- 25 superfici `aka` sono condivise soltanto dalle coppie mirror
+  `@video`/`@video_pg`.
 
-Per ciascun catalogo la pipeline è sempre:
+La sessione Brain deve conoscere il catalogo o chiedere conferma quando la
+richiesta non lo rende determinabile. Non è ammessa una scelta fuzzy globale.
 
-```text
-census tecnico completo
-  -> disposizione dei domini (finito | open | none motivato)
-  -> means/aka con review frontier
-  -> controllo collisioni ed equivalenze
-  -> indice retrieval derivato
-  -> grounding reale + compiler/oracle
-  -> receipt e promozione separata
-```
+## 6. Invarianti verificati
 
-## 4. Hardening della demo: coda distinta
+Sul tenant fissato:
 
-La proposta esterna contiene tre verifiche operative utili, ma non sono prove
-di qualità semantica e non vengono dichiarate eseguite da questa wave:
+- parser e validator: `29` documenti, zero errori;
+- runtime context prima/dopo: byte-identico,
+  SHA-256 `4b238459546f087a2a7aa365b9f12ab2fca48bc9931b872042da8487cfed5f8a`;
+- endpoint IR: `10/10`, stesso roster e zero drift;
+- R8 Catalog/Field/ValueItem/ListEntry: verde;
+- semantic surface, describe/values schema 2, sync rewrite/merge, object fields,
+  KV, driver PostgreSQL `19/19` e formatter idempotente: verdi;
+- test Model 1 della proiezione, quarantena draft, nested path, tamper e
+  grounding downstream: verdi;
+- `make check`: `2188 passed, 2 skipped`, exit code zero; gli skip sono quelli
+  già previsti dalla suite e non riguardano la coda semantica.
 
-1. riesecuzione reale del momento diagnostico M6 e aggiornamento del runbook;
-2. diagnosi e warm-up controllato dell'endpoint PostgreSQL a freddo;
-3. click-through Grafana log -> trace -> log in prova generale.
+## 7. Confine con i pesi e lavoro successivo
 
-Prima di M6 va risolta una contraddizione nella proposta ricevuta: il testo
-indica sia `search:play-demo:video` sia
-`metis_breaker_state{target="search:play-demo:users"}` come target atteso. Il
-run non deve essere costruito su un'attesa incoerente. Questi tre punti
-richiedono il repository/runtime Metis, i servizi locali e l'autorità sui
-secret della demo; restano quindi una wave autonoma con receipt osservata.
+Nessun catalogo, chiave o valore è stato iniettato nei pesi di Model 1. Sono
+contesto tenant-owned recuperato a runtime. Questa chiusura non richiede
+retraining; un delta QLoRA resta consentito soltanto se un benchmark dimostra
+un errore compatibile dei pesi dopo retrieval, grounding, compilazione e oracle
+corretti.
 
-## 5. Elementi della proposta non adottati alla cieca
+Restano fuori da `SEMANTIC_CATALOG_READY`:
 
-- I denominatori `1628`, `sette draft` e `un solo aka` fotografano uno stato
-  precedente e non sono più utilizzabili.
-- `finito = zero draft` non vale quando manca l'autorità sul significato: il
-  criterio corretto è zero nodi non disposti, draft tutti quarantinati e zero
-  draft utilizzati per una risoluzione naturale.
-- La versione VSIX `0.23.94` non diventa un prerequisito finché pacchetto,
-  digest e compatibilità non sono pubblicati e verificati. La baseline minima
-  già verificata per `means`/`aka` resta `0.23.93`.
-- Le quattro ratifiche di grammatica (soft keyword `label`, doppio span del
-  ValueItem, preservazione byte dei superstiti del sync e `means` al posto dei
-  commenti) vanno controllate nel piano upstream consegnato dal team
-  proprietario; questa repository non duplica né modifica quell'autorità.
+- wiring della sessione Metis Brain ai retrieval `describe/values` e alla
+  proiezione execution;
+- emitter grounding -> `.metis`, compilazione e ciclo di correzione;
+- prova end-to-end Visix/Metis Fast e fallback remoto;
+- hardening operativo della demo, inclusi M6, cold start PostgreSQL e
+  navigazione log/trace;
+- eventuali cataloghi aggiunti da future revisioni del tenant, che entreranno
+  nel denominatore solo quando realmente dichiarati.
 
-## 6. Gate di chiusura
-
-`VIDEO_SEMANTIC_EQUIVALENCE_READY` richiede insieme:
-
-- roster e stati del §1 ricomputati dal parser;
-- `57` concetti equivalenti / `132` literal, zero gruppi unsafe;
-- `59` alias discriminativi di campo senza collisioni e gli `8` riusi di alias
-  fra valori di campi diversi ancora fail-closed;
-- test resolver v1 e adjudicator v2 su roster completo, incompleto, draft,
-  extra e cross-field;
-- replay sul tenant reale di una richiesta multi-concetto;
-- parser, validator, R8, sync e compiler invariance verdi;
-- diff tecnico dei literal/tipi/modificatori/domìni invariato;
-- `make check` Model 1 verde oppure failure dichiarata e attribuita senza
-  alterare il gate.
-
-Il gate chiude `@video`, non `SEMANTIC_CATALOG_READY` globale. Quest'ultimo
-resta aperto finché la coda del §3 non è materializzata e verificata.
+Questi sono passi applicativi o operativi successivi. La coda semantica dei
+cataloghi presenti nel tenant del commit fissato è chiusa.

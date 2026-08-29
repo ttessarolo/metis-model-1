@@ -811,7 +811,10 @@ def resolve_grounding(
             leaf = field.rsplit(".", 1)[-1]
             if leaf != field:
                 surfaces.append((0, "technical_leaf_exact", leaf))
-        elif literal is not None:
+        # A draft/unannotated ValueItem remains in the immutable snapshot for
+        # audit and denominator accounting, but it is not semantic authority.
+        # Even its exact storage literal must stay quarantined until review.
+        elif literal is not None and entry.get("state") == "reviewed":
             surfaces.append((1, "literal_exact", literal))
         if entry.get("state") == "reviewed":
             aka_items = (

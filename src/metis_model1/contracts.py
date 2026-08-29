@@ -94,6 +94,10 @@ CONTRACT_PAIRS = (
         "schemas/video-semantics-source-manifest.schema.json",
         "manifests/video-semantics-sources-v1.json",
     ),
+    (
+        "schemas/catalog-semantic-execution-policy.schema.json",
+        "manifests/catalog-semantic-execution-play-demo-video-pg-v1.json",
+    ),
 )
 
 STANDALONE_SCHEMAS = (
@@ -164,6 +168,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "src/metis_model1/video_semantics_private_runner.py",
     "src/metis_model1/video_source_extraction.py",
     "src/metis_model1/catalog_semantic_retrieval.py",
+    "src/metis_model1/catalog_semantic_projection.py",
     "src/metis_model1/test_harness.py",
     "src/metis_model1/video_brain_grounding.py",
     "src/metis_model1/video_catalog_projection.py",
@@ -193,6 +198,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "docs/20-demo-accuracy-closure.md",
     "docs/21-grammar-stdlib-accuracy.md",
     "docs/24-video-catalog-semantic-grounding-wave.md",
+    "docs/25-catalog-semantic-completion-backlog.md",
     ".orchestra/teams.json",
     "manifests/accuracy-target.json",
     "manifests/artifact-store-policy.json",
@@ -358,6 +364,10 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-27-video-catalog-semantics-source-freeze/SESSIONS.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-closure/BLACKBOARD.md",
     "orchestra/runs/2026-08-27-video-catalog-semantics-closure/SESSIONS.md",
+    "orchestra/runs/2026-08-29-catalog-semantic-closure/BLACKBOARD.md",
+    "orchestra/runs/2026-08-29-catalog-semantic-closure/SESSIONS.md",
+    "schemas/catalog-semantic-execution-policy.schema.json",
+    "manifests/catalog-semantic-execution-play-demo-video-pg-v1.json",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",
@@ -447,6 +457,7 @@ REQUIRED_FOUNDATION_PATHS = (
     "tests/test_video_semantics_cli.py",
     "tests/test_video_source_extraction.py",
     "tests/test_catalog_semantic_retrieval.py",
+    "tests/test_catalog_semantic_projection.py",
     "tests/test_test_harness.py",
     "tests/test_video_brain_grounding.py",
     "tests/test_video_catalog_projection.py",

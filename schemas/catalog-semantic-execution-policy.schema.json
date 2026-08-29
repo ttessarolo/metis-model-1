@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-semantic-execution-policy.schema.json",
+  "title": "Catalog semantic-to-execution projection policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "tenant_revision",
+    "semantic_catalog",
+    "execution_catalog",
+    "mapping",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"const": "catalog-semantics/play-demo-video-pg-v1"},
+    "tenant_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "semantic_catalog": {"const": "play-demo.video"},
+    "execution_catalog": {"const": "play-demo.video_pg"},
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field_identity",
+        "values_owner",
+        "draft_policy",
+        "modifier_allowlist",
+        "finite_to_none_fields"
+      ],
+      "properties": {
+        "field_identity": {"const": "exact-same-name-subset"},
+        "values_owner": {"const": "semantic_catalog"},
+        "draft_policy": {"const": "retain-for-audit-but-never-resolve"},
+        "modifier_allowlist": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["genere_mcm"],
+          "properties": {
+            "genere_mcm": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "execution"],
+              "properties": {
+                "source": {"const": []},
+                "execution": {"const": ["multi"]}
+              }
+            }
+          }
+        },
+        "finite_to_none_fields": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_fields_available",
+        "execution_fields",
+        "finite_fields_projected",
+        "values_projected",
+        "values_reviewed",
+        "values_draft",
+        "gaps"
+      ],
+      "properties": {
+        "source_fields_available": {"const": 113},
+        "execution_fields": {"const": 40},
+        "finite_fields_projected": {"const": 18},
+        "values_projected": {"const": 521},
+        "values_reviewed": {"const": 514},
+        "values_draft": {"const": 7},
+        "gaps": {"const": 0}
+      }
+    }
+  }
+}
