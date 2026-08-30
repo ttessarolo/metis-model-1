@@ -158,3 +158,10 @@ The wave is complete only if all of the following are independently observed:
   rerun through the canonical isolated harness and passed `1/1` in `43.74s`.
   This evidence accepts the additive checkpoint but does not satisfy the real
   MLX/retrieval/consumer E2E acceptance items recorded above.
+- DONE — Post-push alignment audit: Model 1 `main@769424f`, Metis/Visix
+  `main@c9f410a9` and Metis Fast `main@ee9e05b` each match `origin/main` with
+  clean checkouts. During the audit `play-demo/origin/main` advanced through an
+  experiment-state commit; the clean local checkout was fast-forwarded to
+  `44aa8ec`, which contains the semantic-source commit `6b263c0`. The
+  `atomic-video-player` predecessor remains untouched and clean. All delegated
+  lanes are terminal; no colleague process remains active.
