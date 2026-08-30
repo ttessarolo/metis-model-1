@@ -529,13 +529,17 @@ class TurnStore:
 
     @staticmethod
     def _error_payload(record: TurnRecord, error: BrainError) -> dict[str, Any]:
+        cancelled = record.cancellation.is_set() or error.code == "SESSION_REVOKED"
         return {
             "schema_version": 1,
             "turn_id": record.turn_id,
             "request_id": record.request.request_id,
-            "status": "cancelled" if error.code == "SESSION_REVOKED" else "failed",
+            "status": "cancelled" if cancelled else "failed",
             "route": "local",
-            "error": {"code": error.code, "message": error.message},
+            "error": {
+                "code": "TURN_CANCELLED" if cancelled else error.code,
+                "message": "turn was cancelled" if cancelled else error.message,
+            },
         }
 
     @staticmethod

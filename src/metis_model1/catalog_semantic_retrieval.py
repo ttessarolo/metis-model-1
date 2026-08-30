@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
-UPSTREAM_COMMIT = "0b41a25d4d5eeac88975e43e18e4bc3123d51667"
+UPSTREAM_COMMIT = "c9f410a9b9b28e61dd1505b661ebc996e388e6e0"
 SCHEMA_VERSION = 2
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 MAX_ITEMS = 100_000
@@ -202,6 +202,20 @@ def _source_ref(value: Any, label: str) -> dict[str, Any]:
     return source
 
 
+def _path_inert_text(value: Any, label: str, *, maximum: int = 256) -> str:
+    text = _safe_text(value, label, maximum=maximum)
+    if "/" in text or "\\" in text or text.startswith("-"):
+        raise CatalogSemanticRetrievalError(f"{label} is not path-inert")
+    return text
+
+
+def _semantic_source(value: Any, label: str) -> dict[str, Any]:
+    source = _exact_object(value, {"catalog", "at"}, {"catalog", "at"}, label)
+    _path_inert_text(source["catalog"], f"{label}.catalog")
+    _source_ref(source["at"], f"{label}.at")
+    return source
+
+
 def _means(value: Any, label: str) -> dict[str, Any]:
     means = _exact_object(value, {"text", "at"}, {"text", "at"}, label)
     _safe_text(means["text"], f"{label}.text")
@@ -368,6 +382,8 @@ def _validate_describe(response: Mapping[str, Any], catalog_filter: str | None) 
     catalogs = _bounded_array(root["catalogs"], "catalogs")
     if catalog_filter is not None and not catalogs:
         raise CatalogSemanticRetrievalError("catalog query returned no catalog")
+    if catalog_filter is not None and len(catalogs) > 1:
+        raise CatalogSemanticRetrievalError("catalog query returned multiple catalogs")
     names: set[str] = set()
     counts = {
         "catalogs": len(catalogs),
@@ -380,7 +396,7 @@ def _validate_describe(response: Mapping[str, Any], catalog_filter: str | None) 
     for index, item in enumerate(catalogs):
         catalog = _exact_object(
             item,
-            {"name", "driver", "index", "file", "fields", "semantic"},
+            {"name", "driver", "index", "file", "fields", "semanticSource", "semantic"},
             {"name", "driver", "file", "fields", "semantic"},
             f"catalogs[{index}]",
         )
@@ -400,6 +416,8 @@ def _validate_describe(response: Mapping[str, Any], catalog_filter: str | None) 
         if "index" in catalog:
             _safe_text(catalog["index"], f"catalogs[{index}].index")
         _relative_posix(catalog["file"], f"catalogs[{index}].file")
+        if "semanticSource" in catalog:
+            _semantic_source(catalog["semanticSource"], f"catalogs[{index}].semanticSource")
         _semantic(catalog["semantic"], f"catalogs[{index}].semantic", allow_label=True)
         counts["semantic_nodes"] += 1
         fields = _bounded_array(catalog["fields"], f"catalogs[{index}].fields")
@@ -505,13 +523,9 @@ def _query(operation: Any, catalog: Any, field: Any) -> tuple[str, str | None, s
     if not isinstance(operation, str) or operation not in {"describe", "values"}:
         raise CatalogSemanticRetrievalError("operation must be describe or values")
     if catalog is not None:
-        catalog = _safe_text(catalog, "catalog", maximum=256)
-        if "/" in catalog or "\\" in catalog or catalog.startswith("-"):
-            raise CatalogSemanticRetrievalError("catalog query is not path-inert")
+        catalog = _path_inert_text(catalog, "catalog")
     if field is not None:
-        field = _safe_text(field, "field", maximum=256)
-        if "/" in field or "\\" in field or field.startswith("-"):
-            raise CatalogSemanticRetrievalError("field query is not path-inert")
+        field = _path_inert_text(field, "field")
     if operation == "describe" and field is not None:
         raise CatalogSemanticRetrievalError("describe does not accept a field")
     if operation == "values" and (catalog is None or field is None):

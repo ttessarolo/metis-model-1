@@ -11,7 +11,7 @@ from typing import Any
 
 from metis_model1.brain_context import TenantRegistry
 from metis_model1.brain_model_runtime import StaticModelRuntime
-from metis_model1.brain_protocol import CAPABILITIES, canonical_sha256
+from metis_model1.brain_protocol import CAPABILITIES, BrainError, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult, semantic_revision
 from metis_model1.brain_server import BrainApplication, BrainRuntime, _ThreadingBrainHTTPServer
 from metis_model1.brain_sessions import ClientPolicy, SessionManager
@@ -44,18 +44,24 @@ class FakeRetriever:
         self,
         *,
         catalogs: tuple[dict[str, str], ...] = ({"catalog": "video", "label": "Video"},),
+        grounding_status: str | None = None,
     ) -> None:
         self.catalogs = catalogs
+        self.grounding_status = grounding_status
 
     def retrieve(self, *, lease: Any, request: Any) -> RetrievalResult:
         revision = semantic_revision(lease.snapshot)
+        grounding = {
+            "catalogs": [item["catalog"] for item in self.catalogs],
+            "resolutions": [],
+            "unresolved": [],
+        }
+        if self.grounding_status is not None:
+            grounding["status"] = self.grounding_status
+            grounding["candidates"] = [{"field": "tipologia", "literal": "Film"}]
         return RetrievalResult(
             context={"tenant": lease.tenant_alias},
-            grounding={
-                "catalogs": [item["catalog"] for item in self.catalogs],
-                "resolutions": [],
-                "unresolved": [],
-            },
+            grounding=grounding,
             semantic_source_revision=revision,
             catalog_candidates=self.catalogs,
         )
@@ -276,3 +282,110 @@ def test_session_options_apply_preflight_and_sse_are_bounded(tmp_path: Path) -> 
         assert "terminal" in raw
         assert "metis 0.43" not in raw
         connection.close()
+
+
+def test_ambiguous_metadata_stops_before_model_and_compiler(tmp_path: Path) -> None:
+    class MustNotRunModel:
+        model_loaded = True
+        model_revision = "test"
+        adapter_sha256 = "sha256:" + "b" * 64
+
+        def generate(self, _request: Any) -> Any:
+            raise AssertionError("ambiguous grounding reached the model")
+
+    compiler = FakeCompiler()
+    retriever = FakeRetriever(grounding_status="clarify")
+    with _service(tmp_path, model=MustNotRunModel(), compiler=compiler, retriever=retriever) as (
+        server,
+        runtime,
+        _app,
+    ):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _turn_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        for _ in range(100):
+            _status, result, _ = _request(
+                server,
+                "GET",
+                f"/v1/sessions/{session['id']}/turns/{accepted['turn_id']}",
+                token=session["token"],
+            )
+            if result.get("status") == "completed":
+                break
+            time.sleep(0.01)
+        assert result["outcome"] == "unsupported_metadata"
+        assert result["claims"]["semantic_grounded"] is False
+        assert compiler.calls == 0
+
+
+def test_http_cancel_interrupts_generation_and_never_reaches_compiler(tmp_path: Path) -> None:
+    class BlockingCancellableModel:
+        model_loaded = True
+        model_revision = "test"
+        adapter_sha256 = "sha256:" + "b" * 64
+
+        def __init__(self) -> None:
+            self.started = threading.Event()
+
+        def generate(self, request: Any) -> Any:
+            self.started.set()
+            assert request.cancellation is not None
+            assert request.cancellation.wait(timeout=2)
+            raise BrainError(
+                "MODEL_GENERATION_CANCELLED", 409, "local Model 1 generation was cancelled"
+            )
+
+    compiler = FakeCompiler()
+    model = BlockingCancellableModel()
+    with _service(tmp_path, model=model, compiler=compiler) as (server, runtime, _app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _turn_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        assert model.started.wait(timeout=2)
+
+        started = time.monotonic()
+        status, cancelled, _ = _request(
+            server,
+            "DELETE",
+            f"/v1/sessions/{session['id']}/turns/{accepted['turn_id']}",
+            token=session["token"],
+        )
+        assert status == 200
+        for _ in range(100):
+            _status, cancelled, _ = _request(
+                server,
+                "GET",
+                f"/v1/sessions/{session['id']}/turns/{accepted['turn_id']}",
+                token=session["token"],
+            )
+            if cancelled.get("status") == "cancelled":
+                break
+            time.sleep(0.01)
+
+        assert time.monotonic() - started < 1
+        assert cancelled["status"] == "cancelled"
+        assert cancelled["error"] == {
+            "code": "TURN_CANCELLED",
+            "message": "turn was cancelled",
+        }
+        assert compiler.calls == 0

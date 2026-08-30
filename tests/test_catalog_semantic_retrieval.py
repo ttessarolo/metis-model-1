@@ -124,12 +124,12 @@ def _raw(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
 
 
-def _adapt(payload: dict[str, Any], operation: str = "describe"):
+def _adapt(payload: dict[str, Any], operation: str = "describe", *, catalog_query: str = "video"):
     requested_field = payload.get("field") if operation == "values" else None
     return adapt_catalog_semantic_response(
         operation,
         _raw(payload),
-        catalog="video" if operation == "describe" else "video",
+        catalog=catalog_query,
         field=requested_field,
     )
 
@@ -151,13 +151,83 @@ def test_describe_returns_complete_schema2_projection_and_sanitized_receipt() ->
         result.projection["catalogs"][0]["fields"][2]["fields"][0]["semantic"]["state"] == "draft"
     )
     assert result.receipt["pin"] == {
-        "commit": "0b41a25d4d5eeac88975e43e18e4bc3123d51667",
+        "commit": "c9f410a9b9b28e61dd1505b661ebc996e388e6e0",
         "schema": 2,
     }
     assert not _contains_key(result.receipt, "text")
     assert not _contains_key(result.receipt, "literal")
     assert set(result.receipt) == {"query", "pin", "counts", "hashes", "receipt_sha256"}
     assert validate_catalog_semantic_receipt(result.receipt, query=result.receipt["query"]) == []
+
+
+def test_reviewed_owner_has_no_source_and_mirror_accepts_exact_semantic_source() -> None:
+    owner = _describe()
+    assert "semanticSource" not in owner["catalogs"][0]
+
+    mirror = copy.deepcopy(owner)
+    mirror_catalog = mirror["catalogs"][0]
+    mirror_catalog["name"] = "public-synthetic.video-mirror"
+    mirror_catalog["file"] = "catalogs/video-mirror.metis"
+    mirror_catalog["semanticSource"] = {
+        "catalog": "public-synthetic.video",
+        "at": copy.deepcopy(AT),
+    }
+    result = _adapt(mirror, catalog_query="video-mirror")
+    assert result.projection["catalogs"][0]["semanticSource"] == {
+        "catalog": "public-synthetic.video",
+        "at": AT,
+    }
+
+
+def test_short_catalog_query_matching_multiple_catalogs_fails_closed() -> None:
+    payload = _describe()
+    second = copy.deepcopy(payload["catalogs"][0])
+    second["name"] = "another-tenant.video"
+    payload["catalogs"].append(second)
+
+    with pytest.raises(CatalogSemanticRetrievalError, match="multiple catalogs"):
+        _adapt(payload, catalog_query="video")
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (
+            lambda p: p["catalogs"][0].update(
+                {"semanticSource": {"catalog": "public-synthetic.video", "at": AT, "extra": True}}
+            ),
+            "extra fields",
+        ),
+        (
+            lambda p: p["catalogs"][0].update(
+                {"semanticSource": {"catalog": "public-synthetic.video"}}
+            ),
+            "missing fields",
+        ),
+        (
+            lambda p: p["catalogs"][0].update(
+                {"semanticSource": {"catalog": "../escape", "at": AT}}
+            ),
+            "path-inert",
+        ),
+        (
+            lambda p: p["catalogs"][0].update(
+                {
+                    "semanticSource": {
+                        "catalog": "public-synthetic.video",
+                        "at": {"file": "catalogs/video.metis", "line": 0},
+                    }
+                }
+            ),
+            "1-based",
+        ),
+    ],
+)
+def test_semantic_source_is_strict_and_fail_closed(mutate: Any, match: str) -> None:
+    payload = _describe()
+    mutate(payload)
+    with pytest.raises(CatalogSemanticRetrievalError, match=match):
+        _adapt(payload)
 
 
 def test_values_semantic_field_and_values_are_aligned() -> None:

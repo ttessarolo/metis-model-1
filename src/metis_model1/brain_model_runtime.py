@@ -8,7 +8,8 @@ the host (and with deterministic test doubles).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from metis_model1.brain_protocol import BrainError, bounded_source
@@ -24,6 +25,7 @@ class ModelRequest:
     grounding: dict[str, Any]
     previous_source: str | None = None
     diagnostics: tuple[dict[str, Any], ...] = ()
+    cancellation: threading.Event | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)

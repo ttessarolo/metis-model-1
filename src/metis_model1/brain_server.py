@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import http.server
 import json
+import math
 import os
 import secrets
 import signal
@@ -18,6 +19,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_mlx_runtime import MlxBrainModelRuntime
 from metis_model1.brain_model_runtime import UnavailableModelRuntime
 from metis_model1.brain_protocol import (
     MAX_JSON_BYTES,
@@ -30,13 +32,31 @@ from metis_model1.brain_protocol import (
     revision,
 )
 from metis_model1.brain_retrieval import SnapshotRetriever
+from metis_model1.brain_semantic_retrieval import Schema2SnapshotRetriever
 from metis_model1.brain_sessions import ClientPolicy, SessionLimits, SessionManager
-from metis_model1.brain_tools import BrainCompiler, validate_compile_request
+from metis_model1.brain_tools import (
+    BrainCompiler,
+    PinnedCatalogProjectionLoader,
+    validate_compile_request,
+)
 from metis_model1.brain_turns import TurnRequest, TurnStore
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
 REQUEST_SOCKET_TIMEOUT_SECONDS = 15.0
+
+
+@dataclass(frozen=True)
+class BrainModelConfig:
+    python_path: Path
+    model_path: Path
+    adapter_path: Path
+    timeout_seconds: float
+
+
+@dataclass(frozen=True)
+class BrainRetrievalConfig:
+    schema2: bool
 
 
 @dataclass(frozen=True)
@@ -50,6 +70,8 @@ class BrainConfig:
     tenant_grants: tuple[tuple[str, str, Path], ...]
     client_policies: tuple[ClientPolicy, ...]
     limits: SessionLimits
+    model: BrainModelConfig | None = None
+    retrieval: BrainRetrievalConfig | None = None
 
 
 def _safe_config_bytes(path: Path) -> bytes:
@@ -95,7 +117,13 @@ def _safe_config_bytes(path: Path) -> bytes:
     return raw
 
 
-def _config_path(value: Any, *, label: str, may_create: bool = False) -> Path:
+def _config_path(
+    value: Any,
+    *,
+    label: str,
+    may_create: bool = False,
+    allow_symlink: bool = False,
+) -> Path:
     if not isinstance(value, str) or not value or "\x00" in value:
         raise BrainError("INVALID_CONFIG", 500, f"{label} is invalid")
     path = Path(value)
@@ -108,9 +136,11 @@ def _config_path(value: Any, *, label: str, may_create: bool = False) -> Path:
         resolved = path.resolve(strict=True)
     except OSError as error:
         raise BrainError("INVALID_CONFIG", 500, f"{label} is unavailable") from error
-    if resolved != path:
+    if any(part.startswith(".env") for part in resolved.parts):
+        raise BrainError("INVALID_CONFIG", 500, f"{label} must be an absolute non-secret path")
+    if resolved != path and not allow_symlink:
         raise BrainError("INVALID_CONFIG", 500, f"{label} must be canonical")
-    return resolved
+    return path if allow_symlink else resolved
 
 
 def load_brain_config(path: Path) -> BrainConfig:
@@ -118,6 +148,7 @@ def load_brain_config(path: Path) -> BrainConfig:
     exact_fields(
         value,
         required={"schema_version", "server", "toolchain", "tenants", "clients", "limits"},
+        optional={"model", "retrieval"},
         label="config",
     )
     if value["schema_version"] != 1:
@@ -143,6 +174,42 @@ def load_brain_config(path: Path) -> BrainConfig:
         required={"global_sessions", "sessions_per_client", "sessions_per_tenant"},
         label="limits config",
     )
+    model_value = value.get("model")
+    retrieval_value = value.get("retrieval")
+    model: BrainModelConfig | None = None
+    retrieval: BrainRetrievalConfig | None = None
+    if "model" in value:
+        if not isinstance(model_value, dict):
+            raise BrainError("INVALID_CONFIG", 500, "model config must be an object")
+        exact_fields(
+            model_value,
+            required={"python_path", "model_path", "adapter_path", "timeout_seconds"},
+            label="model config",
+        )
+        timeout_seconds = model_value["timeout_seconds"]
+        if (
+            type(timeout_seconds) not in (int, float)
+            or not math.isfinite(float(timeout_seconds))
+            or not 0 < float(timeout_seconds) <= 600
+        ):
+            raise BrainError("INVALID_CONFIG", 500, "model timeout is invalid")
+        model = BrainModelConfig(
+            python_path=_config_path(
+                model_value["python_path"], label="model python path", allow_symlink=True
+            ),
+            model_path=_config_path(model_value["model_path"], label="model path"),
+            adapter_path=_config_path(model_value["adapter_path"], label="adapter path"),
+            timeout_seconds=float(timeout_seconds),
+        )
+    if "retrieval" in value:
+        if not isinstance(retrieval_value, dict):
+            raise BrainError("INVALID_CONFIG", 500, "retrieval config must be an object")
+        exact_fields(retrieval_value, required={"schema2"}, label="retrieval config")
+        if type(retrieval_value["schema2"]) is not bool:
+            raise BrainError("INVALID_CONFIG", 500, "retrieval schema2 must be boolean")
+        retrieval = BrainRetrievalConfig(schema2=retrieval_value["schema2"])
+    if model is not None and (retrieval is None or not retrieval.schema2):
+        raise BrainError("INVALID_CONFIG", 500, "model configuration requires schema2 retrieval")
     if server["host"] != "127.0.0.1":
         raise BrainError("INVALID_CONFIG", 500, "server host must be numeric IPv4 loopback")
     if type(server["port"]) is not int or not 0 <= server["port"] <= 65535:
@@ -204,6 +271,8 @@ def load_brain_config(path: Path) -> BrainConfig:
         tenant_grants=tuple(tenant_grants),
         client_policies=tuple(policies),
         limits=limits,
+        model=model,
+        retrieval=retrieval,
     )
 
 
@@ -223,23 +292,36 @@ class BrainRuntime:
         os.chmod(base, 0o700)
         self.base = base
         self.run_dir = base / f"run-{os.getpid()}-{secrets.token_hex(8)}"
-        self.run_dir.mkdir(mode=0o700)
         self.bootstrap_file = self.run_dir / "bootstrap.token"
         token = secrets.token_urlsafe(32)
-        descriptor = os.open(
-            self.bootstrap_file,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
-            0o600,
-        )
+        descriptor: int | None = None
         try:
-            os.write(descriptor, (token + "\n").encode("ascii"))
+            self.run_dir.mkdir(mode=0o700)
+            descriptor = os.open(
+                self.bootstrap_file,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+            )
+            payload = (token + "\n").encode("ascii")
+            if os.write(descriptor, payload) != len(payload):
+                raise OSError("short bootstrap token write")
             os.fsync(descriptor)
-        finally:
             os.close(descriptor)
-        os.chmod(self.bootstrap_file, 0o600)
-        self.bootstrap_digest = hashlib.sha256(token.encode("ascii")).digest()
-        token = ""
-        self._closed = False
+            descriptor = None
+            os.chmod(self.bootstrap_file, 0o600)
+            self.bootstrap_digest = hashlib.sha256(token.encode("ascii")).digest()
+            self._closed = False
+        except BaseException:
+            if descriptor is not None:
+                with suppress(OSError):
+                    os.close(descriptor)
+            with suppress(OSError):
+                self.bootstrap_file.unlink(missing_ok=True)
+            with suppress(OSError):
+                self.run_dir.rmdir()
+            raise
+        finally:
+            token = ""
 
     def authenticate(self, token: str) -> bool:
         try:
@@ -270,8 +352,8 @@ class BrainApplication:
         self.runtime = runtime
         self.manager = manager
         self.compiler = compiler
-        self.retriever = retriever or SnapshotRetriever()
-        self.model = model or UnavailableModelRuntime()
+        self.retriever = retriever if retriever is not None else SnapshotRetriever()
+        self.model = model if model is not None else UnavailableModelRuntime()
         self.turns = TurnStore(
             manager=manager,
             retriever=self.retriever,
@@ -292,11 +374,25 @@ class BrainApplication:
             "compiler_configured": True,
             "compiler_executions": getattr(self.compiler, "execution_count", 0),
             "model_loaded": bool(getattr(self.model, "model_loaded", False)),
+            "model_identity": {
+                "model_revision": getattr(self.model, "model_revision", None),
+                "adapter_sha256": getattr(self.model, "adapter_sha256", None),
+            },
+            "semantic_retrieval": {
+                "enabled": isinstance(self.retriever, Schema2SnapshotRetriever),
+                "schema": 2 if isinstance(self.retriever, Schema2SnapshotRetriever) else None,
+                "implementation": type(self.retriever).__name__,
+            },
             "metrics": self.manager.aggregate_metrics(),
         }
 
     def close(self) -> None:
-        self.turns.shutdown()
+        try:
+            self.turns.shutdown()
+        finally:
+            close = getattr(self.model, "close", None)
+            if callable(close):
+                close()
 
 
 class _ThreadingBrainHTTPServer(http.server.ThreadingHTTPServer):
@@ -681,18 +777,48 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
 class MetisBrainService:
     """Lifecycle wrapper used by the CLI and live tests."""
 
-    def __init__(self, config: BrainConfig) -> None:
+    def __init__(
+        self,
+        config: BrainConfig,
+        *,
+        compiler: BrainCompiler | None = None,
+        retriever: Any | None = None,
+        model: Any | None = None,
+    ) -> None:
         if config.host != "127.0.0.1":
             raise BrainError("INVALID_CONFIG", 500, "service host must be numeric loopback")
+        if config.model is not None and (config.retrieval is None or not config.retrieval.schema2):
+            raise BrainError(
+                "INVALID_CONFIG", 500, "model configuration requires schema2 retrieval"
+            )
         self.runtime = BrainRuntime(config.runtime_root)
         manager: SessionManager | None = None
         httpd: _ThreadingBrainHTTPServer | None = None
+        model_runtime = model
         try:
-            compiler = BrainCompiler(
-                metis_root=config.metis_git_root,
-                node_path=config.node_path,
-                max_concurrency=config.compiler_concurrency,
-            )
+            if compiler is None:
+                compiler = BrainCompiler(
+                    metis_root=config.metis_git_root,
+                    node_path=config.node_path,
+                    max_concurrency=config.compiler_concurrency,
+                )
+            if retriever is None:
+                if config.retrieval is not None and config.retrieval.schema2:
+                    loader = PinnedCatalogProjectionLoader(
+                        metis_root=config.metis_git_root,
+                        node_path=config.node_path,
+                        max_concurrency=config.compiler_concurrency,
+                    )
+                    retriever = Schema2SnapshotRetriever(loader)
+                else:
+                    retriever = SnapshotRetriever()
+            if model_runtime is None and config.model is not None:
+                model_runtime = MlxBrainModelRuntime(
+                    python_path=config.model.python_path,
+                    model_path=config.model.model_path,
+                    adapter_path=config.model.adapter_path,
+                    timeout_seconds=config.model.timeout_seconds,
+                )
             registry = TenantRegistry(list(config.tenant_grants))
             manager = SessionManager(
                 registry=registry,
@@ -701,7 +827,13 @@ class MetisBrainService:
                 toolchain_binding=compiler.toolchain_binding,
                 limits=config.limits,
             )
-            self.app = BrainApplication(runtime=self.runtime, manager=manager, compiler=compiler)
+            self.app = BrainApplication(
+                runtime=self.runtime,
+                manager=manager,
+                compiler=compiler,
+                retriever=retriever,
+                model=model_runtime,
+            )
             httpd = _ThreadingBrainHTTPServer((config.host, config.port), self.app)
             self.httpd = httpd
             bound_host, _bound_port = httpd.server_address
@@ -712,6 +844,10 @@ class MetisBrainService:
                 httpd.server_close()
             if manager is not None:
                 manager.shutdown()
+            if model_runtime is not None:
+                close = getattr(model_runtime, "close", None)
+                if callable(close):
+                    close()
             self.runtime.close()
             raise
         self._server_thread: threading.Thread | None = None
@@ -805,29 +941,35 @@ class MetisBrainService:
 
 
 def run_brain_server(config_path: Path) -> int:
-    config = load_brain_config(config_path)
-    service = MetisBrainService(config)
-    ready = {
-        "schema_version": 1,
-        "status": "ready",
-        "service": "metis-brain",
-        "address": {"host": service.address[0], "port": service.address[1]},
-        "bootstrap_file": str(service.runtime.bootstrap_file),
-    }
-    print(json.dumps(ready, sort_keys=True), flush=True)
+    service: MetisBrainService | None = None
     previous_handlers: dict[int, Any] = {}
 
     def stop(_signum: int, _frame: Any) -> None:
+        if service is None:
+            # Interrupt construction on the main thread. MetisBrainService's
+            # BaseException guard then removes any partial runtime/token.
+            raise KeyboardInterrupt
         threading.Thread(target=service.close, daemon=True).start()
 
     for signum in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[signum] = signal.signal(signum, stop)
     try:
+        config = load_brain_config(config_path)
+        service = MetisBrainService(config)
+        ready = {
+            "schema_version": 1,
+            "status": "ready",
+            "service": "metis-brain",
+            "address": {"host": service.address[0], "port": service.address[1]},
+            "bootstrap_file": str(service.runtime.bootstrap_file),
+        }
+        print(json.dumps(ready, sort_keys=True), flush=True)
         service.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        service.close()
+        if service is not None:
+            service.close()
         for signum, handler in previous_handlers.items():
             signal.signal(signum, handler)
     return 0

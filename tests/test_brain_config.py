@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from metis_model1.brain_protocol import CAPABILITIES, BrainError, parse_json_object
-from metis_model1.brain_server import BrainConfig, MetisBrainService, load_brain_config
+from metis_model1.brain_server import (
+    BrainConfig,
+    BrainModelConfig,
+    BrainRetrievalConfig,
+    MetisBrainService,
+    load_brain_config,
+)
 from metis_model1.brain_sessions import ClientPolicy, SessionLimits
 
 
@@ -120,6 +126,43 @@ def test_config_loader_refuses_dotenv_and_symlink_config(tmp_path: Path) -> None
         load_brain_config(link)
 
 
+def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -> None:
+    path, config = _config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"python")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config["model"] = {
+        "python_path": str(python_path),
+        "model_path": str(model_path),
+        "adapter_path": str(adapter_path),
+        "timeout_seconds": 12.5,
+    }
+    config["retrieval"] = {"schema2": True}
+    path.write_text(json.dumps(config), encoding="utf-8")
+
+    loaded = load_brain_config(path.resolve())
+    assert loaded.model == BrainModelConfig(
+        python_path=python_path,
+        model_path=model_path,
+        adapter_path=adapter_path,
+        timeout_seconds=12.5,
+    )
+    assert loaded.retrieval == BrainRetrievalConfig(schema2=True)
+
+    config["retrieval"] = {"schema2": False}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="requires schema2"):
+        load_brain_config(path.resolve())
+
+    config["retrieval"] = {"schema2": True, "extra": False}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError):
+        load_brain_config(path.resolve())
+
+
 def test_service_constructor_rejects_nonloopback_even_if_called_without_loader(
     tmp_path: Path,
 ) -> None:
@@ -142,3 +185,15 @@ def test_service_constructor_rejects_nonloopback_even_if_called_without_loader(
     )
     with pytest.raises(BrainError, match="numeric loopback"):
         MetisBrainService(config)
+
+
+def test_play_demo_fixture_binds_the_workspace_tenant_identity() -> None:
+    path = Path(__file__).resolve().parents[1] / "examples/metis-brain-config.play-demo.local.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    assert value["tenants"] == [
+        {
+            "alias": "play-demo",
+            "tenant_id": "play-demo",
+            "root": "/Users/tommasotessarolo/metis-tenants/play-demo",
+        }
+    ]

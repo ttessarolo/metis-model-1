@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,12 @@ import pytest
 import metis_model1.brain_server as brain_server_module
 from metis_model1.brain_context import TenantRegistry
 from metis_model1.brain_protocol import CAPABILITIES, MAX_JSON_BYTES
+from metis_model1.brain_semantic_retrieval import Schema2SnapshotRetriever
 from metis_model1.brain_server import (
     BrainApplication,
     BrainConfig,
+    BrainModelConfig,
+    BrainRetrievalConfig,
     BrainRuntime,
     MetisBrainService,
     _ThreadingBrainHTTPServer,
@@ -54,6 +58,18 @@ class FakeCompiler:
 class ConstructibleFakeCompiler(FakeCompiler):
     def __init__(self, **_kwargs: Any) -> None:
         self.execution_count = 0
+
+
+class ClosableFakeModel:
+    model_loaded = False
+    model_revision = "sha256:" + "1" * 64
+    adapter_sha256 = "sha256:" + "2" * 64
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _tenant(root: Path) -> Path:
@@ -213,6 +229,43 @@ def test_live_http_session_context_compile_status_and_close(tmp_path: Path) -> N
         assert unavailable["error"]["code"] == "SESSION_UNAVAILABLE"
 
 
+def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: Path) -> None:
+    runtime = BrainRuntime((tmp_path / "runtime").resolve())
+    tenant = _tenant(tmp_path / "tenant")
+    manager = SessionManager(
+        registry=TenantRegistry([("demo", "tenant-one", tenant)]),
+        policies=[ClientPolicy("visix", frozenset({"demo"}), CAPABILITIES)],
+        runtime_root=runtime.run_dir / "sessions",
+        toolchain_binding=FakeCompiler.toolchain_binding,
+        limits=SessionLimits(),
+    )
+    model = ClosableFakeModel()
+    retriever = Schema2SnapshotRetriever(lambda _snapshot: None)
+    app = BrainApplication(
+        runtime=runtime,
+        manager=manager,
+        compiler=FakeCompiler(),  # type: ignore[arg-type]
+        retriever=retriever,
+        model=model,
+    )
+    try:
+        health = app.health()
+        assert health["model_identity"] == {
+            "model_revision": model.model_revision,
+            "adapter_sha256": model.adapter_sha256,
+        }
+        assert health["semantic_retrieval"] == {
+            "enabled": True,
+            "schema": 2,
+            "implementation": "Schema2SnapshotRetriever",
+        }
+    finally:
+        app.close()
+        manager.shutdown()
+        runtime.close()
+    assert model.closed is True
+
+
 def test_bootstrap_permissions_rotation_and_authority_separation(tmp_path: Path) -> None:
     first_base = (tmp_path / "runtime-one").resolve()
     first = BrainRuntime(first_base)
@@ -240,6 +293,21 @@ def test_bootstrap_permissions_rotation_and_authority_separation(tmp_path: Path)
         )
         assert status == 401
         assert payload["error"]["code"] == "SESSION_UNAVAILABLE"
+
+
+def test_bootstrap_failure_removes_partial_token_and_private_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime_root = (tmp_path / "runtime-failure").resolve()
+
+    def fail_fsync(_descriptor: int) -> None:
+        raise OSError("synthetic bootstrap failure")
+
+    monkeypatch.setattr(brain_server_module.os, "fsync", fail_fsync)
+    with pytest.raises(OSError, match="synthetic bootstrap failure"):
+        BrainRuntime(runtime_root)
+    assert runtime_root.is_dir()
+    assert list(runtime_root.iterdir()) == []
 
 
 def test_wrong_bootstrap_cross_session_token_and_capability_fail_closed(tmp_path: Path) -> None:
@@ -532,3 +600,61 @@ def test_concurrent_close_waits_for_cleanup_and_removes_bootstrap(
     assert not second.is_alive()
     assert not service.runtime.bootstrap_file.exists()
     assert not service.runtime.run_dir.exists()
+
+
+def test_service_wires_configured_model_and_schema2_retriever_without_loading_real_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _service_config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"fake")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config = replace(
+        config,
+        model=BrainModelConfig(python_path, model_path, adapter_path, 7.0),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: dict[str, Any] = {}
+
+    class FakeModel:
+        model_loaded = False
+        model_revision = "sha256:" + "3" * 64
+        adapter_sha256 = "sha256:" + "4" * 64
+
+        def __init__(self, **kwargs: Any) -> None:
+            calls["model"] = kwargs
+
+        def close(self) -> None:
+            calls["model_closed"] = True
+
+    class FakeLoader:
+        def __init__(self, **kwargs: Any) -> None:
+            calls["loader"] = kwargs
+
+    class FakeRetriever:
+        def __init__(self, loader: Any) -> None:
+            calls["retriever_loader"] = loader
+
+    monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", FakeModel)
+    monkeypatch.setattr(brain_server_module, "PinnedCatalogProjectionLoader", FakeLoader)
+    monkeypatch.setattr(brain_server_module, "Schema2SnapshotRetriever", FakeRetriever)
+    service = MetisBrainService(config, compiler=ConstructibleFakeCompiler())
+    try:
+        assert calls["model"] == {
+            "python_path": python_path,
+            "model_path": model_path,
+            "adapter_path": adapter_path,
+            "timeout_seconds": 7.0,
+        }
+        assert calls["loader"] == {
+            "metis_root": config.metis_git_root,
+            "node_path": config.node_path,
+            "max_concurrency": config.compiler_concurrency,
+        }
+        assert calls["retriever_loader"] is not None
+    finally:
+        service.close()
+    assert calls["model_closed"] is True

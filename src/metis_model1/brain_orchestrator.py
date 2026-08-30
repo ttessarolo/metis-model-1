@@ -70,6 +70,8 @@ class BrainOrchestrator:
                 record.emit("catalog.auto_selected", "catalog_selected", "Catalogo selezionato")
             elif not retrieved.grounding.get("catalogs"):
                 return self._unsupported(record, request, retrieved)
+            if retrieved.grounding.get("status") not in {None, "resolved"}:
+                return self._unsupported(record, request, retrieved)
 
             previous = lease.snapshot.source_map().get(request.target["relative_path"])
             model_request = ModelRequest(
@@ -80,6 +82,7 @@ class BrainOrchestrator:
                 context=retrieved.context,
                 grounding=retrieved.grounding,
                 previous_source=previous,
+                cancellation=record.cancellation,
             )
             record.emit("inference.started", "inference_started", "Model 1 in generazione")
             candidate = self._generate(model_request)
@@ -145,6 +148,7 @@ class BrainOrchestrator:
                     grounding=retrieved.grounding,
                     previous_source=candidate.source,
                     diagnostics=tuple(diagnostics[:32]),
+                    cancellation=record.cancellation,
                 )
                 candidate = self._generate(repair_request)
                 record.emit(
@@ -342,6 +346,11 @@ class BrainOrchestrator:
             "compiler_receipt_sha256": receipt.get("receipt_sha256", "unavailable"),
         }
         grounding = self._grounding(retrieved)
+        semantically_grounded = (
+            grounding.get("status") in {None, "resolved"}
+            and not grounding.get("candidates")
+            and not grounding.get("unresolved")
+        )
         return {
             "schema_version": 1,
             "turn_id": record.turn_id,
@@ -355,7 +364,7 @@ class BrainOrchestrator:
             "identity": identity,
             "claims": {
                 "compile_clean": clean,
-                "semantic_grounded": True,
+                "semantic_grounded": semantically_grounded,
                 "semantic_correctness": False,
                 "tenant_modified": False,
             },
