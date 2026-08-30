@@ -1020,6 +1020,36 @@ def test_transaction_removes_new_empty_bootstrap_root_on_manifest_preflight_fail
 
 
 @pytest.mark.parametrize("fifo_target", ("manifest", "bootstrap"))
+def test_transaction_rejects_fifo_before_expensive_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fifo_target: str,
+) -> None:
+    roots = _transaction_roots(tmp_path / f"fifo-preflight-{fifo_target}")
+    if fifo_target == "manifest":
+        fifo = roots["manifest_root"] / "w3-phase-b-install-bundle.json"
+    else:
+        roots["bootstrap_source"].parent.mkdir(mode=0o700)
+        fifo = roots["bootstrap_source"]
+    os.mkfifo(fifo)
+    build_called = False
+
+    def forbidden_build(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal build_called
+        build_called = True
+        raise AssertionError("expensive materialization ran before output preflight")
+
+    monkeypatch.setattr(materializer, "build_materialization", forbidden_build)
+    with pytest.raises(materializer.MaterializerError, match="single-link regular file"):
+        _run_transaction(roots)
+    assert not build_called
+    assert stat.S_ISFIFO(fifo.lstat().st_mode)
+    assert {path.name for path in roots["source_root"].iterdir()} == {"wheels"}
+    assert [path for path in roots["manifest_root"].iterdir() if path != fifo] == []
+    assert list(roots["staging_parent"].iterdir()) == []
+
+
+@pytest.mark.parametrize("fifo_target", ("manifest", "bootstrap"))
 def test_transaction_rejects_preexisting_fifo_without_blocking_or_publication(
     tmp_path: Path,
     fifo_target: str,

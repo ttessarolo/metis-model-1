@@ -1703,6 +1703,23 @@ def _read_regular_at(
         os.close(descriptor)
 
 
+def _preflight_regular_leaf_at(parent_fd: int, name: str, *, label: str) -> None:
+    """Reject a pre-existing non-regular output before expensive construction.
+
+    This is intentionally only an early type/identity check.  The later
+    no-follow read and byte comparison remain authoritative and close races.
+    """
+
+    try:
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise MaterializerError(f"{label} unavailable") from error
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise MaterializerError(f"{label} is not a single-link regular file")
+
+
 def _scan_tree_at(
     root_fd: int,
     *,
@@ -2690,6 +2707,43 @@ def _rows_digest(rows: Sequence[Mapping[str, object]]) -> str:
     return _sha256(payload)
 
 
+def _preflight_transaction_output_types(
+    *,
+    manifest_fd: int,
+    bootstrap_source: Path,
+) -> None:
+    """Fail fast on unsafe durable targets without reading their payloads."""
+
+    for name in _MANIFEST_OUTPUT_NAMES.values():
+        _preflight_regular_leaf_at(
+            manifest_fd,
+            name,
+            label=f"adopted manifest output {name}",
+        )
+
+    bootstrap_fd = -1
+    try:
+        try:
+            bootstrap_fd = _open_directory_no_follow(bootstrap_source.parent)
+        except MaterializerError:
+            try:
+                os.stat(bootstrap_source.parent, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            raise
+        names = set(os.listdir(bootstrap_fd))
+        if not names.issubset({bootstrap_source.name}):
+            raise MaterializerError("bootstrap source root contains an unknown child")
+        _preflight_regular_leaf_at(
+            bootstrap_fd,
+            bootstrap_source.name,
+            label="adopted durable Stage0 source",
+        )
+    finally:
+        if bootstrap_fd >= 0:
+            os.close(bootstrap_fd)
+
+
 def _prepare_transaction_context(
     source_root: Path,
     manifest_root: Path,
@@ -2894,6 +2948,10 @@ def materialize_transaction(
     result: dict[str, object] | None = None
     publication_started = False
     try:
+        _preflight_transaction_output_types(
+            manifest_fd=manifest_fd,
+            bootstrap_source=bootstrap_source,
+        )
         result = build_materialization(
             workspace_path / "source",
             cpython_root=Path(cpython_root),

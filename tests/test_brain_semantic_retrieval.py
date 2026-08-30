@@ -48,11 +48,12 @@ def _field(
     state: str = "reviewed",
     text: str | None = None,
     domain: dict[str, Any] | None = None,
+    modifiers: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "name": name,
         "type": "keyword",
-        "modifiers": [],
+        "modifiers": list(modifiers or []),
         "semantic": _semantic(state, file, line, text=text or name),
         "domain": domain or {"kind": "none"},
     }
@@ -201,13 +202,28 @@ def test_loader_receives_exact_snapshot_and_index_is_bound_to_it() -> None:
     assert result.context["toolchain_binding"] == snapshot.toolchain_binding
     assert result.grounding["status"] == "resolved"
     assert result.grounding["selections"][0]["literal"] == "Film"
+    assert result.grounding["selections"][0]["type"] == "keyword"
+    assert result.grounding["selections"][0]["modifiers"] == []
     assert result.context["language_version"] == "0.43"
+    assert result.context["fields"][0]["type"] == "keyword"
+    assert result.context["fields"][0]["modifiers"] == []
     assert result.context["endpoint_templates"] == [
         {
             "path": "properties/demo.metis",
             "source": "metis 0.43\nendpoint demo.feed { variant main { take 1 from @video } }\n",
         }
     ]
+
+
+def test_retrieval_preserves_multi_cardinality_in_context_and_grounding() -> None:
+    snapshot = _snapshot()
+    projection = _projection()
+    projection["catalogs"][0]["fields"][0]["modifiers"] = ["multi"]
+    result = Schema2SnapshotRetriever(_bound_loader(lambda: projection)).retrieve(
+        lease=_lease(snapshot), request=_request("Film")
+    )
+    assert result.context["fields"][0]["modifiers"] == ["multi"]
+    assert result.grounding["selections"][0]["modifiers"] == ["multi"]
 
 
 def test_stale_envelope_and_source_location_fail_closed() -> None:
@@ -240,6 +256,23 @@ def test_video_is_owner_and_video_pg_is_not_implicit_ambiguity() -> None:
     assert explicit.context["catalog"]["name"] == "video_pg"
     assert explicit.grounding["selections"][0]["literal"] == "Film"
     assert explicit.context["fields"][0]["semantic"]["means"]["text"] == "genere editoriale"
+
+
+def test_fully_qualified_catalog_reference_is_not_an_unresolved_semantic_clause() -> None:
+    projection = _projection()
+    projection["catalogs"][0]["name"] = "play-demo.video"
+    projection["catalogs"][1]["name"] = "play-demo.video_pg"
+    projection["catalogs"][1]["semanticSource"]["catalog"] = "play-demo.video"
+
+    result = Schema2SnapshotRetriever(_bound_loader(lambda: projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request("Crea un endpoint su @play-demo.video per Film"),
+    )
+
+    assert result.grounding["status"] == "resolved"
+    assert result.grounding["catalogs"] == ["play-demo.video"]
+    assert result.grounding["unresolved"] == []
+    assert result.grounding["selections"][0]["literal"] == "Film"
 
 
 def test_catalog_cardinality_is_auto_unsupported_or_clarification() -> None:

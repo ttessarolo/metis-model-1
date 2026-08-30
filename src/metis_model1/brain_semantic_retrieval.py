@@ -115,6 +115,7 @@ class LoadedProjection:
 class _IndexedSnapshot:
     index: dict[str, Any]
     catalogs: tuple[dict[str, Any], ...]
+    field_technical: dict[tuple[str, str], dict[str, Any]]
 
 
 def _fail(code: str, message: str, status: int = 409) -> None:
@@ -245,6 +246,51 @@ def _catalog_records(
     if set(records) != set(semantic_sources):
         _fail("RETRIEVAL_INVALID", "projection and index catalog rosters differ")
     return tuple(records[name] for name in sorted(records))
+
+
+def _projection_field_technical(
+    projection: Mapping[str, Any],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Retain the exact field type/modifiers from the normalized projection."""
+
+    result: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def walk(catalog: str, fields: Any, parent: str | None = None) -> None:
+        if not isinstance(fields, list):
+            _fail("RETRIEVAL_INVALID", "projection field roster is invalid")
+        for raw in fields:
+            if not isinstance(raw, Mapping):
+                _fail("RETRIEVAL_INVALID", "projection field is invalid")
+            name = raw.get("name")
+            field_type = raw.get("type")
+            modifiers = raw.get("modifiers")
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(field_type, str)
+                or not field_type
+                or not isinstance(modifiers, list)
+                or any(not isinstance(item, str) for item in modifiers)
+                or len(modifiers) != len(set(modifiers))
+                or any(item not in {"multi", "ordered"} for item in modifiers)
+            ):
+                _fail("RETRIEVAL_INVALID", "projection field technical surface is invalid")
+            path = name if parent is None else f"{parent}.{name}"
+            key = (catalog, path)
+            if key in result:
+                _fail("RETRIEVAL_INVALID", "projection field technical roster has duplicates")
+            result[key] = {"type": field_type, "modifiers": list(modifiers)}
+            if "fields" in raw:
+                walk(catalog, raw["fields"], path)
+
+    catalogs = projection.get("catalogs")
+    if not isinstance(catalogs, list):
+        _fail("RETRIEVAL_INVALID", "projection catalog roster is invalid")
+    for raw_catalog in catalogs:
+        if not isinstance(raw_catalog, Mapping) or not isinstance(raw_catalog.get("name"), str):
+            _fail("RETRIEVAL_INVALID", "projection catalog is invalid")
+        walk(raw_catalog["name"], raw_catalog.get("fields"))
+    return result
 
 
 def _explicit_catalog(request: str, records: tuple[dict[str, Any], ...], hint: Any) -> str | None:
@@ -480,7 +526,19 @@ def _resolve_complete_grounding(
 ) -> dict[str, Any]:
     scrubbed = request
     short = catalog.rsplit(".", 1)[-1]
-    for surface in (f"@{short}", catalog, f"catalogo {short}", f"catalog {short}"):
+    # Mask qualified references before their short suffix.  Reversing this
+    # order would turn ``@play-demo.video`` into the spurious semantic clause
+    # ``play demo`` after masking only ``@video``.
+    surfaces = (
+        f"@{catalog}",
+        catalog,
+        f"catalogo {catalog}",
+        f"catalog {catalog}",
+        f"@{short}",
+        f"catalogo {short}",
+        f"catalog {short}",
+    )
+    for surface in sorted(set(surfaces), key=len, reverse=True):
         scrubbed = _mask_surface(scrubbed, surface)
     clauses = [item.strip() for item in _CLAUSE_SPLIT_RE.split(scrubbed) if item.strip()]
     if len(clauses) > MAX_GROUNDING_PASSES:
@@ -623,6 +681,7 @@ def _snapshot_templates(snapshot: Any, selected_catalog: str) -> list[dict[str, 
 
 def _bounded_context(
     index: Mapping[str, Any],
+    field_technical: Mapping[tuple[str, str], Mapping[str, Any]],
     selected_catalog: str,
     grounding: Mapping[str, Any],
     snapshot: Any,
@@ -670,11 +729,14 @@ def _bounded_context(
         total_values += 1
     field_context: list[dict[str, Any]] = []
     for entry in fields:
+        technical = field_technical.get((selected_catalog, entry["field"]))
+        if technical is None:
+            _fail("RETRIEVAL_INVALID", "selected field technical surface is unavailable")
         domain = dict(entry["domain"])
         field: dict[str, Any] = {
             "name": entry["field"],
-            "type": entry.get("type"),
-            "modifiers": list(entry.get("modifiers", [])),
+            "type": technical["type"],
+            "modifiers": list(technical["modifiers"]),
             "domain": domain,
             "semantic": _semantic_view(entry),
         }
@@ -754,6 +816,7 @@ class Schema2SnapshotRetriever:
             _source_paths(snapshot),
         )
         projection_copy = copy.deepcopy(dict(projection))
+        field_technical = _projection_field_technical(projection_copy)
         grammar_revision = canonical_sha256({"grammar": toolchain_binding})
         try:
             built = build_semantic_index(
@@ -778,10 +841,21 @@ class Schema2SnapshotRetriever:
             _fail("RETRIEVAL_INVALID", "semantic index toolchain binding is invalid")
         if validate_semantic_index(index):
             _fail("RETRIEVAL_INVALID", "semantic index validation failed")
+        indexed_fields = {
+            (item["catalog"], item["field"])
+            for item in index["entries"]
+            if item["node_kind"] == "field"
+        }
+        if set(field_technical) != indexed_fields:
+            _fail("RETRIEVAL_INVALID", "projection field technical roster differs from index")
         records = _catalog_records(index, projection_copy)
         if not records:
             _fail("RETRIEVAL_INVALID", "semantic catalog roster is empty")
-        result = _IndexedSnapshot(index=index, catalogs=records)
+        result = _IndexedSnapshot(
+            index=index,
+            catalogs=records,
+            field_technical=field_technical,
+        )
         with self._cache_lock:
             existing = self._cache.get(key)
             if existing is not None:
@@ -880,6 +954,23 @@ class Schema2SnapshotRetriever:
             )
         selected_catalog = true_candidates[0]["catalog"]
         grounding = _resolve_complete_grounding(indexed.index, instruction, selected_catalog)
+        enriched_selections: list[dict[str, Any]] = []
+        for raw_selection in grounding.get("selections", []):
+            if not isinstance(raw_selection, Mapping):
+                _fail("RETRIEVAL_INVALID", "grounding selection is invalid")
+            field = raw_selection.get("field")
+            catalog = raw_selection.get("catalog")
+            technical = indexed.field_technical.get((catalog, field))
+            if technical is None:
+                _fail("RETRIEVAL_INVALID", "grounding field technical surface is unavailable")
+            enriched_selections.append(
+                {
+                    **raw_selection,
+                    "type": technical["type"],
+                    "modifiers": list(technical["modifiers"]),
+                }
+            )
+        grounding["selections"] = enriched_selections
         grounding["catalogs"] = [selected_catalog]
         grounding["catalog_candidates"] = []
         grounding["semantic_source_revision"] = indexed.index["semantic_source_revision"]
@@ -894,7 +985,13 @@ class Schema2SnapshotRetriever:
             for item in grounding.get("selections", [])
             if isinstance(item, Mapping)
         ]
-        context = _bounded_context(indexed.index, selected_catalog, grounding, snapshot)
+        context = _bounded_context(
+            indexed.index,
+            indexed.field_technical,
+            selected_catalog,
+            grounding,
+            snapshot,
+        )
         return RetrievalResult(
             context=context,
             grounding=grounding,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
+from metis_model1.brain_candidate_grounding import candidate_grounding_diagnostic
 from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, ModelRequest
 from metis_model1.brain_protocol import BrainError, bytes_sha256
 from metis_model1.brain_retrieval import BrainRetriever, RetrievalResult
@@ -96,9 +97,46 @@ class BrainOrchestrator:
             diagnostics: list[dict[str, Any]] = []
             compile_receipt: dict[str, Any] | None = None
             attempts = 0
+            repairs_used = 0
             while True:
                 if record.cancellation.is_set() or lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
+                grounding_diagnostic = candidate_grounding_diagnostic(
+                    candidate.source, retrieved.grounding
+                )
+                if grounding_diagnostic is not None:
+                    if repairs_used >= self._max_repairs:
+                        raise BrainError(
+                            "CANDIDATE_GROUNDING_MISMATCH",
+                            422,
+                            "candidate does not match reviewed finite grounding",
+                        )
+                    repairs_used += 1
+                    record.emit(
+                        "repair.started",
+                        "repair_started",
+                        "Correzione delimitata della selezione",
+                        attempt=repairs_used,
+                    )
+                    repair_request = ModelRequest(
+                        instruction=request.instruction,
+                        intent=request.intent,
+                        target_path=request.target["relative_path"],
+                        endpoint=request.target["endpoint"],
+                        context=retrieved.context,
+                        grounding=retrieved.grounding,
+                        previous_source=candidate.source,
+                        diagnostics=(grounding_diagnostic,),
+                        cancellation=record.cancellation,
+                    )
+                    candidate = self._generate(repair_request)
+                    record.emit(
+                        "repair.completed",
+                        "repair_completed",
+                        "Correzione della selezione ricevuta",
+                        attempt=repairs_used,
+                    )
+                    continue
                 attempts += 1
                 record.emit(
                     "compile.started",
@@ -134,10 +172,14 @@ class BrainOrchestrator:
                     "Compilazione con diagnostica",
                     attempt=attempts,
                 )
-                if attempts > self._max_repairs:
+                if repairs_used >= self._max_repairs:
                     break
+                repairs_used += 1
                 record.emit(
-                    "repair.started", "repair_started", "Correzione delimitata", attempt=attempts
+                    "repair.started",
+                    "repair_started",
+                    "Correzione delimitata",
+                    attempt=repairs_used,
                 )
                 repair_request = ModelRequest(
                     instruction=request.instruction,
@@ -152,11 +194,21 @@ class BrainOrchestrator:
                 )
                 candidate = self._generate(repair_request)
                 record.emit(
-                    "repair.completed", "repair_completed", "Correzione ricevuta", attempt=attempts
+                    "repair.completed",
+                    "repair_completed",
+                    "Correzione ricevuta",
+                    attempt=repairs_used,
                 )
 
             if compile_receipt is None:
                 raise BrainError("COMPILER_FAILED", 503, "compiler returned no receipt")
+            compiler_result = compile_receipt.get("compiler", compile_receipt)
+            if not isinstance(compiler_result, dict) or compiler_result.get("status") != "ok":
+                raise BrainError(
+                    "COMPILER_REJECTED",
+                    422,
+                    "candidate remains invalid after bounded repair",
+                )
             return self._proposal(
                 record=record,
                 request=request,

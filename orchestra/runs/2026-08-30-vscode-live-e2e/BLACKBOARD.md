@@ -64,7 +64,7 @@ toolchain, and shows progress plus preview without autonomous tenant writes.
 
 ## Status
 
-`E2E_PENDING_VISIBLE_PREVIEW`
+`STOP_SEMANTIC_DRAFT_REWORK`
 
 ## Evidence wire
 
@@ -186,6 +186,125 @@ toolchain, and shows progress plus preview without autonomous tenant writes.
 - DONE — Authoritative Model 1 gate `in=2259 out=2259 distinct=2259 gaps=0`:
   `make check` completed with 2259 passed, 2 expected skips and zero failures;
   foundation contracts, pilot checks, Ruff and formatting were also green.
-- OPEN — Closure still requires a VS Code reload and a second smoke proving the
-  corrected rendered proposal opens as a diff, both source
-  commits and pushes, post-push alignment, and process/runtime cleanup.
+- DONE — The second real VS Code smoke reached the corrected target
+  `properties/demo/metis_brain_vscode_demo.metis`, opened the virtual proposal,
+  kept the physical tenant file absent and left the tenant clean. L0 and the
+  operator both inspected the rendered source; no Apply action was taken.
+- FACT — The rendered create proposal was presented as an empty-file diff even
+  though the Brain wire already identifies it as `operation=create`. New files
+  require a single-document Draft surface; only `operation=replace` is a real
+  before/after diff.
+- FACT — The rendered country predicate contained all four reviewed literals
+  currently grouped by the shared natural-language aliases for Italy:
+  `ITALIA`, `Italia`, `italia`, and `val ITALIA val`. The last literal is not a
+  model invention: it is a reviewed reflected value in
+  `catalogs/video.values.metis`, so schema-2 and the deterministic retriever
+  authorized it.
+- STOP — The operator's editorial review rejects serialized storage artifacts
+  such as `val ITALIA val` as acceptable natural-language grounding output.
+  Compile-clean and complete alias expansion therefore do not close the E2E.
+- DECISION — Serialized `val ... val` country literals remain audit-visible but
+  are quarantined from grounding as `draft` until an authoritative
+  normalization contract can preserve their recall without exposing storage
+  encoding in authored `.metis`. The seven matching `paesiorigine` members are
+  the exact bounded correction roster; no other catalog values change.
+- DECISION — Brain adds a deterministic post-generation grounding adjudicator:
+  every finite predicate must match exactly the reviewed selection and its
+  field cardinality. Scalar fields lower to `is`/`in`; multi fields lower to
+  `has`/`has any`. Omission, duplicate, extra, wrong operator, unauthorized
+  field/catalog or unsupported condition surface trigger bounded repair and
+  ultimately fail closed before the compiler.
+- OPEN — Closure now requires the seven-value quarantine, post-generation
+  adjudicator, create-Draft UI, focused/full gates, a rebuilt/reinstalled VSIX,
+  one final no-Apply VS Code smoke, commit/push alignment and process cleanup.
+- DONE — Tenant correction roster `in=7 out=7 distinct=7 gaps=0`: all
+  `paesiorigine` literals serialized as `val ... val` are retained as visible
+  `draft` audit data and their natural aliases are removed. Semantic commit
+  `bef4071d3dc21198b7f68617e2ec9bef77d037c7` is pushed; current clean tenant
+  head `bfd6cbe4c7b06cc00a2493eac34db02887bc997b` changes only experiment state
+  and retains semantic blob
+  `67c7353aa893499d8bbe3ae1eed8032ddbc80b20`.
+- FACT — Current `@video` denominator is 49 finite fields / 1792 values:
+  `reviewed=1775 draft=17 unannotated=0`. `paesiorigine` is 182 values with
+  `reviewed=175 draft=7`; exact phrase `prodotti in Italia` now resolves only
+  `ITALIA`, `Italia`, `italia` and never `val ITALIA val`.
+- FIX — Schema-2 already contained exact field `type` and `modifiers`, but the
+  intermediate semantic-index v1 intentionally omitted them and the Brain
+  context silently emitted `type=null, modifiers=[]`. Retrieval now keeps a
+  separately validated projection-bound technical roster, checks its exact
+  membership against the index, and propagates cardinality to both model
+  context and grounding selections without changing the canonical v1 index.
+- FACT — The candidate guard recognizes the complete finite literal surface
+  currently authorized by Brain, treats comments as token trivia, permits
+  valid inline `if` guards, validates authorized source catalogs, and rejects
+  negative/similarity/preset/ids/other ungrounded conditions. Focused guard,
+  retrieval, orchestrator, turn and equivalence suites pass `in=83 out=83
+  distinct=83 gaps=0`; all Brain suites pass `in=170 out=170 distinct=170
+  gaps=0`. Independent final reaudit and the full repository gate remain open.
+- DONE — Create-Draft UX is independently GREEN. Metis main contains
+  `53008910f7ea0f842900a74be17f5db149cb1a1e` and
+  `c1919ad8a3500b84a9f1f692e43a37bcff3f6b53`; VSIX `0.23.95` is installed.
+  Create opens `Bozza - <file>.metis` as one virtual document, replace retains
+  native diff, and Apply is guarded by existence/hash/version/dirty checks plus
+  a per-URI mutex. Deterministic unpacked package digest is
+  `sha256:bbf315bd8b7f8f5e5269813e0837f189bf5e04f5ed75c729137e858920ea0e4c`.
+- RISK — The old execution-projection manifest and hash `adde34…` are historical
+  evidence for tenant `6d6ce2c…`, not a current receipt. First-class
+  `semantics from` now materializes inline execution values and the generic v1
+  join rejects that surface. Current execution projection remains
+  `UNVERIFIED` until an explicit v2 policy/join/receipt is implemented; the v1
+  manifest is deliberately left unchanged.
+- DECISION — Interactive Brain clarification is the next product wave, not a
+  model improvisation. Questions are server-owned, typed, revision-bound and
+  asked only for concrete ambiguity. Required cases include catalog and
+  semantic choice; tenant defaults cover low-risk result count/response shape,
+  while material fallback/topology choices may ask. Budget: at most three
+  blocking questions, no repeats, assumptions visible in the Draft, refine
+  always available. Existing catalog clarification is the seed; pending
+  clarification identity must be server-bound before generalization.
+- DONE — Independent final candidate-guard reaudit is GREEN with P0=0, P1=0
+  and P2=0. The focused candidate/retrieval/orchestrator/turn/equivalence
+  roster passes `in=95 out=95 distinct=95 gaps=0`; the complete Brain roster
+  passes `in=180 out=180 distinct=180 gaps=0`.
+- FIX — Transaction output types are now checked before the expensive Phase-B
+  bundle build. A pre-existing FIFO, symlink, directory or hard-linked leaf at
+  either manifest or bootstrap destination fails closed without reading it or
+  entering materialization; the authoritative post-build identity/content/mode
+  checks remain in place for race safety. The focused FIFO roster passes
+  `in=5 out=5 distinct=5 gaps=0`; independent audit is GREEN with P0=0, P1=0
+  and P2=0.
+- DONE — Superseding authoritative Model 1 gate
+  `in=2319 out=2319 distinct=2319 gaps=0`: a clean `make check` run completed
+  with 2319 passed, 2 expected skips, zero failures; foundation contracts,
+  pilot checks, Ruff and formatting were green. This supersedes the earlier
+  2259-test evidence after the added guards and regressions.
+- FACT — Final no-Apply VS Code smoke is running against installed Metis VSIX
+  0.23.95 and the clean `play-demo` main tenant. The requested physical target
+  remains absent and the tenant remains clean. The Mac locked while the new
+  request was completing, so rendered `Apri bozza` content is not yet observed
+  and no UI closure is claimed. VPN remained down; no credentials or live data
+  were accessed.
+- FACT — The first v0.23.95 retry was invalid as a product smoke because the
+  automation duplicated the chat participant (`@metis @metis ...`). It still
+  exposed a separate deterministic defect: explicit `@play-demo.video` was
+  recognized for catalog selection, then the grounding scrubber removed the
+  short suffix `@video` first and left `play-demo` as a false unresolved
+  semantic clause.
+- FIX — Grounding now masks fully-qualified catalog surfaces before short-name
+  suffixes, including both `@play-demo.video` and textual catalog forms. The
+  qualified regression remains `resolved`, with zero unresolved clauses and
+  the expected reviewed selection. Independent audit is GREEN with P0=0,
+  P1=0 and P2=0; the focused Brain roster now passes
+  `in=96 out=96 distinct=96 gaps=0`.
+- DONE — Final authoritative gate after the qualified-catalog fix:
+  `in=2320 out=2320 distinct=2320 gaps=0`, 2 expected skips, zero failures in
+  3027.41 seconds. Foundation validation passed 85 checks over 536 files;
+  pilot contracts, Ruff and formatting were green. This supersedes the
+  preceding 2319-test gate.
+- FACT — The corrected no-Apply request used exactly one `@metis` participant,
+  explicit `@play-demo.video` and target `demo.metis_brain_vscode_demo`. It
+  advanced past retrieval into local Model 1 generation; the worker returned
+  idle. The physical target remains absent and the tenant remains clean. The
+  Mac locked again before the rendered outcome could be inspected, therefore
+  `Apri bozza` and the final source text remain honestly unobserved and the UI
+  STOP is not lifted. VPN remained down throughout.

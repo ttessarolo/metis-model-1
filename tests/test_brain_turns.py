@@ -53,6 +53,7 @@ class FakeRetriever:
         revision = semantic_revision(lease.snapshot)
         grounding = {
             "catalogs": [item["catalog"] for item in self.catalogs],
+            "selections": [],
             "resolutions": [],
             "unresolved": [],
         }

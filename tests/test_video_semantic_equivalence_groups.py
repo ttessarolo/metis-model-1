@@ -203,6 +203,30 @@ def test_v1_incomplete_group_fails_closed_when_a_member_is_draft() -> None:
     assert "Italy legacy" not in str(grounding)
 
 
+def test_v1_draft_storage_artifact_without_alias_does_not_poison_reviewed_group() -> None:
+    index = _v1_index(
+        [
+            _field(
+                "paesiorigine",
+                [
+                    ("ITALIA", "reviewed", ["prodotti in Italia"]),
+                    ("Italia", "reviewed", ["prodotti in Italia"]),
+                    ("italia", "reviewed", ["prodotti in Italia"]),
+                    ("val ITALIA val", "draft", []),
+                ],
+                10,
+            )
+        ]
+    )
+
+    grounding = resolve_grounding(index, "prodotti in Italia")
+
+    assert grounding["status"] == "resolved"
+    assert len(grounding["selections"]) == 1
+    assert grounding["selections"][0]["literals"] == ["ITALIA", "Italia", "italia"]
+    assert "val ITALIA val" not in str(grounding)
+
+
 def test_v1_cross_field_repeated_aka_fails_closed() -> None:
     index = _v1_index(
         [

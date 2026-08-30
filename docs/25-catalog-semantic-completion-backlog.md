@@ -4,7 +4,7 @@ Stato: **`SEMANTIC_CATALOG_READY`**.
 
 Data di riferimento: 29 agosto 2026.
 
-Autorità tenant: `play-demo/main@6d6ce2cb00c941cb2700dccdd6c7f7a644dc55b8`.
+Autorità tenant: `play-demo/main@bef4071d3dc21198b7f68617e2ec9bef77d037c7`.
 
 La coda semantica del tenant corrente è chiusa: tutti i cataloghi e tutti i
 campi dichiarati hanno una descrizione reviewed, i domini hanno una
@@ -42,24 +42,40 @@ subfield. Il totale corretto è quindi 177 e non soltanto i 167 campi top-level.
 
 - campi finiti: `49`;
 - ValueItem: `in=1792 out=1792 distinct=1792 gaps=0`;
-- stati: `reviewed=1782 draft=10 unannotated=0`;
+- stati: `reviewed=1775 draft=17 unannotated=0`;
 - equivalenze fisiche esplicite: `57` concetti su `132` literal;
 - alias di campo discriminativi: `59` superfici su `36` campi;
 - alias di valore riusati fra campi diversi: `8`, mantenuti fail-closed.
 
-I dieci valori draft restano nel censimento, ma non sono autorità di
-grounding. Il resolver non accetta più neppure il literal tecnico esatto di un
-ValueItem draft: il valore è conservato per audit e quarantinato fino a review.
+I diciassette valori draft restano nel censimento, ma non sono autorità di
+grounding. Sette sono literal `paesiorigine` con serializzazione `val ... val`:
+restano visibili per audit, senza alias naturali, e non possono entrare nel
+codice proposto. Il resolver non accetta neppure il literal tecnico esatto di
+un ValueItem draft: il valore è conservato e quarantinato fino a una futura
+normalizzazione che ne dimostri l'eventuale rilevanza senza esporre la codifica
+di storage.
 
-## 3. Proiezione semantica `@video` -> `@video_pg`
+## 3. Ereditarietà semantica `@video` -> `@video_pg`
 
 `@video_pg` è un mirror di esecuzione PostgreSQL, non una seconda ontologia.
 Per questo non esiste un duplicato dei 1.792 valori e non è stato creato un
 `video_pg.values.metis`.
 
-La proiezione fail-closed è implementata in
-`src/metis_model1/catalog_semantic_projection.py` e fissata dalla policy
-`manifests/catalog-semantic-execution-play-demo-video-pg-v1.json`. Il gate:
+Il tenant corrente usa il costrutto first-class `semantics from @video`: il
+toolchain risolve quindi nel `describe` execution anche i domini finiti e i
+ValueItem ereditati. Il roster osservato same-name è:
+
+- source fields disponibili: `113`;
+- execution fields: `in=40 out=40 distinct=40 gaps=0`;
+- domini finiti execution: `18`;
+- ValueItem osservati: `in=521 out=521 gaps=0`;
+- stati osservati: `reviewed=514 draft=7`;
+- differenze di modificatore: una sola, `genere_mcm` scalare nella fonte e
+  multi nel mirror.
+
+Il replay storico precedente al costrutto first-class è implementato in
+`src/metis_model1/catalog_semantic_projection.py` e fissato dalla policy v1
+`manifests/catalog-semantic-execution-play-demo-video-pg-v1.json`. Quel gate:
 
 1. richiede tenant e soglie identici;
 2. richiede che i 40 campi execution siano un sottoinsieme same-name dei 113
@@ -67,26 +83,25 @@ La proiezione fail-closed è implementata in
 3. confronta tipo, nesting e modificatori;
 4. consente una sola eccezione di cardinalità: `genere_mcm`, scalare in
    `@video` e multi nel mirror;
-5. richiede una disposizione esplicita per tutti i 18 domini finiti che nello
-   scheletro execution sono `none`;
+5. richiedeva una disposizione esplicita per i domini finiti che il vecchio
+   scheletro execution esponeva come `none`;
 6. trasferisce i ValueItem ordinati soltanto dalla fonte canonica;
 7. produce un receipt standard consumabile dal percorso V2 e un secondo
    receipt che lega fonte, execution describe, policy e risultato;
 8. richiede binding esterno: un self-hash isolato non è autorità;
 9. conserva i draft per audit ma ne impedisce ogni risoluzione.
 
-Risultato sul tenant fissato:
+L'hash
+`adde34cb70dee35008604ca8733151a3a75488ae0407fe78e92ccd4931f9d622`
+appartiene esclusivamente al replay storico sul tenant `6d6ce2c…`: non è una
+receipt della revisione corrente. Il generic join corrente rifiuta correttamente
+il `describe` execution che materializza valori inline; di conseguenza la
+projection receipt current è **`UNVERIFIED`**. Non è corretto aggiornare alla
+cieca il manifest v1. La chiusura richiede una policy v2 esplicita per i domini
+già materializzati, `finite_to_none_fields=[]`, implementazione del join e nuova
+receipt riproducibile.
 
-- source fields disponibili: `113`;
-- execution fields: `in=40 out=40 distinct=40 gaps=0`;
-- domini finiti proiettati: `18`;
-- ValueItem proiettati: `in=521 out=521 gaps=0`;
-- ValueItem proiettati: `reviewed=514 draft=7`;
-- eccezioni modificatore: `1`;
-- projection SHA-256:
-  `adde34cb70dee35008604ca8733151a3a75488ae0407fe78e92ccd4931f9d622`.
-
-Prove di grounding sul catalogo execution:
+Prove storiche di grounding sul catalogo execution, da ripetere nel gate v2:
 
 - `mood Romantico` -> `@video_pg.mood = "Romantico"`;
 - `ultimo canale Italia 1` -> `@video_pg.last_live_channel_code = "I1"`;
@@ -137,10 +152,14 @@ Sul tenant fissato:
 - R8 Catalog/Field/ValueItem/ListEntry: verde;
 - semantic surface, describe/values schema 2, sync rewrite/merge, object fields,
   KV, driver PostgreSQL `19/19` e formatter idempotente: verdi;
-- test Model 1 della proiezione, quarantena draft, nested path, tamper e
-  grounding downstream: verdi;
-- `make check`: `2188 passed, 2 skipped`, exit code zero; gli skip sono quelli
-  già previsti dalla suite e non riguardano la coda semantica.
+- test Model 1 storici della proiezione, quarantena draft, nested path, tamper e
+  grounding downstream: verdi; non sostituiscono la receipt current v2 ancora
+  aperta;
+- gate storico alla chiusura della sola coda semantica: `make check` con
+  `2188 passed, 2 skipped`, exit code zero; gli skip sono quelli già previsti
+  dalla suite e non riguardano la coda semantica. I gate di integrazione Brain
+  successivi sono registrati nella rispettiva lavagna attiva e non vanno
+  confusi con questo denominatore storico.
 
 ## 7. Confine con i pesi e lavoro successivo
 
@@ -152,10 +171,10 @@ corretti.
 
 Restano fuori da `SEMANTIC_CATALOG_READY`:
 
-- wiring della sessione Metis Brain ai retrieval `describe/values` e alla
-  proiezione execution;
-- emitter grounding -> `.metis`, compilazione e ciclo di correzione;
-- prova end-to-end Visix/Metis Fast e fallback remoto;
+- receipt current v2 dell'ereditarietà `@video` -> `@video_pg`;
+- chiusura del wiring Brain già implementato con guardia candidate, compilazione
+  e prova end-to-end Visix senza Apply;
+- prova end-to-end Metis Fast e fallback remoto;
 - hardening operativo della demo, inclusi M6, cold start PostgreSQL e
   navigazione log/trace;
 - eventuali cataloghi aggiunti da future revisioni del tenant, che entreranno
