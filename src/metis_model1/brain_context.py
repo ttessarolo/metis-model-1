@@ -63,12 +63,26 @@ class ContextSnapshot:
             if PurePosixPath(item.path).suffix == ".metis"
         }
 
+    def semantic_source_revision(self) -> str:
+        return canonical_sha256(
+            {
+                "schema_version": 1,
+                "context_revision": self.revision,
+                "files": [
+                    {"path": item.path, "sha256": item.sha256}
+                    for item in self.files
+                    if item.path.endswith(".metis")
+                ],
+            }
+        )
+
     def public_payload(self) -> dict[str, Any]:
         return {
             "schema_version": 1,
             "tenant_alias": self.tenant_alias,
             "tenant_id": self.tenant_id,
             "revision": self.revision,
+            "semantic_source_revision": self.semantic_source_revision(),
             "toolchain_binding": self.toolchain_binding,
             "file_count": len(self.files),
             "total_bytes": self.total_bytes,

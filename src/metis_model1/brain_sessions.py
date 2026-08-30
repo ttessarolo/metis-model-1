@@ -370,6 +370,19 @@ class SessionManager:
                 },
             }
 
+    def session_options(self, *, client_id: str) -> dict[str, Any]:
+        """Return only bootstrap-authorized client grants, never roots or paths."""
+        try:
+            policy = self._policies[client_id]
+        except KeyError as error:
+            raise BrainError("CLIENT_NOT_AUTHORIZED", 403, "client is not authorized") from error
+        return {
+            "schema_version": 1,
+            "client_id": policy.client_id,
+            "tenant_aliases": sorted(policy.tenant_aliases),
+            "capabilities": sorted(policy.capabilities),
+        }
+
     @contextmanager
     def operation(
         self,

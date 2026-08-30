@@ -19,6 +19,10 @@ CAPABILITIES = frozenset(
         "session.close",
         "context.read",
         "compile",
+        "chat.turn",
+        "chat.read",
+        "chat.cancel",
+        "chat.apply-preflight",
     }
 )
 
@@ -26,6 +30,9 @@ _ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _CLIENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{32,96}$")
 _REVISION_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_REQUEST_ID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
 
 
 @dataclass
@@ -133,6 +140,14 @@ def revision(value: Any, *, label: str = "expected_revision") -> str:
     if not isinstance(value, str) or _REVISION_RE.fullmatch(value) is None:
         fail("INVALID_SCHEMA", 400, f"{label} is invalid")
     return value
+
+
+def request_identifier(value: Any) -> str:
+    """Validate the stable, client-generated id used for turn idempotency."""
+
+    if not isinstance(value, str) or _REQUEST_ID_RE.fullmatch(value) is None:
+        fail("INVALID_SCHEMA", 400, "request_id is invalid")
+    return value.lower()
 
 
 def capability_set(value: Any, *, allow_empty: bool = False) -> frozenset[str]:

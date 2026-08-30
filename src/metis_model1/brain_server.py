@@ -18,6 +18,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_model_runtime import UnavailableModelRuntime
 from metis_model1.brain_protocol import (
     MAX_JSON_BYTES,
     BrainError,
@@ -28,8 +29,10 @@ from metis_model1.brain_protocol import (
     parse_json_object,
     revision,
 )
+from metis_model1.brain_retrieval import SnapshotRetriever
 from metis_model1.brain_sessions import ClientPolicy, SessionLimits, SessionManager
 from metis_model1.brain_tools import BrainCompiler, validate_compile_request
+from metis_model1.brain_turns import TurnRequest, TurnStore
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
@@ -261,10 +264,20 @@ class BrainApplication:
         runtime: BrainRuntime,
         manager: SessionManager,
         compiler: BrainCompiler,
+        retriever: Any | None = None,
+        model: Any | None = None,
     ) -> None:
         self.runtime = runtime
         self.manager = manager
         self.compiler = compiler
+        self.retriever = retriever or SnapshotRetriever()
+        self.model = model or UnavailableModelRuntime()
+        self.turns = TurnStore(
+            manager=manager,
+            retriever=self.retriever,
+            model=self.model,
+            compiler=compiler,
+        )
 
     def authenticate_bootstrap(self, token: str) -> None:
         if not self.runtime.authenticate(token):
@@ -278,9 +291,12 @@ class BrainApplication:
             "protocol": "v1",
             "compiler_configured": True,
             "compiler_executions": getattr(self.compiler, "execution_count", 0),
-            "model_loaded": False,
+            "model_loaded": bool(getattr(self.model, "model_loaded", False)),
             "metrics": self.manager.aggregate_metrics(),
         }
+
+    def close(self) -> None:
+        self.turns.shutdown()
 
 
 class _ThreadingBrainHTTPServer(http.server.ThreadingHTTPServer):
@@ -421,9 +437,50 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
         except BrainError:
             return None
 
+    @staticmethod
+    def _turn_route(path: str, suffix: str = "") -> tuple[str, str] | None:
+        prefix = "/v1/sessions/"
+        if not path.startswith(prefix) or not path.endswith(suffix):
+            return None
+        middle = path[len(prefix) : len(path) - len(suffix) if suffix else None]
+        parts = middle.split("/")
+        if len(parts) != 3 or parts[1] != "turns":
+            return None
+        try:
+            session_id = bounded_identifier(parts[0], kind="session")
+        except BrainError:
+            return None
+        turn_id = parts[2]
+        if not turn_id or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+            for character in turn_id
+        ):
+            return None
+        return session_id, turn_id
+
+    @staticmethod
+    def _turn_collection_route(path: str) -> str | None:
+        prefix = "/v1/sessions/"
+        marker = "/turns"
+        if not path.startswith(prefix) or not path.endswith(marker):
+            return None
+        middle = path[len(prefix) : -len(marker)]
+        if not middle or "/" in middle:
+            return None
+        try:
+            return bounded_identifier(middle, kind="session")
+        except BrainError:
+            return None
+
     def _dispatch_get(self, path: str) -> tuple[int, dict[str, Any]]:
         if path == "/v1/health":
             return 200, self.app.health()
+        turn_route = self._turn_route(path)
+        if turn_route is not None:
+            session_id, turn_id = turn_route
+            return 200, self.app.turns.get(
+                session_id=session_id, token=self._bearer(), turn_id=turn_id
+            )
         session_id = self._session_route(path)
         if session_id is None:
             raise BrainError("INVALID_ROUTE", 404, "route is unavailable")
@@ -432,6 +489,12 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
     def _dispatch_post(self, path: str) -> tuple[int, dict[str, Any]]:
         body = self._body()
         token = self._bearer()
+        if path == "/v1/session-options":
+            self.app.authenticate_bootstrap(token)
+            exact_fields(body, required={"client_id"}, label="session options request")
+            return 200, self.app.manager.session_options(
+                client_id=bounded_identifier(body["client_id"], kind="client")
+            )
         if path == "/v1/sessions":
             self.app.authenticate_bootstrap(token)
             exact_fields(
@@ -445,6 +508,23 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
                 requested_capabilities=capability_set(body["capabilities"]),
             )
             return 201, opened.payload()
+
+        turn_route = self._turn_route(path, "/apply-preflight")
+        if turn_route is not None:
+            session_id, turn_id = turn_route
+            return 200, self.app.turns.apply_preflight(
+                session_id=session_id, token=token, turn_id=turn_id, body=body
+            )
+        session_id = self._turn_collection_route(path)
+        if session_id is not None:
+            request = TurnRequest.parse(body)
+            record = self.app.turns.submit(session_id=session_id, token=token, request=request)
+            return 202, {
+                "schema_version": 1,
+                "turn_id": record.turn_id,
+                "request_id": request.request_id,
+                "status": record.status,
+            }
 
         session_id = self._session_route(path, "/context")
         if session_id is not None:
@@ -494,16 +574,60 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
         raise BrainError("INVALID_ROUTE", 404, "route is unavailable")
 
     def _dispatch_delete(self, path: str) -> tuple[int, dict[str, Any]]:
+        turn_route = self._turn_route(path)
+        if turn_route is not None:
+            session_id, turn_id = turn_route
+            return 200, self.app.turns.cancel(
+                session_id=session_id, token=self._bearer(), turn_id=turn_id
+            )
         session_id = self._session_route(path)
         if session_id is None:
             raise BrainError("INVALID_ROUTE", 404, "route is unavailable")
         return 200, self.app.manager.close(session_id=session_id, token=self._bearer())
+
+    def _dispatch_sse(self, path: str) -> None:
+        turn_route = self._turn_route(path, "/events")
+        if turn_route is None:
+            raise BrainError("INVALID_ROUTE", 404, "route is unavailable")
+        session_id, turn_id = turn_route
+        last_header = self.headers.get("Last-Event-ID", "0")
+        if not last_header.isascii() or not last_header.isdigit():
+            raise BrainError("INVALID_SCHEMA", 400, "Last-Event-ID is invalid")
+        record, events = self.app.turns.events(
+            session_id=session_id,
+            token=self._bearer(),
+            turn_id=turn_id,
+            last_event_id=int(last_header),
+        )
+        if record.terminal is None:
+            with record.condition:
+                record.condition.wait(timeout=30.0)
+                events = [
+                    item for item in record.events if item["data"]["sequence"] > int(last_header)
+                ]
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        for item in events:
+            sequence = item["data"]["sequence"]
+            raw = canonical_json(item["data"])
+            self.wfile.write(f"id: {sequence}\nevent: {item['event']}\ndata: ".encode())
+            self.wfile.write(raw)
+            self.wfile.write(b"\n\n")
+        self.wfile.flush()
+        self.close_connection = True
 
     def _handle(self, method: str) -> None:
         try:
             path = self._guard_transport()
             if method == "GET":
                 self._require_no_body()
+                if path.endswith("/events"):
+                    self._dispatch_sse(path)
+                    return
                 status, payload = self._dispatch_get(path)
             elif method == "POST":
                 status, payload = self._dispatch_post(path)
@@ -657,6 +781,7 @@ class MetisBrainService:
                 if self._serving.is_set():
                     self.httpd.shutdown()
                 self.httpd.server_close()
+                self.app.close()
                 self.app.manager.shutdown()
                 if (
                     self._server_thread is not None

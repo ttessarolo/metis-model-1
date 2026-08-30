@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "pin_id": "metis-brain-toolchain/2026-08-30-v1",
+  "repository": "ares-matioska/metis",
+  "revision": "c9f410a9b9b28e61dd1505b661ebc996e388e6e0",
+  "tree": "40bb657e67cf3521ca94bcc8a636031bcb50815f",
+  "remote_url": "git@github.com:ttessarolo/metis.git",
+  "remote_ref": "refs/remotes/origin/main",
+  "language_version": "0.43",
+  "tooling_version": "0.23.93",
+  "runtime": {
+    "node_version": "v22.22.3",
+    "node_sha256": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
+    "node_bytes": 112915776,
+    "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463",
+    "package_sha256": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b",
+    "lock_sha256": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21"
+  },
+  "evidence": [
+    {"id": "grammar", "path": "tooling/src/language/metis.langium", "blob_oid": "7812a896fbf5c7b97683c6a487ed390687bff3d1", "sha256": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"},
+    {"id": "generated_ast", "path": "tooling/src/language/generated/ast.ts", "blob_oid": "d3cfddc50a860a81be24c96851fe023913493a3a", "sha256": "sha256:1debeb436e056cd44992d20cb2dcbc62c7d10c01d09536d5250e0f80c19747f4"},
+    {"id": "generated_grammar", "path": "tooling/src/language/generated/grammar.ts", "blob_oid": "53dd0b033a6d21abd19261f008a4182119da4b14", "sha256": "sha256:1133e3d7ab27c774cdf625166227394b42a2a6ff1c4b649bf73b1d8b9ead1175"},
+    {"id": "domain_resolver", "path": "tooling/src/language/field-values.ts", "blob_oid": "f2c1e363111e8fedf8ae2535dc0f7bcf555d397d", "sha256": "sha256:34d41e628f7ddf3aa1c92d0407dfecc5cac574e45c5fe77e4b7c30785c742899"},
+    {"id": "semantic_authority", "path": "tooling/src/language/catalog-semantics.ts", "blob_oid": "6200b609a5409635f940bb4f9cb6d8ca7916cde1", "sha256": "sha256:7b822a9a506e985465af770e8207b3992d584c8d739bc2f44fbeb425761ab2f1"},
+    {"id": "validator", "path": "tooling/src/language/metis-validator.ts", "blob_oid": "001e97b5041df82d3cc22a74fbaddf07ade46cfd", "sha256": "sha256:7ce438164272d009759de01a507e8a1b032c428881a4328262b5ecf5cae179fd"},
+    {"id": "formatter", "path": "tooling/src/language/metis-formatter.ts", "blob_oid": "112e3da66eef6cb2a914fd326a86dfd2fd5eba38", "sha256": "sha256:77bdd32cb53a6b729363a61658999e0ad55003cec5ff335cd38844f86b4f527c"},
+    {"id": "language_compiler_bridge", "path": "tooling/src/language/metis-compile.ts", "blob_oid": "abd5df1f76b887aabe31aafd5f2c622107a36e8b", "sha256": "sha256:5680c22985e9dc39388888bd9d08ec791a15bc1d4b8169dd31a8a7cd1d2f2270"},
+    {"id": "compiler", "path": "tooling/src/compiler/compile.ts", "blob_oid": "3682b1f093bbab9f03701141101b2bc9372a3665", "sha256": "sha256:b9799ae73a5a79aba09ded0dd228e24fe23ec1a314376628a8a784aa0f3d7bf4"},
+    {"id": "ir_contract", "path": "tooling/src/compiler/ir.ts", "blob_oid": "64f3735aa6cc677c57dc7f496a6ac44eebba03e0", "sha256": "sha256:88059ec5ee41810a5da02a8192dbd3ffe1b05b69cacc555466cc51bd2f2ca797"},
+    {"id": "retrieval_cli", "path": "tooling/src/cli/catalog-domain.ts", "blob_oid": "028233f24af3989328df676f01f22197b5d5ee89", "sha256": "sha256:3750094c836cc50e5df7e469f9a05fbfef27c69f2b4e1787e37a8a90ceaeda58"},
+    {"id": "semantic_retrieval_oracle", "path": "tooling/test/catalog-semantic.ts", "blob_oid": "c63dfaa43929b23395add6bec84eebd0148ab78c", "sha256": "sha256:e9e02bed80c74533115a9b275e5dddb5351d86fdb69aa61e88d2e04c02e1d52e"},
+    {"id": "r8_description", "path": "tooling/test/r8-description-invariant.ts", "blob_oid": "0350c44490ebb20538211f3c8500d25d65da83b0", "sha256": "sha256:651f52b8ed82f584cad8209a136a90022c4019ab4a64a13b8416c4e73a2cf70d"},
+    {"id": "r8_surface", "path": "tooling/test/r8-semantic-surface.ts", "blob_oid": "6bb94d02c32cf0f80a645f607bc55992b7d31718", "sha256": "sha256:0a21cab1a52ed4a8d67374cbddae81e55eac415f7da6e5e048586dfd055659b5"},
+    {"id": "tooling_package", "path": "tooling/package.json", "blob_oid": "277b1da4ed8795f734ed6cb2536bba907eeee85a", "sha256": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b"},
+    {"id": "tooling_lock", "path": "tooling/package-lock.json", "blob_oid": "95d7663087dffe5e0241a1ff9a5abe67a0aadb60", "sha256": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21"}
+  ],
+  "probes": [
+    {"id": "typecheck", "cwd": "tooling", "argv": ["node", "node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.probes.json"], "success_marker": null},
+    {"id": "semantic_retrieval", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-semantic.ts"], "success_marker": "catalog semantic retrieval (schema 2): VERDE ✓"},
+    {"id": "r8_description", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/r8-description-invariant.ts"], "success_marker": "R8 invariante (esteso a Catalog/Field/ValueItem/ListEntry): OK"},
+    {"id": "r8_surface", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/r8-semantic-surface.ts"], "success_marker": "superficie semantica: OK"}
+  ],
+  "policy": {
+    "git_objects_only": true,
+    "remote_ref_contains_revision_required": true,
+    "tracked_worktree_excluded": true,
+    "untracked_worktree_excluded": true,
+    "archive_execution": true,
+    "network_denied": true,
+    "external_repository_writes_denied": true
+  },
+  "nonclaims": [
+    "no_tenant_payload",
+    "no_model_output",
+    "no_training_authority",
+    "no_accuracy_claim",
+    "no_autonomous_writes",
+    "nonpromotable"
+  ]
+}
