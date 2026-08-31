@@ -294,6 +294,7 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
     try:
         health = app.health()
         assert health["turn_schema_versions"] == [1, 2]
+        assert health["clarification_answer_schema_versions"] == [1]
         assert health["model_identity"] == {
             "model_revision": model.model_revision,
             "adapter_sha256": model.adapter_sha256,

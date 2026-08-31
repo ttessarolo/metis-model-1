@@ -74,6 +74,12 @@ def _opaque(value: Any, *, name: str, max_bytes: int = MAX_VALUE_BYTES) -> str:
     return text
 
 
+def clarification_reference(value: Any, *, name: str) -> str:
+    """Validate the exact opaque-reference surface emitted on the public clarification wire."""
+
+    return _opaque(value, name=name, max_bytes=MAX_VALUE_BYTES)
+
+
 def _fingerprint(value: Any, *, name: str) -> str:
     text = _bounded_text(value, name=name, max_bytes=72)
     if _SHA256_RE.fullmatch(text) is None:

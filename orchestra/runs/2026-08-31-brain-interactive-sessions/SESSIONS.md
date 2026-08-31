@@ -11,6 +11,12 @@
 | L106 | Claim/lifecycle audit | `gpt-5.6-sol` / inherited | Queued answer claims, worker errors and cleanup | none | read-only source audit plus L0 regressions | done |
 | L107 | Visix interactive consumer | `gpt-5.6-sol` / inherited | Strict schema-2 parser, native Quick Pick/input and proposal-basis resume | isolated Metis tooling worktree only | Brain chat suite, typecheck and VSIX package | integrated |
 | L108 | Final architecture audit | `gpt-5.6-sol` / maximum | Bounded adversarial review of current wave | none | P0/P1/P2 roster and final verdict | done |
+| L109 | Chat UX contract audit | `gpt-5.6-luna` / high | Modal-vs-chat consumer census and bounded delta | none | current VSIX source and API evidence | done |
+| L110 | VS Code Chat API audit | `gpt-5.6-luna` / high | Native participant continuation and metadata capabilities | none | current VS Code API typings and contract evidence | done |
+| L111 | Universal dialogue audit | `gpt-5.6-sol` / maximum | Brain-vs-client ownership and Metis Fast reuse | none | protocol/state boundary verdict | done |
+| L112 | Universal answer route tests | `gpt-5.6-luna` / high | Compact server-side clarification resume regressions | one focused Model 1 test file | focused Ruff/pytest | integrated |
+| L113 | Visix chat dialogue tests | `gpt-5.6-luna` / high | Chat answer parsing, expiry, identity and concurrency | one focused Metis test file | focused TS suite | integrated |
+| L114 | Final dialogue audit | `gpt-5.6-sol` / maximum | Adversarial review after opaque-ref and cancellation fixes | none | 19/19 diff roster, P0/P1/P2 verdict | done |
 
 ## Global exclusions
 

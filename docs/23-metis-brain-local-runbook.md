@@ -91,6 +91,8 @@ workspace corrente.
 - `semantic_retrieval.enabled=true`, `schema=2`: campi e valori vengono scelti
   dal catalogo tenant pinnato, non memorizzati nei pesi;
 - `turn_schema_versions=[1,2]`: v2 abilita dialogo tipizzato e memoria volatile;
+- `clarification_answer_schema_versions=[1]`: i client possono riprendere una
+  domanda tramite la route compatta `/answer` senza reinviare il prompt;
   v1 resta il percorso legacy senza domande numeriche non rappresentabili;
 - `metrics`: sessioni, turni, conversazioni e domande pendenti sono osservabili
   senza prompt, token o sorgenti.

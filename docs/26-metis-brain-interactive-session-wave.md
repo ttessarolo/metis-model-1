@@ -1,11 +1,14 @@
 # Metis Brain: interactive session memory wave
 
-Status: **IN IMPLEMENTATION**.
+Status: **IMPLEMENTED**. The universal Brain contract and first VS Code
+consumer are delivered; the final rendered-draft observation in the installed
+extension is pending only because the Mac locked after the live turn completed.
 
 ## Outcome
 
-The native VS Code `@metis` participant can continue one tenant-scoped
-conversation with Brain. Brain asks only questions derived from a concrete
+Any authorized UX can continue one tenant-scoped conversation with Brain. The
+native VS Code `@metis` participant is the first consumer; Metis Fast will use
+the same wire contract. Brain asks only questions derived from a concrete
 ambiguity, consumes each answer once, remembers the accepted decision for the
 current session and removes all addressable conversation state when that
 session closes or expires after 20 minutes of inactivity.
@@ -18,6 +21,14 @@ for legacy clients and receives only its representable legacy behavior: Brain
 never sends it numeric `result_count` or `response_shape` questions. Active and
 terminal turn envelopes mirror the submitted turn schema. Health advertises
 both accepted turn versions explicitly.
+
+The universal resume surface is
+`POST /v1/sessions/{session_id}/turns/{parent_turn_id}/answer`. Its closed
+schema contains only `schema_version: 1`, a fresh `request_id`, the server-issued
+`clarification_id` and one typed `answer` (`option_ref` or `integer`). Brain
+recovers instruction, intent, target, basis and both revisions from the parent
+turn. A client therefore never reconstructs or resubmits the original prompt
+envelope when Giulia answers a question.
 
 ## Volatile memory contents
 
@@ -123,14 +134,23 @@ state, and are not persistent or reusable memory.
 A retry with the same idempotency key may replay its already-recorded terminal
 response while the session exists; it cannot consume a clarification twice.
 
+Each UX conversation opens its own Brain session. The UX may retain in RAM only
+the session credentials required by the transport, the parent turn identifier
+and the visible typed question needed to render the next interaction. The
+pending decision, original request and one-shot authority remain server-owned.
+VS Code `conversation_ref` is only a local routing hint; Metis Fast may use its
+own UI conversation identifier without changing Brain semantics.
+
 ## VS Code behavior
 
 The selected workspace tenant opens the Brain session. Giulia is never asked
-to restate it. Catalog, semantic and total-versus-page choices render as
-readable options; result count renders as a bounded numeric input. A future
-fallback question will use the same option UI only after authoritative
-alternatives exist.
-After an answer Brain resumes the original request, not a
+to restate it. Catalog, semantic and total-versus-page questions are written in
+the Chat as an ordinary Brain message; the next `@metis` message is interpreted
+only as its answer. Choices are numbered and also accept the exact visible
+label; result count accepts a bounded integer. A future fallback question will
+use the same chat-turn protocol only after authoritative alternatives exist.
+No InputBox or Quick Pick interrupts the conversation. After an answer Brain
+resumes the original request from the server-owned parent turn, not a
 client-reconstructed prompt.
 
 Presentation refinement is deliberately narrow. “Rendi più chiara l'etichetta

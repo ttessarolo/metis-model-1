@@ -39,7 +39,7 @@ from metis_model1.brain_tools import (
     PinnedCatalogProjectionLoader,
     validate_compile_request,
 )
-from metis_model1.brain_turns import TurnRequest, TurnStore
+from metis_model1.brain_turns import ClarificationAnswerRequest, TurnRequest, TurnStore
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
@@ -374,6 +374,7 @@ class BrainApplication:
             "service": "metis-brain",
             "protocol": "v1",
             "turn_schema_versions": [1, 2],
+            "clarification_answer_schema_versions": [1],
             "compiler_configured": True,
             "compiler_executions": getattr(self.compiler, "execution_count", 0),
             "model_loaded": bool(getattr(self.model, "model_loaded", False)),
@@ -614,6 +615,22 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
             return 200, self.app.turns.apply_preflight(
                 session_id=session_id, token=token, turn_id=turn_id, body=body
             )
+        turn_route = self._turn_route(path, "/answer")
+        if turn_route is not None:
+            session_id, parent_turn_id = turn_route
+            answer = ClarificationAnswerRequest.parse(body)
+            record = self.app.turns.answer(
+                session_id=session_id,
+                token=token,
+                parent_turn_id=parent_turn_id,
+                answer=answer,
+            )
+            return 202, {
+                "schema_version": record.request.schema_version,
+                "turn_id": record.turn_id,
+                "request_id": record.request.request_id,
+                "status": record.status,
+            }
         session_id = self._turn_collection_route(path)
         if session_id is not None:
             request = TurnRequest.parse(body)

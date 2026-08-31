@@ -70,9 +70,11 @@ state; queued futures are cancelled before starting retrieval/model work.
    instruction/target while answering a pending question.
 7. Session close, idle expiry, shutdown or snapshot invalidation removes all
    turns, pending questions, decisions and proposal memory for that session.
-8. VS Code renders Quick Pick for option questions and a bounded numeric input
-   for result count; it uses the already-open tenant session and never asks
-   Giulia to type the tenant again.
+8. Brain owns every typed question and accepted answer through a universal
+   compact resume route. VS Code renders the question in the native chat and
+   treats Giulia's next `@metis` message as its answer; Metis Fast will render
+   the same Brain-owned turn contract in its own UX. Neither client rebuilds
+   the original prompt or asks Giulia to type the already-open tenant again.
 
 ## Acceptance gates
 
@@ -89,7 +91,7 @@ state; queued futures are cancelled before starting retrieval/model work.
 
 ## Status
 
-`IN_PROGRESS`
+`CODE_COMPLETE — FINAL RENDERED-DRAFT OBSERVATION PENDING MAC UNLOCK`
 
 ## Evidence wire
 
@@ -133,5 +135,45 @@ state; queued futures are cancelled before starting retrieval/model work.
   `170` tenant endpoints with `0` errors, has file SHA-256
   `12fa89e5460a8ed1086e161d080cd5f09b034f6ffb89a43d0eef4f1b01d34d38`,
   and is installed as `metis.metis-dsl@0.23.96`.
-- OPEN — the final real no-Apply VS Code dialogue remains required before
-  promotion; Computer Use reports the Mac locked, so no UI action was attempted.
+- FACT — an earlier no-Apply attempt could not start because the Mac was
+  locked; the later v0.23.97 attempt below supersedes that precondition.
+- FACT — the first installed-v0.23.96 smoke falsified the modal consumer: the
+  extension asked for an endpoint name outside the chat and did not expose the
+  pending Brain clarification there. No Apply or tenant write occurred.
+- DECISION — clarification is a universal Metis Brain mechanism, not Visix
+  business logic. `POST /v1/sessions/{sid}/turns/{parent_tid}/answer` accepts
+  only request/clarification identity plus one typed answer; Brain reconstructs
+  instruction, target, basis and pinned revisions from the parent turn.
+- FIX — v0.23.97 removes endpoint-name, option and numeric modals from
+  `@metis`, derives a confined draft name, renders Brain questions directly in
+  chat and binds the next chat message to the exact parent clarification.
+  Client volatile state is limited to the parent turn and visible typed
+  question; prompt/target replay is absent.
+- DONE — final frontier dialogue audit roster
+  `in=19 out=19 distinct=19 gaps=0`, verdict GREEN with `P0=0 P1=0 P2=0`.
+  Core Brain `74/74`, Visix consumer `29/29`, Ruff, TypeScript typecheck and
+  diff checks are green.
+- DONE — rebuilt v0.23.97 package validates `170` tenant endpoints with `0`
+  errors and has deterministic content digest
+  `sha256:70d98c0a72f196df867d7d0c837eb190af1fb101ea430c26065d8438cb2a4404`;
+  the installed extension reports `metis.metis-dsl@0.23.97`.
+- FACT — live Mac smoke with VPN down and read-only `play-demo` reached the
+  Brain-owned chat question "Quanti risultati complessivi vuoi?" with no
+  modal. The next chat turn `24` resumed the original request server-side
+  without repeating tenant, catalog or instruction. Draft/compile evidence is
+  still pending; Apply remains forbidden.
+- FACT — after the resumed turn, unauthenticated live health reported
+  `turns=2 clarification_decisions=1 pending=0 in_flight=0
+  compiler_executions=1`, proving one consumed answer and one completed
+  compiler execution. The Mac locked before L0 could inspect the rendered
+  draft text; that final visual check remains open and no Apply occurred.
+- DONE — Metis/Visix commit `9d8cc665d4020077f859fd02b130a2a5d0d54593`
+  is pushed both to `origin/codex/metis-brain-visix` and `origin/main`; main
+  and the worktree branch are clean and aligned to their upstream refs.
+- DONE — authoritative final `make check` exited `0`: foundation
+  `passes=85 errors=0 files=543`, Ruff check/format green, repository suite
+  `2612 passed, 2 skipped, 22 warnings` in `2768.55s`.
+- FACT — post-smoke `play-demo` remains clean and aligned to `origin/main`;
+  VPN stayed down and no tenant file or Apply operation was performed.
+- OPEN — inspect the already-completed draft in the installed VS Code chat and
+  confirm its rendered `take 24 from` body once the Mac is manually unlocked.

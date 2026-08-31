@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from metis_model1.brain_clarifications import ClarificationStore
+from metis_model1.brain_clarifications import ClarificationStore, clarification_reference
 from metis_model1.brain_model_runtime import BrainModelRuntime
 from metis_model1.brain_protocol import (
     MAX_SOURCE_BYTES,
@@ -160,16 +160,14 @@ class TurnRequest:
             else:
                 required.add("answer")
             exact_fields(clarification, required=required, label="clarification response")
-            if not _REF_RE.fullmatch(str(clarification["clarification_id"])):
-                raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
+            clarification_reference(clarification["clarification_id"], name="clarification_id")
             revision(clarification["context_revision"], label="clarification context revision")
             revision(
                 clarification["semantic_source_revision"],
                 label="clarification semantic revision",
             )
             if schema_version == 1:
-                if not _REF_RE.fullmatch(str(clarification["option_ref"])):
-                    raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
+                clarification_reference(clarification["option_ref"], name="option_ref")
                 clarification = {
                     "clarification_id": clarification["clarification_id"],
                     "option_ref": clarification["option_ref"],
@@ -186,8 +184,7 @@ class TurnRequest:
                     label="clarification answer",
                 )
                 if "option_ref" in answer:
-                    if not _REF_RE.fullmatch(str(answer["option_ref"])):
-                        raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+                    clarification_reference(answer["option_ref"], name="option_ref")
                     parsed_answer: dict[str, Any] = {"option_ref": answer["option_ref"]}
                 else:
                     integer = answer.get("integer")
@@ -259,6 +256,54 @@ class TurnRequest:
 
     def with_server_basis_grounding(self, value: dict[str, Any]) -> TurnRequest:
         return replace(self, server_basis_grounding=dict(value))
+
+
+@dataclass(frozen=True)
+class ClarificationAnswerRequest:
+    """Client-neutral answer to one server-owned pending clarification."""
+
+    schema_version: int
+    request_id: str
+    clarification_id: str
+    answer: dict[str, Any]
+
+    @classmethod
+    def parse(cls, value: dict[str, Any]) -> ClarificationAnswerRequest:
+        exact_fields(
+            value,
+            required={"schema_version", "request_id", "clarification_id", "answer"},
+            label="clarification answer request",
+        )
+        if type(value["schema_version"]) is not int or value["schema_version"] != 1:
+            raise BrainError(
+                "INVALID_SCHEMA", 400, "clarification answer schema version is unsupported"
+            )
+        request_id = request_identifier(value["request_id"])
+        clarification_id = clarification_reference(
+            value["clarification_id"], name="clarification_id"
+        )
+        answer = value["answer"]
+        if not isinstance(answer, dict):
+            raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+        exact_fields(
+            answer,
+            required={"option_ref"} if "option_ref" in answer else {"integer"},
+            label="clarification answer",
+        )
+        if "option_ref" in answer:
+            option_ref = clarification_reference(answer["option_ref"], name="option_ref")
+            parsed_answer: dict[str, Any] = {"option_ref": option_ref}
+        else:
+            integer = answer.get("integer")
+            if type(integer) is not int or not 1 <= integer <= 1_000_000:
+                raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+            parsed_answer = {"integer": integer}
+        return cls(
+            schema_version=1,
+            request_id=request_id,
+            clarification_id=clarification_id,
+            answer=parsed_answer,
+        )
 
 
 @dataclass
@@ -652,6 +697,55 @@ class TurnStore:
             session_id=session_id, token=token, turn_id=turn_id, capability="chat.read"
         )
         return record.public_status()
+
+    def answer(
+        self,
+        *,
+        session_id: str,
+        token: str,
+        parent_turn_id: str,
+        answer: ClarificationAnswerRequest,
+    ) -> TurnRecord:
+        """Resume a pending request without making the client replay its original envelope."""
+
+        parent = self._authenticate_record(
+            session_id=session_id,
+            token=token,
+            turn_id=parent_turn_id,
+            capability="chat.turn",
+        )
+        terminal = parent.public_status()
+        clarification = terminal.get("clarification")
+        if (
+            terminal.get("status") != "completed"
+            or terminal.get("outcome") != "needs_clarification"
+            or not isinstance(clarification, dict)
+        ):
+            raise BrainError(
+                "CLARIFICATION_UNAVAILABLE", 409, "parent turn has no pending clarification"
+            )
+        if clarification.get("clarification_id") != answer.clarification_id:
+            raise BrainError(
+                "CLARIFICATION_MISMATCH", 409, "clarification does not belong to parent turn"
+            )
+        original = parent.request
+        request = TurnRequest(
+            schema_version=2,
+            request_id=answer.request_id,
+            expected_context_revision=original.expected_context_revision,
+            expected_semantic_source_revision=original.expected_semantic_source_revision,
+            intent=original.intent,
+            instruction=original.instruction,
+            target=dict(original.target),
+            basis=dict(original.basis) if original.basis is not None else None,
+            clarification_response={
+                "clarification_id": answer.clarification_id,
+                "answer": dict(answer.answer),
+                "context_revision": original.expected_context_revision,
+                "semantic_source_revision": original.expected_semantic_source_revision,
+            },
+        )
+        return self.submit(session_id=session_id, token=token, request=request)
 
     def cancel(self, *, session_id: str, token: str, turn_id: str) -> dict[str, Any]:
         record = self._authenticate_record(
