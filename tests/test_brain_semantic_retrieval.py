@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import threading
+from contextlib import contextmanager
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -8,12 +10,15 @@ from typing import Any
 import pytest
 
 from metis_model1.brain_context import ContextSnapshot, SnapshotFile
-from metis_model1.brain_protocol import BrainError
+from metis_model1.brain_model_runtime import ModelCandidate
+from metis_model1.brain_orchestrator import BrainOrchestrator
+from metis_model1.brain_protocol import BrainError, canonical_sha256
 from metis_model1.brain_semantic_retrieval import (
     MAX_FIELDS,
     LoadedProjection,
     Schema2SnapshotRetriever,
 )
+from metis_model1.brain_turns import TurnRecord, TurnRequest
 from metis_model1.video_catalog_projection import PROJECTION_CONTRACT
 
 HASH_A = "sha256:" + "a" * 64
@@ -136,6 +141,79 @@ def _projection(*, second_owner: bool = False, mirror_only: bool = False) -> dic
         "thresholds": {"inline-max": 12, "enum-max": 300},
         "catalogs": catalogs,
     }
+
+
+def _refinement_projection() -> dict[str, Any]:
+    projection = _projection()
+    fields = projection["catalogs"][0]["fields"]
+    fields[0]["domain"]["size"] = 3
+    fields[0]["domain"]["values"].append(
+        {
+            "literal": "Documentario",
+            "semantic": _semantic(
+                "reviewed",
+                "catalogs/video.metis",
+                22,
+                text="opera documentaria",
+            ),
+        }
+    )
+    fields.extend(
+        [
+            _field(
+                "country",
+                "catalogs/video.metis",
+                40,
+                text="paese di produzione",
+                domain={
+                    "kind": "inline",
+                    "size": 2,
+                    "values": [
+                        {
+                            "literal": "Francia",
+                            "semantic": _semantic(
+                                "reviewed",
+                                "catalogs/video.metis",
+                                41,
+                                text="opera prodotta in Francia",
+                            ),
+                        },
+                        {
+                            "literal": "Germania",
+                            "semantic": _semantic(
+                                "draft",
+                                "catalogs/video.metis",
+                                42,
+                                text="opera prodotta in Germania",
+                            ),
+                        },
+                    ],
+                },
+            ),
+            _field(
+                "award",
+                "catalogs/video.metis",
+                50,
+                text="riconoscimento editoriale",
+                domain={
+                    "kind": "inline",
+                    "size": 1,
+                    "values": [
+                        {
+                            "literal": "Premiato",
+                            "semantic": _semantic(
+                                "reviewed",
+                                "catalogs/video.metis",
+                                51,
+                                text="opera che ha ricevuto un premio",
+                            ),
+                        }
+                    ],
+                },
+            ),
+        ]
+    )
+    return projection
 
 
 def _snapshot(*, revision: str = HASH_A, binding: str = HASH_C) -> ContextSnapshot:
@@ -355,28 +433,760 @@ def test_catalog_inference_keeps_unique_owner_and_prefers_reviewed_general_field
     assert result.grounding["selections"][0]["field"] == "genre"
 
 
-def test_clarification_option_is_path_inert_and_rebinds_selected_catalog() -> None:
+def test_only_server_owned_clarification_rebinds_selected_catalog() -> None:
     snapshot = _snapshot()
     retriever = Schema2SnapshotRetriever(_bound_loader(lambda: _projection(second_owner=True)))
     first = retriever.retrieve(lease=_lease(snapshot), request=_request("crea endpoint"))
     users = next(item for item in first.catalog_candidates if item["catalog"] == "users")
     assert "." not in users["option_ref"]
-    request = SimpleNamespace(
-        instruction="crea endpoint country",
+    raw_request = SimpleNamespace(
+        instruction="crea endpoint",
         clarification_response={
             "option_ref": users["option_ref"],
             "context_revision": snapshot.revision,
             "semantic_source_revision": snapshot.semantic_source_revision(),
         },
     )
+    ignored = retriever.retrieve(lease=_lease(snapshot), request=raw_request)
+    assert ignored.grounding["status"] == "clarify"
+
+    request = SimpleNamespace(
+        instruction="crea endpoint country",
+        server_clarification={"kind": "catalog", "resolved_value": "users"},
+    )
     selected = retriever.retrieve(lease=_lease(snapshot), request=request)
     assert selected.context["catalog"]["name"] == "users"
     assert selected.grounding["catalogs"] == ["users"]
 
-    request.clarification_response["context_revision"] = HASH_B
-    with pytest.raises(BrainError) as raised:
-        retriever.retrieve(lease=_lease(snapshot), request=request)
-    assert raised.value.code == "SEMANTIC_SOURCE_STALE"
+
+def test_server_owned_semantic_choice_resolves_means_tie_without_losing_surface() -> None:
+    snapshot = _snapshot()
+    projection = _projection()
+    projection["catalogs"][0]["fields"].append(
+        _field("genre_alt", "catalogs/video.metis", 45, text="genere editoriale")
+    )
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: projection))
+
+    first = retriever.retrieve(lease=_lease(snapshot), request=_request("@video genere editoriale"))
+    assert first.grounding["status"] == "clarify"
+    assert len(first.grounding["candidates"]) == 2
+    chosen = next(item for item in first.grounding["candidates"] if item["field"] == "genre")
+    assert chosen["matched_surfaces"] == ["genere editoriale"]
+
+    request = SimpleNamespace(
+        instruction="@video genere editoriale",
+        server_clarification={
+            "kind": "semantic_choice",
+            "resolved_value": chosen["option_ref"],
+        },
+    )
+    selected = retriever.retrieve(lease=_lease(snapshot), request=request)
+    assert selected.grounding["status"] == "resolved"
+    assert selected.grounding["unresolved"] == []
+    assert selected.grounding["candidates"] == []
+    assert selected.grounding["selections"][0]["field"] == "genre"
+
+
+def test_all_server_owned_semantic_decisions_replay_in_order() -> None:
+    snapshot = _snapshot()
+    projection = _projection()
+    projection["catalogs"][0]["fields"].extend(
+        [
+            _field("genre_alt", "catalogs/video.metis", 45, text="genere editoriale"),
+            _field("mood_alt", "catalogs/video.metis", 46, text="tono narrativo"),
+        ]
+    )
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: projection))
+    instruction = "@video genere editoriale, tono narrativo"
+
+    first = retriever.retrieve(lease=_lease(snapshot), request=_request(instruction))
+    assert first.grounding["status"] == "clarify"
+    assert len(first.grounding["candidates"]) == 4
+    genre = next(item for item in first.grounding["candidates"] if item["field"] == "genre")
+    mood = next(item for item in first.grounding["candidates"] if item["field"] == "mood")
+    assert genre["clause_ref"] != mood["clause_ref"]
+
+    selected = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_clarification={
+                "decisions": [
+                    {"kind": "semantic_choice", "resolved_value": genre["option_ref"]},
+                    {"kind": "semantic_choice", "resolved_value": mood["option_ref"]},
+                ]
+            },
+        ),
+    )
+    assert selected.grounding["status"] == "resolved"
+    assert selected.grounding["candidates"] == []
+    assert {item["field"] for item in selected.grounding["selections"]} == {
+        "genre",
+        "mood",
+    }
+
+
+def test_refinement_does_not_replay_semantic_choice_already_absorbed_by_basis() -> None:
+    snapshot = _snapshot()
+    projection = _refinement_projection()
+    projection["catalogs"][0]["fields"].append(
+        _field("genre_alt", "catalogs/video.metis", 60, text="genere editoriale")
+    )
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: projection))
+    instruction = "@video genere editoriale"
+
+    ambiguous = retriever.retrieve(lease=_lease(snapshot), request=_request(instruction))
+    chosen = next(item for item in ambiguous.grounding["candidates"] if item["field"] == "genre")
+    decision = {"kind": "semantic_choice", "resolved_value": chosen["option_ref"]}
+    selected = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_clarification={
+                "decisions": [decision],
+                "current_decision": decision,
+            },
+        ),
+    )
+    assert selected.grounding["status"] == "resolved"
+    assert selected.grounding["selections"][0]["field"] == "genre"
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="rendi più chiara l'etichetta dell'endpoint",
+            server_basis_grounding=selected.grounding,
+            server_clarification={"decisions": [decision]},
+        ),
+    )
+    assert refined.grounding["status"] == "resolved"
+    assert refined.grounding["selections"][0]["field"] == "genre"
+    assert refined.grounding["nonsemantic_refinement"] == {
+        "kind": "endpoint_label",
+        "source": "server_basis",
+    }
+
+
+def test_explicit_refinement_catalog_overrides_historical_catalog_choice() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: _projection(second_owner=True)))
+    basis = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("@video Film"),
+    ).grounding
+    historical = {
+        "kind": "catalog",
+        "resolved_value": "video",
+    }
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="ora usa @users country",
+            server_basis_grounding=basis,
+            server_clarification={"decisions": [historical]},
+        ),
+    )
+    assert refined.context["catalog"]["name"] == "users"
+    assert refined.grounding["catalogs"] == ["users"]
+    assert refined.grounding["selections"][0]["field"] == "country"
+
+
+def test_semantic_clause_digest_covers_full_clause_beyond_public_preview() -> None:
+    snapshot = _snapshot()
+    projection = _projection()
+    projection["catalogs"][0]["fields"].append(
+        _field("genre_alt", "catalogs/video.metis", 45, text="genere editoriale")
+    )
+    long_token = "z" * 520
+    full_clause = f"{long_token} genere editoriale"
+    result = Schema2SnapshotRetriever(_bound_loader(lambda: projection)).retrieve(
+        lease=_lease(snapshot), request=_request(f"@video {full_clause}")
+    )
+    candidate = result.grounding["candidates"][0]
+    assert len(candidate["clause"]) == 256
+    assert candidate["clause_ref"] == canonical_sha256({"clause": full_clause})
+    assert candidate["clause_ref"] != canonical_sha256({"clause": candidate["clause"]})
+
+
+def test_refinement_reuses_reviewed_proposal_basis_inside_same_snapshot() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_projection))
+    first = retriever.retrieve(lease=_lease(snapshot), request=_request("@video Film"))
+    assert first.grounding["status"] == "resolved"
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="porta il numero di risultati a 30",
+            server_basis_grounding=first.grounding,
+        ),
+    )
+    assert refined.grounding["status"] == "resolved"
+    assert refined.grounding["selections"][0]["literal"] == "Film"
+    assert refined.context["catalog"]["name"] == "video"
+
+
+@pytest.mark.parametrize(
+    ("instruction", "contracts", "generic_pagination"),
+    [
+        ("@video Film 24 risultati", (("count", 24),), False),
+        ("@video 24 film", (("count", 24),), False),
+        ("@video Film paginati", (), True),
+        ("@video Film 24 risultati per pagina", (("page", 24),), True),
+        ("@video Film 24 per pagina", (("page", 24),), True),
+    ],
+)
+def test_output_surface_is_removed_before_production_semantic_grounding(
+    instruction: str,
+    contracts: tuple[tuple[str, int], ...],
+    generic_pagination: bool,
+) -> None:
+    retrieved = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(instruction),
+    )
+
+    assert retrieved.grounding["status"] == "resolved"
+    assert [item["literal"] for item in retrieved.grounding["selections"]] == ["Film"]
+    assert retrieved.output_request is not None
+    assert retrieved.output_request.contracts == contracts
+    assert retrieved.output_request.generic_pagination is generic_pagination
+    assert "24" not in retrieved.output_request.semantic_instruction
+    assert "pagin" not in retrieved.output_request.semantic_instruction.casefold()
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "@video Film senza paginazione",
+        "@video Film non paginato",
+        "@video Film, non 24 risultati",
+        "@video Film senza 24 risultati",
+        "@video Film non voglio 24 risultati",
+        "@video Film al massimo 24 risultati",
+        "@video Film fino a 24 risultati",
+        "@video Film non oltre 24 risultati",
+    ],
+)
+def test_negated_output_language_remains_semantic_residue_and_fails_closed(
+    instruction: str,
+) -> None:
+    retrieved = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(instruction),
+    )
+    assert retrieved.output_request is not None
+    assert retrieved.output_request.contracts == ()
+    assert retrieved.output_request.generic_pagination is False
+    assert retrieved.grounding["status"] == "unsupported"
+    assert retrieved.grounding["unresolved"]
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "@video Film -5 risultati",
+        "@video Film +5 risultati",
+        "@video Film .5 risultati per pagina",
+        "@video Film pagina da -5",
+    ],
+)
+def test_signed_or_fractional_output_numbers_are_marked_invalid(
+    instruction: str,
+) -> None:
+    retrieved = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(instruction),
+    )
+    assert retrieved.output_request is not None
+    assert retrieved.output_request.contracts == ()
+    assert retrieved.output_request.invalid_numeric_output is True
+
+
+def test_reviewed_value_with_quantifier_word_does_not_trigger_output_question() -> None:
+    projection = _refinement_projection()
+    projection["catalogs"][0]["fields"].append(
+        _field(
+            "dialogue_density",
+            "catalogs/video.metis",
+            60,
+            text="densità dei dialoghi",
+            domain={
+                "kind": "inline",
+                "size": 1,
+                "values": [
+                    {
+                        "literal": "Pochi dialoghi",
+                        "semantic": _semantic(
+                            "reviewed",
+                            "catalogs/video.metis",
+                            61,
+                            text="opera con pochi scambi verbali",
+                        ),
+                    }
+                ],
+            },
+        )
+    )
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: projection))
+    basis = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("@video Film"),
+    ).grounding
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="aggiungi Pochi dialoghi",
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "resolved"
+    assert [item["literal"] for item in refined.grounding["selections"]] == [
+        "Film",
+        "Pochi dialoghi",
+    ]
+    assert refined.output_request is not None
+    assert refined.output_request.ambiguous_count is False
+
+
+def test_quantifier_bound_to_output_noun_requests_exact_total() -> None:
+    retrieved = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request("@video Film pochi risultati"),
+    )
+    assert retrieved.grounding["status"] == "resolved"
+    assert [item["literal"] for item in retrieved.grounding["selections"]] == ["Film"]
+    assert retrieved.output_request is not None
+    assert retrieved.output_request.ambiguous_count is True
+
+
+@pytest.mark.parametrize(
+    ("instruction", "take_source", "expected_take"),
+    [
+        (
+            "@video Film 24 risultati",
+            "take 24 from @video",
+            {"mode": "count", "value": 24, "source": "operator_confirmed"},
+        ),
+        (
+            "@video Film paginati",
+            "take page from @video",
+            {"mode": "page", "page_size": {"mode": "tenant"}},
+        ),
+        (
+            "@video Film 24 per pagina",
+            "take page default 24 from @video",
+            {
+                "mode": "page",
+                "page_size": {
+                    "mode": "local_default",
+                    "value": 24,
+                    "source": "operator_confirmed",
+                },
+            },
+        ),
+    ],
+)
+def test_production_retriever_and_orchestrator_share_one_output_parse(
+    instruction: str,
+    take_source: str,
+    expected_take: dict[str, Any],
+) -> None:
+    snapshot = _snapshot()
+    lease = SimpleNamespace(snapshot=snapshot, cancellation=threading.Event())
+
+    class Manager:
+        @contextmanager
+        def operation(self, **_kwargs: object):
+            yield lease
+
+    class Model:
+        model_revision = "model-test"
+        adapter_sha256 = "adapter-test"
+
+        def __init__(self) -> None:
+            self.requests: list[Any] = []
+
+        def generate(self, request: Any) -> ModelCandidate:
+            self.requests.append(request)
+            return ModelCandidate(
+                f"""metis 0.43
+endpoint demo.test as "Test" {{
+  {take_source}
+  include where @genre is "Film"
+  return response.expanded
+}}
+""",
+                self.model_revision,
+                self.adapter_sha256,
+            )
+
+    class Compiler:
+        toolchain_binding = HASH_C
+
+        def compile(self, **_kwargs: object) -> dict[str, str]:
+            return {"status": "ok", "toolchain_binding": self.toolchain_binding}
+
+    request = TurnRequest(
+        2,
+        "123e4567-e89b-12d3-a456-426614174000",
+        snapshot.revision,
+        snapshot.semantic_source_revision(),
+        "create",
+        instruction,
+        {
+            "mode": "create",
+            "relative_path": "candidate.metis",
+            "endpoint": None,
+            "base_sha256": None,
+        },
+        None,
+        None,
+    )
+    record = TurnRecord("t" * 24, "s" * 32, request, request.payload_hash)
+    model = Model()
+    result = BrainOrchestrator(
+        retriever=Schema2SnapshotRetriever(_bound_loader(_projection)),
+        model=model,
+        compiler=Compiler(),
+    ).run(
+        manager=Manager(),
+        session_id="s" * 32,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert result["outcome"] == "proposed"
+    assert model.requests[0].grounding["output_contract"]["take"] == expected_take
+
+
+def _reviewed_refinement_basis(
+    retriever: Schema2SnapshotRetriever, snapshot: ContextSnapshot
+) -> dict[str, Any]:
+    result = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("@video Film, Premiato"),
+    )
+    assert result.grounding["status"] == "resolved"
+    assert {item["literal"] for item in result.grounding["selections"]} == {
+        "Film",
+        "Premiato",
+    }
+    return result.grounding
+
+
+def test_explicit_endpoint_label_refinement_preserves_reviewed_filters() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="rendi più chiara l'etichetta dell'endpoint",
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "resolved"
+    assert [item["literal"] for item in refined.grounding["selections"]] == [
+        "Film",
+        "Premiato",
+    ]
+    assert refined.grounding["nonsemantic_refinement"] == {
+        "kind": "endpoint_label",
+        "source": "server_basis",
+    }
+
+
+def test_ambiguous_title_refinement_asks_scope_then_applies_only_label_choice() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+    instruction = "rendi il titolo più chiaro"
+
+    ambiguous = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+        ),
+    )
+    assert ambiguous.grounding["status"] == "clarify"
+    assert [item["literal"] for item in ambiguous.grounding["selections"]] == [
+        "Film",
+        "Premiato",
+    ]
+    assert [item["label"] for item in ambiguous.grounding["candidates"]] == [
+        "Etichetta dell'endpoint",
+        "Metadato @title",
+    ]
+    label_option = ambiguous.grounding["candidates"][0]["option_ref"]
+    field_option = ambiguous.grounding["candidates"][1]["option_ref"]
+
+    label_refine = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+            server_clarification={
+                "decisions": [{"kind": "semantic_choice", "resolved_value": label_option}],
+                "current_decision": {
+                    "kind": "semantic_choice",
+                    "resolved_value": label_option,
+                },
+            },
+        ),
+    )
+    assert label_refine.grounding["status"] == "resolved"
+    assert [item["literal"] for item in label_refine.grounding["selections"]] == [
+        "Film",
+        "Premiato",
+    ]
+    assert label_refine.grounding["nonsemantic_refinement"]["kind"] == "endpoint_label"
+
+    field_refine = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+            server_clarification={
+                "decisions": [{"kind": "semantic_choice", "resolved_value": field_option}],
+                "current_decision": {
+                    "kind": "semantic_choice",
+                    "resolved_value": field_option,
+                },
+            },
+        ),
+    )
+    assert field_refine.grounding["status"] == "unsupported"
+    assert field_refine.grounding["selections"] == []
+    assert field_refine.grounding["unresolved"] == ["rendi titolo più chiaro"]
+
+
+def test_title_refinement_does_not_ask_false_catalog_option_without_title_field() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: _projection(second_owner=True)))
+    basis = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("@users country"),
+    ).grounding
+    assert basis["status"] == "resolved"
+    assert basis["catalogs"] == ["users"]
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="rendi il titolo più chiaro",
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "resolved"
+    assert refined.grounding["candidates"] == []
+    assert refined.grounding["nonsemantic_refinement"] == {
+        "kind": "endpoint_label",
+        "source": "server_basis",
+    }
+    assert [item["field"] for item in refined.grounding["selections"]] == ["country"]
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "modifica il formato della risposta",
+        "modifica il formato della risposta e rimuovi Film",
+        "rendi l'etichetta dell'endpoint più chiara e aggiungi Francia",
+        "rinomina l'endpoint usando Sport",
+        "cambia il titolo in Francia",
+    ],
+)
+def test_unbounded_structural_refinements_remain_unsupported(instruction: str) -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "unsupported"
+    assert refined.grounding["selections"] == []
+    assert refined.grounding["unresolved"]
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "sostituisci Film con Francia",
+        "cambia Film in Francia",
+        "usa Francia invece di Film",
+        "rimuovi Film e usa Francia",
+    ],
+)
+def test_explicit_replace_refinement_preserves_every_other_prior_selection(
+    instruction: str,
+) -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "resolved"
+    assert [item["literal"] for item in refined.grounding["selections"]] == [
+        "Premiato",
+        "Francia",
+    ]
+    assert all(item["literal"] != "Film" for item in refined.grounding["selections"])
+
+
+def test_explicit_add_and_remove_apply_one_reviewed_delta_only() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    added = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="aggiungi Francia",
+            server_basis_grounding=basis,
+        ),
+    )
+    assert added.grounding["status"] == "resolved"
+    assert [item["literal"] for item in added.grounding["selections"]] == [
+        "Film",
+        "Premiato",
+        "Francia",
+    ]
+
+    removed = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="rimuovi Film",
+            server_basis_grounding=basis,
+        ),
+    )
+    assert removed.grounding["status"] == "resolved"
+    assert [item["literal"] for item in removed.grounding["selections"]] == ["Premiato"]
+
+
+def test_same_field_replace_requires_one_unambiguous_prior_member() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="cambia genre in Documentario",
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "resolved"
+    assert [item["literal"] for item in refined.grounding["selections"]] == [
+        "Premiato",
+        "Documentario",
+    ]
+
+    ambiguous_basis = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("@video Film, Documentario, Premiato"),
+    ).grounding
+    assert [item["literal"] for item in ambiguous_basis["selections"]] == [
+        "Film",
+        "Documentario",
+        "Premiato",
+    ]
+    ambiguous = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="cambia genre in Film",
+            server_basis_grounding=ambiguous_basis,
+        ),
+    )
+    assert ambiguous.grounding["status"] == "unsupported"
+    assert ambiguous.grounding["selections"] == []
+
+    explicit = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="rimuovi Film",
+            server_basis_grounding=ambiguous_basis,
+        ),
+    )
+    assert [item["literal"] for item in explicit.grounding["selections"]] == [
+        "Documentario",
+        "Premiato",
+    ]
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "sostituisci Film con Sport",
+        "aggiungi mood",
+        "sostituisci Francia con Film",
+        "sostituisci Film con Francia domani",
+        "trasforma Film in Francia",
+    ],
+)
+def test_refinement_draft_open_residue_and_ambiguous_verbs_fail_closed(
+    instruction: str,
+) -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_refinement_projection))
+    basis = _reviewed_refinement_basis(retriever, snapshot)
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction=instruction,
+            server_basis_grounding=basis,
+        ),
+    )
+
+    assert refined.grounding["status"] == "unsupported"
+    assert refined.grounding["selections"] == []
+    assert all(
+        item.get("literal") not in {"Sport", "Francia"} for item in refined.grounding["selections"]
+    )
+
+
+def test_refinement_rejects_draft_value_in_server_basis() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_projection))
+    reviewed = retriever.retrieve(lease=_lease(snapshot), request=_request("@video Film"))
+    poisoned = copy.deepcopy(reviewed.grounding)
+    poisoned["selections"][0]["literal"] = "Sport"
+    poisoned["selections"][0]["literals"] = ["Sport"]
+
+    refined = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=SimpleNamespace(
+            instruction="porta il numero di risultati a 30",
+            server_basis_grounding=poisoned,
+        ),
+    )
+    assert refined.grounding["status"] == "unsupported"
+    assert refined.grounding["selections"] == []
+    assert all(item.get("literal") != "Sport" for item in refined.grounding["selections"])
 
 
 def test_unbound_projection_is_rejected() -> None:

@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 import secrets
 import threading
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from metis_model1.brain_clarifications import ClarificationStore
 from metis_model1.brain_model_runtime import BrainModelRuntime
 from metis_model1.brain_protocol import (
     MAX_SOURCE_BYTES,
@@ -27,6 +28,7 @@ _TURN_RE = re.compile(r"^[A-Za-z0-9_-]{24,96}$")
 _REF_RE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
 _PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 _INTENTS = frozenset({"create", "edit", "repair", "review", "migrate"})
+MAX_SESSION_TURNS = 64
 _EVENTS = frozenset(
     {
         "turn.accepted",
@@ -88,7 +90,17 @@ class TurnRequest:
     instruction: str
     target: dict[str, Any]
     basis: dict[str, str] | None
-    clarification_response: dict[str, str] | None
+    clarification_response: dict[str, Any] | None
+    server_clarification: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    server_basis_grounding: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
     @classmethod
     def parse(cls, value: dict[str, Any]) -> TurnRequest:
@@ -107,7 +119,8 @@ class TurnRequest:
             },
             label="turn request",
         )
-        if value["schema_version"] != 1:
+        schema_version = value["schema_version"]
+        if type(schema_version) is not int or schema_version not in {1, 2}:
             raise BrainError("INVALID_SCHEMA", 400, "turn schema version is unsupported")
         request_id = request_identifier(value["request_id"])
         expected_context = revision(value["expected_context_revision"], label="context revision")
@@ -137,33 +150,58 @@ class TurnRequest:
         if clarification is not None:
             if not isinstance(clarification, dict):
                 raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
-            exact_fields(
-                clarification,
-                required={
-                    "clarification_id",
-                    "option_ref",
-                    "context_revision",
-                    "semantic_source_revision",
-                },
-                label="clarification response",
-            )
+            required = {
+                "clarification_id",
+                "context_revision",
+                "semantic_source_revision",
+            }
+            if schema_version == 1:
+                required.add("option_ref")
+            else:
+                required.add("answer")
+            exact_fields(clarification, required=required, label="clarification response")
             if not _REF_RE.fullmatch(str(clarification["clarification_id"])):
-                raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
-            if not _REF_RE.fullmatch(str(clarification["option_ref"])):
                 raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
             revision(clarification["context_revision"], label="clarification context revision")
             revision(
                 clarification["semantic_source_revision"],
                 label="clarification semantic revision",
             )
-            clarification = {
-                "clarification_id": clarification["clarification_id"],
-                "option_ref": clarification["option_ref"],
-                "context_revision": clarification["context_revision"],
-                "semantic_source_revision": clarification["semantic_source_revision"],
-            }
+            if schema_version == 1:
+                if not _REF_RE.fullmatch(str(clarification["option_ref"])):
+                    raise BrainError("INVALID_SCHEMA", 400, "clarification response is invalid")
+                clarification = {
+                    "clarification_id": clarification["clarification_id"],
+                    "option_ref": clarification["option_ref"],
+                    "context_revision": clarification["context_revision"],
+                    "semantic_source_revision": clarification["semantic_source_revision"],
+                }
+            else:
+                answer = clarification["answer"]
+                if not isinstance(answer, dict):
+                    raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+                exact_fields(
+                    answer,
+                    required={"option_ref"} if "option_ref" in answer else {"integer"},
+                    label="clarification answer",
+                )
+                if "option_ref" in answer:
+                    if not _REF_RE.fullmatch(str(answer["option_ref"])):
+                        raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+                    parsed_answer: dict[str, Any] = {"option_ref": answer["option_ref"]}
+                else:
+                    integer = answer.get("integer")
+                    if type(integer) is not int or not 1 <= integer <= 1_000_000:
+                        raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
+                    parsed_answer = {"integer": integer}
+                clarification = {
+                    "clarification_id": clarification["clarification_id"],
+                    "answer": parsed_answer,
+                    "context_revision": clarification["context_revision"],
+                    "semantic_source_revision": clarification["semantic_source_revision"],
+                }
         return cls(
-            schema_version=1,
+            schema_version=schema_version,
             request_id=request_id,
             expected_context_revision=expected_context,
             expected_semantic_source_revision=expected_semantic,
@@ -191,6 +229,37 @@ class TurnRequest:
     def payload_hash(self) -> str:
         return canonical_sha256(self.payload())
 
+    @property
+    def request_fingerprint(self) -> str:
+        """Stable logical request identity, excluding retry/answer envelopes."""
+
+        return canonical_sha256(
+            {
+                "expected_context_revision": self.expected_context_revision,
+                "expected_semantic_source_revision": self.expected_semantic_source_revision,
+                "intent": self.intent,
+                "instruction": self.instruction,
+                "target": self.target,
+                "basis": self.basis,
+            }
+        )
+
+    @property
+    def clarification_answer(self) -> dict[str, Any] | None:
+        response = self.clarification_response
+        if response is None:
+            return None
+        if isinstance(response.get("answer"), dict):
+            return dict(response["answer"])
+        option_ref = response.get("option_ref")
+        return {"option_ref": option_ref} if isinstance(option_ref, str) else None
+
+    def with_server_clarification(self, value: dict[str, Any]) -> TurnRequest:
+        return replace(self, server_clarification=dict(value))
+
+    def with_server_basis_grounding(self, value: dict[str, Any]) -> TurnRequest:
+        return replace(self, server_basis_grounding=dict(value))
+
 
 @dataclass
 class TurnRecord:
@@ -198,6 +267,10 @@ class TurnRecord:
     session_id: str
     request: TurnRequest
     payload_hash: str
+    conversation_id: str | None = None
+    basis_source: str | None = None
+    basis_grounding: dict[str, Any] | None = None
+    clarification_decision: dict[str, Any] | None = None
     status: str = "queued"
     outcome: str | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -238,7 +311,7 @@ class TurnRecord:
             if self.terminal is not None:
                 return dict(self.terminal)
             return {
-                "schema_version": 1,
+                "schema_version": self.request.schema_version,
                 "turn_id": self.turn_id,
                 "request_id": self.request.request_id,
                 "status": self.status,
@@ -274,7 +347,14 @@ class TurnStore:
         self._turns: dict[str, TurnRecord] = {}
         self._idempotency: dict[tuple[str, str], tuple[str, str]] = {}
         self._active: set[str] = set()
+        self._futures: dict[str, Future[None]] = {}
+        # The executor queue owns only opaque IDs. Prompt-bearing records and
+        # bearer tokens remain in this bounded map so closing a queued session
+        # can erase them immediately without reaching into executor internals.
+        self._admitted_work: dict[str, tuple[TurnRecord, str]] = {}
         self._closed = False
+        self.clarifications = ClarificationStore()
+        self._manager.register_cleanup_listener(self.drop_session)
 
     @staticmethod
     def _new_id(existing: dict[str, TurnRecord]) -> str:
@@ -289,6 +369,7 @@ class TurnStore:
         self._manager._authenticate(  # noqa: SLF001
             session_id=session_id, token=token, capability="chat.turn"
         )
+        self.clarifications.touch_session(session_id)
         with self._lock:
             self._validate_basis_locked(session_id=session_id, request=request)
             if self._closed:
@@ -306,6 +387,15 @@ class TurnStore:
                 return self._turns[old_turn_id]
             if session_id in self._active:
                 raise BrainError("TURN_ACTIVE", 409, "one turn is already active for this session")
+            if request.clarification_response is None and self.clarifications.has_pending(
+                session_id
+            ):
+                raise BrainError(
+                    "CLARIFICATION_PENDING", 409, "answer the pending clarification first"
+                )
+            session_turns = sum(record.session_id == session_id for record in self._turns.values())
+            if session_turns >= MAX_SESSION_TURNS:
+                raise BrainError("TURN_LIMIT", 429, "session turn history is full")
             if len(self._active) >= self._max_queue:
                 raise BrainError("TURN_QUEUE_FULL", 429, "turn queue is full")
         # Admission performs the same immutable snapshot and target checks as the worker.
@@ -318,44 +408,152 @@ class TurnStore:
             self._validate_target_snapshot(lease, request)
             if request.expected_semantic_source_revision == "sha256:" + "0" * 64:
                 raise BrainError("STALE_CONTEXT", 409, "semantic source revision is unavailable")
-        with self._lock:
-            # Another request can have won the race while the snapshot was captured.
-            key = (session_id, request.request_id)
-            old = self._idempotency.get(key)
-            if old is not None:
-                if old[0] != request.payload_hash:
+            # Keep the authoritative session lease until the record is inserted
+            # and the worker is accepted.  A concurrent close/TTL cleanup can no
+            # longer finish and then be followed by a resurrected turn record.
+            with self._lock:
+                if lease.cancellation.is_set():
+                    raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+                # Another request can have won the race while the snapshot was captured.
+                key = (session_id, request.request_id)
+                old = self._idempotency.get(key)
+                if old is not None:
+                    if old[0] != request.payload_hash:
+                        raise BrainError(
+                            "IDEMPOTENCY_KEY_REUSE",
+                            409,
+                            "request_id was used with another payload",
+                        )
+                    return self._turns[old[1]]
+                if session_id in self._active:
                     raise BrainError(
-                        "IDEMPOTENCY_KEY_REUSE",
-                        409,
-                        "request_id was used with another payload",
+                        "TURN_ACTIVE", 409, "one turn is already active for this session"
                     )
-                return self._turns[old[1]]
-            if session_id in self._active:
-                raise BrainError("TURN_ACTIVE", 409, "one turn is already active for this session")
-            record = TurnRecord(
-                turn_id=self._new_id(self._turns),
-                session_id=session_id,
-                request=request,
-                payload_hash=request.payload_hash,
-            )
-            self._turns[record.turn_id] = record
-            self._idempotency[key] = (request.payload_hash, record.turn_id)
-            self._active.add(session_id)
-            record.emit("turn.accepted", "accepted", "Turn accettato")
-            try:
-                self._executor.submit(self._run, record, token)
-            except RuntimeError as error:
-                self._active.discard(session_id)
-                self._turns.pop(record.turn_id, None)
-                self._idempotency.pop(key, None)
-                raise BrainError(
-                    "SERVICE_UNAVAILABLE", 503, "turn service is unavailable"
-                ) from error
-            return record
+                if request.clarification_response is None and self.clarifications.has_pending(
+                    session_id
+                ):
+                    raise BrainError(
+                        "CLARIFICATION_PENDING", 409, "answer the pending clarification first"
+                    )
+                if request.clarification_response is not None:
+                    response = request.clarification_response
+                    self.clarifications.validate_answer(
+                        session_id=session_id,
+                        clarification_id=response["clarification_id"],
+                        request_fingerprint=request.request_fingerprint,
+                        context_revision=response["context_revision"],
+                        semantic_source_revision=response["semantic_source_revision"],
+                        answer=request.clarification_answer or {},
+                    )
+                if lease.cancellation.is_set():
+                    raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+                basis_record = self._validate_basis_locked(session_id=session_id, request=request)
+                turn_id = self._new_id(self._turns)
+                proposal = basis_record.terminal.get("proposal") if basis_record else None
+                basis_source = proposal.get("source") if isinstance(proposal, dict) else None
+                basis_grounding = (
+                    basis_record.terminal.get("grounding")
+                    if basis_record and isinstance(basis_record.terminal, dict)
+                    else None
+                )
+                if isinstance(basis_grounding, dict):
+                    request = request.with_server_basis_grounding(basis_grounding)
+                record = TurnRecord(
+                    turn_id=turn_id,
+                    session_id=session_id,
+                    request=request,
+                    payload_hash=request.payload_hash,
+                    conversation_id=(
+                        basis_record.conversation_id
+                        if basis_record and basis_record.conversation_id
+                        else request.request_fingerprint
+                    ),
+                    basis_source=basis_source if isinstance(basis_source, str) else None,
+                    basis_grounding=(
+                        dict(basis_grounding) if isinstance(basis_grounding, dict) else None
+                    ),
+                )
+                if lease.cancellation.is_set():
+                    raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+                if request.clarification_response is not None:
+                    response = request.clarification_response
+                    self.clarifications.validate_answer(
+                        session_id=session_id,
+                        clarification_id=response["clarification_id"],
+                        request_fingerprint=request.request_fingerprint,
+                        context_revision=response["context_revision"],
+                        semantic_source_revision=response["semantic_source_revision"],
+                        answer=request.clarification_answer or {},
+                        claim_owner=record.turn_id,
+                    )
+                self._turns[record.turn_id] = record
+                self._idempotency[key] = (request.payload_hash, record.turn_id)
+                self._active.add(session_id)
+                record.emit("turn.accepted", "accepted", "Turn accettato")
+                self._admitted_work[record.turn_id] = (record, token)
+                try:
+                    future = self._executor.submit(
+                        self._run_admitted,
+                        record.turn_id,
+                        record.session_id,
+                    )
+                except RuntimeError as error:
+                    self._admitted_work.pop(record.turn_id, None)
+                    self._active.discard(session_id)
+                    self._turns.pop(record.turn_id, None)
+                    self._idempotency.pop(key, None)
+                    self.clarifications.release_answer_claim(
+                        session_id=session_id,
+                        owner=record.turn_id,
+                    )
+                    raise BrainError(
+                        "SERVICE_UNAVAILABLE", 503, "turn service is unavailable"
+                    ) from error
+                self._futures[record.turn_id] = future
+                future.add_done_callback(
+                    lambda completed, turn_id=record.turn_id, owner_session=session_id: (
+                        self._forget_future(
+                            turn_id,
+                            owner_session,
+                            completed,
+                        )
+                    )
+                )
+                return record
 
-    def _validate_basis_locked(self, *, session_id: str, request: TurnRequest) -> None:
-        if request.basis is None:
+    def _run_admitted(self, turn_id: str, session_id: str) -> None:
+        with self._lock:
+            work = self._admitted_work.pop(turn_id, None)
+        if work is None:
+            self.clarifications.release_answer_claim(
+                session_id=session_id,
+                owner=turn_id,
+            )
+            self.clarifications.release_revocation_guard(session_id, owner=turn_id)
             return
+        record, token = work
+        self._run(record, token)
+
+    def _forget_future(
+        self,
+        turn_id: str,
+        session_id: str,
+        completed: Future[None],
+    ) -> None:
+        with self._lock:
+            if self._futures.get(turn_id) is completed:
+                self._futures.pop(turn_id, None)
+            self._admitted_work.pop(turn_id, None)
+        if completed.cancelled():
+            self.clarifications.release_answer_claim(
+                session_id=session_id,
+                owner=turn_id,
+            )
+            self.clarifications.release_revocation_guard(session_id, owner=turn_id)
+
+    def _validate_basis_locked(self, *, session_id: str, request: TurnRequest) -> TurnRecord | None:
+        if request.basis is None:
+            return None
         wanted = request.basis["proposal_ref"]
         for record in self._turns.values():
             terminal = record.terminal
@@ -372,8 +570,68 @@ class TurnStore:
                 != request.expected_semantic_source_revision
             ):
                 raise BrainError("PROPOSAL_STALE", 409, "proposal revision is stale")
-            return
+            if record.request.target != request.target:
+                raise BrainError("PROPOSAL_STALE", 409, "proposal target differs")
+            return record
         raise BrainError("PROPOSAL_STALE", 409, "proposal is unavailable")
+
+    def drop_session(self, session_id: str) -> None:
+        """Erase every volatile turn/proposal byte owned by one closed session."""
+
+        with self._lock:
+            doomed = [
+                turn_id
+                for turn_id, record in self._turns.items()
+                if record.session_id == session_id
+            ]
+            revocation_owner: str | None = None
+            if session_id in self._active:
+                revocation_owner = next(
+                    (
+                        turn_id
+                        for turn_id in reversed(doomed)
+                        if self._turns[turn_id].terminal is None
+                    ),
+                    doomed[-1] if doomed else None,
+                )
+            for turn_id in doomed:
+                record = self._turns.pop(turn_id)
+                record.cancellation.set()
+                self._admitted_work.pop(turn_id, None)
+                record.basis_source = None
+                record.basis_grounding = None
+                record.clarification_decision = None
+            for key in [key for key in self._idempotency if key[0] == session_id]:
+                self._idempotency.pop(key, None)
+            self._active.discard(session_id)
+            self.clarifications.drop_session(
+                session_id,
+                revocation_owner=revocation_owner,
+            )
+            for turn_id in doomed:
+                future = self._futures.get(turn_id)
+                if future is not None:
+                    future.cancel()
+
+    def aggregate_metrics(self) -> dict[str, int]:
+        with self._lock:
+            turn_metrics = {
+                "turns": len(self._turns),
+                "conversations": len(
+                    {
+                        (record.session_id, record.conversation_id)
+                        for record in self._turns.values()
+                        if record.conversation_id is not None
+                    }
+                ),
+            }
+        clarification_metrics = self.clarifications.metrics()
+        return {
+            **turn_metrics,
+            "pending": clarification_metrics["pending"],
+            "clarification_decisions": clarification_metrics["decisions"],
+            "clarification_assumptions": clarification_metrics["assumptions"],
+        }
 
     @staticmethod
     def _validate_target_snapshot(lease: OperationLease, request: TurnRequest) -> None:
@@ -403,6 +661,15 @@ class TurnStore:
             if record.terminal is None:
                 record.cancellation.set()
                 if record.status == "queued":
+                    with self._lock:
+                        self._admitted_work.pop(record.turn_id, None)
+                        future = self._futures.get(record.turn_id)
+                        if future is not None:
+                            future.cancel()
+                    self.clarifications.release_answer_claim(
+                        session_id=record.session_id,
+                        owner=record.turn_id,
+                    )
                     record.status = "cancelled"
                     self._finish(record, self._cancelled_payload(record))
             return record.public_status()
@@ -487,21 +754,59 @@ class TurnStore:
         try:
             from metis_model1.brain_orchestrator import BrainOrchestrator
 
+            request = record.request
+            if request.clarification_response is not None:
+                response = request.clarification_response
+                resolution = self.clarifications.answer(
+                    session_id=record.session_id,
+                    clarification_id=response["clarification_id"],
+                    request_fingerprint=request.request_fingerprint,
+                    context_revision=response["context_revision"],
+                    semantic_source_revision=response["semantic_source_revision"],
+                    answer=request.clarification_answer or {},
+                    claim_owner=record.turn_id,
+                )
+                record.clarification_decision = {
+                    **resolution.decision.payload(),
+                    "resolved_value": resolution.answer.resolved_value,
+                }
+            server_context = self.clarifications.server_context(
+                session_id=record.session_id,
+                request_fingerprint=record.conversation_id or request.request_fingerprint,
+            )
+            if server_context is not None and server_context["decisions"]:
+                latest = server_context["decisions"][-1]
+                current_decision = (
+                    {"current_decision": dict(record.clarification_decision)}
+                    if record.clarification_decision is not None
+                    else {}
+                )
+                request = request.with_server_clarification(
+                    {
+                        **latest,
+                        **server_context,
+                        **current_decision,
+                    }
+                )
+                record.request = request
+
             orchestrator = BrainOrchestrator(
                 retriever=self._retriever,
                 model=self._model,
                 compiler=self._compiler,
+                clarifications=self.clarifications,
             )
             result = orchestrator.run(
                 manager=self._manager,
                 session_id=record.session_id,
                 token=token,
-                request=record.request,
+                request=request,
                 record=record,
             )
             with record.condition:
                 if record.cancellation.is_set():
                     record.status = "cancelled"
+                    self._discard_cancelled_pending(record)
                     result = self._cancelled_payload(record)
                 else:
                     record.status = "completed"
@@ -509,14 +814,48 @@ class TurnStore:
         except BrainError as error:
             with record.condition:
                 record.status = "cancelled" if record.cancellation.is_set() else "failed"
+                self._discard_turn_pending(record)
                 self._finish(record, self._error_payload(record, error))
         except Exception:
             with record.condition:
-                record.status = "failed"
+                record.status = "cancelled" if record.cancellation.is_set() else "failed"
+                self._discard_turn_pending(record)
                 self._finish(
                     record,
                     self._error_payload(record, BrainError("INTERNAL_ERROR", 500, "turn failed")),
                 )
+        finally:
+            try:
+                if record.cancellation.is_set() and record.terminal is None:
+                    # If cancellation raced with retrieval, the orchestrator may
+                    # have created a question that never became visible in the
+                    # terminal response.  Remove only that turn's pending state;
+                    # accepted decisions from earlier rounds remain available.
+                    self.clarifications.discard_pending_for_turn(
+                        session_id=record.session_id,
+                        parent_turn_id=record.turn_id,
+                    )
+            finally:
+                try:
+                    self.clarifications.release_answer_claim(
+                        session_id=record.session_id,
+                        owner=record.turn_id,
+                    )
+                finally:
+                    self.clarifications.release_revocation_guard(
+                        record.session_id,
+                        owner=record.turn_id,
+                    )
+
+    def _discard_cancelled_pending(self, record: TurnRecord) -> None:
+        if record.cancellation.is_set():
+            self._discard_turn_pending(record)
+
+    def _discard_turn_pending(self, record: TurnRecord) -> None:
+        self.clarifications.discard_pending_for_turn(
+            session_id=record.session_id,
+            parent_turn_id=record.turn_id,
+        )
 
     def _finish(self, record: TurnRecord, payload: dict[str, Any]) -> None:
         if record.terminal is not None:
@@ -531,7 +870,7 @@ class TurnStore:
     def _error_payload(record: TurnRecord, error: BrainError) -> dict[str, Any]:
         cancelled = record.cancellation.is_set() or error.code == "SESSION_REVOKED"
         return {
-            "schema_version": 1,
+            "schema_version": record.request.schema_version,
             "turn_id": record.turn_id,
             "request_id": record.request.request_id,
             "status": "cancelled" if cancelled else "failed",
@@ -545,7 +884,7 @@ class TurnStore:
     @staticmethod
     def _cancelled_payload(record: TurnRecord) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": record.request.schema_version,
             "turn_id": record.turn_id,
             "request_id": record.request.request_id,
             "status": "cancelled",
@@ -559,4 +898,18 @@ class TurnStore:
             for record in self._turns.values():
                 if record.terminal is None:
                     record.cancellation.set()
-        self._executor.shutdown(wait=True, cancel_futures=False)
+            self._admitted_work.clear()
+            for future in tuple(self._futures.values()):
+                future.cancel()
+        self._executor.shutdown(wait=True, cancel_futures=True)
+        with self._lock:
+            for record in self._turns.values():
+                record.basis_source = None
+                record.basis_grounding = None
+                record.clarification_decision = None
+            self._turns.clear()
+            self._idempotency.clear()
+            self._active.clear()
+            self._futures.clear()
+            self._admitted_work.clear()
+        self.clarifications.clear()

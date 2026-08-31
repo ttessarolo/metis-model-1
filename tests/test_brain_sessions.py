@@ -83,6 +83,36 @@ def test_ttl_is_alive_before_1200_and_expired_at_exact_boundary(tmp_path: Path) 
     assert not overlay.exists()
 
 
+def test_cleanup_listener_runs_on_exact_expiry_and_receives_only_session_id(
+    tmp_path: Path,
+) -> None:
+    clock = FakeClock()
+    manager, _tenant_root = _manager(tmp_path, clock)
+    observed: list[str] = []
+    manager.register_cleanup_listener(observed.append)
+    opened = _open(manager)
+
+    clock.advance(1200)
+    with pytest.raises(BrainError):
+        manager.status(session_id=opened.session_id, token=opened.token)
+
+    assert observed == [opened.session_id]
+
+
+def test_cleanup_listener_runs_on_explicit_close_and_shutdown(tmp_path: Path) -> None:
+    clock = FakeClock()
+    manager, _tenant_root = _manager(tmp_path, clock)
+    observed: list[str] = []
+    manager.register_cleanup_listener(observed.append)
+    first = _open(manager)
+    second = _open(manager)
+
+    manager.close(session_id=first.session_id, token=first.token)
+    manager.shutdown()
+
+    assert sorted(observed) == sorted([first.session_id, second.session_id])
+
+
 def test_status_and_failed_auth_do_not_refresh_ttl(tmp_path: Path) -> None:
     clock = FakeClock()
     manager, _tenant_root = _manager(tmp_path, clock)
@@ -119,7 +149,7 @@ def test_admitted_semantic_operation_refreshes_activity(tmp_path: Path) -> None:
         manager.status(session_id=opened.session_id, token=opened.token)
 
 
-def test_inflight_operation_does_not_expire_mid_run_but_expires_after_release(
+def test_inflight_operation_refreshes_idle_window_when_released(
     tmp_path: Path,
 ) -> None:
     clock = FakeClock()
@@ -134,6 +164,14 @@ def test_inflight_operation_does_not_expire_mid_run_but_expires_after_release(
         clock.advance(1200)
         assert manager.sweep_expired() == 0
         assert manager.aggregate_metrics()["in_flight"] == 1
+    assert manager.status(session_id=opened.session_id, token=opened.token)["session"]["state"] == (
+        "active"
+    )
+    clock.advance(1199.999)
+    assert manager.status(session_id=opened.session_id, token=opened.token)["session"]["state"] == (
+        "active"
+    )
+    clock.advance(0.001)
     with pytest.raises(BrainError) as raised:
         manager.status(session_id=opened.session_id, token=opened.token)
     assert raised.value.code == "SESSION_UNAVAILABLE"
@@ -282,6 +320,8 @@ def test_post_operation_stale_guard_discards_result(tmp_path: Path) -> None:
     clock = FakeClock()
     manager, tenant = _manager(tmp_path, clock)
     opened = _open(manager)
+    cleaned: list[str] = []
+    manager.register_cleanup_listener(cleaned.append)
     with (
         pytest.raises(BrainError) as raised,
         manager.operation(
@@ -293,6 +333,34 @@ def test_post_operation_stale_guard_discards_result(tmp_path: Path) -> None:
     ):
         (tenant / "main.metis").write_text("metis 0.43\ntenant changed {}\n", encoding="utf-8")
     assert raised.value.code == "STALE_CONTEXT"
+    assert cleaned == [opened.session_id]
+    assert manager.aggregate_metrics()["sessions"] == 0
+
+
+def test_pre_operation_stale_guard_revokes_session_and_notifies_cleanup(
+    tmp_path: Path,
+) -> None:
+    clock = FakeClock()
+    manager, tenant = _manager(tmp_path, clock)
+    opened = _open(manager)
+    cleaned: list[str] = []
+    manager.register_cleanup_listener(cleaned.append)
+    (tenant / "main.metis").write_text("metis 0.43\ntenant changed {}\n", encoding="utf-8")
+
+    with (
+        pytest.raises(BrainError) as raised,
+        manager.operation(
+            session_id=opened.session_id,
+            token=opened.token,
+            capability="compile",
+            expected_revision=opened.context_revision,
+        ),
+    ):
+        raise AssertionError("stale operation must not start")
+
+    assert raised.value.code == "STALE_CONTEXT"
+    assert cleaned == [opened.session_id]
+    assert manager.aggregate_metrics() == {"sessions": 0, "active": 0, "in_flight": 0}
 
 
 def test_session_limits_fail_before_overlay_allocation(tmp_path: Path) -> None:
@@ -358,6 +426,8 @@ def test_cleanup_failure_keeps_revoked_session_and_reaper_retries(
     clock = FakeClock()
     manager, _tenant_root = _manager(tmp_path, clock)
     opened = _open(manager)
+    cleaned: list[str] = []
+    manager.register_cleanup_listener(cleaned.append)
     overlay = next(manager.runtime_root.glob("session-*"))
     original_rmdir = Path.rmdir
     fail_once = True
@@ -373,10 +443,12 @@ def test_cleanup_failure_keeps_revoked_session_and_reaper_retries(
     with pytest.raises(BrainError) as raised:
         manager.close(session_id=opened.session_id, token=opened.token)
     assert raised.value.code == "CLEANUP_FAILED"
+    assert cleaned == [opened.session_id]
     assert manager.aggregate_metrics()["sessions"] == 1
     with pytest.raises(BrainError):
         manager.status(session_id=opened.session_id, token=opened.token)
     assert manager.sweep_expired() == 1
+    assert cleaned == [opened.session_id]
     assert manager.aggregate_metrics()["sessions"] == 0
 
 

@@ -2,15 +2,62 @@
 
 from __future__ import annotations
 
+import re
 import secrets
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from metis_model1.brain_candidate_grounding import candidate_grounding_diagnostic
+from metis_model1.brain_candidate_grounding import (
+    candidate_grounding_diagnostic,
+    source_endpoint_has_fallback,
+    source_take_contract,
+    take_contract,
+)
+from metis_model1.brain_clarifications import (
+    DEFAULT_MAX_RESULT_COUNT,
+    ClarificationChoice,
+    ClarificationStore,
+)
 from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, ModelRequest
-from metis_model1.brain_protocol import BrainError, bytes_sha256
+from metis_model1.brain_output_contract import OutputRequestSurface, parse_output_request
+from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import BrainRetriever, RetrievalResult
 from metis_model1.brain_sessions import SessionManager
 from metis_model1.brain_turns import TurnRecord, TurnRequest
+
+
+def _server_decision(request: TurnRequest, kind: str) -> Mapping[str, Any] | None:
+    """Return the latest server-owned decision of ``kind`` for this request."""
+
+    context = request.server_clarification
+    if not isinstance(context, Mapping):
+        return None
+    decisions = context.get("decisions")
+    if isinstance(decisions, Sequence) and not isinstance(decisions, (str, bytes)):
+        for decision in reversed(decisions):
+            if isinstance(decision, Mapping) and decision.get("kind") == kind:
+                return decision
+    return context if context.get("kind") == kind else None
+
+
+def _current_server_decision(request: TurnRequest, kind: str) -> Mapping[str, Any] | None:
+    """Return only the decision consumed by this turn.
+
+    Historical decisions remain useful session memory, but a refinement's
+    explicit output surface must not be overridden by an answer already
+    incorporated into its proposal basis.  A top-level decision without the
+    conversation roster is retained for direct/internal callers.
+    """
+
+    context = request.server_clarification
+    if not isinstance(context, Mapping):
+        return None
+    current = context.get("current_decision")
+    if isinstance(current, Mapping):
+        return current if current.get("kind") == kind else None
+    if "decisions" not in context and context.get("kind") == kind:
+        return context
+    return None
 
 
 class BrainOrchestrator:
@@ -20,6 +67,7 @@ class BrainOrchestrator:
         retriever: BrainRetriever,
         model: BrainModelRuntime,
         compiler: Any,
+        clarifications: ClarificationStore | None = None,
         max_repairs: int = 2,
     ) -> None:
         if type(max_repairs) is not int or not 0 <= max_repairs <= 2:
@@ -27,6 +75,7 @@ class BrainOrchestrator:
         self._retriever = retriever
         self._model = model
         self._compiler = compiler
+        self._clarifications = clarifications or ClarificationStore()
         self._max_repairs = max_repairs
 
     def run(
@@ -65,16 +114,41 @@ class BrainOrchestrator:
                         "Serve una scelta di catalogo",
                         count=len(candidates),
                     )
-                    return self._clarification(record, request, retrieved)
+                    return self._catalog_clarification(
+                        session_id=session_id,
+                        record=record,
+                        request=request,
+                        retrieved=retrieved,
+                    )
                 record.emit("catalog.auto_selected", "catalog_selected", "Catalogo confermato")
             elif len(candidates) == 1:
                 record.emit("catalog.auto_selected", "catalog_selected", "Catalogo selezionato")
             elif not retrieved.grounding.get("catalogs"):
                 return self._unsupported(record, request, retrieved)
+            if retrieved.grounding.get("status") == "clarify" and retrieved.grounding.get(
+                "candidates"
+            ):
+                return self._semantic_clarification(
+                    session_id=session_id,
+                    record=record,
+                    request=request,
+                    retrieved=retrieved,
+                )
             if retrieved.grounding.get("status") not in {None, "resolved"}:
                 return self._unsupported(record, request, retrieved)
 
-            previous = lease.snapshot.source_map().get(request.target["relative_path"])
+            snapshot_previous = lease.snapshot.source_map().get(request.target["relative_path"])
+            previous = record.basis_source if record.basis_source is not None else snapshot_previous
+            output_clarification = self._prepare_output_contract(
+                session_id=session_id,
+                record=record,
+                request=request,
+                retrieved=retrieved,
+                previous_source=previous,
+            )
+            if output_clarification is not None:
+                return output_clarification
+
             model_request = ModelRequest(
                 instruction=request.instruction,
                 intent=request.intent,
@@ -209,7 +283,7 @@ class BrainOrchestrator:
                     422,
                     "candidate remains invalid after bounded repair",
                 )
-            return self._proposal(
+            result = self._proposal(
                 record=record,
                 request=request,
                 retrieved=retrieved,
@@ -219,6 +293,14 @@ class BrainOrchestrator:
                 previous=previous,
                 diagnostics=diagnostics,
             )
+            proposal = result.get("proposal")
+            if request.server_clarification is not None and isinstance(proposal, Mapping):
+                self._clarifications.set_latest_proposal(
+                    session_id=session_id,
+                    request_fingerprint=record.conversation_id or request.request_fingerprint,
+                    proposal_ref=proposal["proposal_ref"],
+                )
+            return result
 
     @staticmethod
     def _check_semantic_revision(request: TurnRequest, retrieved: RetrievalResult) -> None:
@@ -260,18 +342,12 @@ class BrainOrchestrator:
     def _selected_catalog(
         request: TurnRequest, retrieved: RetrievalResult
     ) -> dict[str, str] | None:
-        clarification = request.clarification_response
+        clarification = _server_decision(request, "catalog")
         if clarification is None:
             return None
-        if (
-            clarification["context_revision"] != request.expected_context_revision
-            or clarification["semantic_source_revision"]
-            != request.expected_semantic_source_revision
-        ):
-            raise BrainError("SEMANTIC_SOURCE_STALE", 409, "clarification revision is stale")
-        option_ref = clarification["option_ref"]
+        selected_value = clarification.get("resolved_value")
         for item in retrieved.catalog_candidates:
-            if item.get("option_ref") == option_ref or item.get("catalog") == option_ref:
+            if item.get("option_ref") == selected_value or item.get("catalog") == selected_value:
                 return item
         raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "catalog option is unavailable")
 
@@ -283,33 +359,49 @@ class BrainOrchestrator:
         value.setdefault("unresolved", [])
         return value
 
-    def _clarification(
-        self, record: TurnRecord, request: TurnRequest, retrieved: RetrievalResult
+    def _clarification_terminal(
+        self,
+        *,
+        session_id: str,
+        record: TurnRecord,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+        kind: str,
+        question: str,
+        question_key: str,
+        options: Sequence[ClarificationChoice] = (),
+        min_value: int = 1,
+        max_value: int = 1000,
+        assumptions: Sequence[str] = (),
     ) -> dict[str, Any]:
-        options = []
-        for item in retrieved.catalog_candidates[:5]:
-            catalog = item.get("catalog", "")
-            options.append(
-                {
-                    "option_ref": item.get("option_ref", catalog),
-                    "catalog": catalog,
-                    "label": item.get("label", catalog),
-                    "description": item.get("description", "Catalogo autorizzato"),
-                }
-            )
+        pending = self._clarifications.create_pending(
+            session_id=session_id,
+            parent_turn_id=record.turn_id,
+            request_fingerprint=request.request_fingerprint,
+            context_revision=request.expected_context_revision,
+            semantic_source_revision=request.expected_semantic_source_revision,
+            kind=kind,
+            question=question,
+            question_key=question_key,
+            options=options,
+            min_value=min_value,
+            max_value=max_value,
+            assumptions=assumptions,
+            conversation_key=record.conversation_id or request.request_fingerprint,
+        )
+        memory = self._clarifications.conversation(
+            session_id=session_id,
+            request_fingerprint=record.conversation_id or request.request_fingerprint,
+        ).payload()
         return {
-            "schema_version": 1,
+            "schema_version": request.schema_version,
             "turn_id": record.turn_id,
             "request_id": request.request_id,
             "status": "completed",
             "outcome": "needs_clarification",
             "route": "local",
-            "clarification": {
-                "clarification_id": "clarification-" + secrets.token_urlsafe(18),
-                "kind": "catalog",
-                "question": "Quale catalogo vuoi usare?",
-                "options": options,
-            },
+            "clarification": pending.payload(),
+            "session_memory": memory,
             "identity": self._identity(record, retrieved),
             "grounding": self._grounding(retrieved),
             "claims": {
@@ -320,6 +412,435 @@ class BrainOrchestrator:
             },
         }
 
+    def _catalog_clarification(
+        self,
+        *,
+        session_id: str,
+        record: TurnRecord,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+    ) -> dict[str, Any]:
+        if len(retrieved.catalog_candidates) > 5:
+            raise BrainError(
+                "CLARIFICATION_TOO_MANY_OPTIONS",
+                409,
+                "catalog ambiguity exceeds the interactive option bound",
+            )
+        options: list[ClarificationChoice] = []
+        for item in retrieved.catalog_candidates:
+            catalog = item.get("catalog", "")
+            options.append(
+                ClarificationChoice(
+                    label=item.get("label", catalog),
+                    value=catalog,
+                    description=item.get("description", "Catalogo autorizzato"),
+                    catalog=catalog,
+                )
+            )
+        return self._clarification_terminal(
+            session_id=session_id,
+            record=record,
+            request=request,
+            retrieved=retrieved,
+            kind="catalog",
+            question="Quale catalogo vuoi usare?",
+            question_key="catalog-selection",
+            options=options,
+        )
+
+    def _semantic_clarification(
+        self,
+        *,
+        session_id: str,
+        record: TurnRecord,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+    ) -> dict[str, Any]:
+        candidates = [
+            item for item in retrieved.grounding.get("candidates", []) if isinstance(item, Mapping)
+        ]
+        if not candidates:
+            return self._unsupported(record, request, retrieved)
+        clause = candidates[0].get("clause")
+        clause_ref = candidates[0].get("clause_ref")
+        same_clause = [
+            item
+            for item in candidates
+            if not isinstance(clause_ref, str) or item.get("clause_ref") == clause_ref
+        ]
+        if len(same_clause) < 2:
+            return self._unsupported(record, request, retrieved)
+        if len(same_clause) > 5:
+            raise BrainError(
+                "CLARIFICATION_TOO_MANY_OPTIONS",
+                409,
+                "semantic ambiguity exceeds the interactive option bound",
+            )
+        option_refs = [item.get("option_ref") for item in same_clause]
+        if any(not isinstance(item, str) or not item for item in option_refs) or len(
+            set(option_refs)
+        ) != len(option_refs):
+            raise BrainError(
+                "RETRIEVAL_INVALID", 409, "semantic clarification candidates are not distinct"
+            )
+        options = [
+            ClarificationChoice(
+                label=str(item.get("label", item.get("field", "Significato Metis"))),
+                value=str(item.get("option_ref", "")),
+                description=str(item.get("description", "Significato verificato nel catalogo")),
+            )
+            for item in same_clause
+        ]
+        surface = clause if isinstance(clause, str) and clause else request.instruction[:120]
+        return self._clarification_terminal(
+            session_id=session_id,
+            record=record,
+            request=request,
+            retrieved=retrieved,
+            kind="semantic_choice",
+            question=f"Che cosa intendi con «{surface}»?",
+            question_key="semantic-"
+            + canonical_sha256(
+                {
+                    "clause_ref": clause_ref,
+                    "options": sorted(str(item) for item in option_refs),
+                }
+            )[7:39],
+            options=options,
+        )
+
+    def _prepare_output_contract(
+        self,
+        *,
+        session_id: str,
+        record: TurnRecord,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+        previous_source: str | None = None,
+    ) -> dict[str, Any] | None:
+        # Schema 1 clients can answer only option_ref clarifications.  Preserve
+        # their legacy non-interactive cardinality path instead of emitting a
+        # result_count question they cannot represent.  Native interactive
+        # cardinality and total-vs-page negotiation are a schema 2 contract.
+        if request.schema_version != 2 or retrieved.context.get("semantic_schema") != 2:
+            return None
+        output_request = retrieved.output_request or parse_output_request(request.instruction)
+        if (
+            not isinstance(output_request, OutputRequestSurface)
+            or output_request.instruction != request.instruction
+        ):
+            raise BrainError(
+                "RETRIEVAL_INVALID", 409, "output request is not bound to the instruction"
+            )
+        if output_request.invalid_numeric_pagination or output_request.invalid_numeric_output:
+            raise BrainError(
+                "OUTPUT_CONTRACT_INVALID",
+                422,
+                "numeric pagination request is invalid",
+            )
+        basis_output = (
+            request.server_basis_grounding.get("output_contract")
+            if isinstance(request.server_basis_grounding, Mapping)
+            else None
+        )
+        if isinstance(basis_output, Mapping):
+            basis_fallback = basis_output.get("fallback")
+            if basis_fallback is not None and (
+                not isinstance(basis_fallback, Mapping) or dict(basis_fallback) != {"mode": "none"}
+            ):
+                raise BrainError(
+                    "OUTPUT_CONTRACT_UNAVAILABLE",
+                    422,
+                    "proposal fallback cannot be preserved safely",
+                )
+        elif request.target["mode"] == "existing":
+            endpoint = request.target.get("endpoint")
+            if previous_source is None or not isinstance(endpoint, str):
+                raise BrainError(
+                    "OUTPUT_CONTRACT_UNAVAILABLE",
+                    422,
+                    "target endpoint fallback is unavailable",
+                )
+            if source_endpoint_has_fallback(previous_source, endpoint):
+                raise BrainError(
+                    "OUTPUT_CONTRACT_UNAVAILABLE",
+                    422,
+                    "target endpoint fallback cannot be preserved safely",
+                )
+        shape_decision = _current_server_decision(request, "response_shape")
+        if shape_decision is not None:
+            resolved = shape_decision.get("resolved_value")
+            matched = re.fullmatch(r"(count|page):([1-9][0-9]{0,3})", str(resolved))
+            if matched is None:
+                raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "output shape is unavailable")
+            count = int(matched.group(2))
+            if count > DEFAULT_MAX_RESULT_COUNT:
+                raise BrainError(
+                    "RESULT_COUNT_OUT_OF_RANGE", 422, "result count exceeds the safe bound"
+                )
+            if matched.group(1) == "count":
+                retrieval_take = {
+                    "mode": "count",
+                    "value": count,
+                    "source": "operator_confirmed",
+                }
+                assumptions = [f"Numero complessivo confermato: {count} risultati."]
+            else:
+                retrieval_take = {
+                    "mode": "page",
+                    "page_size": {
+                        "mode": "local_default",
+                        "value": count,
+                        "source": "operator_confirmed",
+                    },
+                }
+                assumptions = [f"Paginazione confermata: {count} risultati per pagina."]
+        decision = _current_server_decision(request, "result_count")
+        if shape_decision is not None:
+            pass
+        elif decision is not None:
+            answer = decision.get("answer")
+            count = answer.get("integer") if isinstance(answer, Mapping) else None
+            if type(count) is not int or not 1 <= count <= DEFAULT_MAX_RESULT_COUNT:
+                raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "result count is unavailable")
+            retrieval_take = {
+                "mode": "count",
+                "value": count,
+                "source": "operator_confirmed",
+            }
+            assumptions = [f"Numero complessivo confermato dall'operatore: {count} risultati."]
+        else:
+            explicit_contracts = list(output_request.contracts)
+            if any(count > DEFAULT_MAX_RESULT_COUNT for _mode, count in explicit_contracts):
+                raise BrainError(
+                    "RESULT_COUNT_OUT_OF_RANGE",
+                    422,
+                    "result count exceeds the safe bound",
+                )
+            generic_pagination = output_request.generic_pagination
+            if len(explicit_contracts) > 1:
+                if generic_pagination and all(
+                    mode == "count" for mode, _count in explicit_contracts
+                ):
+                    raise BrainError(
+                        "OUTPUT_CONTRACT_AMBIGUOUS",
+                        422,
+                        "multiple cardinalities cannot be bound to pagination",
+                    )
+                if len(explicit_contracts) > 5:
+                    raise BrainError(
+                        "CLARIFICATION_TOO_MANY_OPTIONS",
+                        409,
+                        "output ambiguity exceeds the interactive option bound",
+                    )
+                options = tuple(
+                    ClarificationChoice(
+                        label=(
+                            f"{count} risultati complessivi"
+                            if mode == "count"
+                            else f"{count} risultati per pagina"
+                        ),
+                        value=f"{mode}:{count}",
+                        description=(
+                            f"Genera `take {count}` senza paginazione."
+                            if mode == "count"
+                            else f"Genera `take page default {count}`."
+                        ),
+                    )
+                    for mode, count in explicit_contracts
+                )
+                return self._clarification_terminal(
+                    session_id=session_id,
+                    record=record,
+                    request=request,
+                    retrieved=retrieved,
+                    kind="response_shape",
+                    question="Hai indicato più cardinalità: quale vuoi applicare?",
+                    question_key="output-contracts-"
+                    + canonical_sha256({"contracts": explicit_contracts})[7:39],
+                    options=options,
+                )
+            if len(explicit_contracts) == 1:
+                mode, count = explicit_contracts[0]
+            else:
+                mode, count = None, None
+            if mode == "page":
+                retrieval_take = {
+                    "mode": "page",
+                    "page_size": {
+                        "mode": "local_default",
+                        "value": count,
+                        "source": "operator_confirmed",
+                    },
+                }
+                assumptions = [f"Paginazione richiesta: {count} risultati per pagina."]
+            elif generic_pagination and mode == "count":
+                return self._clarification_terminal(
+                    session_id=session_id,
+                    record=record,
+                    request=request,
+                    retrieved=retrieved,
+                    kind="response_shape",
+                    question=f"Il numero {count} indica il totale o i risultati per pagina?",
+                    question_key=f"count-pagination-{count}",
+                    options=(
+                        ClarificationChoice(
+                            label=f"{count} risultati complessivi",
+                            value=f"count:{count}",
+                            description=f"Genera `take {count}` senza paginazione.",
+                        ),
+                        ClarificationChoice(
+                            label=f"{count} risultati per pagina",
+                            value=f"page:{count}",
+                            description=f"Genera `take page default {count}`.",
+                        ),
+                    ),
+                )
+            elif generic_pagination:
+                retrieval_take = {
+                    "mode": "page",
+                    "page_size": {"mode": "tenant"},
+                }
+                assumptions = ["Paginazione richiesta; dimensione pagina ereditata dal tenant."]
+            elif mode == "count":
+                retrieval_take = {
+                    "mode": "count",
+                    "value": count,
+                    "source": "operator_confirmed",
+                }
+                assumptions = [f"Numero complessivo richiesto: {count} risultati."]
+            elif output_request.ambiguous_count:
+                return self._clarification_terminal(
+                    session_id=session_id,
+                    record=record,
+                    request=request,
+                    retrieved=retrieved,
+                    kind="result_count",
+                    question="Quanti risultati complessivi vuoi?",
+                    question_key="result-count",
+                    min_value=1,
+                    max_value=DEFAULT_MAX_RESULT_COUNT,
+                )
+            else:
+                basis = request.server_basis_grounding
+                prior_take = take_contract(basis) if isinstance(basis, Mapping) else None
+                if prior_take is not None:
+                    if prior_take.value is not None and prior_take.value > DEFAULT_MAX_RESULT_COUNT:
+                        raise BrainError(
+                            "RESULT_COUNT_OUT_OF_RANGE",
+                            422,
+                            "result count exceeds the safe bound",
+                        )
+                    output_contract = basis.get("output_contract")
+                    raw_take = (
+                        output_contract.get("take")
+                        if isinstance(output_contract, Mapping)
+                        else None
+                    )
+                    if not isinstance(raw_take, Mapping):
+                        raise BrainError(
+                            "GROUNDING_INVALID", 500, "grounding take contract is invalid"
+                        )
+                    if prior_take.mode == "count":
+                        retrieval_take = {
+                            "mode": "count",
+                            "value": prior_take.value,
+                            "source": raw_take["source"],
+                        }
+                        summary = f"{prior_take.value} risultati complessivi"
+                    elif prior_take.value is None:
+                        retrieval_take = {
+                            "mode": "page",
+                            "page_size": {"mode": "tenant"},
+                        }
+                        summary = "paginazione con dimensione del tenant"
+                    else:
+                        raw_page_size = raw_take.get("page_size")
+                        if not isinstance(raw_page_size, Mapping):
+                            raise BrainError(
+                                "GROUNDING_INVALID",
+                                500,
+                                "grounding page contract is invalid",
+                            )
+                        retrieval_take = {
+                            "mode": "page",
+                            "page_size": {
+                                "mode": "local_default",
+                                "value": prior_take.value,
+                                "source": raw_page_size["source"],
+                            },
+                        }
+                        summary = f"paginazione da {prior_take.value} risultati"
+                    assumptions = [
+                        "Cardinalità mantenuta dalla proposta precedente della sessione: "
+                        f"{summary}."
+                    ]
+                elif request.target["mode"] == "existing":
+                    endpoint = request.target.get("endpoint")
+                    if previous_source is None or not isinstance(endpoint, str):
+                        raise BrainError(
+                            "OUTPUT_CONTRACT_UNAVAILABLE",
+                            422,
+                            "target endpoint cardinality is unavailable",
+                        )
+                    existing_take = source_take_contract(previous_source, endpoint)
+                    if (
+                        existing_take.value is not None
+                        and existing_take.value > DEFAULT_MAX_RESULT_COUNT
+                    ):
+                        raise BrainError(
+                            "RESULT_COUNT_OUT_OF_RANGE",
+                            422,
+                            "result count exceeds the safe bound",
+                        )
+                    if existing_take.mode == "count":
+                        retrieval_take = {
+                            "mode": "count",
+                            "value": existing_take.value,
+                            "source": "existing_source",
+                        }
+                        summary = f"{existing_take.value} risultati complessivi"
+                    elif existing_take.value is None:
+                        retrieval_take = {
+                            "mode": "page",
+                            "page_size": {"mode": "tenant"},
+                        }
+                        summary = "paginazione con dimensione del tenant"
+                    else:
+                        retrieval_take = {
+                            "mode": "page",
+                            "page_size": {
+                                "mode": "local_default",
+                                "value": existing_take.value,
+                                "source": "existing_source",
+                            },
+                        }
+                        summary = f"paginazione da {existing_take.value} risultati"
+                    assumptions = [
+                        f"Cardinalità preservata dal sorgente fissato dell'endpoint: {summary}."
+                    ]
+                else:
+                    return self._clarification_terminal(
+                        session_id=session_id,
+                        record=record,
+                        request=request,
+                        retrieved=retrieved,
+                        kind="result_count",
+                        question="Quanti risultati complessivi vuoi?",
+                        question_key="result-count",
+                        min_value=1,
+                        max_value=DEFAULT_MAX_RESULT_COUNT,
+                    )
+        retrieved.grounding["output_contract"] = {
+            "take": retrieval_take,
+            "fallback": {"mode": "none"},
+        }
+        retrieved.grounding["assumptions"] = assumptions + [
+            "Nessun fallback aggiunto senza una richiesta esplicita.",
+        ]
+        retrieved.context["output_contract"] = dict(retrieved.grounding["output_contract"])
+        return None
+
     def _unsupported(
         self, record: TurnRecord, request: TurnRequest, retrieved: RetrievalResult
     ) -> dict[str, Any]:
@@ -327,7 +848,7 @@ class BrainOrchestrator:
         if not grounding.get("unresolved"):
             grounding["unresolved"] = [request.instruction[:256]]
         return {
-            "schema_version": 1,
+            "schema_version": request.schema_version,
             "turn_id": record.turn_id,
             "request_id": request.request_id,
             "status": "completed",
@@ -359,6 +880,36 @@ class BrainOrchestrator:
             "context_revision": record.request.expected_context_revision,
             "semantic_source_revision": retrieved.semantic_source_revision,
             "toolchain_binding": "unknown",
+        }
+
+    @staticmethod
+    def _session_memory(request: TurnRequest, grounding: Mapping[str, Any]) -> dict[str, Any]:
+        conversation = (
+            request.server_clarification.get("conversation")
+            if isinstance(request.server_clarification, Mapping)
+            else None
+        )
+        decisions = (
+            [dict(item) for item in conversation.get("decisions", []) if isinstance(item, Mapping)]
+            if isinstance(conversation, Mapping)
+            else []
+        )
+        inherited = (
+            [item for item in conversation.get("assumptions", []) if isinstance(item, str)]
+            if isinstance(conversation, Mapping)
+            else []
+        )
+        visible = [item for item in grounding.get("assumptions", []) if isinstance(item, str)]
+        assumptions = list(dict.fromkeys(inherited + visible))[:8]
+        return {
+            "scope": "session",
+            "persistent": False,
+            "rounds_used": (
+                conversation.get("rounds_used", 0) if isinstance(conversation, Mapping) else 0
+            ),
+            "max_rounds": 3,
+            "decisions": decisions[:3],
+            "assumptions": assumptions,
         }
 
     def _proposal(
@@ -404,7 +955,7 @@ class BrainOrchestrator:
             and not grounding.get("unresolved")
         )
         return {
-            "schema_version": 1,
+            "schema_version": request.schema_version,
             "turn_id": record.turn_id,
             "request_id": request.request_id,
             "status": "completed",
@@ -413,6 +964,7 @@ class BrainOrchestrator:
             "proposal": None if previous == candidate.source else proposal,
             "validation": validation,
             "grounding": grounding,
+            "session_memory": self._session_memory(request, grounding),
             "identity": identity,
             "claims": {
                 "compile_clean": clean,

@@ -62,6 +62,24 @@ class _Predicate:
     literals: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class TakeContract:
+    """Validated retrieval cardinality/pagination contract from grounding."""
+
+    mode: str
+    value: int | None = None
+
+
+@dataclass(frozen=True)
+class _TakeRegion:
+    directive: TakeContract
+    start: int
+    end: int
+
+
+_TAKE_SOURCES = frozenset({"operator_confirmed", "existing_source"})
+
+
 class _ScanFailure(ValueError):
     pass
 
@@ -293,12 +311,341 @@ def _skip_guard(source: str, index: int) -> tuple[int, bool]:
     return index, False
 
 
+def take_contract(grounding: Mapping[str, Any]) -> TakeContract | None:
+    """Validate the exact ``take`` surface authorized by grounding."""
+
+    output_contract = grounding.get("output_contract")
+    if output_contract is None:
+        return None
+    if not isinstance(output_contract, Mapping):
+        raise BrainError("GROUNDING_INVALID", 500, "grounding output contract is invalid")
+    take = output_contract.get("take")
+    if take is None:
+        return None
+    if not isinstance(take, Mapping):
+        raise BrainError("GROUNDING_INVALID", 500, "grounding take contract is invalid")
+    mode = take.get("mode")
+    if mode == "count":
+        value = take.get("value")
+        if (
+            set(take) != {"mode", "value", "source"}
+            or type(value) is not int
+            or value <= 0
+            or take.get("source") not in _TAKE_SOURCES
+        ):
+            raise BrainError("GROUNDING_INVALID", 500, "grounding take contract is invalid")
+        return TakeContract("count", value)
+    if mode == "page":
+        if set(take) != {"mode", "page_size"}:
+            raise BrainError("GROUNDING_INVALID", 500, "grounding page contract is invalid")
+        page_size = take.get("page_size")
+        if not isinstance(page_size, Mapping):
+            raise BrainError("GROUNDING_INVALID", 500, "grounding page contract is invalid")
+        page_mode = page_size.get("mode")
+        if page_mode == "tenant" and set(page_size) == {"mode"}:
+            return TakeContract("page")
+        if page_mode == "local_default":
+            value = page_size.get("value")
+            if (
+                set(page_size) != {"mode", "value", "source"}
+                or type(value) is not int
+                or value <= 0
+                or page_size.get("source") not in _TAKE_SOURCES
+            ):
+                raise BrainError("GROUNDING_INVALID", 500, "grounding page contract is invalid")
+            return TakeContract("page", value)
+    raise BrainError("GROUNDING_INVALID", 500, "grounding take contract is invalid")
+
+
+def _scan_take_directive(source: str, index: int) -> tuple[TakeContract | None, int]:
+    """Scan the cardinality token immediately following ``take``."""
+
+    cursor = _skip_trivia(source, index)
+    start = cursor
+    while cursor < len(source) and source[cursor].isdigit():
+        cursor += 1
+    if cursor > start:
+        if cursor < len(source) and source[cursor] in _IDENTIFIER_CONTINUATION:
+            raise _ScanFailure("take count requires a positive integer")
+        value = int(source[start:cursor])
+        if value <= 0:
+            raise _ScanFailure("take count requires a positive integer")
+        return TakeContract("count", value), cursor
+    page, page_end = _word_after(source, cursor)
+    if page != "page":
+        return None, index
+    cursor = _skip_trivia(source, page_end)
+    default, default_end = _word_after(source, cursor)
+    if default != "default":
+        return TakeContract("page"), page_end
+    cursor = _skip_trivia(source, default_end)
+    start = cursor
+    while cursor < len(source) and source[cursor].isdigit():
+        cursor += 1
+    if start == cursor or (cursor < len(source) and source[cursor] in _IDENTIFIER_CONTINUATION):
+        raise _ScanFailure("take page default requires a positive integer")
+    value = int(source[start:cursor])
+    if value <= 0:
+        raise _ScanFailure("take page default requires a positive integer")
+    return TakeContract("page", value), cursor
+
+
+def _block_end(source: str, opening: int) -> int:
+    depth = 1
+    index = opening + 1
+    while index < len(source):
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    raise _ScanFailure("endpoint block is unterminated")
+
+
+def _endpoint_blocks(source: str) -> list[tuple[str, int, int]]:
+    """Return endpoint names and body bounds, ignoring comments and strings."""
+
+    endpoint_blocks: list[tuple[str, int, int]] = []
+    index = 0
+    while index < len(source):
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if not _word_at(source, index, "endpoint"):
+            index += 1
+            continue
+        name, cursor = _word_after(source, index + len("endpoint"))
+        if name is None:
+            raise _ScanFailure("endpoint declaration has no name")
+        while cursor < len(source):
+            if source[cursor].isspace() or source.startswith(("//", "/*"), cursor):
+                cursor = _skip_trivia(source, cursor)
+                continue
+            if source[cursor] == '"':
+                _literal, cursor = _scan_string(source, cursor)
+                continue
+            if source[cursor] == "{":
+                closing = _block_end(source, cursor)
+                endpoint_blocks.append((name, cursor + 1, closing))
+                index = closing + 1
+                break
+            if source[cursor] == "}":
+                raise _ScanFailure("endpoint declaration is malformed")
+            cursor += 1
+        else:
+            raise _ScanFailure("endpoint declaration has no block")
+    return endpoint_blocks
+
+
+def _take_directives(source: str, start: int, end: int) -> list[TakeContract]:
+    """Return endpoint-level cardinality directives, excluding nested blocks."""
+
+    directives: list[TakeContract] = []
+    index = start
+    while index < end:
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if source[index] == "{":
+            index = _block_end(source, index) + 1
+            continue
+        if _word_at(source, index, "take"):
+            directive, next_index = _scan_take_directive(source, index + len("take"))
+            if directive is None:
+                raise _ScanFailure("take requires a count or page")
+            directives.append(directive)
+            index = next_index
+            continue
+        index += 1
+    return directives
+
+
+_TAKE_REGION_BOUNDARIES = frozenset(
+    {
+        "attributes",
+        "block",
+        "context",
+        "fallback",
+        "inputs",
+        "meta",
+        "needs",
+        "params",
+        "return",
+        "take",
+        "variant",
+    }
+)
+
+
+def _take_region_end(source: str, start: int, end: int) -> int:
+    """Bound one endpoint-level take and its directly attached condition block."""
+
+    index = start + len("take")
+    while index < end:
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if source[index] == "{":
+            return _block_end(source, index) + 1
+        word, word_end = _word_after(source, index)
+        if word in _TAKE_REGION_BOUNDARIES and index > start:
+            return index
+        index = word_end if word is not None and word_end > index else index + 1
+    return end
+
+
+def _endpoint_take_regions(source: str) -> list[_TakeRegion]:
+    endpoint_blocks = _endpoint_blocks(source)
+    if len(endpoint_blocks) != 1:
+        raise _ScanFailure("candidate must contain exactly one endpoint")
+    _name, start, end = endpoint_blocks[0]
+    regions: list[_TakeRegion] = []
+    index = start
+    while index < end:
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if source[index] == "{":
+            index = _block_end(source, index) + 1
+            continue
+        if _word_at(source, index, "take"):
+            directive, next_index = _scan_take_directive(source, index + len("take"))
+            if directive is None:
+                raise _ScanFailure("take requires a count or page")
+            regions.append(_TakeRegion(directive, index, _take_region_end(source, index, end)))
+            index = next_index
+            continue
+        index += 1
+    return regions
+
+
+def _contains_word_outside_trivia(source: str, word: str) -> bool:
+    """Find a grammar token while ignoring comments and quoted literals."""
+
+    index = 0
+    while index < len(source):
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if _word_at(source, index, word):
+            return True
+        index += 1
+    return False
+
+
+def source_endpoint_has_fallback(source: str, endpoint: str) -> bool:
+    """Return whether one exact pinned endpoint contains fallback syntax.
+
+    Brain does not yet model the full Metis fallback surface. Existing
+    fallback-bearing endpoints therefore fail closed before generation instead
+    of silently replacing that behavior with ``fallback:none``.
+    """
+
+    if not isinstance(source, str) or not source:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint fallback is unavailable"
+        )
+    if len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
+        raise BrainError("PAYLOAD_TOO_LARGE", 413, "target source exceeds the byte limit")
+    if not isinstance(endpoint, str) or not endpoint:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint fallback is unavailable"
+        )
+    parsed_name, parsed_end = _word_after(endpoint, 0)
+    if parsed_name != endpoint or parsed_end != len(endpoint):
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint fallback is unavailable"
+        )
+    try:
+        matches = [block for block in _endpoint_blocks(source) if block[0] == endpoint]
+        if len(matches) != 1:
+            raise _ScanFailure("target endpoint is not unique")
+        _name, start, end = matches[0]
+        return _contains_word_outside_trivia(source[start:end], "fallback")
+    except _ScanFailure as error:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint fallback is unavailable"
+        ) from error
+
+
+def source_take_contract(source: str, endpoint: str) -> TakeContract:
+    """Read the exact take contract of one endpoint from a pinned source.
+
+    Existing files may contain multiple endpoints.  Selection is therefore by
+    exact endpoint identity; missing/duplicate endpoints and missing/duplicate
+    ``take`` directives fail closed instead of supplying an invented default.
+    """
+
+    if not isinstance(source, str) or not source:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint cardinality is unavailable"
+        )
+    if len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
+        raise BrainError("PAYLOAD_TOO_LARGE", 413, "target source exceeds the byte limit")
+    if not isinstance(endpoint, str) or not endpoint:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint cardinality is unavailable"
+        )
+    parsed_name, parsed_end = _word_after(endpoint, 0)
+    if parsed_name != endpoint or parsed_end != len(endpoint):
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint cardinality is unavailable"
+        )
+    try:
+        matches = [block for block in _endpoint_blocks(source) if block[0] == endpoint]
+        if len(matches) != 1:
+            raise _ScanFailure("target endpoint is not unique")
+        _name, start, end = matches[0]
+        directives = _take_directives(source, start, end)
+        if len(directives) != 1:
+            raise _ScanFailure("target endpoint take is not unique")
+        return directives[0]
+    except _ScanFailure as error:
+        raise BrainError(
+            "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint cardinality is unavailable"
+        ) from error
+
+
+def _endpoint_take_directives(source: str) -> list[TakeContract]:
+    """Return takes from exactly one endpoint, rejecting decoy declarations."""
+
+    endpoint_blocks = _endpoint_blocks(source)
+    if len(endpoint_blocks) != 1:
+        raise _ScanFailure("candidate must contain exactly one endpoint")
+    _name, start, end = endpoint_blocks[0]
+    return _take_directives(source, start, end)
+
+
 def _scan_candidate(source: str) -> tuple[list[_Predicate], list[str]]:
     predicates: list[_Predicate] = []
     catalog_sources: list[str] = []
     index = 0
     literal_count = 0
     condition_surface = False
+    condition_role: str | None = None
     while index < len(source):
         if source[index].isspace() or source.startswith(("//", "/*"), index):
             index = _skip_trivia(source, index)
@@ -319,6 +666,7 @@ def _scan_candidate(source: str) -> tuple[list[_Predicate], list[str]]:
         boundary_word, boundary_end = _word_after(source, index)
         if boundary_word in _CONDITION_BOUNDARY_WORDS and boundary_end > index:
             condition_surface = boundary_word in {"include", "exclude", "promote"}
+            condition_role = boundary_word if condition_surface else None
             index = boundary_end
             continue
         if _word_at(source, index, "where"):
@@ -346,6 +694,8 @@ def _scan_candidate(source: str) -> tuple[list[_Predicate], list[str]]:
                     raise _ScanFailure("bare field condition is not authorized")
                 index = field_end
                 continue
+            if condition_role in {"exclude", "promote"}:
+                raise _ScanFailure(f"{condition_role} finite predicates are not authorized")
             predicates.append(predicate)
             condition_surface = True
             literal_count += len(predicate.literals)
@@ -501,8 +851,34 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
         raise BrainError("PAYLOAD_TOO_LARGE", 413, "candidate exceeds the byte limit")
     authorized_catalogs = _authorized_catalogs(grounding)
     expected = _expected_grounding(grounding, authorized_catalogs)
+    expected_take = take_contract(grounding)
+    output_contract = grounding.get("output_contract")
+    forbids_fallback = False
+    if output_contract is not None:
+        if not isinstance(output_contract, Mapping):
+            raise BrainError("GROUNDING_INVALID", 500, "grounding output contract is invalid")
+        fallback = output_contract.get("fallback")
+        if fallback is not None:
+            if not isinstance(fallback, Mapping) or dict(fallback) != {"mode": "none"}:
+                raise BrainError("GROUNDING_INVALID", 500, "grounding fallback contract is invalid")
+            forbids_fallback = True
     try:
-        scanned, catalog_sources = _scan_candidate(source)
+        endpoint_blocks = _endpoint_blocks(source)
+        if not endpoint_blocks:
+            if expected_take is not None:
+                raise _ScanFailure("candidate must contain exactly one endpoint")
+            scanned, catalog_sources = _scan_candidate(source)
+            take_directives: list[TakeContract] = []
+        else:
+            if len(endpoint_blocks) != 1:
+                raise _ScanFailure("candidate must contain exactly one endpoint")
+            take_regions = _endpoint_take_regions(source)
+            take_directives = [item.directive for item in take_regions]
+            if len(take_regions) != 1:
+                raise _ScanFailure("candidate must contain exactly one endpoint-level take")
+            region = take_regions[0]
+            scanned, catalog_sources = _scan_candidate(source[region.start : region.end])
+        has_fallback = _contains_word_outside_trivia(source, "fallback")
     except _ScanFailure as error:
         return CandidateGroundingCheck(
             False,
@@ -518,6 +894,12 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
     unauthorized_catalogs = sorted(
         {item for item in catalog_sources if not _catalog_is_authorized(item, authorized_catalogs)}
     )[:MAX_PREDICATES]
+    catalog_source_diagnostic = None
+    if endpoint_blocks and len(catalog_sources) != 1:
+        catalog_source_diagnostic = {
+            "expected": "exactly_one_authorized_catalog_source",
+            "actual": list(catalog_sources[:MAX_PREDICATES]),
+        }
     actual: dict[str, list[_Predicate]] = defaultdict(list)
     for predicate in scanned:
         actual[predicate.field].append(predicate)
@@ -526,7 +908,27 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
         for field in sorted(set(expected) | set(actual))
         if Counter(expected.get(field, [])) != Counter(actual.get(field, []))
     ]
-    if not field_diagnostics and not unauthorized_catalogs:
+    take_diagnostic: dict[str, Any] | None = None
+    if expected_take is not None and (
+        len(take_directives) != 1 or take_directives[0] != expected_take
+    ):
+        take_diagnostic = {
+            "expected": {
+                "mode": expected_take.mode,
+                "value": expected_take.value,
+            },
+            "actual": [{"mode": item.mode, "value": item.value} for item in take_directives],
+        }
+    fallback_diagnostic = (
+        {"expected": "none", "actual": "present"} if forbids_fallback and has_fallback else None
+    )
+    if (
+        not field_diagnostics
+        and not unauthorized_catalogs
+        and catalog_source_diagnostic is None
+        and take_diagnostic is None
+        and fallback_diagnostic is None
+    ):
         return CandidateGroundingCheck(True)
     return CandidateGroundingCheck(
         False,
@@ -536,6 +938,9 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
             "fields": field_diagnostics[:MAX_PREDICATES],
             "unauthorized_fields": sorted(set(actual) - set(expected))[:MAX_PREDICATES],
             "unauthorized_catalogs": unauthorized_catalogs,
+            "catalog_source": catalog_source_diagnostic,
+            "take": take_diagnostic,
+            "fallback": fallback_diagnostic,
         },
     )
 

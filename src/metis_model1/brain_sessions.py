@@ -97,6 +97,7 @@ class _Session:
     in_flight: int = 0
     cancellation: threading.Event = field(default_factory=threading.Event)
     cleanup_started: bool = False
+    listeners_notified: bool = False
 
 
 class SessionManager:
@@ -154,6 +155,7 @@ class SessionManager:
         self._lock = threading.RLock()
         self._shutdown = False
         self._cleanup_failures = 0
+        self._cleanup_listeners: list[Callable[[str], None]] = []
 
     @property
     def idle_ttl_seconds(self) -> int:
@@ -162,6 +164,21 @@ class SessionManager:
     @property
     def runtime_root(self) -> Path:
         return self._runtime_root
+
+    def register_cleanup_listener(self, listener: Callable[[str], None]) -> None:
+        """Register an in-process observer for volatile session-state cleanup.
+
+        Listeners never receive tokens, paths or snapshots.  They are used by
+        the turn service to drop its RAM-only conversation state at the same
+        lifecycle boundary as the tenant session.
+        """
+
+        if not callable(listener):
+            raise BrainError("INVALID_CONFIG", 500, "session cleanup listener is invalid")
+        with self._lock:
+            if self._shutdown:
+                raise BrainError("SERVICE_UNAVAILABLE", 503, "service is shutting down")
+            self._cleanup_listeners.append(listener)
 
     def _token_digest(self, token: str) -> bytes:
         return hmac.digest(self._digest_key, token.encode("ascii", "strict"), "sha256")
@@ -401,7 +418,11 @@ class SessionManager:
         first_snapshot = first.snapshot
         if first_snapshot is None:
             raise BrainError("SESSION_UNAVAILABLE", 401, "session is unavailable")
-        self._registry.assert_current(first_snapshot)
+        try:
+            self._registry.assert_current(first_snapshot)
+        except BrainError as error:
+            self._revoke_stale(first, release_operation=False)
+            raise BrainError("STALE_CONTEXT", 409, "tenant context changed") from error
 
         cleanup: _Session | None = None
         with self._lock:
@@ -434,13 +455,7 @@ class SessionManager:
         try:
             self._registry.assert_current(first_snapshot)
         except BrainError as error:
-            with self._lock:
-                session.in_flight -= 1
-                cleanup = (
-                    self._schedule_cleanup_locked(session) if session.state != "ACTIVE" else None
-                )
-            if cleanup is not None:
-                self._cleanup(cleanup)
+            self._revoke_stale(session, release_operation=True)
             raise BrainError("STALE_CONTEXT", 409, "tenant context changed") from error
 
         with self._lock:
@@ -465,6 +480,12 @@ class SessionManager:
             try:
                 self._registry.assert_current(first_snapshot)
             except BrainError:
+                with self._lock:
+                    if session.state == "ACTIVE":
+                        session.state = "STALE"
+                        session.token_digest = b""
+                        session.cancellation.set()
+                self._notify_cleanup_listeners(session)
                 post_error = BrainError("STALE_CONTEXT", 409, "tenant context changed")
         finally:
             cleanup = None
@@ -476,11 +497,15 @@ class SessionManager:
                 if session.state != "ACTIVE" or session.cancellation.is_set():
                     revoked = True
                     cleanup = self._schedule_cleanup_locked(session)
-                elif session.in_flight == 0:
-                    cleanup = self._mark_expired_locked(session, self._monotonic())
+                else:
+                    # An admitted operation is activity for its entire
+                    # lifetime. Start the idle window when that activity
+                    # finishes; never expire a session merely because one
+                    # bounded model/compile turn lasted longer than the TTL.
+                    session.last_activity = self._monotonic()
             if cleanup is not None:
                 self._cleanup(cleanup)
-            if completed and revoked:
+            if completed and revoked and post_error is None:
                 post_error = BrainError("SESSION_REVOKED", 409, "session was revoked")
             if completed and post_error is not None:
                 raise post_error
@@ -505,6 +530,7 @@ class SessionManager:
                     "state": "closed" if cleanup is not None else "closing",
                 },
             }
+        self._notify_cleanup_listeners(session)
         if cleanup is not None:
             self._cleanup(cleanup)
         return response
@@ -532,6 +558,10 @@ class SessionManager:
         return completed
 
     def _cleanup(self, session: _Session) -> None:
+        # Volatile conversation state follows logical revocation, not the
+        # success of best-effort filesystem removal.  A stuck overlay must
+        # never retain prompts, proposals or clarification decisions in RAM.
+        self._notify_cleanup_listeners(session)
         overlay = session.overlay
         try:
             if overlay.parent != self._runtime_root or not overlay.name.startswith("session-"):
@@ -569,6 +599,45 @@ class SessionManager:
             session.state = "CLOSED"
             self._sessions.pop(session.session_id, None)
 
+    def _notify_cleanup_listeners(self, session: _Session) -> None:
+        with self._lock:
+            if session.listeners_notified:
+                return
+            session.listeners_notified = True
+            listeners = tuple(self._cleanup_listeners)
+        for listener in listeners:
+            try:
+                listener(session.session_id)
+            except Exception:
+                # Session revocation and filesystem cleanup are authoritative.
+                # An internal observer must not resurrect or make a revoked
+                # session externally available.
+                with self._lock:
+                    self._cleanup_failures += 1
+
+    def _revoke_stale(self, session: _Session, *, release_operation: bool) -> None:
+        """Revoke a stale snapshot and erase volatile observers immediately."""
+
+        with self._lock:
+            if session.state == "ACTIVE":
+                session.state = "STALE"
+                session.token_digest = b""
+                session.cancellation.set()
+            if release_operation:
+                session.in_flight -= 1
+                if session.in_flight < 0:
+                    raise AssertionError("negative session operation count")
+            cleanup = self._schedule_cleanup_locked(session)
+        self._notify_cleanup_listeners(session)
+        if cleanup is not None:
+            try:
+                self._cleanup(cleanup)
+            except BrainError:
+                # Logical revocation and volatile-memory cleanup already won.
+                # The regular reaper will retry the bounded overlay removal.
+                with self._lock:
+                    self._cleanup_failures += 1
+
     def shutdown(self) -> None:
         pending: list[_Session] = []
         with self._lock:
@@ -581,6 +650,9 @@ class SessionManager:
                 cleanup = self._schedule_cleanup_locked(session)
                 if cleanup is not None:
                     pending.append(cleanup)
+            revoked = tuple(self._sessions.values())
+        for session in revoked:
+            self._notify_cleanup_listeners(session)
         for session in pending:
             try:
                 self._cleanup(session)

@@ -229,6 +229,49 @@ def test_live_http_session_context_compile_status_and_close(tmp_path: Path) -> N
         assert unavailable["error"]["code"] == "SESSION_UNAVAILABLE"
 
 
+def test_http_turn_acceptance_mirrors_schema_two(tmp_path: Path) -> None:
+    with _service(tmp_path) as (server, runtime):
+        status, opened, _headers = _open(server, runtime)
+        assert status == 201
+        session = opened["session"]
+        session_id = session["id"]
+        token = session["token"]
+        revision = session["context_revision"]
+        status, context, _headers = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session_id}/context",
+            token=token,
+            body={"expected_revision": revision},
+        )
+        assert status == 200
+
+        status, accepted, _headers = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session_id}/turns",
+            token=token,
+            body={
+                "schema_version": 2,
+                "request_id": "123e4567-e89b-12d3-a456-426614174001",
+                "expected_context_revision": revision,
+                "expected_semantic_source_revision": context["semantic_source_revision"],
+                "intent": "create",
+                "instruction": "crea un endpoint di prova",
+                "target": {
+                    "mode": "create",
+                    "relative_path": "properties/candidate.metis",
+                    "endpoint": None,
+                    "base_sha256": None,
+                },
+                "basis": None,
+                "clarification_response": None,
+            },
+        )
+        assert status == 202
+        assert accepted["schema_version"] == 2
+
+
 def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: Path) -> None:
     runtime = BrainRuntime((tmp_path / "runtime").resolve())
     tenant = _tenant(tmp_path / "tenant")
@@ -250,6 +293,7 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
     )
     try:
         health = app.health()
+        assert health["turn_schema_versions"] == [1, 2]
         assert health["model_identity"] == {
             "model_revision": model.model_revision,
             "adapter_sha256": model.adapter_sha256,

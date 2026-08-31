@@ -20,14 +20,18 @@ def _request(
     instruction: str = "crea un endpoint",
     *,
     cancellation: threading.Event | None = None,
+    take: dict[str, object] | None = None,
 ) -> ModelRequest:
+    grounding: dict[str, object] = {"resolutions": [{"field": "genere", "value": "Azione"}]}
+    if take is not None:
+        grounding["output_contract"] = {"take": take}
     return ModelRequest(
         instruction=instruction,
         intent="create",
         target_path="candidate.metis",
         endpoint="demo.endpoint",
         context={"catalog": "video", "fields": ["genere"]},
-        grounding={"resolutions": [{"field": "genere", "value": "Azione"}]},
+        grounding=grounding,
         previous_source=None,
         diagnostics=(),
         cancellation=cancellation,
@@ -145,6 +149,41 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
     assert "TENANT_CONTEXT_JSON" in messages[1]["content"]
     assert messages[1]["content"].startswith("crea un endpoint\n\n")
     assert '"grounding"' in messages[1]["content"]
+
+
+@pytest.mark.parametrize(
+    ("take", "expected", "forbidden"),
+    [
+        (
+            {"mode": "count", "value": 24, "source": "operator_confirmed"},
+            "exactly 24 total results with `take 24`",
+            "pagination contract",
+        ),
+        (
+            {"mode": "page", "page_size": {"mode": "tenant"}},
+            "use the bare `take page`",
+            "`take page default",
+        ),
+        (
+            {
+                "mode": "page",
+                "page_size": {
+                    "mode": "local_default",
+                    "value": 24,
+                    "source": "operator_confirmed",
+                },
+            },
+            "use exactly `take page default 24`",
+            "total results",
+        ),
+    ],
+)
+def test_prompt_serialization_states_take_contract(
+    take: dict[str, object], expected: str, forbidden: str
+) -> None:
+    prompt = serialize_model_messages(_request(take=take))[0]["content"]
+    assert expected in prompt
+    assert forbidden not in prompt
 
 
 def test_worker_is_started_once_and_closed_idempotently(runtime_factory) -> None:

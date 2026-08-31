@@ -1,18 +1,23 @@
-# Metis Brain: runbook locale Mac v1
+# Metis Brain: runbook locale Mac
 
-Stato: **RUNBOOK DEL CORE SESSIONI/COMPILER; NON È ANCORA L'APP DISTRIBUIBILE**.
+Stato: **SERVER LOCALE, MODEL 1, RETRIEVAL E VSIX COLLEGATI; NON È ANCORA L'APP
+MAC DISTRIBUIBILE**.
 
 ## 1. Cosa avvia
 
 Il comando `brain-serve` avvia un processo HTTP soltanto su `127.0.0.1`, crea
 un bootstrap casuale valido per quel solo avvio e serve sessioni tenant isolate.
-Il processo non carica ancora Qwen/adapter: `model_loaded` resta correttamente
-`false`. La route compile usa invece il toolchain Metis pinnato reale.
+Con la configurazione demo qualificata collega il checkpoint base e l'adapter
+Model 1, il retrieval semantico schema 2 e il compilatore Metis pinnato. Il
+server non scrive il tenant: genera e compila una proposta che il client apre
+come Draft o diff.
 
 ## 2. Configurazione demo
 
-[`examples/metis-brain-config.local.json`](../examples/metis-brain-config.local.json)
-è la configurazione non-secret riproducibile su questo Mac. Contiene soltanto:
+[`examples/metis-brain-config.play-demo.local.json`](../examples/metis-brain-config.play-demo.local.json)
+è la configurazione non-secret riproducibile della demo VS Code su questo Mac.
+La variante [`examples/metis-brain-config.local.json`](../examples/metis-brain-config.local.json)
+resta il fixture compiler-only. La configurazione demo contiene soltanto:
 
 - address loopback e runtime ignorato sotto `artifacts/`;
 - root Git Metis usata in sola lettura e binario Node pinnato, installato nella
@@ -21,7 +26,9 @@ Il processo non carica ancora Qwen/adapter: `model_loaded` resta correttamente
   `5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c`
   prima dell'avvio;
 - alias del tenant pubblico sintetico;
-- grant/capability per `metis-vsix` e `metis-fast`;
+- path locali qualificati di checkpoint e adapter, mai i pesi dentro Git;
+- retrieval semantico schema 2;
+- grant/capability per il client `visix`;
 - limiti di sessione e compiler.
 
 Non inserire token, password, `.env`, credenziali AWS o path di tenant non
@@ -35,7 +42,7 @@ Dal repository:
 
 ```bash
 uv run metis-model1 brain-serve \
-  --config /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.local.json
+  --config /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.play-demo.local.json
 ```
 
 La prima riga stdout è un JSON redatto con host, porta effettiva e path del file
@@ -46,7 +53,10 @@ specifico della sessione. Il bootstrap non è valido sulle route di sessione.
 Interrompere con `Ctrl-C` o `SIGTERM`. Il server revoca sessioni, elimina
 overlay/bootstrap e chiude il socket. Una sessione non usata semanticamente per
 1.200 secondi viene eliminata dal reaper; status, health e errori di
-protocollo/auth/schema non rinnovano il timer.
+protocollo/auth/schema non rinnovano il timer. Un'operazione semantica già
+ammessa mantiene viva la sessione mentre è in corso e apre una nuova finestra
+completa di 1.200 secondi soltanto quando termina; una richiesta lunga non può
+quindi far scadere la propria sessione a metà elaborazione.
 
 ## 4. Sequenza client esatta
 
@@ -55,11 +65,14 @@ protocollo/auth/schema non rinnovano il timer.
    `POST /v1/sessions` con client ID, alias e capability richieste.
 3. Conserva in memoria `session.id`, `session.token` e
    `session.context_revision`; non loggare il token.
-4. Usa la revisione in ogni `context`/`compile`. Un `STALE_CONTEXT` obbliga ad
+4. Usa la revisione in ogni `context`/turno/compile. Un `STALE_CONTEXT` obbliga ad
    aprire un nuovo snapshot, non a ignorare il conflitto.
-5. Tratta `compiler.status=invalid` come diagnostica da correggere; `ok` non
+5. Con turn schema 2, rispondi alle sole domande tipizzate restituite da Brain
+   usando i riferimenti opachi del server. Una risposta è monouso e resta
+   legata alla stessa richiesta, sessione e revisione.
+6. Tratta `compiler.status=invalid` come diagnostica da correggere; `ok` non
    prova da solo la correttezza editoriale.
-6. Chiudi con `DELETE /v1/sessions/{id}` anche nel percorso di errore.
+7. Chiudi con `DELETE /v1/sessions/{id}` anche nel percorso di errore.
 
 Brain non scrive file tenant. VSIX/Metis Fast mostreranno preview/diff e
 applicheranno una patch soltanto dopo conferma umana e controllo CAS sul
@@ -72,7 +85,15 @@ workspace corrente.
   verificati, e l'eseguibile sandbox è presente; la policy viene provata durante
   la compilazione reale;
 - `compiler_executions`: compilazioni archiviate completate dall'avvio;
-- `model_loaded=false`: inferenza Model 1 non appartiene a questa wave.
+- `model_identity`: checkpoint/adapter locali sono configurati senza esporre
+  path; `model_loaded` resta `false` finché il worker lazy non viene avviato e
+  diventa `true` soltanto mentre quel worker locale è vivo;
+- `semantic_retrieval.enabled=true`, `schema=2`: campi e valori vengono scelti
+  dal catalogo tenant pinnato, non memorizzati nei pesi;
+- `turn_schema_versions=[1,2]`: v2 abilita dialogo tipizzato e memoria volatile;
+  v1 resta il percorso legacy senza domande numeriche non rappresentabili;
+- `metrics`: sessioni, turni, conversazioni e domande pendenti sono osservabili
+  senza prompt, token o sorgenti.
 
 Il compiler materializza il tooling tracciato soltanto dall'archivio Git al pin.
 L'unica dipendenza letta dal live root è `tooling/node_modules`: viene copiata in
@@ -88,9 +109,13 @@ place. Le modifiche tracked/untracked di altri team non entrano nello snapshot.
 | `CAPABILITY_DENIED` | operazione fuori grant | non ritentare con privilege escalation |
 | `STALE_CONTEXT` | revisione richiesta o tenant corrente cambiati | nuovo snapshot e rebase |
 | `SESSION_REVOKED` | close durante operazione | scarta il risultato |
+| `CLARIFICATION_PENDING` | esiste già una domanda bloccante | rispondi o chiudi la sessione |
+| `CLARIFICATION_REPLAY` / `CLARIFICATION_STALE` | risposta già usata o non più legata allo snapshot | non ritentare la risposta; riapri il flusso |
 | `SESSION_LIMIT` / `COMPILER_BUSY` | limite locale raggiunto | backoff delimitato |
 | `CONTEXT_TOO_LARGE` / `CONTEXT_UNSUPPORTED` | oltre il contratto compiler v1 | riduci la dependency closure |
 | `COMPILER_FAILED` | toolchain sandbox non eseguibile | verifica pin/runtime, non fare fallback implicito |
+| `OUTPUT_CONTRACT_INVALID` | limite, intervallo qualificato o cardinalità non esatta | chiedi/conferma un totale esatto oppure una dimensione pagina esatta |
+| `OUTPUT_CONTRACT_UNAVAILABLE` | il `take`, la sorgente o un fallback esistente non è preservabile senza ambiguità | correggi esplicitamente il contratto; Brain non lo sostituisce in silenzio |
 
 Le risposte di errore generate dall'API sono JSON e non includono header, token,
 sorgenti, root, environment o diagnostica interna. Un overload di trasporto o
@@ -102,9 +127,10 @@ una risposta applicativa.
 - Mac e IPv4 loopback soltanto;
 - host cooperativo per stesso UID; Keychain/code-signing nella wave app;
 - massimo 64 sorgenti workspace e 512 KiB per sorgente nel compiler pinnato;
-- nessun retrieval `catalog:describe`/`catalog:values` ancora esposto;
-- nessuna inferenza, chat, streaming thinking, VSIX o Metis Fast ancora collegati;
-- nessun packaging, firma, notarizzazione, updater o fallback remoto.
+- nessuna memoria persistente o cross-session;
+- VSIX collegato in sviluppo; Metis Fast resta in coda;
+- nessun packaging app Mac, firma, notarizzazione, updater o fallback remoto.
 
-La prossima wave collega inferenza e retrieval progressivo senza cambiare il
-contratto di isolamento delle sessioni consegnato qui.
+La prossima wave prodotto trasforma questo server di sviluppo nel bundle
+“Metis Brain” distribuibile senza cambiare il contratto di isolamento qui
+consegnato.

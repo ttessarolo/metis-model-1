@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from metis_model1.brain_candidate_grounding import adjudicate_candidate
+from metis_model1.brain_candidate_grounding import (
+    TakeContract,
+    adjudicate_candidate,
+    source_endpoint_has_fallback,
+    source_take_contract,
+)
 from metis_model1.brain_protocol import BrainError
 
 
@@ -23,12 +28,19 @@ def _selection(*values: str, multi: bool = False) -> dict[str, object]:
     return result
 
 
-def _grounding(*values: str, multi: bool = False) -> dict[str, object]:
-    return {
+def _grounding(
+    *values: str,
+    multi: bool = False,
+    take: dict[str, object] | None = None,
+) -> dict[str, object]:
+    grounding: dict[str, object] = {
         "status": "resolved",
         "catalogs": ["play-demo.video"],
         "selections": [_selection(*values, multi=multi)],
     }
+    if take is not None:
+        grounding["output_contract"] = {"take": take}
+    return grounding
 
 
 def test_italy_subset_is_rejected_with_missing_literals() -> None:
@@ -319,6 +331,374 @@ endpoint demo.test as demo_test {
     assert adjudicate_candidate(source, _grounding("Italia")).ok
 
 
+@pytest.mark.parametrize(
+    "surface",
+    [
+        'include where @paesiorigine is "Italia"',
+        'include where { @paesiorigine is "Italia" }',
+    ],
+)
+def test_reviewed_finite_predicate_is_authorized_only_as_include(surface: str) -> None:
+    source = f"""metis 0.43
+endpoint demo.test as demo_test {{
+  take 20 from @play-demo.video
+  {surface}
+  return response.expanded
+}}
+"""
+    assert adjudicate_candidate(source, _grounding("Italia")).ok
+
+
+@pytest.mark.parametrize(
+    "surface",
+    [
+        'exclude where @paesiorigine is "Italia"',
+        'exclude where { @paesiorigine is "Italia" }',
+        'exclude if @enabled exists { @paesiorigine is "Italia" }',
+        'exclude at least 1 of { @paesiorigine is "Italia" }',
+        'promote where @paesiorigine is "Italia"',
+        'promote where { @paesiorigine is "Italia" }',
+        'promote if @enabled exists { @paesiorigine is "Italia" }',
+        'promote at least 1 of { @paesiorigine is "Italia" }',
+    ],
+)
+def test_exclude_and_promote_finite_predicates_are_not_grounding_authority(
+    surface: str,
+) -> None:
+    source = f"""metis 0.43
+endpoint demo.test as demo_test {{
+  take 20 from @play-demo.video
+  {surface}
+  return response.expanded
+}}
+"""
+    result = adjudicate_candidate(source, _grounding("Italia"))
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["parse_error"].endswith("finite predicates are not authorized")
+
+
+def test_tenant_pagination_requires_bare_page_and_ignores_text_trivia() -> None:
+    source = """metis 0.43
+endpoint demo.test as "take page default 99" {
+  // take page default 88
+  take /* page default 77 */ page from @play-demo.video include where @paesiorigine is "Italia"
+  return response.expanded { note "take page default 66" }
+}
+"""
+    grounding = _grounding("Italia", take={"mode": "page", "page_size": {"mode": "tenant"}})
+    assert adjudicate_candidate(source, grounding).ok
+
+
+def test_tenant_pagination_rejects_local_default() -> None:
+    source = """endpoint demo.test as "Test" {
+  take page default 20 from @play-demo.video where @paesiorigine is "Italia"
+}
+"""
+    result = adjudicate_candidate(
+        source,
+        _grounding("Italia", take={"mode": "page", "page_size": {"mode": "tenant"}}),
+    )
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["take"] == {
+        "expected": {"mode": "page", "value": None},
+        "actual": [{"mode": "page", "value": 20}],
+    }
+
+
+def test_nested_block_take_does_not_replace_endpoint_cardinality() -> None:
+    source = """metis 0.43
+endpoint demo.target as "Target" {
+  block card "Card" {
+    take 1 from @play-demo.video
+  }
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+  return response.expanded
+}
+"""
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "existing_source"},
+    )
+    assert source_take_contract(source, "demo.target") == TakeContract("count", 24)
+    assert adjudicate_candidate(source, grounding).ok
+
+
+def test_nested_take_does_not_hide_duplicate_endpoint_level_cardinality() -> None:
+    source = """endpoint demo.target {
+  block card { take 1 from @play-demo.video }
+  take 24 from @play-demo.video
+  take 30 from @play-demo.video
+}
+"""
+    with pytest.raises(BrainError) as raised:
+        source_take_contract(source, "demo.target")
+    assert raised.value.code == "OUTPUT_CONTRACT_UNAVAILABLE"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """metis 0.43
+block helper { take 1 from @play-demo.video include where @paesiorigine is "Italia" }
+endpoint demo.target {
+  take 24 from @play-demo.video
+  return response.expanded
+}
+""",
+        """metis 0.43
+endpoint demo.target {
+  block helper { take 1 from @play-demo.video include where @paesiorigine is "Italia" }
+  take 24 from @play-demo.video
+  return response.expanded
+}
+""",
+    ],
+)
+def test_unused_block_cannot_satisfy_endpoint_grounding(source: str) -> None:
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+    )
+    result = adjudicate_candidate(source, grounding)
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["fields"][0]["missing"] == ["Italia"]
+
+
+def test_endpoint_take_predicate_satisfies_scoped_grounding() -> None:
+    source = """endpoint demo.target {
+  block helper { take 1 from @play-demo.video }
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+  return response.expanded
+}
+"""
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+    )
+    assert adjudicate_candidate(source, grounding).ok
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """block helper { take 1 from @play-demo.video include where @paesiorigine is "Italia" }
+endpoint demo.target { take 24 from @play-demo.video return response.expanded }
+""",
+        """endpoint demo.target {
+  block helper { take 1 from @play-demo.video include where @paesiorigine is "Italia" }
+  take 24 from @play-demo.video
+  return response.expanded
+}
+""",
+        """endpoint demo.decoy {
+  take 1 from @play-demo.video include where @paesiorigine is "Italia"
+}
+endpoint demo.target { take 24 from @play-demo.video return response.expanded }
+""",
+    ],
+)
+def test_v1_without_take_contract_still_scopes_predicates_to_one_endpoint_take(
+    source: str,
+) -> None:
+    result = adjudicate_candidate(source, _grounding("Italia"))
+    assert not result.ok
+    assert result.diagnostic is not None
+
+
+def test_v1_scoped_endpoint_take_accepts_the_expected_predicate() -> None:
+    source = """endpoint demo.target {
+  block helper { take 1 from @play-demo.video }
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+  return response.expanded
+}
+"""
+    assert adjudicate_candidate(source, _grounding("Italia")).ok
+
+
+@pytest.mark.parametrize(
+    "fallback",
+    [
+        "fallback to block.zero_results when empty",
+        "fallback to materialized.zero_results when page blocks below 1 substitute",
+    ],
+)
+def test_unrequested_fallback_is_rejected_even_when_candidate_otherwise_matches(
+    fallback: str,
+) -> None:
+    source = f"""endpoint demo.target {{
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+  return response {fallback}
+}}
+"""
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+    )
+    grounding["output_contract"]["fallback"] = {"mode": "none"}
+    result = adjudicate_candidate(source, grounding)
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["fallback"] == {"expected": "none", "actual": "present"}
+
+
+def test_fallback_none_accepts_absence_and_ignores_comments_and_labels() -> None:
+    source = """endpoint demo.target as "fallback is not enabled" {
+  // fallback to block.decoy when empty
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+  return response.expanded
+}
+"""
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+    )
+    grounding["output_contract"]["fallback"] = {"mode": "none"}
+    assert adjudicate_candidate(source, grounding).ok
+
+
+def test_explicit_total_count_requires_take_n_not_pagination() -> None:
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 20, "source": "operator_confirmed"},
+    )
+    assert adjudicate_candidate(
+        """endpoint demo.test as "Test" {
+  take 20 from @play-demo.video where @paesiorigine is "Italia"
+}
+""",
+        grounding,
+    ).ok
+    mismatched = adjudicate_candidate(
+        """endpoint demo.test as "Test" {
+  take 24 from @play-demo.video where @paesiorigine is "Italia"
+}
+""",
+        grounding,
+    )
+    assert not mismatched.ok
+    paginated = adjudicate_candidate(
+        """endpoint demo.test as "Test" {
+  take page default 20 from @play-demo.video where @paesiorigine is "Italia"
+}
+""",
+        grounding,
+    )
+    assert not paginated.ok
+
+
+def test_page_defaults_in_comments_and_strings_do_not_satisfy_local_contract() -> None:
+    source = """endpoint demo.test as "take page" {
+  /* take page default 20 */
+  take page from @play-demo.video where @paesiorigine is "Italia"
+}
+"""
+    result = adjudicate_candidate(
+        source,
+        _grounding(
+            "Italia",
+            take={
+                "mode": "page",
+                "page_size": {
+                    "mode": "local_default",
+                    "value": 20,
+                    "source": "operator_confirmed",
+                },
+            },
+        ),
+    )
+    assert not result.ok
+
+
+def test_take_contract_rejects_second_endpoint_decoy() -> None:
+    source = """metis 0.43
+endpoint demo.real as "Real" {
+  take 1 from @play-demo.video where @paesiorigine is "Italia"
+}
+endpoint demo.decoy as "Decoy" {
+  take 20 from @play-demo.video where @paesiorigine is "Italia"
+}
+"""
+    result = adjudicate_candidate(
+        source,
+        _grounding("Italia", take={"mode": "count", "value": 20, "source": "operator_confirmed"}),
+    )
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["parse_error"] == "candidate must contain exactly one endpoint"
+
+
+def test_existing_source_take_selects_exact_endpoint_from_multi_endpoint_file() -> None:
+    source = """metis 0.43
+// endpoint demo.target { take 999 from @users }
+endpoint demo.other as "take 888" {
+  take page default 12 from @play-demo.video
+}
+endpoint demo.target as "Target" {
+  take 24 from @play-demo.video
+  return response.expanded { note "take page default 77" }
+}
+"""
+    assert source_take_contract(source, "demo.target") == TakeContract("count", 24)
+    assert source_take_contract(source, "demo.other") == TakeContract("page", 12)
+
+
+def test_existing_source_take_preserves_bare_pagination() -> None:
+    source = """endpoint demo.target as \"Target\" {
+  take page from @play-demo.video
+}
+"""
+    assert source_take_contract(source, "demo.target") == TakeContract("page")
+
+
+@pytest.mark.parametrize(
+    "source, endpoint",
+    [
+        ("endpoint demo.other { take 20 from @play-demo.video }", "demo.target"),
+        (
+            """endpoint demo.target { take 20 from @play-demo.video }
+endpoint demo.target { take 20 from @play-demo.video }
+""",
+            "demo.target",
+        ),
+        ("endpoint demo.target { return response.expanded }", "demo.target"),
+        (
+            "endpoint demo.target { take 20 from @video take 30 from @video }",
+            "demo.target",
+        ),
+    ],
+)
+def test_existing_source_take_fails_closed_when_identity_or_take_is_not_unique(
+    source: str, endpoint: str
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        source_take_contract(source, endpoint)
+    assert raised.value.code == "OUTPUT_CONTRACT_UNAVAILABLE"
+
+
+def test_existing_source_authority_is_accepted_and_still_exact() -> None:
+    grounding = _grounding(
+        "Italia",
+        take={"mode": "count", "value": 24, "source": "existing_source"},
+    )
+    assert adjudicate_candidate(
+        """endpoint demo.target {
+  take 24 from @play-demo.video where @paesiorigine is "Italia"
+}
+""",
+        grounding,
+    ).ok
+    assert not adjudicate_candidate(
+        """endpoint demo.target {
+  take page default 24 from @play-demo.video where @paesiorigine is "Italia"
+}
+""",
+        grounding,
+    ).ok
+
+
 def test_authorized_short_catalog_source_is_accepted() -> None:
     source = """metis 0.43
 endpoint demo.test as demo_test {
@@ -360,3 +740,44 @@ endpoint demo.test as demo_test {
 }
 """
     assert adjudicate_candidate(source, _grounding("Italia")).ok
+
+
+@pytest.mark.parametrize(
+    "take_line",
+    [
+        'take 20 from list.any include where @paesiorigine is "Italia"',
+        'take 20 include where @paesiorigine is "Italia"',
+        'take 20 from @video from @video include where @paesiorigine is "Italia"',
+    ],
+)
+def test_endpoint_take_requires_exactly_one_authorized_catalog_source(
+    take_line: str,
+) -> None:
+    result = adjudicate_candidate(
+        f"endpoint demo.test {{ {take_line} }}",
+        _grounding("Italia"),
+    )
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["catalog_source"]["expected"] == (
+        "exactly_one_authorized_catalog_source"
+    )
+
+
+def test_exact_endpoint_fallback_probe_ignores_other_endpoints_comments_and_labels() -> None:
+    source = """endpoint demo.other {
+  take 1 from @video
+  return response fallback to block.empty when empty
+}
+endpoint demo.target as "fallback label only" {
+  // fallback to block.decoy when empty
+  take 20 from @video
+  return response.expanded
+}
+endpoint demo.with_fallback {
+  take 20 from @video
+  return response fallback to block.empty when empty
+}
+"""
+    assert source_endpoint_has_fallback(source, "demo.target") is False
+    assert source_endpoint_has_fallback(source, "demo.with_fallback") is True

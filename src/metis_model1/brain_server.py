@@ -366,11 +366,14 @@ class BrainApplication:
             raise BrainError("BOOTSTRAP_UNAUTHORIZED", 401, "bootstrap authorization failed")
 
     def health(self) -> dict[str, Any]:
+        metrics = self.manager.aggregate_metrics()
+        metrics.update(self.turns.aggregate_metrics())
         return {
             "schema_version": 1,
             "status": "ready",
             "service": "metis-brain",
             "protocol": "v1",
+            "turn_schema_versions": [1, 2],
             "compiler_configured": True,
             "compiler_executions": getattr(self.compiler, "execution_count", 0),
             "model_loaded": bool(getattr(self.model, "model_loaded", False)),
@@ -383,7 +386,7 @@ class BrainApplication:
                 "schema": 2 if isinstance(self.retriever, Schema2SnapshotRetriever) else None,
                 "implementation": type(self.retriever).__name__,
             },
-            "metrics": self.manager.aggregate_metrics(),
+            "metrics": metrics,
         }
 
     def close(self) -> None:
@@ -616,7 +619,7 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
             request = TurnRequest.parse(body)
             record = self.app.turns.submit(session_id=session_id, token=token, request=request)
             return 202, {
-                "schema_version": 1,
+                "schema_version": request.schema_version,
                 "turn_id": record.turn_id,
                 "request_id": request.request_id,
                 "status": record.status,

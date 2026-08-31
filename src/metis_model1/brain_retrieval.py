@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from metis_model1.brain_context import ContextSnapshot
+from metis_model1.brain_output_contract import OutputRequestSurface
 from metis_model1.brain_protocol import BrainError
 from metis_model1.brain_sessions import OperationLease
 
@@ -17,6 +18,7 @@ class RetrievalResult:
     grounding: dict[str, Any]
     semantic_source_revision: str
     catalog_candidates: tuple[dict[str, str], ...] = ()
+    output_request: OutputRequestSurface | None = None
 
 
 class BrainRetriever(Protocol):

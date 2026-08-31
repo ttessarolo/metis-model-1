@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from metis_model1.brain_output_contract import parse_output_request
 from metis_model1.brain_protocol import BrainError, canonical_json, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult
 from metis_model1.brain_sessions import OperationLease
@@ -94,6 +95,81 @@ _INSTRUCTION_STOPWORDS = frozenset(
         "voglio",
     }
 )
+_STRUCTURAL_REFINEMENT_TOKENS = frozenset(
+    {
+        "aumenta",
+        "default",
+        "diminuisci",
+        "imposta",
+        "limite",
+        "numero",
+        "pagina",
+        "paginazione",
+        "paginata",
+        "paginato",
+        "porta",
+        "risultati",
+    }
+)
+_ENDPOINT_LABEL_REFINEMENT_PATTERNS = (
+    re.compile(
+        r'^rinomina\s+l[\'’]endpoint\s+(?:in|come)\s+"[^"\r\n]{1,128}"$',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r'^cambia\s+l[\'’]etichetta\s+dell[\'’]endpoint\s+(?:in|con)\s+"[^"\r\n]{1,128}"$',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^rendi\s+(?:pi[uù]\s+)?(?:chiara|breve|leggibile|descrittiva|esplicita)\s+"
+        r"l['’]etichetta\s+dell['’]endpoint$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^rendi\s+l['’]etichetta\s+dell['’]endpoint\s+(?:pi[uù]\s+)?"
+        r"(?:chiara|breve|leggibile|descrittiva|esplicita)$",
+        re.IGNORECASE,
+    ),
+)
+_AMBIGUOUS_TITLE_REFINEMENT_RE = re.compile(
+    r"^(?:rendi|modifica|aggiorna|riscrivi)\s+(?:il\s+)?titolo\s+"
+    r"(?:pi[uù]\s+)?(?:chiaro|breve|leggibile|descrittivo|esplicito)$",
+    re.IGNORECASE,
+)
+_SEMANTIC_REFINEMENT_PATTERNS = (
+    (
+        "replace",
+        re.compile(
+            r"^sostituisci\s+(?P<old>.+?)\s+con\s+(?P<new>.+)$",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "replace",
+        re.compile(
+            r"^cambia\s+(?P<old>.+?)\s+in\s+(?P<new>.+)$",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "replace",
+        re.compile(
+            r"^usa\s+(?P<new>.+?)\s+invece\s+di\s+(?P<old>.+)$",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "replace",
+        re.compile(
+            r"^rimuovi\s+(?P<old>.+?)\s+e\s+usa\s+(?P<new>.+)$",
+            re.IGNORECASE,
+        ),
+    ),
+    ("add", re.compile(r"^aggiungi\s+(?P<new>.+)$", re.IGNORECASE)),
+    ("add", re.compile(r"^includi\s+anche\s+(?P<new>.+)$", re.IGNORECASE)),
+    ("remove", re.compile(r"^rimuovi\s+(?P<old>.+)$", re.IGNORECASE)),
+    ("remove", re.compile(r"^elimina\s+(?P<old>.+)$", re.IGNORECASE)),
+)
 
 
 class SnapshotProjectionLoader(Protocol):
@@ -116,6 +192,13 @@ class _IndexedSnapshot:
     index: dict[str, Any]
     catalogs: tuple[dict[str, Any], ...]
     field_technical: dict[tuple[str, str], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class _SemanticRefinement:
+    operation: str
+    old: str | None
+    new: str | None
 
 
 def _fail(code: str, message: str, status: int = 409) -> None:
@@ -198,6 +281,58 @@ def _validate_loader_binding(
 
 def _catalog_option_ref(catalog: str) -> str:
     return "catalog-" + canonical_sha256({"catalog": catalog})[7:31]
+
+
+def _server_decisions(request: Any, kind: str) -> tuple[Mapping[str, Any], ...]:
+    """Read decisions reconstructed by TurnStore, never client fields."""
+
+    context = getattr(request, "server_clarification", None)
+    if not isinstance(context, Mapping):
+        return ()
+    decisions = context.get("decisions")
+    if isinstance(decisions, list):
+        return tuple(
+            decision
+            for decision in decisions
+            if isinstance(decision, Mapping) and decision.get("kind") == kind
+        )
+    return (context,) if context.get("kind") == kind else ()
+
+
+def _server_decision(request: Any, kind: str) -> Mapping[str, Any] | None:
+    decisions = _server_decisions(request, kind)
+    return decisions[-1] if decisions else None
+
+
+def _current_server_decision(request: Any, kind: str) -> Mapping[str, Any] | None:
+    """Read only the decision consumed by the current server-owned turn."""
+
+    context = getattr(request, "server_clarification", None)
+    if not isinstance(context, Mapping):
+        return None
+    current = context.get("current_decision")
+    if isinstance(current, Mapping):
+        return current if current.get("kind") == kind else None
+    if "decisions" not in context and context.get("kind") == kind:
+        return context
+    return None
+
+
+def _semantic_option_ref(candidate: Mapping[str, Any]) -> str:
+    return (
+        "semantic-"
+        + canonical_sha256(
+            {
+                "catalog": candidate.get("catalog"),
+                "field": candidate.get("field"),
+                "literal": candidate.get("literal"),
+                "literals": candidate.get("literals"),
+                "matched_by": candidate.get("matched_by"),
+                "clause_ref": candidate.get("clause_ref"),
+                "matched_surfaces": candidate.get("matched_surfaces"),
+            }
+        )[7:31]
+    )
 
 
 def _catalog_records(
@@ -350,6 +485,89 @@ def _meaningful(text: str) -> str:
     )
 
 
+def _is_structural_refinement(text: str) -> bool:
+    raw_tokens = [token.casefold() for token in _TOKEN_RE.findall(text)]
+    tokens = {
+        token
+        for token in raw_tokens
+        if token.casefold() not in _INSTRUCTION_STOPWORDS and not token.isdigit()
+    }
+    return (
+        any(token.isdigit() for token in raw_tokens)
+        and "risultati" in raw_tokens
+        and bool(tokens)
+        and tokens.issubset(_STRUCTURAL_REFINEMENT_TOKENS)
+    )
+
+
+def _nonsemantic_refinement(text: str, catalog: str) -> str | None:
+    """Classify only bounded refinements which cannot alter catalog filters."""
+
+    scrubbed = text
+    short = catalog.rsplit(".", 1)[-1]
+    for surface in sorted(
+        {
+            f"@{catalog}",
+            catalog,
+            f"catalogo {catalog}",
+            f"catalog {catalog}",
+            f"@{short}",
+            f"catalogo {short}",
+            f"catalog {short}",
+        },
+        key=len,
+        reverse=True,
+    ):
+        scrubbed = _mask_surface(scrubbed, surface)
+    normalized = " ".join(scrubbed.split()).strip()
+    if _is_structural_refinement(normalized):
+        return "cardinality"
+    if any(pattern.fullmatch(normalized) for pattern in _ENDPOINT_LABEL_REFINEMENT_PATTERNS):
+        return "endpoint_label"
+    if _AMBIGUOUS_TITLE_REFINEMENT_RE.fullmatch(normalized):
+        return "ambiguous_title"
+    return None
+
+
+def _semantic_refinement(text: str, catalog: str) -> _SemanticRefinement | None:
+    """Parse only a small, explicit semantic-delta language.
+
+    The match is deliberately anchored.  Unrecognized prefixes, suffixes, or
+    connector words remain part of an operand and must subsequently resolve
+    without residue; they are never treated as harmless natural-language
+    filler.
+    """
+
+    scrubbed = text
+    short = catalog.rsplit(".", 1)[-1]
+    surfaces = (
+        f"@{catalog}",
+        catalog,
+        f"catalogo {catalog}",
+        f"catalog {catalog}",
+        f"@{short}",
+        f"catalogo {short}",
+        f"catalog {short}",
+    )
+    for surface in sorted(set(surfaces), key=len, reverse=True):
+        scrubbed = _mask_surface(scrubbed, surface)
+    normalized = " ".join(scrubbed.split()).strip(" \t\r\n.!?")
+    if not normalized or len(normalized) > 1_024:
+        return None
+    for operation, pattern in _SEMANTIC_REFINEMENT_PATTERNS:
+        match = pattern.fullmatch(normalized)
+        if match is None:
+            continue
+        old = match.groupdict().get("old")
+        new = match.groupdict().get("new")
+        old = old.strip() if isinstance(old, str) else None
+        new = new.strip() if isinstance(new, str) else None
+        if old == "" or new == "":
+            return None
+        return _SemanticRefinement(operation=operation, old=old, new=new)
+    return None
+
+
 def _field_entry(index: Mapping[str, Any], catalog: str, field: str) -> Mapping[str, Any] | None:
     return next(
         (
@@ -373,18 +591,136 @@ def _candidate_selection(
     parent = _field_entry(index, catalog, field)
     if parent is None or parent.get("state") != "reviewed":
         return None
+    literal = candidate.get("literal") if isinstance(candidate.get("literal"), str) else None
+    literals = candidate.get("literals")
+    selected_literals = (
+        [literal]
+        if literal is not None
+        else list(literals)
+        if isinstance(literals, list)
+        and literals
+        and all(isinstance(item, str) for item in literals)
+        else []
+    )
+    for selected_literal in selected_literals:
+        reviewed = any(
+            item["node_kind"] == "value"
+            and item["catalog"] == catalog
+            and item["field"] == field
+            and item.get("literal") == selected_literal
+            and item.get("state") == "reviewed"
+            for item in index["entries"]
+        )
+        if not reviewed:
+            return None
     selection: dict[str, Any] = {
         "catalog": catalog,
         "field": field,
-        "literal": candidate.get("literal") if isinstance(candidate.get("literal"), str) else None,
+        "literal": literal,
         "domain": copy.deepcopy(parent["domain"]),
         "matched_by": "reviewed_semantic_disambiguation",
     }
-    literals = candidate.get("literals")
-    if isinstance(literals, list) and literals and all(isinstance(item, str) for item in literals):
-        selection["literals"] = list(literals)
+    if literal is None and selected_literals:
+        selection["literals"] = selected_literals
         selection["value_mode"] = "any_of"
     return selection
+
+
+def _semantic_candidate(
+    index: Mapping[str, Any], candidate: Mapping[str, Any], clause: str
+) -> dict[str, Any]:
+    """Add bounded, reviewed operator-facing semantics to one tied candidate."""
+
+    value = dict(candidate)
+    field = value.get("field")
+    catalog = value.get("catalog")
+    literal = value.get("literal")
+    label = f"@{field}" if isinstance(field, str) else "Metadato"
+    if isinstance(literal, str):
+        label += f' = "{literal}"'
+    elif isinstance(value.get("literals"), list):
+        joined = ", ".join(str(item) for item in value["literals"][:3])
+        label += f" in [{joined}]"
+    description: str | None = None
+    if isinstance(catalog, str) and isinstance(field, str):
+        if isinstance(literal, str):
+            entry = next(
+                (
+                    item
+                    for item in index["entries"]
+                    if item["node_kind"] == "value"
+                    and item["catalog"] == catalog
+                    and item["field"] == field
+                    and item.get("literal") == literal
+                    and item.get("state") == "reviewed"
+                ),
+                None,
+            )
+            means = entry.get("means") if isinstance(entry, Mapping) else None
+            if isinstance(means, Mapping) and isinstance(means.get("text"), str):
+                description = means["text"]
+        if description is None:
+            parent = _field_entry(index, catalog, field)
+            means = parent.get("means") if isinstance(parent, Mapping) else None
+            if isinstance(means, Mapping) and isinstance(means.get("text"), str):
+                description = means["text"]
+    surfaces: set[str] = set()
+    if isinstance(field, str):
+        surfaces.add(field)
+    parent = (
+        _field_entry(index, catalog, field)
+        if isinstance(catalog, str) and isinstance(field, str)
+        else None
+    )
+    for entry in [parent]:
+        if not isinstance(entry, Mapping):
+            continue
+        means = entry.get("means")
+        if isinstance(means, Mapping) and isinstance(means.get("text"), str):
+            surfaces.add(means["text"])
+        aka = entry.get("aka")
+        if isinstance(aka, Mapping):
+            surfaces.update(item for item in aka.get("items", []) if isinstance(item, str))
+    literals = [literal] if isinstance(literal, str) else []
+    if isinstance(value.get("literals"), list):
+        literals.extend(item for item in value["literals"] if isinstance(item, str))
+    for candidate_literal in literals:
+        surfaces.add(candidate_literal)
+        entry = next(
+            (
+                item
+                for item in index["entries"]
+                if item["node_kind"] == "value"
+                and item["catalog"] == catalog
+                and item["field"] == field
+                and item.get("literal") == candidate_literal
+                and item.get("state") == "reviewed"
+            ),
+            None,
+        )
+        if not isinstance(entry, Mapping):
+            continue
+        means = entry.get("means")
+        if isinstance(means, Mapping) and isinstance(means.get("text"), str):
+            surfaces.add(means["text"])
+        aka = entry.get("aka")
+        if isinstance(aka, Mapping):
+            surfaces.update(item for item in aka.get("items", []) if isinstance(item, str))
+    matched_surfaces = sorted(
+        (surface for surface in surfaces if _whole_surface(clause, surface)),
+        key=lambda surface: (-len(surface), surface.casefold()),
+    )
+    value.update(
+        {
+            "label": label[:256],
+            "description": (description or "Significato verificato nel catalogo")[:1024],
+            "clause": clause[:256],
+            "clause_ref": canonical_sha256({"clause": _meaningful(clause)}),
+            "matched_surfaces": matched_surfaces,
+        }
+    )
+    value["option_ref"] = _semantic_option_ref(value)
+    return value
 
 
 def _candidate_score(
@@ -490,12 +826,14 @@ def _resolve_clause(
             chosen = _choose_candidate(index, remaining, raw_candidates)
             if chosen is None:
                 unresolved_candidates = [
-                    dict(item) for item in raw_candidates if isinstance(item, Mapping)
+                    _semantic_candidate(index, item, remaining)
+                    for item in raw_candidates
+                    if isinstance(item, Mapping)
                 ]
                 break
             selection = _candidate_selection(index, chosen)
             if selection is None:
-                unresolved_candidates = [chosen]
+                unresolved_candidates = [_semantic_candidate(index, chosen, remaining)]
                 break
             new_selections = [selection]
         if not new_selections:
@@ -607,6 +945,388 @@ def _resolve_complete_grounding(
         "lookups": lookups,
         "unresolved": unresolved,
     }
+
+
+def _apply_semantic_decision(
+    index: Mapping[str, Any], grounding: dict[str, Any], option_ref: str
+) -> None:
+    candidates = [item for item in grounding.get("candidates", []) if isinstance(item, Mapping)]
+    matches = [item for item in candidates if item.get("option_ref") == option_ref]
+    if len(matches) != 1:
+        raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "semantic option is unavailable")
+    chosen = matches[0]
+    if chosen.get("candidate_kind") == "refinement_scope":
+        clause_ref = chosen.get("clause_ref")
+        grounding["candidates"] = [
+            dict(item)
+            for item in candidates
+            if not isinstance(clause_ref, str) or item.get("clause_ref") != clause_ref
+        ]
+        if chosen.get("scope") == "endpoint_label":
+            grounding["status"] = "resolved"
+            grounding["reason"] = "endpoint label refinement selected by the operator"
+            grounding["unresolved"] = []
+            grounding["nonsemantic_refinement"] = {
+                "kind": "endpoint_label",
+                "source": "server_basis",
+            }
+            return
+        if chosen.get("scope") == "catalog_title_field":
+            grounding.update(
+                {
+                    "status": "unsupported",
+                    "reason": "catalog title refinement requires an explicit reviewed delta",
+                    "selected": None,
+                    "selections": [],
+                    "unresolved": [str(chosen.get("clause", "title"))[:256]],
+                }
+            )
+            return
+        raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "semantic option is unavailable")
+    selection = _candidate_selection(index, chosen)
+    if selection is None:
+        raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "semantic option is unavailable")
+    clause_ref = chosen.get("clause_ref")
+    selections = [
+        dict(item) for item in grounding.get("selections", []) if isinstance(item, Mapping)
+    ]
+    selections.append(selection)
+    grounding["selections"] = selections
+    grounding["candidates"] = [
+        dict(item)
+        for item in candidates
+        if not isinstance(clause_ref, str) or item.get("clause_ref") != clause_ref
+    ]
+    remaining: list[str] = []
+    for raw in grounding.get("unresolved", []):
+        if not isinstance(raw, str):
+            continue
+        text = raw
+        if (
+            isinstance(clause_ref, str)
+            and canonical_sha256({"clause": _meaningful(raw)}) == clause_ref
+        ):
+            surfaces = list(_selection_surfaces(index, selection))
+            surfaces.extend(
+                item for item in chosen.get("matched_surfaces", []) if isinstance(item, str)
+            )
+            for surface in sorted(set(surfaces), key=len, reverse=True):
+                text = _mask_surface(text, surface)
+        meaningful = _meaningful(text)
+        if meaningful:
+            remaining.append(meaningful[:256])
+    grounding["unresolved"] = remaining
+    if grounding["candidates"]:
+        grounding["status"] = "clarify"
+        grounding["reason"] = "another semantic clause still requires confirmation"
+    elif remaining:
+        grounding["status"] = "unsupported"
+        grounding["reason"] = "one or more request clauses have no exact reviewed grounding"
+    else:
+        grounding["status"] = "resolved"
+        grounding["reason"] = "all semantic clauses are grounded in reviewed snapshot members"
+
+
+def _basis_selections(
+    index: Mapping[str, Any], basis: Any, catalog: str
+) -> list[dict[str, Any]] | None:
+    """Revalidate prior server-owned selections against the same semantic revision."""
+
+    if (
+        not isinstance(basis, Mapping)
+        or basis.get("status") not in {None, "resolved"}
+        or basis.get("catalogs") != [catalog]
+        or basis.get("candidates")
+        or basis.get("lookups")
+        or basis.get("unresolved")
+    ):
+        return None
+    raw_selections = basis.get("selections")
+    if not isinstance(raw_selections, list) or len(raw_selections) > MAX_GROUNDING_PASSES:
+        return None
+    result: list[dict[str, Any]] = []
+    identities: set[tuple[Any, ...]] = set()
+    for raw in raw_selections:
+        if not isinstance(raw, Mapping):
+            return None
+        selection = _candidate_selection(index, raw)
+        if selection is None:
+            return None
+        domain = selection.get("domain")
+        if isinstance(domain, Mapping) and domain.get("kind") == "open":
+            return None
+        identity = _selection_identity(selection)
+        if identity in identities:
+            return None
+        identities.add(identity)
+        result.append(selection)
+    return result
+
+
+def _refinement_operand_selection(
+    index: Mapping[str, Any],
+    catalog: str,
+    operand: str,
+    *,
+    allow_field_only: bool,
+) -> dict[str, Any] | None:
+    """Resolve exactly one reviewed member and reject every lexical residue."""
+
+    resolved = _resolve_complete_grounding(index, operand, catalog)
+    if (
+        resolved.get("status") != "resolved"
+        or resolved.get("candidates")
+        or resolved.get("unresolved")
+        or resolved.get("lookups")
+    ):
+        return None
+    raw_selections = [item for item in resolved.get("selections", []) if isinstance(item, Mapping)]
+    if len(raw_selections) != 1:
+        return None
+    selection = _candidate_selection(index, raw_selections[0])
+    if selection is None:
+        return None
+    has_value = isinstance(selection.get("literal"), str) or bool(selection.get("literals"))
+    if not has_value and not allow_field_only:
+        return None
+    domain = selection.get("domain")
+    if not has_value and (
+        not isinstance(domain, Mapping) or domain.get("kind") in {"none", "open"}
+    ):
+        return None
+    return selection
+
+
+def _resolved_refinement_grounding(selections: list[dict[str, Any]], reason: str) -> dict[str, Any]:
+    return {
+        "status": "resolved",
+        "reason": reason,
+        "selected": selections[0] if len(selections) == 1 else None,
+        "selections": selections,
+        "candidates": [],
+        "lookup": None,
+        "lookups": [],
+        "unresolved": [],
+    }
+
+
+def _ambiguous_title_refinement_grounding(
+    index: Mapping[str, Any],
+    prior: list[dict[str, Any]],
+    catalog: str,
+    instruction: str,
+) -> dict[str, Any]:
+    """Build one server-resolvable scope question without guessing ``title``."""
+
+    has_reviewed_title = any(
+        item.get("node_kind") == "field"
+        and item.get("catalog") == catalog
+        and item.get("field") == "title"
+        and item.get("state") == "reviewed"
+        for item in index.get("entries", [])
+        if isinstance(item, Mapping)
+    )
+    if not has_reviewed_title:
+        return {
+            "status": "resolved",
+            "reason": "catalog has no reviewed title field competing with endpoint label",
+            "selected": prior[0] if len(prior) == 1 else None,
+            "selections": prior,
+            "candidates": [],
+            "lookup": None,
+            "lookups": [],
+            "unresolved": [],
+            "nonsemantic_refinement": {
+                "kind": "endpoint_label",
+                "source": "server_basis",
+            },
+        }
+    meaningful = _meaningful(instruction) or instruction.strip()
+    clause = meaningful[:256]
+    clause_ref = canonical_sha256({"clause": meaningful})
+    candidates = [
+        {
+            "candidate_kind": "refinement_scope",
+            "scope": "endpoint_label",
+            "catalog": catalog,
+            "clause": clause,
+            "clause_ref": clause_ref,
+            "option_ref": canonical_sha256({"clause_ref": clause_ref, "scope": "endpoint_label"}),
+            "label": "Etichetta dell'endpoint",
+            "description": (
+                "Rende più chiaro il titolo mostrato per l'endpoint senza cambiare i filtri."
+            ),
+        },
+        {
+            "candidate_kind": "refinement_scope",
+            "scope": "catalog_title_field",
+            "catalog": catalog,
+            "field": "title",
+            "clause": clause,
+            "clause_ref": clause_ref,
+            "option_ref": canonical_sha256(
+                {"clause_ref": clause_ref, "scope": "catalog_title_field"}
+            ),
+            "label": "Metadato @title",
+            "description": (
+                "Interviene sul filtro del titolo e richiede una modifica semantica esplicita."
+            ),
+        },
+    ]
+    return {
+        "status": "clarify",
+        "reason": "title can mean endpoint label or catalog metadata",
+        "selected": None,
+        "selections": prior,
+        "candidates": candidates,
+        "lookup": None,
+        "lookups": [],
+        "unresolved": [],
+    }
+
+
+def _apply_semantic_refinement(
+    index: Mapping[str, Any],
+    prior: list[dict[str, Any]],
+    catalog: str,
+    refinement: _SemanticRefinement,
+) -> dict[str, Any] | None:
+    new_selection: dict[str, Any] | None = None
+    if refinement.new is not None:
+        new_selection = _refinement_operand_selection(
+            index,
+            catalog,
+            refinement.new,
+            allow_field_only=False,
+        )
+        if new_selection is None:
+            return None
+
+    old_selection: dict[str, Any] | None = None
+    old_matches: list[dict[str, Any]] = []
+    if refinement.old is not None:
+        old_selection = _refinement_operand_selection(
+            index,
+            catalog,
+            refinement.old,
+            allow_field_only=refinement.operation == "replace",
+        )
+        if old_selection is None:
+            return None
+        old_has_value = isinstance(old_selection.get("literal"), str) or bool(
+            old_selection.get("literals")
+        )
+        if old_has_value:
+            old_identity = _selection_identity(old_selection)
+            old_matches = [item for item in prior if _selection_identity(item) == old_identity]
+        else:
+            # A field-only source can replace one prior member only when the
+            # destination resolves to that exact field.  This is the sole
+            # deterministic same-field shorthand.
+            if (
+                refinement.operation != "replace"
+                or new_selection is None
+                or new_selection.get("catalog") != old_selection.get("catalog")
+                or new_selection.get("field") != old_selection.get("field")
+            ):
+                return None
+            old_matches = [
+                item
+                for item in prior
+                if item.get("catalog") == old_selection.get("catalog")
+                and item.get("field") == old_selection.get("field")
+            ]
+        if len(old_matches) != 1:
+            return None
+
+    if refinement.operation == "add":
+        if new_selection is None:
+            return None
+        result = list(prior)
+        if all(_selection_identity(item) != _selection_identity(new_selection) for item in result):
+            result.append(new_selection)
+        return _resolved_refinement_grounding(
+            result, "one explicitly identified reviewed selection was added"
+        )
+
+    if refinement.operation == "remove":
+        if len(old_matches) != 1:
+            return None
+        removed = _selection_identity(old_matches[0])
+        result = [item for item in prior if _selection_identity(item) != removed]
+        return _resolved_refinement_grounding(
+            result, "one explicitly identified reviewed selection was removed"
+        )
+
+    if refinement.operation == "replace":
+        if new_selection is None or len(old_matches) != 1:
+            return None
+        removed = _selection_identity(old_matches[0])
+        result = [item for item in prior if _selection_identity(item) != removed]
+        if all(_selection_identity(item) != _selection_identity(new_selection) for item in result):
+            result.append(new_selection)
+        return _resolved_refinement_grounding(
+            result, "one explicit reviewed selection was replaced by another"
+        )
+    return None
+
+
+def _reject_semantic_refinement(grounding: dict[str, Any], instruction: str) -> None:
+    grounding.update(
+        {
+            "status": "unsupported",
+            "reason": "semantic refinement is not an exact reviewed add/remove/replace delta",
+            "selected": None,
+            "selections": [],
+            "candidates": [],
+            "lookup": None,
+            "lookups": [],
+            "unresolved": [(_meaningful(instruction) or instruction.strip())[:256]],
+        }
+    )
+
+
+def _merge_basis_grounding(
+    index: Mapping[str, Any],
+    grounding: dict[str, Any],
+    basis: Any,
+    catalog: str,
+    instruction: str,
+) -> None:
+    prior = _basis_selections(index, basis, catalog)
+    if prior is None:
+        return
+    nonsemantic = _nonsemantic_refinement(instruction, catalog)
+    if nonsemantic == "ambiguous_title":
+        grounding.update(_ambiguous_title_refinement_grounding(index, prior, catalog, instruction))
+        return
+    if nonsemantic in {"cardinality", "endpoint_label"}:
+        grounding.update(
+            {
+                "status": "resolved",
+                "reason": "reviewed selections retained from the session proposal basis",
+                "selected": prior[0] if len(prior) == 1 else None,
+                "selections": prior,
+                "candidates": [],
+                "lookup": None,
+                "lookups": [],
+                "unresolved": [],
+            }
+        )
+        grounding["nonsemantic_refinement"] = {
+            "kind": nonsemantic,
+            "source": "server_basis",
+        }
+        return
+    refinement = _semantic_refinement(instruction, catalog)
+    if refinement is None:
+        _reject_semantic_refinement(grounding, instruction)
+        return
+    refined = _apply_semantic_refinement(index, prior, catalog, refinement)
+    if refined is None:
+        _reject_semantic_refinement(grounding, instruction)
+        return
+    grounding.update(refined)
 
 
 def _semantic_catalog_candidates(
@@ -748,6 +1468,7 @@ def _bounded_context(
     catalog_entry = next(item for item in entries if item["node_kind"] == "catalog")
     context: dict[str, Any] = {
         "language_version": "0.43",
+        "semantic_schema": 2,
         "tenant_alias": snapshot.tenant_alias,
         "tenant_id": snapshot.tenant_id,
         "context_revision": snapshot.revision,
@@ -873,22 +1594,36 @@ class Schema2SnapshotRetriever:
         instruction = getattr(request, "instruction", None)
         if not isinstance(instruction, str) or not instruction.strip():
             _fail("RETRIEVAL_INVALID", "request instruction is invalid", 400)
-        clarification = getattr(request, "clarification_response", None)
-        if isinstance(clarification, Mapping) and (
-            clarification.get("context_revision") != snapshot.revision
-            or clarification.get("semantic_source_revision")
-            != indexed.index["semantic_source_revision"]
-        ):
-            raise BrainError("SEMANTIC_SOURCE_STALE", 409, "clarification revision is stale")
-        clarification_hint = (
-            clarification.get("option_ref") if isinstance(clarification, Mapping) else None
+        output_request = parse_output_request(instruction)
+        semantic_instruction = output_request.semantic_instruction
+        # Only the TurnStore may resolve a client answer. Raw clarification
+        # fields are intentionally ignored here so the retrieval authority can
+        # never be steered with a manufactured option reference.
+        basis_grounding = getattr(request, "server_basis_grounding", None)
+        catalog_clarification = (
+            _current_server_decision(request, "catalog")
+            if isinstance(basis_grounding, Mapping)
+            else _server_decision(request, "catalog")
         )
-        catalog_hint = clarification_hint or getattr(request, "catalog_hint", None)
+        catalog_decision = (
+            catalog_clarification.get("resolved_value")
+            if catalog_clarification is not None
+            else None
+        )
+        catalog_hint = catalog_decision or getattr(request, "catalog_hint", None)
         explicit = _explicit_catalog(
             instruction,
             indexed.catalogs,
             catalog_hint,
         )
+        if explicit is None and isinstance(basis_grounding, Mapping):
+            basis_catalogs = basis_grounding.get("catalogs")
+            if (
+                isinstance(basis_catalogs, list)
+                and len(basis_catalogs) == 1
+                and isinstance(basis_catalogs[0], str)
+            ):
+                explicit = _explicit_catalog(instruction, indexed.catalogs, basis_catalogs[0])
         if explicit == "__ambiguous__":
             explicit = None
             true_candidates = [item for item in indexed.catalogs if item["owner"]]
@@ -899,7 +1634,7 @@ class Schema2SnapshotRetriever:
         else:
             true_candidates = _semantic_catalog_candidates(
                 indexed.index,
-                instruction,
+                semantic_instruction,
                 indexed.catalogs,
             )
         candidate_payload = tuple(
@@ -951,9 +1686,33 @@ class Schema2SnapshotRetriever:
                 grounding=grounding,
                 semantic_source_revision=indexed.index["semantic_source_revision"],
                 catalog_candidates=candidate_payload,
+                output_request=output_request,
             )
         selected_catalog = true_candidates[0]["catalog"]
-        grounding = _resolve_complete_grounding(indexed.index, instruction, selected_catalog)
+        grounding = _resolve_complete_grounding(
+            indexed.index, semantic_instruction, selected_catalog
+        )
+        _merge_basis_grounding(
+            indexed.index,
+            grounding,
+            basis_grounding,
+            selected_catalog,
+            instruction,
+        )
+        semantic_decisions = (
+            tuple(
+                decision
+                for decision in (_current_server_decision(request, "semantic_choice"),)
+                if decision is not None
+            )
+            if isinstance(basis_grounding, Mapping)
+            else _server_decisions(request, "semantic_choice")
+        )
+        for semantic_clarification in semantic_decisions:
+            option_ref = semantic_clarification.get("resolved_value")
+            if not isinstance(option_ref, str):
+                raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "semantic option is unavailable")
+            _apply_semantic_decision(indexed.index, grounding, option_ref)
         enriched_selections: list[dict[str, Any]] = []
         for raw_selection in grounding.get("selections", []):
             if not isinstance(raw_selection, Mapping):
@@ -1004,6 +1763,7 @@ class Schema2SnapshotRetriever:
                     "description": candidate_payload[0]["description"],
                 },
             ),
+            output_request=output_request,
         )
 
 
