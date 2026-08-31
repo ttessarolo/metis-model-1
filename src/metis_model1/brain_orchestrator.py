@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -18,6 +19,7 @@ from metis_model1.brain_clarifications import (
     ClarificationChoice,
     ClarificationStore,
 )
+from metis_model1.brain_grounded_renderer import render_grounded_create
 from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, ModelRequest
 from metis_model1.brain_output_contract import OutputRequestSurface, parse_output_request
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
@@ -95,6 +97,7 @@ class BrainOrchestrator:
         ) as lease:
             if record.cancellation.is_set() or lease.cancellation.is_set():
                 raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
+            retrieval_started = time.monotonic()
             record.emit("retrieval.started", "retrieval_started", "Recupero contesto")
             retrieved = self._retriever.retrieve(lease=lease, request=request)
             self._check_semantic_revision(request, retrieved)
@@ -103,6 +106,7 @@ class BrainOrchestrator:
                 "retrieval_completed",
                 "Contesto recuperato",
                 count=len(retrieved.context),
+                duration_ms=max(0, int((time.monotonic() - retrieval_started) * 1000)),
             )
             candidates = retrieved.catalog_candidates
             if len(candidates) > 1:
@@ -159,13 +163,28 @@ class BrainOrchestrator:
                 previous_source=previous,
                 cancellation=record.cancellation,
             )
-            record.emit("inference.started", "inference_started", "Model 1 in generazione")
-            candidate = self._generate(model_request)
+            inference_started = time.monotonic()
+            candidate = render_grounded_create(
+                request=request,
+                retrieved=retrieved,
+                model_revision=str(getattr(self._model, "model_revision", "unavailable")),
+                adapter_sha256=str(getattr(self._model, "adapter_sha256", "unavailable")),
+            )
+            if candidate is None:
+                record.emit("inference.started", "inference_started", "Model 1 in generazione")
+                candidate = self._generate(model_request)
+            else:
+                record.emit(
+                    "inference.started",
+                    "inference_started",
+                    "Sintesi locale dal grounding verificato",
+                )
             record.emit(
                 "inference.completed",
                 "inference_completed",
                 "Candidato ricevuto",
                 bytes=len(candidate.source.encode()),
+                duration_ms=max(0, int((time.monotonic() - inference_started) * 1000)),
             )
 
             diagnostics: list[dict[str, Any]] = []
@@ -203,12 +222,14 @@ class BrainOrchestrator:
                         diagnostics=(grounding_diagnostic,),
                         cancellation=record.cancellation,
                     )
+                    repair_started = time.monotonic()
                     candidate = self._generate(repair_request)
                     record.emit(
                         "repair.completed",
                         "repair_completed",
                         "Correzione della selezione ricevuta",
                         attempt=repairs_used,
+                        duration_ms=max(0, int((time.monotonic() - repair_started) * 1000)),
                     )
                     continue
                 attempts += 1
@@ -218,6 +239,7 @@ class BrainOrchestrator:
                     "Compilazione del candidato",
                     attempt=attempts,
                 )
+                compile_started = time.monotonic()
                 try:
                     compile_receipt = self._compiler.compile(
                         lease=lease,
@@ -237,6 +259,7 @@ class BrainOrchestrator:
                         "compile_completed",
                         "Compilazione riuscita",
                         attempt=attempts,
+                        duration_ms=max(0, int((time.monotonic() - compile_started) * 1000)),
                     )
                     break
                 diagnostics = self._diagnostics(compile_receipt)
@@ -245,6 +268,7 @@ class BrainOrchestrator:
                     "compile_completed",
                     "Compilazione con diagnostica",
                     attempt=attempts,
+                    duration_ms=max(0, int((time.monotonic() - compile_started) * 1000)),
                 )
                 if repairs_used >= self._max_repairs:
                     break
@@ -266,12 +290,14 @@ class BrainOrchestrator:
                     diagnostics=tuple(diagnostics[:32]),
                     cancellation=record.cancellation,
                 )
+                repair_started = time.monotonic()
                 candidate = self._generate(repair_request)
                 record.emit(
                     "repair.completed",
                     "repair_completed",
                     "Correzione ricevuta",
                     attempt=repairs_used,
+                    duration_ms=max(0, int((time.monotonic() - repair_started) * 1000)),
                 )
 
             if compile_receipt is None:
@@ -939,6 +965,9 @@ class BrainOrchestrator:
             },
         }
         identity = self._identity(record, retrieved)
+        identity["generation_strategy"] = candidate.generator
+        if candidate.metrics:
+            identity["generation_metrics"] = dict(candidate.metrics)
         toolchain = receipt.get("toolchain_binding")
         if isinstance(toolchain, str):
             identity["toolchain_binding"] = toolchain

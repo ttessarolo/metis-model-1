@@ -843,13 +843,24 @@ class _SequenceModel:
     model_revision = "model-test"
     adapter_sha256 = "adapter-test"
 
-    def __init__(self, sources: list[str]) -> None:
+    def __init__(
+        self,
+        sources: list[str],
+        *,
+        metrics: dict[str, int | float | str] | None = None,
+    ) -> None:
         self.sources = iter(sources)
         self.requests = []
+        self.metrics = metrics or {}
 
     def generate(self, request: object) -> ModelCandidate:
         self.requests.append(request)
-        return ModelCandidate(next(self.sources), self.model_revision, self.adapter_sha256)
+        return ModelCandidate(
+            next(self.sources),
+            self.model_revision,
+            self.adapter_sha256,
+            metrics=self.metrics,
+        )
 
 
 class _CountingCompiler:
@@ -915,6 +926,105 @@ def _run_with_model(
         request=request,
         record=record,
     )
+
+
+def test_reviewed_finite_create_skips_model_but_still_compiles() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    request = _request(
+        context,
+        semantic,
+        instruction="crea un endpoint con 24 risultati",
+        schema_version=2,
+        target={
+            "mode": "create",
+            "relative_path": "brain-drafts/film_italiani.metis",
+            "endpoint": "demo.film_italiani",
+            "base_sha256": None,
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    retrieved = _grounded_retrieval(context, semantic)
+    retrieved.context.update(
+        {
+            "semantic_schema": 2,
+            "language_version": "0.43",
+            "context_revision": context,
+            "semantic_source_revision": semantic,
+            "toolchain_binding": "sha256:" + "a" * 64,
+            "catalog": {
+                "name": "play-demo.video",
+                "semantic": {"state": "reviewed"},
+            },
+            "fields": [
+                {
+                    "name": "paesiorigine",
+                    "type": "keyword",
+                    "modifiers": [],
+                    "domain": {"kind": "enum", "size": 2, "nature": "editorial"},
+                    "semantic": {"state": "reviewed"},
+                    "values": [
+                        {"literal": "ITALIA", "semantic": {"state": "reviewed"}},
+                        {"literal": "italia", "semantic": {"state": "reviewed"}},
+                    ],
+                }
+            ],
+        }
+    )
+    model = _SequenceModel([])
+    compiler = _CountingCompiler()
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {}),
+        cancellation=threading.Event(),
+    )
+
+    result = BrainOrchestrator(
+        retriever=SimpleNamespace(retrieve=lambda **_kwargs: retrieved),
+        model=model,
+        compiler=compiler,
+    ).run(
+        manager=_FakeManager(lease),
+        session_id=_SESSION_ID,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert result["outcome"] == "proposed"
+    assert result["identity"]["generation_strategy"] == "grounded_renderer"
+    assert "take 24 from @play-demo.video" in result["proposal"]["source"]
+    assert model.requests == []
+    assert compiler.calls == 1
+    completed = {
+        event["event"]: event["data"]
+        for event in record.events
+        if event["event"].endswith(".completed")
+    }
+    for event_name in ("retrieval.completed", "inference.completed", "compile.completed"):
+        assert type(completed[event_name]["duration_ms"]) is int
+        assert completed[event_name]["duration_ms"] >= 0
+
+
+def test_model_generation_metrics_are_preserved_in_proposal_identity() -> None:
+    metrics: dict[str, int | float | str] = {
+        "worker_load_ms": 10,
+        "generation_ms": 20,
+        "prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 0,
+        "prompt_tps": 100.0,
+        "generation_tps": 2.0,
+        "finish_reason": "stop",
+        "peak_metal_gb": 1.0,
+    }
+    model = _SequenceModel(
+        ['@paesiorigine in ["ITALIA", "italia"]'],
+        metrics=metrics,
+    )
+    result = _run_with_model(model, _CountingCompiler(), max_repairs=0)
+
+    assert result["identity"]["generation_strategy"] == "model"
+    assert result["identity"]["generation_metrics"] == metrics
 
 
 def test_grounding_repair_converges_before_compile() -> None:

@@ -1503,6 +1503,13 @@ class Schema2SnapshotRetriever:
         self._cache: OrderedDict[tuple[str, str, str], _IndexedSnapshot] = OrderedDict()
         self._cache_lock = threading.Lock()
 
+    def close(self) -> None:
+        with self._cache_lock:
+            self._cache.clear()
+        close = getattr(self._loader, "close", None)
+        if callable(close):
+            close()
+
     def _indexed(self, snapshot: Any) -> _IndexedSnapshot:
         try:
             semantic_revision = snapshot.semantic_source_revision()

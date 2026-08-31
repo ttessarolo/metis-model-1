@@ -255,7 +255,7 @@ def _scan_field_predicate(source: str, field: str, operator: int) -> tuple[_Pred
 def _catalog_source_after(source: str, index: int) -> tuple[str | None, int]:
     cursor = _skip_trivia(source, index)
     if _word_at(source, cursor, "all"):
-        cursor = _skip_trivia(source, cursor + 3)
+        raise _ScanFailure("from all is not authorized")
     if cursor >= len(source) or source[cursor] != "@":
         return None, cursor
     start = cursor + 1
@@ -537,6 +537,46 @@ def _endpoint_take_regions(source: str) -> list[_TakeRegion]:
             continue
         index += 1
     return regions
+
+
+def _reject_endpoint_predicates_outside_take(
+    source: str,
+    *,
+    endpoint_start: int,
+    endpoint_end: int,
+    take_region: _TakeRegion,
+) -> None:
+    """Reject top-level field predicates that are not owned by the authorized take."""
+
+    index = endpoint_start
+    while index < endpoint_end:
+        if take_region.start <= index < take_region.end:
+            index = take_region.end
+            continue
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if source[index] == "{":
+            index = _block_end(source, index) + 1
+            continue
+        if source[index] != "@":
+            index += 1
+            continue
+        field_start = index + 1
+        if field_start >= len(source) or source[field_start] not in _IDENTIFIER_START:
+            index += 1
+            continue
+        field_end = field_start + 1
+        while field_end < len(source) and source[field_end] in _IDENTIFIER_CONTINUATION:
+            field_end += 1
+        field = source[field_start:field_end]
+        predicate, next_index = _scan_field_predicate(source, field, field_end)
+        if predicate is not None:
+            raise _ScanFailure("finite predicate exists outside the endpoint take")
+        index = next_index if next_index > index else field_end
 
 
 def _contains_word_outside_trivia(source: str, word: str) -> bool:
@@ -877,6 +917,13 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
             if len(take_regions) != 1:
                 raise _ScanFailure("candidate must contain exactly one endpoint-level take")
             region = take_regions[0]
+            _name, endpoint_start, endpoint_end = endpoint_blocks[0]
+            _reject_endpoint_predicates_outside_take(
+                source,
+                endpoint_start=endpoint_start,
+                endpoint_end=endpoint_end,
+                take_region=region,
+            )
             scanned, catalog_sources = _scan_candidate(source[region.start : region.end])
         has_fallback = _contains_word_outside_trivia(source, "fallback")
     except _ScanFailure as error:

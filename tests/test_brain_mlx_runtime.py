@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ import pytest
 from metis_model1 import brain_mlx_runtime as mlx_runtime
 from metis_model1 import initial_local_qlora_runtime as qualified_runtime
 from metis_model1.brain_mlx_runtime import MlxBrainModelRuntime, serialize_model_messages
-from metis_model1.brain_model_runtime import ModelRequest
+from metis_model1.brain_model_runtime import ModelCandidate, ModelRequest
 from metis_model1.brain_protocol import BrainError
 
 
@@ -22,7 +23,11 @@ def _request(
     cancellation: threading.Event | None = None,
     take: dict[str, object] | None = None,
 ) -> ModelRequest:
-    grounding: dict[str, object] = {"resolutions": [{"field": "genere", "value": "Azione"}]}
+    grounding: dict[str, object] = {
+        "catalogs": ["play-demo.video"],
+        "resolutions": [{"field": "genere", "value": "Azione"}],
+        "selections": [{"field": "genere"}],
+    }
     if take is not None:
         grounding["output_contract"] = {"take": take}
     return ModelRequest(
@@ -30,7 +35,16 @@ def _request(
         intent="create",
         target_path="candidate.metis",
         endpoint="demo.endpoint",
-        context={"catalog": "video", "fields": ["genere"]},
+        context={
+            "language_version": "0.43",
+            "semantic_schema": 2,
+            "catalog": {"name": "play-demo.video"},
+            "fields": [
+                {"name": "genere", "type": "keyword"},
+                {"name": "campo_non_selezionato", "type": "keyword"},
+            ],
+            "endpoint_templates": [{"path": "private-template.metis", "source": "TEMPLATE_MARKER"}],
+        },
         grounding=grounding,
         previous_source=None,
         diagnostics=(),
@@ -115,6 +129,14 @@ def runtime_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "        'request_id': request['request_id'],\n"
             "        'text': request['text'],\n"
             "        'peak_metal_gb': 1.0,\n"
+            "        'worker_load_ms': 10,\n"
+            "        'generation_ms': 20,\n"
+            "        'prompt_tokens': 30,\n"
+            "        'generation_tokens': 513 if MODE == 'bad_metrics' else 4,\n"
+            "        'cached_tokens': 0,\n"
+            "        'prompt_tps': 100.0,\n"
+            "        'generation_tps': 2.0,\n"
+            "        'finish_reason': 'unknown' if MODE == 'bad_finish' else 'stop',\n"
             "    }), flush=True)\n",
             encoding="utf-8",
         )
@@ -146,9 +168,31 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
     )
     assert "time.fractional_second" in messages[0]["content"]
     assert "two or more assignments require a braced attributes group" in messages[0]["content"]
+    assert "endpoint declaration name is exactly `demo.endpoint`" in messages[0]["content"]
+    assert "catalog source is exactly `@play-demo.video`" in messages[0]["content"]
+    assert "Finite filters belong under `include where`" in messages[0]["content"]
     assert "TENANT_CONTEXT_JSON" in messages[1]["content"]
     assert messages[1]["content"].startswith("crea un endpoint\n\n")
     assert '"grounding"' in messages[1]["content"]
+    assert '"name":"genere"' in messages[1]["content"]
+    assert "campo_non_selezionato" not in messages[1]["content"]
+    assert "TEMPLATE_MARKER" not in messages[1]["content"]
+    assert "F-4 exact JSON contract" not in messages[0]["content"]
+    assert len(messages[0]["content"].encode("utf-8")) < 16 * 1024
+
+
+def test_prompt_projection_keeps_fields_referenced_by_previous_source() -> None:
+    request = replace(
+        _request(),
+        previous_source="metis 0.43\nendpoint demo.e { take 1 from @video include where "
+        '@campo_non_selezionato is "x" }\n',
+    )
+
+    prompt = serialize_model_messages(request)[1]["content"]
+
+    assert '"name":"genere"' in prompt
+    assert '"name":"campo_non_selezionato"' in prompt
+    assert "TEMPLATE_MARKER" not in prompt
 
 
 @pytest.mark.parametrize(
@@ -192,6 +236,17 @@ def test_worker_is_started_once_and_closed_idempotently(runtime_factory) -> None
     second = runtime.generate(_request("modifica l'endpoint"))
     assert first.model_revision == "model-revision"
     assert first.adapter_sha256 == "sha256:" + "a" * 64
+    assert first.metrics == {
+        "worker_load_ms": 10,
+        "generation_ms": 20,
+        "prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 0,
+        "prompt_tps": 100.0,
+        "generation_tps": 2.0,
+        "finish_reason": "stop",
+        "peak_metal_gb": 1.0,
+    }
     assert first.source != second.source
     assert runtime.model_loaded
     runtime.close()
@@ -200,6 +255,35 @@ def test_worker_is_started_once_and_closed_idempotently(runtime_factory) -> None
     with pytest.raises(BrainError) as raised:
         runtime.generate(_request())
     assert raised.value.code == "MODEL_RUNTIME_CLOSED"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"generation_tokens": 0},
+        {"generation_tokens": 513},
+        {"prompt_tokens": 1.5},
+        {"cached_tokens": 31},
+        {"finish_reason": "unknown"},
+        {"peak_metal_gb": 111.0},
+    ],
+)
+def test_model_candidate_rejects_invalid_injected_telemetry(changes: dict[str, object]) -> None:
+    metrics: dict[str, int | float | str] = {
+        "worker_load_ms": 10,
+        "generation_ms": 20,
+        "prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 0,
+        "prompt_tps": 100.0,
+        "generation_tps": 2.0,
+        "finish_reason": "stop",
+        "peak_metal_gb": 1.0,
+    }
+    metrics.update(changes)
+    with pytest.raises(BrainError) as raised:
+        ModelCandidate("metis 0.43\n", metrics=metrics)
+    assert raised.value.code == "MODEL_INVALID"
 
 
 def test_concurrent_calls_are_serialized(runtime_factory) -> None:
@@ -233,6 +317,8 @@ def test_concurrent_calls_are_serialized(runtime_factory) -> None:
         ("malformed", "MODEL_RESPONSE_INVALID"),
         ("mismatch", "MODEL_RESPONSE_INVALID"),
         ("oversized", "MODEL_RESPONSE_INVALID"),
+        ("bad_metrics", "MODEL_RESPONSE_INVALID"),
+        ("bad_finish", "MODEL_RESPONSE_INVALID"),
         ("death", "MODEL_RUNTIME_DIED"),
     ],
 )

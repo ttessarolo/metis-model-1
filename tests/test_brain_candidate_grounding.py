@@ -481,6 +481,55 @@ def test_endpoint_take_predicate_satisfies_scoped_grounding() -> None:
     assert adjudicate_candidate(source, grounding).ok
 
 
+def test_from_all_is_rejected_without_an_explicit_scope_contract() -> None:
+    source = """endpoint demo.target {
+  take 24 from all @play-demo.video include where @paesiorigine is "Italia"
+}
+"""
+    result = adjudicate_candidate(
+        source,
+        _grounding(
+            "Italia",
+            take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+        ),
+    )
+
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["parse_error"] == "from all is not authorized"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """endpoint demo.target {
+  @mood is "BAD"
+  take 24 from @play-demo.video include where @paesiorigine is "Italia"
+}
+""",
+        """endpoint demo.target {
+  take 24 from @play-demo.video {
+    include where @paesiorigine is "Italia"
+  }
+  @mood is "BAD"
+}
+""",
+    ],
+)
+def test_finite_predicate_outside_endpoint_take_is_rejected(source: str) -> None:
+    result = adjudicate_candidate(
+        source,
+        _grounding(
+            "Italia",
+            take={"mode": "count", "value": 24, "source": "operator_confirmed"},
+        ),
+    )
+
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["parse_error"] == ("finite predicate exists outside the endpoint take")
+
+
 @pytest.mark.parametrize(
     "source",
     [

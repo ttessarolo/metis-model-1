@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from collections.abc import Iterator, Mapping
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -1928,6 +1929,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     _check_checkpoint(model_path)
     if adapter_path is not None:
         verify_checkpoint(adapter_path)
+    load_started = time.monotonic()
     with contextlib.redirect_stdout(sys.stderr):
         model, processor = load(
             str(model_path),
@@ -1937,6 +1939,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             trust_remote_code=False,
             processor_config={"trust_remote_code": False},
         )
+    worker_load_ms = max(0, int((time.monotonic() - load_started) * 1000))
     if _model_type(model.config) != "qwen3_5":
         _fail("worker loaded an unexpected model type")
     seen: set[str] = set()
@@ -1977,6 +1980,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             num_audios=0,
             enable_thinking=False,
         )
+        generation_started = time.monotonic()
         with contextlib.redirect_stdout(sys.stderr):
             result = generate(
                 model,
@@ -1988,10 +1992,21 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 enable_thinking=False,
                 verbose=False,
             )
+        generation_ms = max(0, int((time.monotonic() - generation_started) * 1000))
         source = result.text
-        if not source or not all(
-            math.isfinite(float(x))
-            for x in (result.prompt_tps, result.generation_tps, result.peak_memory)
+        if (
+            not source
+            or result.finish_reason not in {"stop", "length"}
+            or type(result.prompt_tokens) is not int
+            or type(result.generation_tokens) is not int
+            or type(result.cached_tokens) is not int
+            or not 0 <= result.prompt_tokens <= 1_000_000
+            or not 1 <= result.generation_tokens <= 512
+            or not 0 <= result.cached_tokens <= result.prompt_tokens
+            or not all(
+                math.isfinite(float(x))
+                for x in (result.prompt_tps, result.generation_tps, result.peak_memory)
+            )
         ):
             _fail("worker non-finite/empty generation")
         print(
@@ -2000,6 +2015,14 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     "request_id": request.get("request_id"),
                     "text": source,
                     "peak_metal_gb": float(result.peak_memory),
+                    "worker_load_ms": worker_load_ms,
+                    "generation_ms": generation_ms,
+                    "prompt_tokens": result.prompt_tokens,
+                    "generation_tokens": result.generation_tokens,
+                    "cached_tokens": result.cached_tokens,
+                    "prompt_tps": float(result.prompt_tps),
+                    "generation_tps": float(result.generation_tps),
+                    "finish_reason": result.finish_reason,
                 },
                 allow_nan=False,
             ),

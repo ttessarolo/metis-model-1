@@ -20,6 +20,7 @@ import tempfile
 import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -51,6 +52,15 @@ class _BrainIsolationError(RuntimeError):
     pass
 
 
+_WRITE_BITS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+
+
+@dataclass(frozen=True)
+class _AuthorityJob:
+    authority_root: Path
+    job_root: Path
+
+
 def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
     return (
         value.st_dev,
@@ -61,6 +71,23 @@ def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
         value.st_mtime_ns,
         value.st_ctime_ns,
     )
+
+
+def _seal_tree_readonly(root: Path) -> None:
+    """Remove write bits once from the private authority without following links."""
+
+    for current, directories, filenames in os.walk(root, topdown=False, followlinks=False):
+        base = Path(current)
+        for name in (*filenames, *directories):
+            target = base / name
+            status = target.lstat()
+            if stat.S_ISLNK(status.st_mode):
+                continue
+            if not (stat.S_ISREG(status.st_mode) or stat.S_ISDIR(status.st_mode)):
+                raise _BrainIsolationError("Metis authority contains an unsupported node")
+            os.chmod(target, stat.S_IMODE(status.st_mode) & ~_WRITE_BITS, follow_symlinks=False)
+    status = root.lstat()
+    os.chmod(root, stat.S_IMODE(status.st_mode) & ~_WRITE_BITS, follow_symlinks=False)
 
 
 def _stable_regular_bytes(path: Path, *, label: str, maximum: int) -> bytes:
@@ -135,48 +162,99 @@ def _brain_pin_identity(
     )
 
 
-@contextmanager
-def _isolated_metis_repository(
-    *,
-    metis_root: Path,
-    node_path: Path,
-    expected_identity: tuple[str, str, str],
-) -> Iterator[Path]:
-    """Materialize one clean Git archive plus hash-checked Node dependencies."""
+class PinnedMetisAuthority:
+    """One verified, process-private Metis capsule shared by all Brain tools."""
 
-    manifest = brain_pin.load_metis_brain_toolchain_pin()
-    root = Path(metis_root).resolve(strict=True)
-    before_pin, before_identity = _brain_pin_identity(root, node_path)
-    if before_identity != expected_identity:
-        raise _BrainIsolationError("Metis authority changed before isolation")
-    del before_pin
-    runner = _runner_bytes()
-    node_bytes = brain_pin._verify_node(node_path, manifest["runtime"])
-    archive = brain_pin._git(
-        root,
-        "archive",
-        "--format=tar",
-        manifest["revision"],
-        text=False,
-    )
-    if not isinstance(archive, bytes):
-        raise _BrainIsolationError("pinned Git archive is unavailable")
-    source_modules = (root / "tooling/node_modules").resolve(strict=True)
-    if brain_pin._node_modules_sha256(source_modules) != expected_identity[2]:
-        raise _BrainIsolationError("tooling runtime changed before copy")
-    try:
-        with tempfile.TemporaryDirectory(prefix="metis-brain-authority-") as temporary:
-            isolated = Path(temporary) / "metis"
-            isolated.mkdir(mode=0o700)
-            sandbox_support._safe_extract_archive(archive, isolated)
-            snapshot_modules = isolated / "tooling/node_modules"
-            shutil.copytree(source_modules, snapshot_modules, symlinks=True)
+    def __init__(self, *, metis_root: Path, node_path: Path) -> None:
+        try:
+            self._metis_root = Path(metis_root).resolve(strict=True)
+            self._node_path = Path(node_path).resolve(strict=True)
+            self._pin, self._external_identity = _brain_pin_identity(
+                self._metis_root,
+                self._node_path,
+            )
+            if not sandbox_support.SANDBOX_EXEC.is_file():
+                raise _BrainIsolationError("compiler sandbox is unavailable")
+        except (
+            brain_pin.BrainToolchainPinError,
+            sandbox_support.CatalogMaintenancePinError,
+            _BrainIsolationError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            raise BrainError(
+                "TOOLCHAIN_UNAVAILABLE", 503, "pinned toolchain is unavailable"
+            ) from error
+        self._binding = toolchain_binding_from_pin(self._pin)
+        self._lock = threading.RLock()
+        self._temporary: tempfile.TemporaryDirectory[str] | None = None
+        self._authority_root: Path | None = None
+        self._jobs_root: Path | None = None
+        self._runner: bytes | None = None
+        self._node_bytes: bytes | None = None
+        self._authority_identity: tuple[int, ...] | None = None
+        self._modules_identity: tuple[int, ...] | None = None
+        self._active_jobs = 0
+        self._closed = False
+
+    @property
+    def metis_root(self) -> Path:
+        return self._metis_root
+
+    @property
+    def node_path(self) -> Path:
+        return self._node_path
+
+    @property
+    def pin_identity(self) -> dict[str, Any]:
+        return dict(self._pin)
+
+    @property
+    def external_identity(self) -> tuple[str, str, str]:
+        return self._external_identity
+
+    @property
+    def toolchain_binding(self) -> str:
+        return self._binding
+
+    def _build_locked(self) -> None:
+        if self._authority_root is not None:
+            return
+        if self._closed:
+            raise _BrainIsolationError("Metis authority is closed")
+        manifest = brain_pin.load_metis_brain_toolchain_pin()
+        runner = _runner_bytes()
+        node_bytes = brain_pin._verify_node(self._node_path, manifest["runtime"])
+        archive = brain_pin._git(
+            self._metis_root,
+            "archive",
+            "--format=tar",
+            manifest["revision"],
+            text=False,
+        )
+        if not isinstance(archive, bytes):
+            raise _BrainIsolationError("pinned Git archive is unavailable")
+        source_modules = (self._metis_root / "tooling/node_modules").resolve(strict=True)
+        if brain_pin._node_modules_sha256(source_modules) != self._external_identity[2]:
+            raise _BrainIsolationError("tooling runtime changed before capsule creation")
+
+        temporary: tempfile.TemporaryDirectory[str] | None = None
+        try:
+            temporary = tempfile.TemporaryDirectory(prefix="metis-brain-authority-")
+            sandbox_root = Path(temporary.name)
+            authority_root = sandbox_root / "authority"
+            jobs_root = sandbox_root / "jobs"
+            authority_root.mkdir(mode=0o700)
+            jobs_root.mkdir(mode=0o700)
+            sandbox_support._safe_extract_archive(archive, authority_root)
+            capsule_modules = authority_root / "tooling/node_modules"
+            shutil.copytree(source_modules, capsule_modules, symlinks=True)
             if (
-                brain_pin._node_modules_sha256(snapshot_modules) != expected_identity[2]
-                or brain_pin._node_modules_sha256(source_modules) != expected_identity[2]
+                brain_pin._node_modules_sha256(capsule_modules) != self._external_identity[2]
+                or brain_pin._node_modules_sha256(source_modules) != self._external_identity[2]
             ):
                 raise _BrainIsolationError("copied tooling runtime differs from pin")
-            runner_target = isolated / "runtime/metis_brain/runner.mts"
+            runner_target = authority_root / "runtime/metis_brain/runner.mts"
             runner_target.parent.mkdir(parents=True, mode=0o700)
             runner_target.write_bytes(runner)
             if (
@@ -188,27 +266,124 @@ def _isolated_metis_repository(
                 != runner
             ):
                 raise _BrainIsolationError("isolated Brain runner differs from pin")
-            yield isolated
-    except (
-        brain_pin.BrainToolchainPinError,
-        sandbox_support.CatalogMaintenancePinError,
-        OSError,
-        shutil.Error,
-    ) as error:
-        if isinstance(error, _BrainIsolationError):
-            raise
-        raise _BrainIsolationError("cannot construct isolated Metis authority") from error
-    finally:
-        try:
-            if brain_pin._verify_node(node_path, manifest["runtime"]) != node_bytes:
-                raise _BrainIsolationError("Node authority changed during isolation")
+            if brain_pin._verify_node(self._node_path, manifest["runtime"]) != node_bytes:
+                raise _BrainIsolationError("Node authority changed during capsule creation")
             if _runner_bytes() != runner:
-                raise _BrainIsolationError("Brain runner changed during isolation")
-            _after_pin, after_identity = _brain_pin_identity(root, node_path)
-            if after_identity != expected_identity:
-                raise _BrainIsolationError("Metis authority changed during isolation")
-        except (brain_pin.BrainToolchainPinError, OSError) as error:
-            raise _BrainIsolationError("Metis authority changed during isolation") from error
+                raise _BrainIsolationError("Brain runner changed during capsule creation")
+            _seal_tree_readonly(authority_root)
+            self._temporary = temporary
+            self._authority_root = authority_root
+            self._jobs_root = jobs_root
+            self._runner = runner
+            self._node_bytes = node_bytes
+            self._authority_identity = _stat_identity(authority_root.lstat())
+            self._modules_identity = _stat_identity(capsule_modules.lstat())
+        except (
+            brain_pin.BrainToolchainPinError,
+            sandbox_support.CatalogMaintenancePinError,
+            _BrainIsolationError,
+            OSError,
+            shutil.Error,
+        ) as error:
+            if temporary is not None:
+                temporary.cleanup()
+            if isinstance(error, _BrainIsolationError):
+                raise
+            raise _BrainIsolationError("cannot construct isolated Metis authority") from error
+
+    def _check_capsule_locked(self) -> None:
+        assert self._authority_root is not None
+        assert self._runner is not None
+        assert self._node_bytes is not None
+        assert self._authority_identity is not None
+        assert self._modules_identity is not None
+        manifest = brain_pin.load_metis_brain_toolchain_pin()
+        runner_target = self._authority_root / "runtime/metis_brain/runner.mts"
+        modules = self._authority_root / "tooling/node_modules"
+        if (
+            _stat_identity(self._authority_root.lstat()) != self._authority_identity
+            or _stat_identity(modules.lstat()) != self._modules_identity
+            or self._authority_root.lstat().st_mode & _WRITE_BITS
+            or modules.lstat().st_mode & _WRITE_BITS
+            or _stable_regular_bytes(
+                runner_target,
+                label="isolated Brain runner",
+                maximum=MAX_RUNNER_BYTES,
+            )
+            != self._runner
+            or brain_pin._verify_node(self._node_path, manifest["runtime"]) != self._node_bytes
+        ):
+            raise _BrainIsolationError("process-private Metis authority changed")
+
+    @contextmanager
+    def job(self) -> Iterator[_AuthorityJob]:
+        with self._lock:
+            self._build_locked()
+            self._check_capsule_locked()
+            if self._closed:
+                raise _BrainIsolationError("Metis authority is closed")
+            assert self._authority_root is not None
+            assert self._jobs_root is not None
+            self._active_jobs += 1
+            authority_root = self._authority_root
+            jobs_root = self._jobs_root
+        try:
+            with tempfile.TemporaryDirectory(prefix="job-", dir=jobs_root) as temporary:
+                yield _AuthorityJob(authority_root, Path(temporary))
+        finally:
+            with self._lock:
+                self._active_jobs -= 1
+                self._check_capsule_locked()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            if self._active_jobs:
+                raise BrainError("TOOLCHAIN_BUSY", 503, "pinned toolchain is still active")
+            self._closed = True
+            temporary = self._temporary
+            self._temporary = None
+            self._authority_root = None
+            self._jobs_root = None
+        if temporary is not None:
+            temporary.cleanup()
+
+
+@contextmanager
+def _isolated_metis_repository(
+    *,
+    metis_root: Path,
+    node_path: Path,
+    expected_identity: tuple[str, str, str],
+    authority: PinnedMetisAuthority | None = None,
+) -> Iterator[_AuthorityJob]:
+    """Open one bounded job over a verified reusable authority capsule."""
+
+    owned = authority is None
+    capsule = authority or PinnedMetisAuthority(metis_root=metis_root, node_path=node_path)
+    if (
+        capsule.metis_root != Path(metis_root).resolve(strict=True)
+        or capsule.node_path != Path(node_path).resolve(strict=True)
+        or capsule.external_identity != expected_identity
+    ):
+        if owned:
+            capsule.close()
+        raise _BrainIsolationError("Metis authority identity differs")
+    try:
+        with capsule.job() as job:
+            yield job
+    finally:
+        if owned:
+            capsule.close()
+
+
+def _job_paths(value: _AuthorityJob | Path) -> tuple[Path, Path, tuple[Path, ...]]:
+    """Accept the legacy Path shape used by bounded test doubles."""
+
+    if isinstance(value, _AuthorityJob):
+        return value.authority_root, value.job_root, (value.job_root,)
+    return value, value, ()
 
 
 def _safe_relative(value: Any, *, label: str, metis_only: bool = False) -> PurePosixPath:
@@ -278,12 +453,28 @@ def _materialize_snapshot(
     return destination
 
 
-def _sandbox_policy(isolated_root: Path, node_path: Path) -> str:
-    if not isolated_root.is_absolute() or not node_path.is_absolute():
+def _sandbox_policy(
+    isolated_root: Path,
+    node_path: Path,
+    additional_read_roots: tuple[Path, ...] = (),
+) -> str:
+    roots = (isolated_root, *additional_read_roots)
+    if (
+        not node_path.is_absolute()
+        or not roots
+        or any(not root.is_absolute() for root in roots)
+        or len(set(roots)) != len(roots)
+    ):
         raise _BrainIsolationError("sandbox paths must be absolute")
+    home = Path.home().resolve(strict=True)
     return " ".join(
         (
-            sandbox_support._sandbox_policy(isolated_root),
+            "(version 1)",
+            "(allow default)",
+            "(deny file-write*)",
+            "(deny network*)",
+            f"(deny file-read* (subpath {json.dumps(str(home))}))",
+            *(f"(allow file-read* (subpath {json.dumps(str(root))}))" for root in roots),
             f"(allow file-read* (literal {json.dumps(str(node_path))}))",
         )
     )
@@ -319,11 +510,13 @@ def _parse_runner_response(raw: bytes) -> dict[str, Any]:
 def _run_brain_runner(
     *,
     isolated_root: Path,
+    additional_read_roots: tuple[Path, ...] = (),
     node_path: Path,
     request: Mapping[str, Any],
 ) -> dict[str, Any]:
-    policy = _sandbox_policy(isolated_root, node_path)
-    sandbox_support._assert_sandbox_boundaries(isolated_root, policy)
+    policy = _sandbox_policy(isolated_root, node_path, additional_read_roots)
+    boundary_root = additional_read_roots[-1] if additional_read_roots else isolated_root
+    sandbox_support._assert_sandbox_boundaries(boundary_root, policy)
     command = [
         str(sandbox_support.SANDBOX_EXEC),
         "-p",
@@ -389,29 +582,24 @@ class _PinnedBridge:
         metis_root: Path,
         node_path: Path,
         max_concurrency: int,
+        authority: PinnedMetisAuthority | None = None,
     ) -> None:
         if type(max_concurrency) is not int or not 1 <= max_concurrency <= 8:
             raise BrainError("INVALID_CONFIG", 500, "toolchain concurrency is invalid")
-        try:
-            self._metis_root = Path(metis_root).resolve(strict=True)
-            self._node_path = Path(node_path).resolve(strict=True)
-            self._pin, self._external_identity = _brain_pin_identity(
-                self._metis_root,
-                self._node_path,
-            )
-            if not sandbox_support.SANDBOX_EXEC.is_file():
-                raise _BrainIsolationError("compiler sandbox is unavailable")
-        except (
-            brain_pin.BrainToolchainPinError,
-            sandbox_support.CatalogMaintenancePinError,
-            _BrainIsolationError,
-            OSError,
-            subprocess.SubprocessError,
-        ) as error:
-            raise BrainError(
-                "TOOLCHAIN_UNAVAILABLE", 503, "pinned toolchain is unavailable"
-            ) from error
-        self._binding = toolchain_binding_from_pin(self._pin)
+        self._owns_authority = authority is None
+        self._authority = authority or PinnedMetisAuthority(
+            metis_root=metis_root,
+            node_path=node_path,
+        )
+        self._metis_root = self._authority.metis_root
+        self._node_path = self._authority.node_path
+        if self._metis_root != Path(metis_root).resolve(strict=True) or self._node_path != Path(
+            node_path
+        ).resolve(strict=True):
+            raise BrainError("INVALID_CONFIG", 500, "shared toolchain authority differs")
+        self._pin = self._authority.pin_identity
+        self._external_identity = self._authority.external_identity
+        self._binding = self._authority.toolchain_binding
         self._slots = threading.BoundedSemaphore(max_concurrency)
 
     @property
@@ -421,6 +609,14 @@ class _PinnedBridge:
     @property
     def toolchain_binding(self) -> str:
         return self._binding
+
+    @property
+    def authority(self) -> PinnedMetisAuthority:
+        return self._authority
+
+    def close(self) -> None:
+        if self._owns_authority:
+            self._authority.close()
 
     @contextmanager
     def _slot(self, *, busy_code: str) -> Iterator[None]:
@@ -441,11 +637,13 @@ class BrainCompiler(_PinnedBridge):
         metis_root: Path,
         node_path: Path,
         max_concurrency: int = 2,
+        authority: PinnedMetisAuthority | None = None,
     ) -> None:
         super().__init__(
             metis_root=metis_root,
             node_path=node_path,
             max_concurrency=max_concurrency,
+            authority=authority,
         )
         self._execution_lock = threading.Lock()
         self._execution_count = 0
@@ -481,16 +679,19 @@ class BrainCompiler(_PinnedBridge):
                     metis_root=self._metis_root,
                     node_path=self._node_path,
                     expected_identity=self._external_identity,
-                ) as isolated_root,
+                    authority=self._authority,
+                ) as isolation,
             ):
+                authority_root, job_root, additional_read_roots = _job_paths(isolation)
                 tenant_root = _materialize_snapshot(
                     lease.snapshot,
-                    isolated_root,
+                    job_root,
                     candidate_filename=filename_text,
                     candidate_source=source_text,
                 )
                 envelope = _run_brain_runner(
-                    isolated_root=isolated_root,
+                    isolated_root=authority_root,
+                    additional_read_roots=additional_read_roots,
                     node_path=self._node_path,
                     request={
                         "schema_version": 1,
@@ -567,11 +768,13 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
         metis_root: Path,
         node_path: Path,
         max_concurrency: int = 2,
+        authority: PinnedMetisAuthority | None = None,
     ) -> None:
         super().__init__(
             metis_root=metis_root,
             node_path=node_path,
             max_concurrency=max_concurrency,
+            authority=authority,
         )
 
     def __call__(self, snapshot: ContextSnapshot) -> LoadedProjection:
@@ -584,11 +787,14 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
                     metis_root=self._metis_root,
                     node_path=self._node_path,
                     expected_identity=self._external_identity,
-                ) as isolated_root,
+                    authority=self._authority,
+                ) as isolation,
             ):
-                tenant_root = _materialize_snapshot(snapshot, isolated_root)
+                authority_root, job_root, additional_read_roots = _job_paths(isolation)
+                tenant_root = _materialize_snapshot(snapshot, job_root)
                 response = _run_brain_runner(
-                    isolated_root=isolated_root,
+                    isolated_root=authority_root,
+                    additional_read_roots=additional_read_roots,
                     node_path=self._node_path,
                     request={
                         "schema_version": 1,
@@ -639,6 +845,7 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
 
 __all__ = [
     "BrainCompiler",
+    "PinnedMetisAuthority",
     "PinnedCatalogProjectionLoader",
     "RUNNER_SHA256",
     "validate_compile_request",

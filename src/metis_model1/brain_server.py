@@ -394,9 +394,19 @@ class BrainApplication:
         try:
             self.turns.shutdown()
         finally:
-            close = getattr(self.model, "close", None)
-            if callable(close):
-                close()
+            try:
+                close = getattr(self.model, "close", None)
+                if callable(close):
+                    close()
+            finally:
+                try:
+                    close = getattr(self.retriever, "close", None)
+                    if callable(close):
+                        close()
+                finally:
+                    close = getattr(self.compiler, "close", None)
+                    if callable(close):
+                        close()
 
 
 class _ThreadingBrainHTTPServer(http.server.ThreadingHTTPServer):
@@ -824,10 +834,15 @@ class MetisBrainService:
                 )
             if retriever is None:
                 if config.retrieval is not None and config.retrieval.schema2:
+                    loader_options: dict[str, Any] = {
+                        "metis_root": config.metis_git_root,
+                        "node_path": config.node_path,
+                        "max_concurrency": config.compiler_concurrency,
+                    }
+                    if isinstance(compiler, BrainCompiler):
+                        loader_options["authority"] = compiler.authority
                     loader = PinnedCatalogProjectionLoader(
-                        metis_root=config.metis_git_root,
-                        node_path=config.node_path,
-                        max_concurrency=config.compiler_concurrency,
+                        **loader_options,
                     )
                     retriever = Schema2SnapshotRetriever(loader)
                 else:
@@ -866,6 +881,14 @@ class MetisBrainService:
                 manager.shutdown()
             if model_runtime is not None:
                 close = getattr(model_runtime, "close", None)
+                if callable(close):
+                    close()
+            if retriever is not None:
+                close = getattr(retriever, "close", None)
+                if callable(close):
+                    close()
+            if compiler is not None:
+                close = getattr(compiler, "close", None)
                 if callable(close):
                     close()
             self.runtime.close()

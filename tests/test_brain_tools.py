@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import subprocess
 import threading
 from contextlib import contextmanager
@@ -15,7 +16,11 @@ from metis_model1.brain_context import ContextSnapshot, SnapshotFile, toolchain_
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_semantic_retrieval import LoadedProjection
 from metis_model1.brain_sessions import OperationLease
-from metis_model1.brain_tools import BrainCompiler, PinnedCatalogProjectionLoader
+from metis_model1.brain_tools import (
+    BrainCompiler,
+    PinnedCatalogProjectionLoader,
+    PinnedMetisAuthority,
+)
 
 
 def _pin() -> dict[str, Any]:
@@ -189,6 +194,93 @@ def test_compiler_receipt_is_source_redacted_and_snapshot_bound(
     }
     assert receipt["receipt_sha256"].startswith("sha256:")
     assert compiler.execution_count == 1
+
+
+def test_compiler_and_retriever_can_share_one_verified_authority(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    before = toolchain_harness["pin_calls"]
+    authority = PinnedMetisAuthority(
+        metis_root=toolchain_harness["metis_root"],
+        node_path=toolchain_harness["node_path"],
+    )
+    compiler = BrainCompiler(
+        metis_root=toolchain_harness["metis_root"],
+        node_path=toolchain_harness["node_path"],
+        authority=authority,
+    )
+    loader = PinnedCatalogProjectionLoader(
+        metis_root=toolchain_harness["metis_root"],
+        node_path=toolchain_harness["node_path"],
+        authority=authority,
+    )
+
+    assert toolchain_harness["pin_calls"] == before + 1
+    assert compiler.authority is authority
+    assert loader.authority is authority
+    compiler.close()
+    loader.close()
+    authority.close()
+
+
+def test_authority_capsule_is_built_once_and_jobs_are_ephemeral(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    metis_root = tmp_path / "metis"
+    modules = metis_root / "tooling/node_modules/package"
+    modules.mkdir(parents=True)
+    modules.joinpath("index.js").write_text("export {};", encoding="utf-8")
+    node_path = tmp_path / "node"
+    node_path.write_bytes(b"node")
+    archive_calls = 0
+
+    monkeypatch.setattr(
+        brain_tools_module,
+        "_brain_pin_identity",
+        lambda _root, _node: (dict(PIN), EXPECTED_IDENTITY),
+    )
+    monkeypatch.setattr(
+        brain_tools_module.brain_pin,
+        "load_metis_brain_toolchain_pin",
+        lambda: {**PIN, "runtime": {}},
+    )
+    monkeypatch.setattr(brain_tools_module.brain_pin, "_verify_node", lambda *_args: b"node")
+    monkeypatch.setattr(
+        brain_tools_module.brain_pin,
+        "_node_modules_sha256",
+        lambda _path: EXPECTED_IDENTITY[2],
+    )
+
+    def archive(*_args: Any, **_kwargs: Any) -> bytes:
+        nonlocal archive_calls
+        archive_calls += 1
+        return b"pinned-archive"
+
+    monkeypatch.setattr(brain_tools_module.brain_pin, "_git", archive)
+    monkeypatch.setattr(brain_tools_module, "_runner_bytes", lambda: b"runner")
+    monkeypatch.setattr(sandbox_support, "SANDBOX_EXEC", Path("/bin/sh"))
+    monkeypatch.setattr(
+        sandbox_support,
+        "_safe_extract_archive",
+        lambda _archive, destination: destination.joinpath("tooling").mkdir(),
+    )
+
+    authority = PinnedMetisAuthority(metis_root=metis_root, node_path=node_path)
+    with authority.job() as first:
+        first_authority = first.authority_root
+        first_job = first.job_root
+        assert first_job.is_dir()
+        sealed_module = first_authority / "tooling/node_modules/package/index.js"
+        assert sealed_module.lstat().st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH) == 0
+    assert not first_job.exists()
+    with authority.job() as second:
+        assert second.authority_root == first_authority
+        assert second.job_root != first_job
+        assert second.job_root.is_dir()
+    assert archive_calls == 1
+
+    authority.close()
+    assert not first_authority.exists()
 
 
 def test_candidate_replaces_same_workspace_filename(
@@ -492,7 +584,9 @@ def test_runner_applies_sandbox_path_check_and_parses_response(
     monkeypatch.setattr(
         brain_tools_module,
         "_sandbox_policy",
-        lambda root, node: observed.update({"policy_args": (root, node)}) or "TEST-POLICY",
+        lambda root, node, *extra: (
+            observed.update({"policy_args": (root, node), "policy_extra": extra}) or "TEST-POLICY"
+        ),
     )
     monkeypatch.setattr(
         sandbox_support,
@@ -516,6 +610,7 @@ def test_runner_applies_sandbox_path_check_and_parses_response(
 
     assert response == {"ok": True}
     assert observed["policy_args"] == (isolated_root, node_path)
+    assert observed["policy_extra"] == ((),)
     assert observed["sandbox_args"] == (isolated_root, "TEST-POLICY")
     assert observed["command"][-3:] == [
         "--import",
@@ -524,3 +619,17 @@ def test_runner_applies_sandbox_path_check_and_parses_response(
     ]
     assert observed["run_kwargs"]["cwd"] == isolated_root / "tooling"
     assert observed["run_kwargs"]["input"] == b'{"operation":"compile"}'
+
+
+def test_runner_policy_allows_only_authority_and_current_job(tmp_path: Path) -> None:
+    authority = (tmp_path / "authority").resolve()
+    current_job = (tmp_path / "jobs/current").resolve()
+    sibling_job = (tmp_path / "jobs/sibling").resolve()
+    node = (tmp_path / "node").resolve()
+
+    policy = brain_tools_module._sandbox_policy(authority, node, (current_job,))
+
+    assert str(authority) in policy
+    assert str(current_job) in policy
+    assert str(node) in policy
+    assert str(sibling_job) not in policy
