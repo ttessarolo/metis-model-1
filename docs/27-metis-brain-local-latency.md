@@ -153,6 +153,7 @@ modified and no Apply was performed.
 | Cold clarification | 11073 ms | clarification completed before model inference |
 | Post-answer proposal | 1574 ms | retrieval 861 ms; compile 696 ms |
 | Cold one-turn explicit request (`24` total), final qualified source | 11067 ms | retrieval 10451 ms; compile 602 ms |
+| Installed VS Code `v0.23.97`, fresh extension host and Brain child | 31 s | compiled Draft visible; no Apply |
 | Qualified 27B baseline before prompt projection | 153852 ms generation wall | 17240 prompt tokens; 86 generated; `stop`; load 3493 ms |
 | Qualified 27B edit/refine after final prompt projection | 34319 ms generation wall | 3700 prompt tokens; 72 generated; `stop`; compile 781 ms |
 
@@ -169,6 +170,42 @@ KB (23.5 KB system plus 45.2 KB user/context) to about 14.5 KB (9.4 KB system
 plus 5.1 KB user/context). This is the measured reason the qualified-model turn
 moved from roughly 154 seconds to roughly 34 seconds; neither weights nor token
 cap changed.
+
+The installed VS Code smoke used the native `@metis` participant and produced
+this exact technical core in a visible Draft:
+
+```metis
+take 24 from @play-demo.video {
+  include where {
+    @tipologia is "Film"
+    @paesiorigine in ["ITALIA", "Italia", "italia"]
+  }
+  return response.default
+}
+```
+
+The extension reported `31 s` from a freshly reloaded extension host and Brain
+child to the compiled proposal. `Applica` was not pressed and the tenant stayed
+Git-clean on `main`. The Brain HTTP process remained alive, but no MLX worker
+was present after the smoke: this is independent process-level evidence that
+the deterministic path made zero model calls.
+
+## Warm-runtime direction
+
+The current MLX worker is lazy: the first model-required turn starts it, loads
+Qwen and the adapter once, and the same process is reused for up to 120
+requests or until Brain closes or the worker fails. Therefore Model 1 is warm
+*after* its first real model turn, but is not prewarmed merely because Brain or
+a fast-path session is running.
+
+An always-warm demo profile is feasible, but it must be explicit and
+observable: start Brain eagerly, build the pinned authority/catalog projection
+in the background, prewarm the MLX worker, expose readiness in health, and keep
+the worker until Brain exits (with bounded safe recycling). This removes the
+roughly 1.4–3.5 second measured worker-load cost. It does not eliminate prompt
+prefill: session-scoped prompt/KV caching, bound to context and semantic
+revisions and invalidated on any relevant change, is the separate optimization
+with the larger potential benefit for refinements.
 
 ## Verification
 
@@ -202,7 +239,7 @@ green. A real installed VS Code no-Apply dialogue remains required for
 product/UX closure; this note does not substitute for that live gate.
 
 The installed extension recovered its tenant and chat surfaces after a VS Code
-window reload. A deliberately killed Brain child exposed a downstream
+window reload, and the final no-Apply Draft smoke passed. A deliberately killed Brain child exposed a downstream
 operational limitation: the current VSIX keeps its dead client until the
 extension host reloads. Automatic child restart is a Visix integration backlog
 item, separate from the latency measurements and from Brain's tenant-write

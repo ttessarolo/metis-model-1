@@ -57,7 +57,7 @@ compiler validation, the pinned Qwen3.8-27B adapter and the no-Apply boundary.
 
 ## Status
 
-`IN_PROGRESS — IMPLEMENTED; AUTHORITATIVE GATE GREEN; INSTALLED VS CODE SMOKE WAITING FOR MAC UNLOCK`
+`COMPLETE — AUTHORITATIVE GATE AND INSTALLED VS CODE NO-APPLY SMOKE GREEN`
 
 ## Evidence wire
 
@@ -101,9 +101,16 @@ compiler validation, the pinned Qwen3.8-27B adapter and the no-Apply boundary.
   configured local Brain executable. No Apply was used. The deliberately
   terminated pre-wave Brain left the extension's cached client dead until a
   VS Code window reload; after reload the extension/tenant surfaces recovered.
-- OPEN — the final installed VS Code no-Apply retry is staged but macOS locked
-  the screen before the action. Resume after manual unlock and require a
-  visible compiled Draft containing the exact `take 24` contract.
+- DONE — installed VS Code `v0.23.97` no-Apply smoke on 2026-09-01:
+  `@metis Crea un nuovo endpoint @video con 24 film prodotti in Italia.`
+  completed from a freshly reloaded extension host/Brain child in `31 s` and
+  exposed a compiled Draft with exact source `take 24 from @play-demo.video`,
+  reviewed `tipologia = "Film"`, reviewed `paesiorigine` literals and
+  `return response.default`. `Applica` was not pressed.
+- FACT — after the smoke, Model 1 and `play-demo` were both Git-clean and the
+  tenant remained on `main`. The Brain HTTP process was alive at about 876 MiB
+  RSS and no MLX worker existed, independently confirming that the eligible
+  deterministic path did not load or call Qwen.
 - RISK — if the Brain child exits after ready, the current VSIX controller
   retains the dead client until extension-host reload. Automatic crash
   recovery belongs to the Visix integration backlog and does not alter the
