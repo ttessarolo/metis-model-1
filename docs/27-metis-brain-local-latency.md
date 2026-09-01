@@ -235,12 +235,12 @@ git diff --check -- docs/27-metis-brain-local-latency.md
 The authoritative repository gate completed successfully after the final code
 changes: `2631 passed, 2 skipped, 0 failed`; the foundation roster reported
 `85 passed, 0 errors`, and whole-repository Ruff and formatting checks were
-green. A real installed VS Code no-Apply dialogue remains required for
-product/UX closure; this note does not substitute for that live gate.
+green. The required real installed VS Code no-Apply dialogue completed; the
+passing live dialogue and exact Draft are recorded above.
 
 The installed extension recovered its tenant and chat surfaces after a VS Code
-window reload, and the final no-Apply Draft smoke passed. A deliberately killed Brain child exposed a downstream
-operational limitation: the current VSIX keeps its dead client until the
-extension host reloads. Automatic child restart is a Visix integration backlog
-item, separate from the latency measurements and from Brain's tenant-write
-boundary.
+window reload, and the final no-Apply Draft smoke passed. A deliberately killed
+Brain child exposed a downstream operational limitation: the current VSIX
+keeps its dead client until the extension host reloads. Automatic child restart
+is a Visix integration backlog item, separate from the latency measurements and
+from Brain's tenant-write boundary.
