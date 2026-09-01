@@ -61,7 +61,7 @@ no Apply and no tenant mutation.
 
 ## Status
 
-`READY FOR PROMOTION — LIVE MODEL PROOF AND AUTHORITATIVE GATE GREEN`
+`COMPLETE — LIVE MODEL PROOF, GATES, COMMIT AND PUSH GREEN`
 
 ## Evidence wire
 
@@ -137,4 +137,7 @@ no Apply and no tenant mutation.
 - FACT — one stale red-team `make check` process remained alive despite that
   lane reporting it interrupted. L0 identified and terminated only that exact
   orphan process group; the authoritative L0 gate then ran alone to completion.
-- OPEN — commit/push and post-push clean-main closure.
+- DONE — implementation and evidence commit
+  `2ad726f99afefc19db6395ea15f436f420fd1771` pushed to `origin/main`; local
+  `HEAD` and `origin/main` matched and the worktree was clean before this final
+  ledger closure.
