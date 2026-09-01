@@ -102,6 +102,7 @@ CONTRACT_PAIRS = (
 
 STANDALONE_SCHEMAS = (
     "schemas/accuracy-maintenance-roster.schema.json",
+    "schemas/metis-brain-edit-plan.schema.json",
     "schemas/catalog-retrieval-receipt.schema.json",
     "schemas/catalog-maintenance-successor-freeze.schema.json",
     "schemas/catalog-maintenance-successor-evaluation.schema.json",

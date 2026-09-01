@@ -172,7 +172,7 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
     request = _request()
     assert serialize_model_messages(request) == serialize_model_messages(request)
     messages = serialize_model_messages(request)
-    assert [item["role"] for item in messages] == ["system", "user"]
+    assert [item["role"] for item in messages] == ["system", "user", "user"]
     assert messages[0]["content"].startswith("You produce only valid Metis source.")
     assert "smallest compiler-valid change" in messages[0]["content"]
     assert (
@@ -186,15 +186,15 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
     assert "including variable-valued or boolean predicates" in messages[0]["content"]
     assert "time.fractional_second" in messages[0]["content"]
     assert "two or more assignments require a braced attributes group" in messages[0]["content"]
-    assert "endpoint declaration name is exactly `demo.endpoint`" in messages[0]["content"]
-    assert "catalog source is exactly `@play-demo.video`" in messages[0]["content"]
-    assert "Finite filters belong under `include where`" in messages[0]["content"]
-    assert "TENANT_CONTEXT_JSON" in messages[1]["content"]
-    assert messages[1]["content"].startswith("crea un endpoint\n\n")
-    assert '"grounding"' in messages[1]["content"]
-    assert '"name":"genere"' in messages[1]["content"]
-    assert "campo_non_selezionato" not in messages[1]["content"]
-    assert "TEMPLATE_MARKER" not in messages[1]["content"]
+    assert "endpoint declaration name is exactly `demo.endpoint`" in messages[2]["content"]
+    assert "catalog source is exactly `@play-demo.video`" in messages[2]["content"]
+    assert "Finite filters belong under `include where`" in messages[2]["content"]
+    assert "TENANT_CONTEXT_JSON" in messages[2]["content"]
+    assert "crea un endpoint" in messages[2]["content"]
+    assert '"grounding"' in messages[2]["content"]
+    assert '"name":"genere"' in messages[2]["content"]
+    assert "campo_non_selezionato" not in messages[2]["content"]
+    assert "TEMPLATE_MARKER" not in messages[2]["content"]
     assert "F-4 exact JSON contract" not in messages[0]["content"]
     assert len(messages[0]["content"].encode("utf-8")) < 16 * 1024
 
@@ -206,7 +206,7 @@ def test_prompt_projection_keeps_fields_referenced_by_previous_source() -> None:
         '@campo_non_selezionato is "x" }\n',
     )
 
-    prompt = serialize_model_messages(request)[1]["content"]
+    prompt = serialize_model_messages(request)[2]["content"]
 
     assert '"name":"genere"' in prompt
     assert '"name":"campo_non_selezionato"' in prompt
@@ -243,7 +243,7 @@ def test_prompt_projection_keeps_fields_referenced_by_previous_source() -> None:
 def test_prompt_serialization_states_take_contract(
     take: dict[str, object], expected: str, forbidden: str
 ) -> None:
-    prompt = serialize_model_messages(_request(take=take))[0]["content"]
+    prompt = "\n".join(item["content"] for item in serialize_model_messages(_request(take=take)))
     assert expected in prompt
     assert forbidden not in prompt
 
@@ -260,6 +260,7 @@ def test_worker_is_started_once_and_closed_idempotently(runtime_factory) -> None
         "prompt_tokens": 30,
         "generation_tokens": 4,
         "cached_tokens": 0,
+        "cache_hit": False,
         "prompt_tps": 100.0,
         "generation_tps": 2.0,
         "finish_reason": "stop",
@@ -286,6 +287,8 @@ def test_warmup_loads_without_generation_and_reuses_the_worker(runtime_factory) 
     assert runtime.warmup_status == "ready"
     assert runtime.warmup_duration_ms == warmup["duration_ms"]
     assert runtime.warmup_worker_load_ms == 10
+    assert runtime.warmup_prefix_tokens == 0
+    assert runtime.prefix_cache_ready is False
     assert runtime._process_requests == 0  # noqa: SLF001 - warmup is not inference
     assert runtime._process is not None  # noqa: SLF001 - lifecycle invariant under test
     pid = runtime._process.pid  # noqa: SLF001
@@ -350,6 +353,7 @@ def test_model_candidate_rejects_invalid_injected_telemetry(changes: dict[str, o
         "prompt_tokens": 30,
         "generation_tokens": 4,
         "cached_tokens": 0,
+        "cache_hit": False,
         "prompt_tps": 100.0,
         "generation_tps": 2.0,
         "finish_reason": "stop",
@@ -359,6 +363,155 @@ def test_model_candidate_rejects_invalid_injected_telemetry(changes: dict[str, o
     with pytest.raises(BrainError) as raised:
         ModelCandidate("metis 0.43\n", metrics=metrics)
     assert raised.value.code == "MODEL_INVALID"
+
+
+def test_prefix_is_stable_and_dynamic_request_data_is_after_it() -> None:
+    first = serialize_model_messages(_request("prima richiesta"))
+    second = serialize_model_messages(_request("seconda richiesta"))
+    assert first[:2] == second[:2]
+    assert first[2] != second[2]
+    assert "prima richiesta" not in first[0]["content"]
+    assert '"grounding"' not in first[0]["content"]
+
+
+def test_cache_scope_rejects_raw_or_unbounded_scope() -> None:
+    with pytest.raises(BrainError, match="cache scope"):
+        mlx_runtime._cache_scope("tenant/value")
+    with pytest.raises(BrainError, match="cache scope"):
+        mlx_runtime._cache_scope("x" * 129)
+
+
+def test_legacy_wire_response_defaults_cache_hit_false(runtime_factory) -> None:
+    runtime = runtime_factory()
+    legacy = (
+        b'{"request_id":"request","text":"metis 0.43\\n",'
+        b'"peak_metal_gb":1.0,"worker_load_ms":10,"generation_ms":20,'
+        b'"prompt_tokens":30,"generation_tokens":4,"cached_tokens":0,'
+        b'"prompt_tps":100.0,"generation_tps":2.0,"finish_reason":"stop"}'
+    )
+    parsed = runtime._parse_response(legacy, "request")
+    assert parsed["cache_hit"] is False
+    runtime.close()
+
+
+def test_cache_hit_telemetry_must_be_boolean(runtime_factory) -> None:
+    runtime = runtime_factory()
+    value = {
+        "request_id": "request",
+        "text": "metis 0.43\\n",
+        "peak_metal_gb": 1.0,
+        "worker_load_ms": 10,
+        "generation_ms": 20,
+        "prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 4,
+        "cache_hit": 1,
+        "prompt_tps": 100.0,
+        "generation_tps": 2.0,
+        "finish_reason": "stop",
+    }
+    with pytest.raises(BrainError, match="cache telemetry"):
+        runtime._parse_response((__import__("json").dumps(value)).encode(), "request")
+    runtime.close()
+
+
+def test_cache_hit_telemetry_must_match_cached_tokens(runtime_factory) -> None:
+    runtime = runtime_factory()
+    value = {
+        "request_id": "request",
+        "text": "metis 0.43\n",
+        "peak_metal_gb": 1.0,
+        "worker_load_ms": 10,
+        "generation_ms": 20,
+        "prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 4,
+        "cache_hit": False,
+        "prompt_tps": 100.0,
+        "generation_tps": 2.0,
+        "finish_reason": "stop",
+    }
+    with pytest.raises(BrainError, match="cache telemetry"):
+        runtime._parse_response((__import__("json").dumps(value)).encode(), "request")
+    runtime.close()
+
+
+def test_prompt_cache_clone_keeps_public_template_immutable() -> None:
+    class FakeCache:
+        def __init__(self) -> None:
+            self.state = [[11, 22]]
+            self.meta_state = ("prefix",)
+            self.offset = 2
+
+        def prefix_cache_snapshot(self) -> dict[str, object]:
+            return {"state": self.state, "meta_state": self.meta_state}
+
+        def prefix_cache_restore(self, snapshot: dict[str, object]) -> None:
+            self.state = snapshot["state"]
+            self.meta_state = snapshot["meta_state"]
+
+    class FakeState:
+        def __init__(self) -> None:
+            self.token_ids: list[int] | None = None
+            self.cache: list[FakeCache] | None = None
+
+    template = FakeState()
+    template.token_ids = [11, 22]
+    template.cache = [FakeCache()]
+    transient = qualified_runtime._clone_prompt_cache_state(
+        template,
+        make_cache=lambda: [FakeCache()],
+        state_factory=FakeState,
+    )
+
+    assert transient is not None
+    assert transient is not template
+    assert transient.token_ids == [11, 22]
+    assert transient.token_ids is not template.token_ids
+    assert transient.cache is not template.cache
+    assert transient.cache[0].state is not template.cache[0].state
+    transient.token_ids.append(901)
+    transient.cache[0].state.append([901])
+    assert template.token_ids == [11, 22]
+    assert template.cache[0].state == [[11, 22]]
+
+
+def test_prompt_cache_clone_fails_closed_on_incompatible_cache_roster() -> None:
+    class State:
+        token_ids = [11, 22]
+        cache = [object()]
+
+    assert (
+        qualified_runtime._clone_prompt_cache_state(
+            State(), make_cache=lambda: [], state_factory=State
+        )
+        is None
+    )
+
+
+def test_prompt_cache_clone_fails_closed_on_wrong_logical_offset() -> None:
+    class Cache:
+        offset = 3
+        state = [[11, 22, 33]]
+        meta_state = ()
+
+        def prefix_cache_snapshot(self) -> dict[str, object]:
+            return {"state": self.state, "meta_state": self.meta_state}
+
+        def prefix_cache_restore(self, snapshot: dict[str, object]) -> None:
+            self.state = snapshot["state"]
+            self.meta_state = snapshot["meta_state"]
+
+    class State:
+        token_ids = [11, 22]
+        cache = [Cache()]
+
+    assert (
+        qualified_runtime._clone_prompt_cache_state(
+            State(), make_cache=lambda: [Cache()], state_factory=State
+        )
+        is None
+    )
 
 
 def test_concurrent_calls_are_serialized(runtime_factory) -> None:
@@ -527,6 +680,11 @@ def test_production_worker_is_reverified_at_lazy_spawn(
     assert worker_digest_reads == 2
     assert runtime._process is None  # noqa: SLF001 - no unpinned process may start
     runtime.close()
+
+
+def test_production_worker_pin_matches_the_tracked_worker() -> None:
+    worker = Path(mlx_runtime.__file__).with_name("initial_local_qlora_runtime.py")
+    assert qualified_runtime._prefixed_sha256(worker) == mlx_runtime.WORKER_SHA256
 
 
 def test_cancel_stalled_generation_terminates_worker_and_runtime_recovers(runtime_factory) -> None:

@@ -31,7 +31,7 @@
     {
       "alias": "play-demo",
       "tenant_id": "play-demo",
-      "root": "/Users/tommasotessarolo/metis-tenants/play-demo"
+      "root": "/Users/tommasotessarolo/Developer/play-demo"
     }
   ],
   "clients": [

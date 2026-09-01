@@ -52,12 +52,14 @@ class ModelCandidate:
             "prompt_tokens",
             "generation_tokens",
             "cached_tokens",
+            "cache_hit",
             "prompt_tps",
             "generation_tps",
             "finish_reason",
             "peak_metal_gb",
         }
-        if self.metrics and set(self.metrics) != allowed:
+        legacy_allowed = allowed - {"cache_hit"}
+        if self.metrics and set(self.metrics) not in (allowed, legacy_allowed):
             raise BrainError("MODEL_INVALID", 503, "candidate metrics are invalid")
         if not self.metrics:
             return
@@ -77,6 +79,11 @@ class ModelCandidate:
             raise BrainError("MODEL_INVALID", 503, "candidate token count is invalid")
         if self.metrics["cached_tokens"] > self.metrics["prompt_tokens"]:
             raise BrainError("MODEL_INVALID", 503, "candidate cached token count is invalid")
+        if "cache_hit" in self.metrics and (
+            type(self.metrics["cache_hit"]) is not bool
+            or self.metrics["cache_hit"] != (self.metrics["cached_tokens"] > 0)
+        ):
+            raise BrainError("MODEL_INVALID", 503, "candidate cache hit metric is invalid")
         for key in ("prompt_tps", "generation_tps"):
             value = self.metrics[key]
             if (

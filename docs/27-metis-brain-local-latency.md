@@ -97,26 +97,32 @@ authority.
 
 The worker now reports bounded numeric telemetry:
 load and generation milliseconds, prompt/generation/cached token counts,
-prompt and generation rates, peak Metal memory, and `finish_reason` restricted
-to `stop` or `length`. The runtime validates the complete shape and bounds
-before exposing it in proposal identity. No prompt, source context, hidden
-chain-of-thought, or internal reasoning is exposed.
+an exact cache-hit flag, prompt and generation rates, peak Metal memory, and
+`finish_reason` restricted to `stop` or `length`. The runtime validates the
+complete shape and bounds before exposing it in proposal identity. No prompt,
+source context, hidden chain-of-thought, or internal reasoning is exposed.
 
 The local demo config sets `model.warmup` to `on_start`. Every new MLX worker
 first accepts one exact versioned `warmup` operation and responds only after
-the pinned checkpoint and adapter have loaded and passed their existing
-identity checks. That operation never calls generation and consumes no model
-token. Brain runs it before binding the HTTP server, so a failed, timed-out or
-malformed handshake prevents readiness and closes the partial worker. The
+the pinned checkpoint and adapter have loaded, passed their identity checks and
+prefilled the immutable public prompt prefix. This runs model prefill but does
+not generate a user response or consume user-turn output tokens. Health reports
+`prefix_tokens` and `prefix_cache_ready`; a failed, timed-out or incomplete
+prefill prevents HTTP readiness and closes the partial worker. The
 backward-compatible `lazy` policy remains available for non-demo hosts.
 
+The process-local public-prefix cache is implemented with startup prefill and
+transient per-request clones. The persistent template is bounded and bound to
+the worker/model/adapter and exact prefix identity; it is never passed to
+generation, so tenant/session input and generated tokens cannot become part of
+the reusable state. A cache miss falls back safely. Promotion still requires a
+live positive cache-hit A/B and the full grounding/compiler matrix.
+
 The 512-token cap remains unchanged. The measured baseline stopped normally
-after 86 tokens, so reducing that cap would not address the observed delay.
-Session-scoped KV/prompt caching is not introduced in this wave: its revision
-and invalidation contract remains a separate optimization. One representative
-edit/refine is measured below, but repair, open-domain, and other complex
-families are **not comprehensively claimed fast** until their benchmark matrix
-is run.
+after 86 tokens, so reducing that cap would not address the observed delay. One
+representative edit/refine is measured below, but repair, open-domain, and other
+complex families are **not comprehensively claimed fast** until their benchmark
+matrix is run.
 
 ## Public progress contract
 
@@ -153,8 +159,9 @@ was already created.
 
 ## Measured read-only live results
 
-The following Mac measurements are read-only observations; no tenant was
-modified and no Apply was performed.
+The following Mac measurements are L0-reported read-only observations from the
+interactive qualification logs; they are not a machine-sealed benchmark
+receipt. No tenant was modified and no Apply was performed.
 
 | Flow | Total | Public phase timings |
 |---|---:|---|
@@ -165,6 +172,7 @@ modified and no Apply was performed.
 | Qualified 27B baseline before prompt projection | 153852 ms generation wall | 17240 prompt tokens; 86 generated; `stop`; load 3493 ms |
 | Qualified 27B edit/refine after final prompt projection | 34319 ms generation wall | 3700 prompt tokens; 72 generated; `stop`; compile 781 ms |
 | Startup-warm complex 10-filter edit | 101347 ms including service construction | service 23039 ms; retrieval 15458 ms; generation 62071 ms; compile 658 ms |
+| Prefix-cached complex four-filter edit | 46775 ms turn | exact cache hit 2241/4441 prompt tokens; generation 31824 ms; 217 output tokens; compile attempt 1 |
 
 The fast-path proposal observations reported `generation_strategy` as
 `grounded_renderer`, `model_loaded` as `false`, `compile_clean` as `true`, and
@@ -220,6 +228,17 @@ grounding oracle rejected all candidates before compilation. The prompt now
 states that edit/repair `grounding.selections` is the complete final finite
 predicate set; the corrected run converged without a repair or weight change.
 
+The subsequent exact-prefix-cache proof ran the same request shape on the
+canonical `Developer/play-demo` workspace. It reused `2241/4441` prompt
+tokens, generated 217 tokens in `31824 ms`, and completed the turn in
+`46775 ms`. Exact grounding was green, the first compiler attempt returned zero
+diagnostics, and the tenant identity was byte-identical before and after. The
+preceding `42369 ms` model / `56420 ms` turn observation used a separate local
+tenant snapshot; the apparent reductions of `24.9%` and `17.1%` are therefore
+cross-run direction only, not a paired A/B. One observation is not a p50/p95
+denominator and misses the declared promotion threshold; roughly `20.7 s` of
+output decode remains the dominant measured floor.
+
 ## Warm-runtime contract
 
 The demo profile is warm when Brain announces readiness. The same process is
@@ -230,15 +249,16 @@ reload interval; this design deliberately does not keep a second 27B hot copy
 in memory.
 
 Health exposes `model_warmup` with only the configured policy, one bounded
-state, total handshake duration and worker-reported load duration. It also
-exposes `model_loaded`; no model path, prompt, source, tenant value or hidden
-reasoning is included.
+state, total handshake duration, worker-reported load duration, public-prefix
+token count and `prefix_cache_ready`. It also exposes `model_loaded`; no model
+path, prompt, source, tenant value or hidden reasoning is included.
 
-Warmup removes the roughly 1.4–3.5 second measured worker-load cost from the
-first ordinary model turn. It does not eliminate prompt prefill or generation.
-Session-scoped prompt/KV caching, bound to context and semantic revisions and
-invalidated on any relevant change, remains the separate optimization with the
-larger potential benefit for refinements.
+Warmup moves both the roughly 1.4–3.5 second measured worker-load cost and the
+public-prefix prefill outside the first ordinary model turn. Each turn restores
+that public state into a transient cache clone and discards the clone after the
+request. It does not eliminate dynamic request prefill or output generation,
+and its latency benefit remains a measured qualification gate rather than an
+assumption.
 
 ## Successor Flash intent wave
 

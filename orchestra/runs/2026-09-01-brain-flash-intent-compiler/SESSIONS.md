@@ -15,6 +15,7 @@
 | L410 | Independent final audit | `gpt-5.6-terra` / high | full diff, authority, lifecycle, provenance and safety audit | none | P0/P1/P2 plus independent pin/test recomputation | done — final GREEN, `P0=0 P1=0 P2=0` |
 | L411 | Documentation census | `gpt-5.6-luna` / medium | exact charter/roadmap/runbook/architecture integration map | none | stale-claim and insertion roster | done — `in=7 out=7 distinct=7 gaps=0` |
 | L412 | Retrieval authority seam | `gpt-5.6-luna` / medium | prove exact source authority and advisory-query non-authority | `tests/test_brain_semantic_retrieval.py` only | targeted pytest + Ruff + diff-check | done — `65/65` retrieval suite green |
+| L502 | Bounded edit renderer (successor-wave addendum) | `gpt-5.6-luna` / high | lossless source-span edit subset over host-issued grounding references | `src/metis_model1/brain_bounded_edit.py`, `tests/test_brain_bounded_edit.py`, append-only board/ledger entries | focused pytest + Ruff + format | done — transferred to active low-latency board; unintegrated |
 
 ## Global exclusions
 

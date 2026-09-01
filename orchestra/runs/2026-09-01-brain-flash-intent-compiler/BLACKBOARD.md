@@ -174,3 +174,14 @@ the pinned Metis compiler remain the acceptance chain.
   demo as a non-authoritative, always-warm direct-MLX intent compiler. External
   Gemma distribution, app packaging, VSIX product integration, Metis Fast,
   remote fallback and persistent memory remain explicitly outside this seal.
+- CROSS-WAVE ADDENDUM — L502 belongs to the successor low-latency wave and
+  added only the new source-span bounded-edit module and focused tests;
+  no existing runtime, compiler, renderer, tenant or model file was modified.
+- DONE — bounded-edit test roster `in=3 out=3 distinct=3 gaps=0`: complex edit
+  preserves untouched header bytes, `response.expanded` and publication-date
+  ordering; stale hash/revision, comments, duplicate endpoints, unsupported
+  surfaces, open domains and invented references all decline with `None`.
+- RISK — the current compiler receipt exposes no pinned AST object
+  (`src/metis_model1/brain_tools.py:716-759`), so the module is deliberately a
+  fail-closed source-span subset and is not yet wired into Brain's ModelCandidate
+  generator enum or orchestrator.

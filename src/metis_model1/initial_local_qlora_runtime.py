@@ -82,6 +82,10 @@ CONFIG = {
     "completion_only": True,
 }
 LIMITS = {"hours": 4, "metal_gb": 110, "new_artifacts_gb": 8, "checkpoints": 4}
+MODEL_WIRE_VERSION = 2
+MAX_CACHE_SCOPE_BYTES = 128
+MAX_PREFIX_CACHE_TOKENS = 4096
+MAX_PREFIX_CACHE_BYTES = 2 * 1024 * 1024 * 1024
 VERDICTS = {"LOCAL_ADAPTER_UPLIFT", "LOCAL_ADAPTER_EXPERIMENTAL"}
 PACKAGE_FILES = {
     "CARD.md",
@@ -181,6 +185,122 @@ def _canonical_hash(value: Any) -> str:
         value, allow_nan=False, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def _cache_scope(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value.encode("utf-8")) > MAX_CACHE_SCOPE_BYTES
+        or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-"
+            for character in value
+        )
+    ):
+        _fail("worker cache scope is invalid")
+    return value
+
+
+def _cache_nbytes(cache: list[Any]) -> int:
+    total = 0
+    for item in cache:
+        try:
+            value = int(item.nbytes)
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return MAX_PREFIX_CACHE_BYTES + 1
+        if value < 0 or total > MAX_PREFIX_CACHE_BYTES - value:
+            return MAX_PREFIX_CACHE_BYTES + 1
+        total += value
+    return total
+
+
+def _copy_cache_snapshot_containers(value: Any) -> Any:
+    """Copy snapshot containers while retaining immutable MLX array leaves."""
+
+    if isinstance(value, dict):
+        return {key: _copy_cache_snapshot_containers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_cache_snapshot_containers(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_cache_snapshot_containers(item) for item in value)
+    return value
+
+
+def _cache_offsets(value: Any) -> list[int]:
+    """Collect logical sequence offsets from a possibly nested cache roster."""
+
+    if isinstance(value, (list, tuple)):
+        return [offset for item in value for offset in _cache_offsets(item)]
+    children = getattr(value, "caches", None)
+    if isinstance(children, (list, tuple)):
+        return [offset for item in children for offset in _cache_offsets(item)]
+    offset = getattr(value, "offset", None)
+    if type(offset) is int and offset >= 0:
+        return [offset]
+    return []
+
+
+def _clone_prompt_cache_state(template: Any, *, make_cache: Any, state_factory: Any) -> Any:
+    """Create a transient cache from an immutable public-prefix template.
+
+    The template is never passed to generation. Qwen3.5 updates copied cache
+    containers and grows its full-attention arrays before writing the dynamic
+    suffix, so request/session state cannot become reachable from the template.
+    """
+
+    token_ids = getattr(template, "token_ids", None)
+    sources = getattr(template, "cache", None)
+    if (
+        not isinstance(token_ids, list)
+        or not token_ids
+        or any(type(token) is not int for token in token_ids)
+        or not isinstance(sources, list)
+        or not sources
+        or not callable(make_cache)
+        or not callable(state_factory)
+    ):
+        return None
+    expected_tokens = len(token_ids)
+    source_offsets = _cache_offsets(sources)
+    if not source_offsets or any(offset != expected_tokens for offset in source_offsets):
+        return None
+    try:
+        targets = make_cache()
+    except Exception:  # noqa: BLE001 - cache reuse is optional and fail-closed
+        return None
+    if not isinstance(targets, list) or len(targets) != len(sources):
+        return None
+    try:
+        for source, target in zip(sources, targets, strict=True):
+            snapshot = source.prefix_cache_snapshot()
+            target.prefix_cache_restore(_copy_cache_snapshot_containers(snapshot))
+        state = state_factory()
+        state.token_ids = list(token_ids)
+        state.cache = targets
+    except Exception:  # noqa: BLE001 - a cold prefill remains the safe fallback
+        return None
+    target_offsets = _cache_offsets(targets)
+    if not target_offsets or any(offset != expected_tokens for offset in target_offsets):
+        return None
+    return state
+
+
+def _cache_total_nbytes(states: Any) -> int:
+    """Return a bounded total for all process-local prefix cache states."""
+
+    if not isinstance(states, (list, tuple, dict, set)):
+        return MAX_PREFIX_CACHE_BYTES + 1
+    values = states.values() if isinstance(states, dict) else states
+    total = 0
+    for state in values:
+        cache = getattr(state, "cache", None)
+        if not isinstance(cache, list):
+            return MAX_PREFIX_CACHE_BYTES + 1
+        value = _cache_nbytes(cache)
+        if value > MAX_PREFIX_CACHE_BYTES or total > MAX_PREFIX_CACHE_BYTES - value:
+            return MAX_PREFIX_CACHE_BYTES + 1
+        total += value
+    return total
 
 
 def _atomic_write(path: Path, raw: bytes) -> None:
@@ -1923,8 +2043,11 @@ def verify_adapter_off_restore_receipt(
 def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     """One-shot MLX-VLM JSONL worker; model loading happens exactly once."""
     _check_runtime()
-    from mlx_vlm import generate, load
+    from mlx_vlm import PromptCacheState, generate, load
+    from mlx_vlm.generate.dispatch import generate_step
+    from mlx_vlm.models import cache as mlx_cache
     from mlx_vlm.prompt_utils import apply_chat_template
+    from mlx_vlm.utils import prepare_inputs, should_add_special_tokens
 
     model_identity = _check_checkpoint(model_path)
     if adapter_path is not None:
@@ -1954,16 +2077,91 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     model_revision = model_identity.get("revision")
     if not isinstance(model_revision, str) or not model_revision:
         _fail("worker model revision is missing")
+    prefix_cache: dict[str, PromptCacheState] = {}
+    prefix_hashes: dict[str, str] = {}
+    prefix_tokens_by_scope: dict[str, int] = {}
+
+    def prefill_prefix(messages: Any) -> tuple[PromptCacheState | None, int]:
+        if not isinstance(messages, list) or not messages or len(messages) > 4:
+            _fail("worker prefix messages are invalid")
+        if any(
+            not isinstance(message, Mapping)
+            or set(message) != {"role", "content"}
+            or message.get("role") not in {"system", "user"}
+            or not isinstance(message.get("content"), str)
+            or not message["content"]
+            for message in messages
+        ):
+            _fail("worker prefix messages are invalid")
+        prompt = apply_chat_template(
+            processor,
+            model.config,
+            messages,
+            add_generation_prompt=False,
+            num_images=0,
+            num_audios=0,
+            enable_thinking=False,
+        )
+        inputs = prepare_inputs(
+            processor,
+            prompts=prompt,
+            add_special_tokens=should_add_special_tokens(model.config.model_type, processor),
+            return_tensors="mlx",
+        )
+        input_ids = inputs.get("input_ids")
+        mask = inputs.get("attention_mask")
+        if input_ids is None or input_ids.ndim != 2 or input_ids.shape[0] != 1:
+            _fail("worker prefix tokenization is invalid")
+        prefix_tokens = int(input_ids.shape[1])
+        if not 1 <= prefix_tokens <= MAX_PREFIX_CACHE_TOKENS:
+            return None, prefix_tokens
+        tracked_cache = mlx_cache.make_prompt_cache(model.language_model)
+        stream = generate_step(
+            input_ids,
+            model,
+            None,
+            mask,
+            prompt_cache=tracked_cache,
+            # The pinned MLX-VLM path processes the complete prompt before the
+            # decode loop. At zero output tokens it exits before feeding the
+            # sampled logit token back, leaving the cache at the exact prefix.
+            max_tokens=0,
+            temperature=0.0,
+            seed=17,
+            verbose=False,
+        )
+        try:
+            try:
+                next(stream)
+            except StopIteration:
+                pass
+            else:
+                _fail("worker zero-token prefill unexpectedly yielded")
+        finally:
+            stream.close()
+        transient = PromptCacheState()
+        transient.token_ids = [int(item) for item in input_ids.flatten().tolist()]
+        transient.cache = tracked_cache
+        captured_state = _clone_prompt_cache_state(
+            transient,
+            make_cache=lambda: mlx_cache.make_prompt_cache(model.language_model),
+            state_factory=PromptCacheState,
+        )
+        if captured_state is None or captured_state.cache is None:
+            return None, prefix_tokens
+        import mlx.core as mx
+
+        mx.eval([item.state for item in captured_state.cache])
+        if _cache_nbytes(captured_state.cache) > MAX_PREFIX_CACHE_BYTES:
+            return None, prefix_tokens
+        return captured_state, prefix_tokens
+
     seen: set[str] = set()
     for line in sys.stdin:
         if len(line.encode("utf-8")) > 1_000_000:
             _fail("worker request exceeds byte limit")
         request = json.loads(line, parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)))
-        if (
-            isinstance(request, Mapping)
-            and set(request) == {"request_id", "operation"}
-            and request.get("operation") == "warmup"
-        ):
+        if isinstance(request, Mapping) and request.get("operation") == "warmup":
             request_id = request.get("request_id")
             if (
                 not isinstance(request_id, str)
@@ -1973,15 +2171,73 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             ):
                 _fail("worker warmup request schema/limits")
             seen.add(request_id)
+            version = request.get("schema_version", 1)
+            if version == 1 and set(request) == {"request_id", "operation"}:
+                print(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "request_id": request_id,
+                            "status": "ready",
+                            "worker_load_ms": worker_load_ms,
+                            "model_revision": model_revision,
+                            "adapter_sha256": adapter_sha256,
+                        },
+                        allow_nan=False,
+                    ),
+                    flush=True,
+                )
+                continue
+            if version != MODEL_WIRE_VERSION or set(request) != {
+                "schema_version",
+                "request_id",
+                "operation",
+                "cache_scope",
+                "model_revision",
+                "adapter_sha256",
+                "prefix_messages",
+                "prefix_sha256",
+            }:
+                _fail("worker warmup request schema/limits")
+            scope = _cache_scope(request["cache_scope"])
+            if (
+                request["model_revision"] != model_revision
+                or request["adapter_sha256"] != adapter_sha256
+                or request["prefix_sha256"] != _canonical_hash(request["prefix_messages"])
+            ):
+                _fail("worker warmup identity differs")
+            if prefix_hashes.get(scope) == request["prefix_sha256"]:
+                state = prefix_cache.get(scope)
+                prefix_tokens = prefix_tokens_by_scope[scope]
+            else:
+                state, prefix_tokens = prefill_prefix(request["prefix_messages"])
+                prefix_hashes[scope] = request["prefix_sha256"]
+                prefix_tokens_by_scope[scope] = prefix_tokens
+                if state is not None:
+                    other_states = {
+                        key: value for key, value in prefix_cache.items() if key != scope
+                    }
+                    if (
+                        _cache_total_nbytes(other_states) + _cache_nbytes(state.cache)
+                        > MAX_PREFIX_CACHE_BYTES
+                    ):
+                        state = None
+                prefix_cache.pop(scope, None)
+                if state is not None:
+                    prefix_cache[scope] = state
             print(
                 json.dumps(
                     {
-                        "schema_version": 1,
+                        "schema_version": MODEL_WIRE_VERSION,
                         "request_id": request_id,
                         "status": "ready",
                         "worker_load_ms": worker_load_ms,
                         "model_revision": model_revision,
                         "adapter_sha256": adapter_sha256,
+                        "cache_scope": scope,
+                        "prefix_sha256": request["prefix_sha256"],
+                        "prefix_tokens": prefix_tokens,
+                        "cache_ready": state is not None,
                     },
                     allow_nan=False,
                 ),
@@ -1989,8 +2245,24 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             )
             continue
         messages = request.get("messages")
+        version = request.get("schema_version", 1)
+        if version == 1:
+            expected_request = {"request_id", "messages", "max_tokens"}
+        elif version == MODEL_WIRE_VERSION:
+            expected_request = {
+                "schema_version",
+                "request_id",
+                "messages",
+                "max_tokens",
+                "cache_scope",
+                "model_revision",
+                "adapter_sha256",
+                "prefix_sha256",
+            }
+        else:
+            expected_request = set()
         if (
-            set(request) != {"request_id", "messages", "max_tokens"}
+            set(request) != expected_request
             or not isinstance(request.get("request_id"), str)
             or not request["request_id"]
             or request["request_id"] in seen
@@ -2000,6 +2272,26 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             or request["max_tokens"] != 512
         ):
             _fail("worker request schema/limits")
+        scope = None
+        cache_state = None
+        template = None
+        prepared_inputs = None
+        if version == MODEL_WIRE_VERSION:
+            scope = _cache_scope(request["cache_scope"])
+            if (
+                request["model_revision"] != model_revision
+                or request["adapter_sha256"] != adapter_sha256
+            ):
+                _fail("worker request identity differs")
+            if prefix_hashes.get(scope) != request["prefix_sha256"]:
+                _fail("worker request cache identity differs")
+            template = prefix_cache.get(scope)
+            if template is not None:
+                cache_state = _clone_prompt_cache_state(
+                    template,
+                    make_cache=lambda: mlx_cache.make_prompt_cache(model.language_model),
+                    state_factory=PromptCacheState,
+                )
         if any(
             not isinstance(message, Mapping)
             or set(message) != {"role", "content"}
@@ -2021,18 +2313,55 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             num_audios=0,
             enable_thinking=False,
         )
-        generation_started = time.monotonic()
-        with contextlib.redirect_stdout(sys.stderr):
-            result = generate(
-                model,
+        if version == MODEL_WIRE_VERSION and template is not None:
+            prepared_inputs = prepare_inputs(
                 processor,
-                prompt,
-                max_tokens=512,
-                temperature=0.0,
-                seed=17,
-                enable_thinking=False,
-                verbose=False,
+                prompts=prompt,
+                add_special_tokens=should_add_special_tokens(model.config.model_type, processor),
+                return_tensors="mlx",
             )
+            full_input_ids = prepared_inputs.get("input_ids")
+            template_ids = getattr(template, "token_ids", None)
+            if (
+                full_input_ids is None
+                or full_input_ids.ndim != 2
+                or full_input_ids.shape[0] != 1
+                or not isinstance(template_ids, list)
+            ):
+                cache_state = None
+            else:
+                full_ids = [int(item) for item in full_input_ids.flatten().tolist()]
+                if (
+                    len(template_ids) >= len(full_ids)
+                    or full_ids[: len(template_ids)] != template_ids
+                ):
+                    cache_state = None
+        generation_started = time.monotonic()
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                input_overrides = {}
+                if prepared_inputs is not None:
+                    input_overrides = {
+                        "input_ids": prepared_inputs["input_ids"],
+                        "mask": prepared_inputs.get("attention_mask"),
+                    }
+                result = generate(
+                    model,
+                    processor,
+                    prompt,
+                    max_tokens=512,
+                    temperature=0.0,
+                    seed=17,
+                    enable_thinking=False,
+                    prompt_cache_state=cache_state,
+                    verbose=False,
+                    **input_overrides,
+                )
+        finally:
+            # ``generate`` appends dynamic prompt/generated state only to this
+            # transient clone. Drop the worker reference immediately; the
+            # persistent public-prefix template was never passed to generation.
+            cache_state = None
         generation_ms = max(0, int((time.monotonic() - generation_started) * 1000))
         source = result.text
         if (
@@ -2050,25 +2379,22 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             )
         ):
             _fail("worker non-finite/empty generation")
-        print(
-            json.dumps(
-                {
-                    "request_id": request.get("request_id"),
-                    "text": source,
-                    "peak_metal_gb": float(result.peak_memory),
-                    "worker_load_ms": worker_load_ms,
-                    "generation_ms": generation_ms,
-                    "prompt_tokens": result.prompt_tokens,
-                    "generation_tokens": result.generation_tokens,
-                    "cached_tokens": result.cached_tokens,
-                    "prompt_tps": float(result.prompt_tps),
-                    "generation_tps": float(result.generation_tps),
-                    "finish_reason": result.finish_reason,
-                },
-                allow_nan=False,
-            ),
-            flush=True,
-        )
+        response = {
+            "request_id": request.get("request_id"),
+            "text": source,
+            "peak_metal_gb": float(result.peak_memory),
+            "worker_load_ms": worker_load_ms,
+            "generation_ms": generation_ms,
+            "prompt_tokens": result.prompt_tokens,
+            "generation_tokens": result.generation_tokens,
+            "cached_tokens": result.cached_tokens,
+            "prompt_tps": float(result.prompt_tps),
+            "generation_tps": float(result.generation_tps),
+            "finish_reason": result.finish_reason,
+        }
+        if version == MODEL_WIRE_VERSION:
+            response["cache_hit"] = bool(result.cached_tokens > 0)
+        print(json.dumps(response, allow_nan=False), flush=True)
     import mlx.core as mx
 
     mx.clear_cache()

@@ -88,9 +88,11 @@ workspace corrente.
   la compilazione reale;
 - `compiler_executions`: compilazioni archiviate completate dall'avvio;
 - `model_identity`: checkpoint/adapter locali sono configurati senza esporre
-  path; nel profilo demo `model_warmup.policy=on_start` e `model_loaded=true`
-  sono prerequisiti della readiness. Il valore può restare `false` soltanto in
-  un profilo esplicitamente `lazy` o dopo la morte del worker;
+  path; nel profilo demo `model_warmup.policy=on_start`, `model_loaded=true`,
+  `model_warmup.prefix_cache_ready=true` e un valore positivo e limitato di
+  `model_warmup.prefix_tokens` sono prerequisiti della readiness. Il modello
+  può restare non caricato soltanto in un profilo esplicitamente `lazy` o dopo
+  la morte del worker;
 - `intent_compiler`: il worker Flash è abilitato in modalità
   `assist_on_unresolved`, caricato prima del bind e identificato soltanto da
   revisione modello, hash schema e decoder. Non espone path, prompt o valori;

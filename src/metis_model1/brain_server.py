@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
 from metis_model1.brain_flash_runtime import MlxFlashIntentRuntime
-from metis_model1.brain_mlx_runtime import MlxBrainModelRuntime
+from metis_model1.brain_mlx_runtime import MAX_PREFIX_CACHE_TOKENS, MlxBrainModelRuntime
 from metis_model1.brain_model_runtime import MAX_TELEMETRY_COUNT, UnavailableModelRuntime
 from metis_model1.brain_protocol import (
     MAX_JSON_BYTES,
@@ -438,6 +438,8 @@ class BrainApplication:
         warmup_status = "disabled"
         warmup_duration_ms: int | None = None
         warmup_worker_load_ms: int | None = None
+        warmup_prefix_tokens: int | None = None
+        prefix_cache_ready = False
         if self.model_warmup_policy != "disabled":
             reported_status = getattr(self.model, "warmup_status", "cold")
             if reported_status in {"cold", "ready", "failed", "closed"}:
@@ -453,6 +455,10 @@ class BrainApplication:
                     warmup_duration_ms = value
                 else:
                     warmup_worker_load_ms = value
+            value = getattr(self.model, "warmup_prefix_tokens", None)
+            if type(value) is int and 0 <= value <= MAX_TELEMETRY_COUNT:
+                warmup_prefix_tokens = value
+            prefix_cache_ready = getattr(self.model, "prefix_cache_ready", False) is True
         health = {
             "schema_version": 1,
             "status": (
@@ -477,6 +483,8 @@ class BrainApplication:
                 "status": warmup_status,
                 "duration_ms": warmup_duration_ms,
                 "worker_load_ms": warmup_worker_load_ms,
+                "prefix_tokens": warmup_prefix_tokens,
+                "prefix_cache_ready": prefix_cache_ready,
             },
             "semantic_retrieval": {
                 "enabled": isinstance(self.retriever, Schema2SnapshotRetriever),
@@ -1010,6 +1018,11 @@ class MetisBrainService:
                         for key in ("duration_ms", "worker_load_ms")
                     )
                     or getattr(model_runtime, "model_loaded", None) is not True
+                    or getattr(model_runtime, "prefix_cache_ready", None) is not True
+                    or type(getattr(model_runtime, "warmup_prefix_tokens", None)) is not int
+                    or not 1
+                    <= getattr(model_runtime, "warmup_prefix_tokens", 0)
+                    <= MAX_PREFIX_CACHE_TOKENS
                 ):
                     raise BrainError(
                         "MODEL_RUNTIME_CONFIG", 500, "configured model warmup did not complete"

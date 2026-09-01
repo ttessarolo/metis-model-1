@@ -304,6 +304,8 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
             "status": "disabled",
             "duration_ms": None,
             "worker_load_ms": None,
+            "prefix_tokens": None,
+            "prefix_cache_ready": False,
         }
         assert health["semantic_retrieval"] == {
             "enabled": True,
@@ -735,6 +737,8 @@ def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
         warmup_status = "cold"
         warmup_duration_ms = None
         warmup_worker_load_ms = None
+        warmup_prefix_tokens = None
+        prefix_cache_ready = False
 
         def __init__(self, **_kwargs: Any) -> None:
             calls.append("constructed")
@@ -745,6 +749,8 @@ def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
             self.warmup_status = "ready"
             self.warmup_duration_ms = 12
             self.warmup_worker_load_ms = 10
+            self.warmup_prefix_tokens = 2048
+            self.prefix_cache_ready = True
             return {"status": "ready", "duration_ms": 12, "worker_load_ms": 10}
 
         def close(self) -> None:
@@ -769,6 +775,8 @@ def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
             "status": "ready",
             "duration_ms": 12,
             "worker_load_ms": 10,
+            "prefix_tokens": 2048,
+            "prefix_cache_ready": True,
         }
     finally:
         service.close()
@@ -846,6 +854,50 @@ def test_service_rejects_incomplete_warmup_receipt_before_binding(
             calls.append("closed")
 
     monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", IncompleteWarmModel)
+    with pytest.raises(BrainError, match="did not complete"):
+        MetisBrainService(
+            config,
+            compiler=ConstructibleFakeCompiler(),
+            retriever=Schema2SnapshotRetriever(lambda _snapshot: None),
+        )
+    assert calls == ["constructed", "warmed", "closed"]
+    assert list(config.runtime_root.glob("run-*")) == []
+
+
+@pytest.mark.parametrize("prefix_tokens", [0, brain_server_module.MAX_PREFIX_CACHE_TOKENS + 1])
+def test_service_rejects_ready_cache_with_invalid_prefix_tokens_before_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix_tokens: int
+) -> None:
+    config = _service_config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"fake")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config = replace(
+        config,
+        model=BrainModelConfig(python_path, model_path, adapter_path, 7.0, warmup="on_start"),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: list[str] = []
+
+    class EmptyPrefixWarmModel:
+        model_loaded = True
+        prefix_cache_ready = True
+        warmup_prefix_tokens = prefix_tokens
+
+        def __init__(self, **_kwargs: Any) -> None:
+            calls.append("constructed")
+
+        def warmup(self) -> dict[str, int | str]:
+            calls.append("warmed")
+            return {"status": "ready", "duration_ms": 12, "worker_load_ms": 10}
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", EmptyPrefixWarmModel)
     with pytest.raises(BrainError, match="did not complete"):
         MetisBrainService(
             config,
