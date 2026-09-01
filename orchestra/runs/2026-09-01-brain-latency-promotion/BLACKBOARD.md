@@ -120,9 +120,11 @@ minimal-diff or no-Apply gates.
   long retrieval, Flash, inference, repair and compile phases. Event sequence
   and `Last-Event-ID` replay are monotonic; terminal publication is serialized
   against the heartbeat thread and remains the final event.
-- STOP — Existing-endpoint deterministic `EditPlan` wiring remains disabled
-  until the compiler team delivers and independently proves its byte-lossless
-  renderer. Compile-clean or whole-file regeneration cannot satisfy this gate.
+- STOP — Existing-endpoint deterministic `EditPlan` wiring remains disabled.
+  The compiler artifact is now locally proven, but the remote pin, executable
+  probe seal, typed host-reference bridge and full-snapshot compile receipt are
+  not yet closed. Compile-clean or whole-file regeneration cannot satisfy this
+  gate.
 - FACT — The first full `make check` attempt completed foundation `86/0`, Ruff,
   format and the complete pytest denominator `2867 passed, 2 skipped, 0 failed`
   in `2791.03 s`. Its final source-authority seal correctly returned red because
@@ -138,10 +140,22 @@ minimal-diff or no-Apply gates.
   every path belongs to this Brain latency wave, with `P0=0 P1=0`. No secret,
   `.env`, credential, tenant payload, dataset, model weight, adapter or
   checkpoint payload is tracked by the change.
-- OPEN — L0 clean-tree seal, frozen live A/B receipt and promotion verdict.
+- DONE — Frozen live A/B receipt replayed exactly at
+  `sha256:e738425cd806412eea44327d7915bd774832c4868a71068ef8fb01ba1c6a0172`:
+  `pairs=6 observations=12 in=12 out=12 distinct=12 gaps=0`; exact source,
+  grounding, requested `take 24`, endpoint/order/response shape, first-attempt
+  compile and tenant invariance all GREEN.
+- FACT — Direct inference measured p50/p95 `60099/82470 ms`; prefix measured
+  `39498/59098 ms`. Prefix TTFT p50 fell from `36351` to `17072 ms`, while
+  decode-after-first-token p50 remained `22403 ms` versus direct `22039 ms`.
+- STOP — Latency promotion verdict is `MEASURED_NOT_PROMOTED`: prefix/direct
+  ratios are `65.7%` p50 and `71.7%` p95 versus required `<=60%`/`<=70%`, and
+  prefix turn p95 is `66876 ms` versus required `<=25000 ms`. Quality gates
+  remain green; thresholds are not weakened after measurement.
 - OPEN — Real installed VS Code `@metis` complex Draft proof, with no Apply and
   tenant identity unchanged.
-- OPEN — Authoritative `make check`, final Orchestra audit, commit and push.
+- OPEN — Final clean-tree audit, documentation commit and push after the real
+  installed-VS-Code proof.
 
 ## Lossless renderer reception
 

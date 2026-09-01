@@ -1,7 +1,8 @@
 # Metis Brain: local latency and isolation
 
-Status: **implemented and statically qualified; the frozen live receipt and
-current installed-VS-Code proof are still required for promotion**.
+Status: **implemented, repository-qualified and live-measured; the prefix path
+is measurably faster but not promoted, and the current installed-VS-Code proof
+is still required for UX closure**.
 
 ## Problem
 
@@ -183,8 +184,28 @@ uv run metis-model1 brain-latency-benchmark \
 The receipt retains per-observation telemetry, event/heartbeat counts,
 grounding/compiler/source hashes and tenant guards. Replay verifies the full
 roster, including both excluded preflights, but independent review must still
-compare `case_sha256` with the exact committed case. This is a procedure, not a
-claim that a benchmark, VS Code proof or promotion has completed.
+compare `case_sha256` with the exact committed case.
+
+The frozen Mac run on 2026-09-01 completed six counterbalanced pairs and
+published receipt
+`sha256:e738425cd806412eea44327d7915bd774832c4868a71068ef8fb01ba1c6a0172`.
+Replay is exact; denominator is `in=12 out=12 distinct=12 gaps=0`; all source,
+grounding, shape, compiled-endpoint and tenant-integrity claims are true. Its
+verdict is `MEASURED_NOT_PROMOTED`:
+
+| Metric | Direct | Prefix | Promotion requirement |
+|---|---:|---:|---:|
+| inference p50 | 60099 ms | 39498 ms | prefix <= 60% of direct; observed 65.7% |
+| inference p95 | 82470 ms | 59098 ms | prefix <= 70% of direct; observed 71.7% |
+| turn p95 | 88873 ms | 66876 ms | prefix <= 25000 ms |
+| TTFT p50 | 36351 ms | 17072 ms | diagnostic |
+| decode-after-first-token p50 | 22039 ms | 22403 ms | diagnostic |
+
+Prefix caching therefore closes a real prefill cost but is insufficient for a
+fast operator experience. It remains qualified evidence, not the production
+default promoted by this gate. The next optimization must reduce decode and
+the still-large prefix TTFT while preserving the exact same semantic and
+compiler oracles.
 
 ## Optimization boundary and fail-closed compiler
 
