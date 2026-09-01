@@ -191,10 +191,13 @@ claim that a benchmark, VS Code proof or promotion has completed.
 The public-prefix cache is the only currently compatible optimization.
 Speculative decode is **STOP**: qualified Qwen has no compatible drafter/MTP
 payload, and no new downloads are authorized. The lossless compiler renderer
-is being developed independently in the compiler repository; until its
-byte-preserving parse/render and untouched-span golden tests are delivered and
-reviewed here, `EditPlan` remains fail-closed. Compile-clean output alone does
-not close this gate.
+handover dated 2026-09-01 passed its local artifact audit, including the whole
+corpus and all five probes on the Brain-pinned Node. That does not enable the
+path: Brain still requires a remotely reachable pinned revision, an executable
+probe seal, a typed opaque-reference registry, exact base/preimage binding,
+mandatory full-tenant `compileProof=validate`, and strict receipt translation.
+Until all those gates are green, `EditPlan` remains fail-closed. Compile-clean
+output alone does not close this gate.
 
 ## Lifecycle and cleanup
 

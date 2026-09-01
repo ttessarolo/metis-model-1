@@ -130,6 +130,10 @@ minimal-diff or no-Apply gates.
   during the run. This is not recorded as a complete GREEN; L0 will rerun the
   authority gate against a private immutable local copy of the pinned Metis
   revision without reading or altering the renderer team's worktree.
+- DONE — The authoritative rerun against a private immutable copy of the exact
+  pinned Metis revision completed `make check` with exit `0`: foundation
+  `86/0`, Ruff and format GREEN, pytest `2867 passed, 2 skipped, 0 failed` in
+  `2616.33 s`, and the post-run Git/tree/runtime authority seal GREEN.
 - DONE — Independent final diff census: `in=27 out=0 distinct=27 gaps=0`;
   every path belongs to this Brain latency wave, with `P0=0 P1=0`. No secret,
   `.env`, credential, tenant payload, dataset, model weight, adapter or
@@ -138,3 +142,32 @@ minimal-diff or no-Apply gates.
 - OPEN — Real installed VS Code `@metis` complex Draft proof, with no Apply and
   tenant identity unchanged.
 - OPEN — Authoritative `make check`, final Orchestra audit, commit and push.
+
+## Lossless renderer reception
+
+- FACT — External handover received at
+  `docs/handover-lossless-renderer-2026-09-01.md`; it declares Metis revision
+  `2ad60b3c804fb1c45e45883b0479a46f660d98f6`, tree
+  `ea29b935934fadd5f99711c0470566a2484b35f6`, language `0.43`, tooling
+  `0.23.97`, delivered but not wired.
+- DONE — Independent local artifact audit with the Brain-pinned Node `v22.22.3`:
+  evidence `in=13 out=13 distinct=13 gaps=0`, corpus `200/200` and `606654`
+  bytes, all five declared probes GREEN. One independent replacement preserved
+  a `164`-byte prefix and `626`-byte suffix exactly outside byte span
+  `[164,180)`. Local renderer artifact verdict: GREEN.
+- STOP — Brain pin/wiring remains fail-closed. Local `main` at the delivered
+  revision is ahead of the locally known `origin/main` by one and the expected
+  remote ref does not contain the revision; current Brain authority policy
+  therefore forbids pinning it. No fetch or push was performed by this wave.
+- STOP — No typed `hostref -> node/preimage/payload/placement/mode` registry or
+  exact translation exists. The compiler and Brain EditPlan contracts are not
+  one-to-one, the same base SHA is not yet bound across all layers, and the
+  compiler bridge does not yet force `compileProof=validate` on the original
+  full tenant snapshot or strictly validate the lossless receipt.
+- STOP — The current Brain pin verifier records probes but does not execute
+  them. A reception gate over the Git archive and pinned Node, or an equivalent
+  sealed receipt, is required before deterministic edit can be enabled.
+- RISK — The adversarial parser-limit fixture is GREEN on the qualified Node
+  `v22.22.3` but three assertions are RED on the host default Node `v26.5.0`;
+  the integration must invoke the pinned runtime explicitly and cannot claim
+  generic Node portability.
