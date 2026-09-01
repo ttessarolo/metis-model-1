@@ -20,6 +20,13 @@
   "retrieval": {
     "schema2": true
   },
+  "intent_compiler": {
+    "python_path": "/Users/tommasotessarolo/Developer/metis-model-1/qualification/.venv/bin/python",
+    "model_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/brain-flash-intent-v1/model",
+    "timeout_seconds": 60,
+    "warmup": "on_start",
+    "mode": "assist_on_unresolved"
+  },
   "tenants": [
     {
       "alias": "play-demo",

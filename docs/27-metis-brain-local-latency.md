@@ -10,8 +10,8 @@ use. The first clarification was observed at about 56 seconds in the earlier
 VS Code smoke. Its work completed before the MLX worker started, so that delay
 was retrieval/toolchain cold start, not model inference. Cold semantic
 projection and each compile also rebuilt an isolated Metis tree, copied about
-199 MB / 17k `node_modules` entries, and repeated the full pin checks. Model
-generation was lazy, serial, capped at 512 tokens, and did not expose enough
+199 MB / 17k `node_modules` entries, and repeated the full pin checks. In that
+pre-warm baseline, model generation was lazy, serial, capped at 512 tokens, and did not expose enough
 telemetry to distinguish end-of-sequence from length-cap termination.
 
 This wave reduces repeated local work while preserving the reviewed grounding,
@@ -240,6 +240,28 @@ Session-scoped prompt/KV caching, bound to context and semantic revisions and
 invalidated on any relevant change, remains the separate optimization with the
 larger potential benefit for refinements.
 
+## Successor Flash intent wave
+
+The subsequent Flash wave adds one separate startup-warm Gemma 4 E4B worker.
+It uses direct MLX/MLX-VLM and `llguidance` token masks; it does not add Ollama,
+another HTTP server or another copy of Qwen. Flash runs only after an
+unsupported deterministic retrieval and may return only the closed,
+non-authoritative Intent IR described in
+[`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md).
+
+The final five-case qualification measured `1.202–1.588 s` per warm Flash
+generation and about `5.797 GB` peak Metal. A real existing-endpoint request
+that required four reviewed fields then completed end to end in `56.420 s`:
+Flash enabled exact grounding; Model 1 used `42.369 s` for 4,409 prompt and 215
+generated tokens; the first candidate compiled; no Apply or tenant mutation
+occurred. Startup with both workers warm took `31.540 s`.
+
+This changes the cost of intent segmentation, not the generation rate of the
+27B model. The measured residual bottleneck is still Model 1. Prompt/KV cache,
+shorter qualified candidate formats or additional deterministic rendering are
+separate evidence-driven optimizations; the Flash result is not permission to
+weaken grounding or compiler gates.
+
 ## Verification
 
 Use synthetic fixtures and the already authorized local pin only; do not put
@@ -256,7 +278,10 @@ uv run pytest -q \
   tests/test_brain_tools.py \
   tests/test_brain_grounded_renderer.py \
   tests/test_brain_candidate_grounding.py \
-  tests/test_video_brain_grounding.py
+  tests/test_video_brain_grounding.py \
+  tests/test_brain_intent_ir.py \
+  tests/test_brain_flash_runtime.py \
+  tests/test_brain_flash_wiring.py
 uv run ruff check src/metis_model1/brain_mlx_runtime.py \
   src/metis_model1/brain_model_runtime.py \
   src/metis_model1/brain_orchestrator.py \

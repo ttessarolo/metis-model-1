@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from metis_model1.brain_context import ContextSnapshot, SnapshotFile
+from metis_model1.brain_intent_ir import FLASH_INTENT_SCHEMA_SHA256
 from metis_model1.brain_model_runtime import ModelCandidate
 from metis_model1.brain_orchestrator import BrainOrchestrator
 from metis_model1.brain_protocol import BrainError, canonical_sha256
@@ -654,6 +655,53 @@ def test_output_surface_is_removed_before_production_semantic_grounding(
     assert retrieved.output_request.generic_pagination is generic_pagination
     assert "24" not in retrieved.output_request.semantic_instruction
     assert "pagin" not in retrieved.output_request.semantic_instruction.casefold()
+
+
+def test_server_flash_intent_uses_exact_sources_not_advisory_queries() -> None:
+    """Flash may segment prose; retrieval alone resolves catalog/field/value authority."""
+    instruction = "@video Film 24 risultati"
+    request = SimpleNamespace(
+        instruction=instruction,
+        intent="create",
+        target={"mode": "create"},
+        server_flash_intent={
+            "schema_version": 1,
+            "intent_ir": {
+                "schema_version": 1,
+                "operation": "create",
+                "target_scope": "new",
+                "concept_logic": "all",
+                "concepts": [
+                    # The query is deliberately wrong: it is advisory only.
+                    {"source": "Film", "query": "Sport", "polarity": "include"}
+                ],
+                "response_format": "unspecified",
+                "fallback": "unspecified",
+                "ambiguities": [],
+            },
+            "model_revision": "flash-test",
+            "schema_sha256": FLASH_INTENT_SCHEMA_SHA256,
+            "decoder": "llguidance-1.8.0",
+        },
+    )
+
+    retrieved = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()), request=request
+    )
+
+    assert retrieved.grounding["status"] == "resolved"
+    assert retrieved.grounding["catalogs"] == ["video"]
+    selection = retrieved.grounding["selections"]
+    assert len(selection) == 1
+    assert selection[0]["catalog"] == "video"
+    assert selection[0]["field"] == "genre"
+    assert selection[0]["literal"] == "Film"
+    assert selection[0]["type"] == "keyword"
+    assert selection[0]["modifiers"] == []
+    assert all("Sport" not in item["literal"] for item in retrieved.grounding["selections"])
+    assert retrieved.output_request is not None
+    assert retrieved.output_request.contracts == (("count", 24),)
+    assert "24" not in retrieved.output_request.semantic_instruction
 
 
 @pytest.mark.parametrize(

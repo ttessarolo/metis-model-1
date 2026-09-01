@@ -68,12 +68,16 @@ adapter Metis.
 | D-013 | Direzione prodotto: Metis Brain locale Mac + estensione Metis VS Code | Giulia e la redazione devono usare Model 1 sui workspace reali con inferenza locale, toolchain e controllo umano | La demo usa MLX su Mac; le wave preservano adapter separato, retrieval-owned state e patch verificabili. Integrazione client e distribuzione restano O-008/O-009; Windows si valuta solo dopo l'approvazione |
 | D-014 | Grammatica e standard library Metis sono autorità accoppiate di primo livello | I soli esempi play-prod/play-demo non coprono tutto ciò che il linguaggio sa esprimere | Ogni wave di accuracy o manutenzione pinna entrambe, misura costrutti, membri, setting e interazioni; prova prima l'adapter esistente e ritara i pesi solo su fallimenti genuini |
 | D-015 | Sessioni tenant Metis Brain v1: alias server-side, snapshot immutabile, capability e TTL idle esatto di 20 minuti | VSIX e Metis Fast devono poter aprire N sessioni isolate sullo stesso tenant o su tenant diversi senza duplicare il modello e senza dare a Brain autorità di scrittura | Il core usa HTTP numerico loopback autenticato, revoca su close/expiry, stale guard e compiler pinnato; inferenza, retrieval progressivo, UI/app e packaging restano wave separate |
+| D-016 | Flash intent compiler interno, diretto MLX e sempre caldo | Un modello piccolo può segmentare rapidamente la richiesta naturale senza diventare una seconda autorità semantica o un server da distribuire | Gemma 4 E4B emette soltanto Intent IR vincolato; span esatti passano al retrieval solo dopo validazione host. Conteggio, cataloghi, campi, valori, DSL e compilazione restano alle autorità esistenti; Ollama non è nel serving path e la licenza Gemma resta un gate aperto di distribuzione |
 
 La direzione D-013 è specificata in
 [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md).
 La sua prima tranche session/compiler è specificata in
 [`22-metis-brain-session-wave.md`](22-metis-brain-session-wave.md). D-013 non
 autorizza distribuzione, fallback remoto o scritture autonome.
+La componente Flash ratificata da D-016 è specificata in
+[`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md)
+e non modifica i pesi o l'adapter di Model 1.
 
 ## 4. Ipotesi da dimostrare
 

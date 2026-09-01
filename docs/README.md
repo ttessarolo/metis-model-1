@@ -3,9 +3,10 @@
 Stato del piano: **adapter locale `INITIAL_LOCAL_QLORA_V1` consegnato; accuracy
 catalog-domain chiusa a 12/12 e grammar+standard-library T30-v3 chiusa a 30/30
 con `NO_RETRAIN`; annotazione ed equivalenze del verticale `@video` chiuse;
-core sessioni/compilatore di Metis Brain implementato; gli altri cataloghi,
-l'inferenza applicativa, l'app installabile e l'integrazione VSIX/Metis Fast
-restano aperti — 28 agosto 2026**.
+core sessioni/compilatore, inferenza locale e Flash intent compiler di Metis
+Brain implementati e qualificati per la demo di sviluppo Mac; gli altri
+cataloghi, l'app installabile e l'integrazione prodotto VSIX/Metis Fast restano
+aperti — 1 settembre 2026**.
 
 Questo indice è il contratto di navigazione del progetto. I documenti distinguono
 sempre quattro livelli epistemici:
@@ -76,6 +77,13 @@ sempre quattro livelli epistemici:
 26. [`25-catalog-semantic-completion-backlog.md`](25-catalog-semantic-completion-backlog.md)
     — chiusura misurata di `@video`, contratto OR per varianti fisiche, coda
     esplicita degli altri cataloghi e hardening operativo separato della demo.
+27. [`26-metis-brain-interactive-session-wave.md`](26-metis-brain-interactive-session-wave.md)
+    — dialogo tipizzato universale, memoria volatile di sessione e refine.
+28. [`27-metis-brain-local-latency.md`](27-metis-brain-local-latency.md) —
+    isolamento compiler/retrieval, warmup Model 1, fast path e misure locali.
+29. [`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md)
+    — modello Flash MLX sempre caldo, Intent IR vincolato, confini di autorità,
+    qualifica locale ed E2E complesso no-Apply.
 
 ## Tesi operativa
 
@@ -100,9 +108,8 @@ l'autorità eseguibile. La formula di Model 1 è quindi:
 Questo repository, allo stato corrente, non dichiara che:
 
 - l'adapter locale consegnato costituisca una promotion Accuracy-99;
-- esistano già inferenza Brain, app installabile, chat o integrazione VSIX/Metis
-  Fast; l'API loopback session/compiler v1 esiste ma non è ancora un prodotto
-  distribuito;
+- il server Brain locale già funzionante equivalga a un'app installabile o a
+  un'integrazione prodotto VSIX/Metis Fast già consegnata;
 - il supporto Windows faccia parte della demo corrente;
 - il backup S3 sia un canale autorizzato di distribuzione ai client;
 - `EXPERIMENT_PLAN_READY` autorizzi inferenza, dataset o training;

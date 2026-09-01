@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from metis_model1.brain_intent_ir import IntentCompileRequest, IntentIR
 from metis_model1.brain_output_contract import parse_output_request
 from metis_model1.brain_protocol import BrainError, canonical_json, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult
@@ -1603,6 +1604,41 @@ class Schema2SnapshotRetriever:
             _fail("RETRIEVAL_INVALID", "request instruction is invalid", 400)
         output_request = parse_output_request(instruction)
         semantic_instruction = output_request.semantic_instruction
+        flash_value = getattr(request, "server_flash_intent", None)
+        if flash_value is not None:
+            if (
+                not isinstance(flash_value, Mapping)
+                or set(flash_value)
+                != {
+                    "schema_version",
+                    "intent_ir",
+                    "model_revision",
+                    "schema_sha256",
+                    "decoder",
+                }
+                or flash_value.get("schema_version") != 1
+            ):
+                raise BrainError("FLASH_INTENT_STALE", 409, "session Flash intent is invalid")
+            target = getattr(request, "target", None)
+            intent = getattr(request, "intent", None)
+            if not isinstance(target, Mapping):
+                raise BrainError("FLASH_INTENT_STALE", 409, "session Flash intent is invalid")
+            compiled = IntentIR.parse(
+                flash_value.get("intent_ir"),
+                request=IntentCompileRequest(
+                    instruction=instruction,
+                    intent=intent,
+                    target_mode=target.get("mode"),
+                ),
+            )
+            normalized = compiled.exact_semantic_instruction
+            if normalized is None:
+                raise BrainError(
+                    "FLASH_INTENT_UNSUPPORTED",
+                    409,
+                    "session Flash intent cannot safely drive retrieval",
+                )
+            semantic_instruction = normalized
         # Only the TurnStore may resolve a client answer. Raw clarification
         # fields are intentionally ignored here so the retrieval authority can
         # never be steered with a manufactured option reference.

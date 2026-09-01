@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/metis-brain-flash-intent-ir.schema.json",
+  "title": "Metis Brain Flash Intent IR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "target_scope",
+    "concept_logic",
+    "concepts",
+    "response_format",
+    "fallback",
+    "ambiguities"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "operation": {
+      "enum": ["create", "edit", "repair", "review", "migrate"]
+    },
+    "target_scope": {
+      "enum": ["new", "existing"]
+    },
+    "concept_logic": {
+      "enum": ["all", "any", "mixed", "unknown"]
+    },
+    "concepts": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "query", "polarity"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "polarity": {
+            "enum": ["include", "exclude"]
+          }
+        }
+      }
+    },
+    "response_format": {
+      "enum": ["unspecified", "preserve", "change_requested", "ambiguous"]
+    },
+    "fallback": {
+      "enum": ["unspecified", "preserve", "change_requested", "ambiguous"]
+    },
+    "ambiguities": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "enum": ["catalog", "semantic", "target", "format", "fallback"]
+      }
+    }
+  }
+}

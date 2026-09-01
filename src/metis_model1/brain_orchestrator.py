@@ -20,6 +20,12 @@ from metis_model1.brain_clarifications import (
     ClarificationStore,
 )
 from metis_model1.brain_grounded_renderer import render_grounded_create
+from metis_model1.brain_intent_ir import (
+    BrainIntentCompiler,
+    IntentCompileRequest,
+    IntentCompileResult,
+    IntentIR,
+)
 from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, ModelRequest
 from metis_model1.brain_output_contract import OutputRequestSurface, parse_output_request
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
@@ -71,6 +77,7 @@ class BrainOrchestrator:
         compiler: Any,
         clarifications: ClarificationStore | None = None,
         max_repairs: int = 2,
+        intent_compiler: BrainIntentCompiler | None = None,
     ) -> None:
         if type(max_repairs) is not int or not 0 <= max_repairs <= 2:
             raise BrainError("INVALID_CONFIG", 500, "repair budget is invalid")
@@ -79,6 +86,7 @@ class BrainOrchestrator:
         self._compiler = compiler
         self._clarifications = clarifications or ClarificationStore()
         self._max_repairs = max_repairs
+        self._intent_compiler = intent_compiler
 
     def run(
         self,
@@ -108,6 +116,13 @@ class BrainOrchestrator:
                 count=len(retrieved.context),
                 duration_ms=max(0, int((time.monotonic() - retrieval_started) * 1000)),
             )
+            request, retrieved = self._retry_with_flash(
+                lease=lease,
+                request=request,
+                retrieved=retrieved,
+                record=record,
+            )
+            record.request = request
             candidates = retrieved.catalog_candidates
             if len(candidates) > 1:
                 selected = self._selected_catalog(request, retrieved)
@@ -327,6 +342,124 @@ class BrainOrchestrator:
                     proposal_ref=proposal["proposal_ref"],
                 )
             return result
+
+    def _retry_with_flash(
+        self,
+        *,
+        lease: Any,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+        record: TurnRecord,
+    ) -> tuple[TurnRequest, RetrievalResult]:
+        """Retry unresolved retrieval with validated exact operator spans only."""
+
+        if self._intent_compiler is None or retrieved.grounding.get("status") != "unsupported":
+            return request, retrieved
+        compile_request = IntentCompileRequest(
+            instruction=request.instruction,
+            intent=request.intent,
+            target_mode=request.target["mode"],
+            cancellation=record.cancellation,
+        )
+        started = time.monotonic()
+        server_value = request.server_flash_intent
+        if server_value is None:
+            record.emit(
+                "intent.started",
+                "intent_started",
+                "Interpreto i requisiti non risolti",
+            )
+            try:
+                compiled = self._intent_compiler.compile(compile_request)
+            except BrainError:
+                raise
+            except Exception as error:
+                raise BrainError(
+                    "FLASH_COMPILER_FAILED", 503, "local Flash intent compilation failed"
+                ) from error
+            if not isinstance(compiled, IntentCompileResult):
+                raise BrainError(
+                    "FLASH_COMPILER_INVALID", 503, "local Flash intent compiler is invalid"
+                )
+            intent_ir = compiled.intent_ir
+            server_value = {
+                "schema_version": 1,
+                "intent_ir": intent_ir.payload(),
+                "model_revision": compiled.model_revision,
+                "schema_sha256": compiled.schema_sha256,
+                "decoder": compiled.decoder,
+            }
+            replayed = False
+        else:
+            record.emit(
+                "intent.started",
+                "intent_started",
+                "Riprendo l'interpretazione della sessione",
+                replayed=True,
+            )
+            intent_ir = self._validated_server_intent(server_value, compile_request)
+            replayed = True
+        semantic_instruction = intent_ir.exact_semantic_instruction
+        record.emit(
+            "intent.completed",
+            "intent_completed",
+            (
+                "Interpretazione delimitata pronta"
+                if semantic_instruction is not None
+                else "Interpretazione non applicabile in sicurezza"
+            ),
+            count=len(intent_ir.value["concepts"]),
+            duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+            replayed=replayed,
+        )
+        if semantic_instruction is None:
+            return request, retrieved
+        request = request.with_server_flash_intent(server_value)
+        retry_started = time.monotonic()
+        record.emit(
+            "retrieval.started",
+            "retrieval_retry_started",
+            "Riprovo il grounding sui requisiti esatti",
+        )
+        retried = self._retriever.retrieve(lease=lease, request=request)
+        self._check_semantic_revision(request, retried)
+        record.emit(
+            "retrieval.completed",
+            "retrieval_retry_completed",
+            "Grounding delimitato completato",
+            count=len(retried.context),
+            duration_ms=max(0, int((time.monotonic() - retry_started) * 1000)),
+        )
+        return request, retried
+
+    def _validated_server_intent(
+        self, value: Mapping[str, Any], request: IntentCompileRequest
+    ) -> IntentIR:
+        if (
+            set(value)
+            != {
+                "schema_version",
+                "intent_ir",
+                "model_revision",
+                "schema_sha256",
+                "decoder",
+            }
+            or value.get("schema_version") != 1
+        ):
+            raise BrainError("FLASH_INTENT_STALE", 409, "session Flash intent is invalid")
+        expected = {
+            "model_revision": getattr(self._intent_compiler, "model_revision", None),
+            "schema_sha256": getattr(self._intent_compiler, "schema_sha256", None),
+            "decoder": getattr(self._intent_compiler, "decoder", None),
+        }
+        if any(value.get(key) != item for key, item in expected.items()):
+            raise BrainError("FLASH_INTENT_STALE", 409, "session Flash intent identity differs")
+        try:
+            return IntentIR.parse(value["intent_ir"], request=request)
+        except BrainError as error:
+            raise BrainError(
+                "FLASH_INTENT_STALE", 409, "session Flash intent is invalid"
+            ) from error
 
     @staticmethod
     def _check_semantic_revision(request: TurnRequest, retrieved: RetrievalResult) -> None:
@@ -900,13 +1033,21 @@ class BrainOrchestrator:
         return [item for item in diagnostics[:32] if isinstance(item, dict)]
 
     def _identity(self, record: TurnRecord, retrieved: RetrievalResult) -> dict[str, Any]:
-        return {
+        identity: dict[str, Any] = {
             "model_revision": getattr(self._model, "model_revision", "unavailable"),
             "adapter_sha256": getattr(self._model, "adapter_sha256", "unavailable"),
             "context_revision": record.request.expected_context_revision,
             "semantic_source_revision": retrieved.semantic_source_revision,
             "toolchain_binding": "unknown",
         }
+        intent = record.request.server_flash_intent
+        if isinstance(intent, Mapping):
+            identity["intent_compiler"] = {
+                key: intent[key]
+                for key in ("model_revision", "schema_sha256", "decoder")
+                if isinstance(intent.get(key), str)
+            }
+        return identity
 
     @staticmethod
     def _session_memory(request: TurnRequest, grounding: Mapping[str, Any]) -> dict[str, Any]:

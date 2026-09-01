@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_flash_runtime import MlxFlashIntentRuntime
 from metis_model1.brain_mlx_runtime import MlxBrainModelRuntime
 from metis_model1.brain_model_runtime import MAX_TELEMETRY_COUNT, UnavailableModelRuntime
 from metis_model1.brain_protocol import (
@@ -45,6 +46,7 @@ MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
 REQUEST_SOCKET_TIMEOUT_SECONDS = 15.0
 MODEL_WARMUP_POLICIES = frozenset({"lazy", "on_start"})
+INTENT_COMPILER_MODES = frozenset({"assist_on_unresolved"})
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,15 @@ class BrainRetrievalConfig:
 
 
 @dataclass(frozen=True)
+class BrainIntentCompilerConfig:
+    python_path: Path
+    model_path: Path
+    timeout_seconds: float
+    warmup: str
+    mode: str
+
+
+@dataclass(frozen=True)
 class BrainConfig:
     host: str
     port: int
@@ -74,6 +85,7 @@ class BrainConfig:
     limits: SessionLimits
     model: BrainModelConfig | None = None
     retrieval: BrainRetrievalConfig | None = None
+    intent_compiler: BrainIntentCompilerConfig | None = None
 
 
 def _safe_config_bytes(path: Path) -> bytes:
@@ -150,7 +162,7 @@ def load_brain_config(path: Path) -> BrainConfig:
     exact_fields(
         value,
         required={"schema_version", "server", "toolchain", "tenants", "clients", "limits"},
-        optional={"model", "retrieval"},
+        optional={"model", "retrieval", "intent_compiler"},
         label="config",
     )
     if value["schema_version"] != 1:
@@ -178,8 +190,10 @@ def load_brain_config(path: Path) -> BrainConfig:
     )
     model_value = value.get("model")
     retrieval_value = value.get("retrieval")
+    intent_compiler_value = value.get("intent_compiler")
     model: BrainModelConfig | None = None
     retrieval: BrainRetrievalConfig | None = None
+    intent_compiler: BrainIntentCompilerConfig | None = None
     if "model" in value:
         if not isinstance(model_value, dict):
             raise BrainError("INVALID_CONFIG", 500, "model config must be an object")
@@ -215,8 +229,46 @@ def load_brain_config(path: Path) -> BrainConfig:
         if type(retrieval_value["schema2"]) is not bool:
             raise BrainError("INVALID_CONFIG", 500, "retrieval schema2 must be boolean")
         retrieval = BrainRetrievalConfig(schema2=retrieval_value["schema2"])
+    if "intent_compiler" in value:
+        if not isinstance(intent_compiler_value, dict):
+            raise BrainError("INVALID_CONFIG", 500, "intent compiler config must be an object")
+        exact_fields(
+            intent_compiler_value,
+            required={"python_path", "model_path", "timeout_seconds", "warmup", "mode"},
+            label="intent compiler config",
+        )
+        timeout_seconds = intent_compiler_value["timeout_seconds"]
+        if (
+            type(timeout_seconds) not in (int, float)
+            or not math.isfinite(float(timeout_seconds))
+            or not 0 < float(timeout_seconds) <= 600
+        ):
+            raise BrainError("INVALID_CONFIG", 500, "intent compiler timeout is invalid")
+        if intent_compiler_value["warmup"] != "on_start":
+            raise BrainError(
+                "INVALID_CONFIG", 500, "intent compiler must warm before server binding"
+            )
+        if intent_compiler_value["mode"] not in INTENT_COMPILER_MODES:
+            raise BrainError("INVALID_CONFIG", 500, "intent compiler mode is invalid")
+        intent_compiler = BrainIntentCompilerConfig(
+            python_path=_config_path(
+                intent_compiler_value["python_path"],
+                label="intent compiler python path",
+                allow_symlink=True,
+            ),
+            model_path=_config_path(
+                intent_compiler_value["model_path"], label="intent compiler model path"
+            ),
+            timeout_seconds=float(timeout_seconds),
+            warmup="on_start",
+            mode=intent_compiler_value["mode"],
+        )
     if model is not None and (retrieval is None or not retrieval.schema2):
         raise BrainError("INVALID_CONFIG", 500, "model configuration requires schema2 retrieval")
+    if intent_compiler is not None and (retrieval is None or not retrieval.schema2):
+        raise BrainError(
+            "INVALID_CONFIG", 500, "intent compiler configuration requires schema2 retrieval"
+        )
     if server["host"] != "127.0.0.1":
         raise BrainError("INVALID_CONFIG", 500, "server host must be numeric IPv4 loopback")
     if type(server["port"]) is not int or not 0 <= server["port"] <= 65535:
@@ -280,6 +332,7 @@ def load_brain_config(path: Path) -> BrainConfig:
         limits=limits,
         model=model,
         retrieval=retrieval,
+        intent_compiler=intent_compiler,
     )
 
 
@@ -356,6 +409,7 @@ class BrainApplication:
         retriever: Any | None = None,
         model: Any | None = None,
         model_warmup_policy: str = "disabled",
+        intent_compiler: Any | None = None,
     ) -> None:
         if model_warmup_policy not in {*MODEL_WARMUP_POLICIES, "disabled"}:
             raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
@@ -365,11 +419,13 @@ class BrainApplication:
         self.retriever = retriever if retriever is not None else SnapshotRetriever()
         self.model = model if model is not None else UnavailableModelRuntime()
         self.model_warmup_policy = model_warmup_policy
+        self.intent_compiler = intent_compiler
         self.turns = TurnStore(
             manager=manager,
             retriever=self.retriever,
             model=self.model,
             compiler=compiler,
+            intent_compiler=intent_compiler,
         )
 
     def authenticate_bootstrap(self, token: str) -> None:
@@ -397,9 +453,14 @@ class BrainApplication:
                     warmup_duration_ms = value
                 else:
                     warmup_worker_load_ms = value
-        return {
+        health = {
             "schema_version": 1,
-            "status": "ready",
+            "status": (
+                "ready"
+                if self.intent_compiler is None
+                or bool(getattr(self.intent_compiler, "model_loaded", False))
+                else "unavailable"
+            ),
             "service": "metis-brain",
             "protocol": "v1",
             "turn_schema_versions": [1, 2],
@@ -424,24 +485,57 @@ class BrainApplication:
             },
             "metrics": metrics,
         }
+        if self.intent_compiler is not None:
+            duration = getattr(self.intent_compiler, "warmup_duration_ms", None)
+            worker_load = getattr(self.intent_compiler, "warmup_worker_load_ms", None)
+            health["intent_compiler"] = {
+                "enabled": True,
+                "mode": "assist_on_unresolved",
+                "model_loaded": bool(getattr(self.intent_compiler, "model_loaded", False)),
+                "identity": {
+                    "model_revision": getattr(self.intent_compiler, "model_revision", None),
+                    "schema_sha256": getattr(self.intent_compiler, "schema_sha256", None),
+                    "decoder": getattr(self.intent_compiler, "decoder", None),
+                },
+                "warmup": {
+                    "policy": "on_start",
+                    "status": getattr(self.intent_compiler, "warmup_status", "cold"),
+                    "duration_ms": (
+                        duration
+                        if type(duration) is int and 0 <= duration <= MAX_TELEMETRY_COUNT
+                        else None
+                    ),
+                    "worker_load_ms": (
+                        worker_load
+                        if type(worker_load) is int and 0 <= worker_load <= MAX_TELEMETRY_COUNT
+                        else None
+                    ),
+                },
+            }
+        return health
 
     def close(self) -> None:
         try:
             self.turns.shutdown()
         finally:
             try:
-                close = getattr(self.model, "close", None)
+                close = getattr(self.intent_compiler, "close", None)
                 if callable(close):
                     close()
             finally:
                 try:
-                    close = getattr(self.retriever, "close", None)
+                    close = getattr(self.model, "close", None)
                     if callable(close):
                         close()
                 finally:
-                    close = getattr(self.compiler, "close", None)
-                    if callable(close):
-                        close()
+                    try:
+                        close = getattr(self.retriever, "close", None)
+                        if callable(close):
+                            close()
+                    finally:
+                        close = getattr(self.compiler, "close", None)
+                        if callable(close):
+                            close()
 
 
 class _ThreadingBrainHTTPServer(http.server.ThreadingHTTPServer):
@@ -849,6 +943,7 @@ class MetisBrainService:
         compiler: BrainCompiler | None = None,
         retriever: Any | None = None,
         model: Any | None = None,
+        intent_compiler: Any | None = None,
     ) -> None:
         if config.host != "127.0.0.1":
             raise BrainError("INVALID_CONFIG", 500, "service host must be numeric loopback")
@@ -858,10 +953,17 @@ class MetisBrainService:
             )
         if config.model is not None and config.model.warmup not in MODEL_WARMUP_POLICIES:
             raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
+        if config.intent_compiler is not None and (
+            config.retrieval is None or not config.retrieval.schema2
+        ):
+            raise BrainError(
+                "INVALID_CONFIG", 500, "intent compiler configuration requires schema2 retrieval"
+            )
         self.runtime = BrainRuntime(config.runtime_root)
         manager: SessionManager | None = None
         httpd: _ThreadingBrainHTTPServer | None = None
         model_runtime = model
+        intent_runtime = intent_compiler
         try:
             if compiler is None:
                 compiler = BrainCompiler(
@@ -912,6 +1014,35 @@ class MetisBrainService:
                     raise BrainError(
                         "MODEL_RUNTIME_CONFIG", 500, "configured model warmup did not complete"
                     )
+            if intent_runtime is None and config.intent_compiler is not None:
+                intent_runtime = MlxFlashIntentRuntime(
+                    python_path=config.intent_compiler.python_path,
+                    model_path=config.intent_compiler.model_path,
+                    timeout_seconds=config.intent_compiler.timeout_seconds,
+                )
+            if config.intent_compiler is not None:
+                warmup = getattr(intent_runtime, "warmup", None)
+                if not callable(warmup):
+                    raise BrainError(
+                        "FLASH_RUNTIME_CONFIG", 500, "configured intent compiler cannot be warmed"
+                    )
+                warmup_receipt = warmup()
+                if (
+                    not isinstance(warmup_receipt, dict)
+                    or set(warmup_receipt) != {"status", "duration_ms", "worker_load_ms"}
+                    or warmup_receipt.get("status") != "ready"
+                    or any(
+                        type(warmup_receipt.get(key)) is not int
+                        or not 0 <= warmup_receipt[key] <= MAX_TELEMETRY_COUNT
+                        for key in ("duration_ms", "worker_load_ms")
+                    )
+                    or getattr(intent_runtime, "model_loaded", None) is not True
+                ):
+                    raise BrainError(
+                        "FLASH_RUNTIME_CONFIG",
+                        500,
+                        "configured intent compiler warmup did not complete",
+                    )
             registry = TenantRegistry(list(config.tenant_grants))
             manager = SessionManager(
                 registry=registry,
@@ -927,6 +1058,7 @@ class MetisBrainService:
                 retriever=retriever,
                 model=model_runtime,
                 model_warmup_policy=config.model.warmup if config.model is not None else "disabled",
+                intent_compiler=intent_runtime,
             )
             httpd = _ThreadingBrainHTTPServer((config.host, config.port), self.app)
             self.httpd = httpd
@@ -940,6 +1072,10 @@ class MetisBrainService:
                 manager.shutdown()
             if model_runtime is not None:
                 close = getattr(model_runtime, "close", None)
+                if callable(close):
+                    close()
+            if intent_runtime is not None:
+                close = getattr(intent_runtime, "close", None)
                 if callable(close):
                     close()
             if retriever is not None:

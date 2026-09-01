@@ -43,7 +43,7 @@ un micro-dataset non sensibile e non decide la semantica del benchmark.
 
 ### W0 — Foundation
 
-- decision log D-001…D-013;
+- decision log D-001…D-016;
 - source/model revision manifest;
 - repository structure e policy artifact;
 - open decision register.
@@ -110,6 +110,13 @@ remains open.
 
 - **tranche consegnata:** core Metis Brain loopback con sessioni tenant,
   capability, TTL idle 20 minuti e compiler pinnato;
+- **tranche consegnata:** inferenza locale Model 1, retrieval schema-2,
+  generazione/compilazione Draft e memoria volatile di sessione;
+- **tranche consegnata:** Gemma 4 E4B Flash diretto MLX, startup-warm e
+  schema-constrained, usato soltanto per retry di retrieval non risolti; i gate
+  host impediscono che acquisisca autorità su conteggio, cataloghi, valori o DSL;
+- **gate ancora aperto:** la licenza Gemma è qualificata per il test locale ma
+  non ancora approvata per bundling o redistribuzione (O-008/O-009);
 - Metis Brain installabile su macOS per sviluppo e demo;
 - acquisizione e verifica separate di base model e adapter;
 - runtime MLX/MLX-VLM Mac qualificato sul contratto semantico;

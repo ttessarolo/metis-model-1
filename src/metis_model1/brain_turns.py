@@ -34,6 +34,8 @@ _EVENTS = frozenset(
         "turn.accepted",
         "retrieval.started",
         "retrieval.completed",
+        "intent.started",
+        "intent.completed",
         "catalog.auto_selected",
         "catalog.clarification_required",
         "inference.started",
@@ -97,6 +99,11 @@ class TurnRequest:
         repr=False,
     )
     server_basis_grounding: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    server_flash_intent: dict[str, Any] | None = field(
         default=None,
         compare=False,
         repr=False,
@@ -257,6 +264,11 @@ class TurnRequest:
     def with_server_basis_grounding(self, value: dict[str, Any]) -> TurnRequest:
         return replace(self, server_basis_grounding=dict(value))
 
+    def with_server_flash_intent(self, value: dict[str, Any]) -> TurnRequest:
+        """Attach validated, volatile intent context without changing client identity."""
+
+        return replace(self, server_flash_intent=dict(value))
+
 
 @dataclass(frozen=True)
 class ClarificationAnswerRequest:
@@ -373,6 +385,7 @@ class TurnStore:
         retriever: BrainRetriever,
         model: BrainModelRuntime,
         compiler: Any,
+        intent_compiler: Any | None = None,
         max_workers: int = 1,
         max_queue: int = 32,
     ) -> None:
@@ -384,6 +397,7 @@ class TurnStore:
         self._retriever = retriever
         self._model = model
         self._compiler = compiler
+        self._intent_compiler = intent_compiler
         self._max_queue = max_queue
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="brain-turn"
@@ -744,6 +758,11 @@ class TurnStore:
                 "context_revision": original.expected_context_revision,
                 "semantic_source_revision": original.expected_semantic_source_revision,
             },
+            server_flash_intent=(
+                dict(original.server_flash_intent)
+                if original.server_flash_intent is not None
+                else None
+            ),
         )
         return self.submit(session_id=session_id, token=token, request=request)
 
@@ -889,6 +908,7 @@ class TurnStore:
                 model=self._model,
                 compiler=self._compiler,
                 clarifications=self.clarifications,
+                intent_compiler=self._intent_compiler,
             )
             result = orchestrator.run(
                 manager=self._manager,

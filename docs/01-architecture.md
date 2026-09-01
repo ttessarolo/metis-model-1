@@ -36,6 +36,28 @@ parse -> link -> validate -> compile -> semantic oracle
          output + evidence + limiti dichiarati
 ```
 
+### Percorso Brain locale corrente
+
+Metis Brain aggiunge un compilatore di intenti Flash prima del retrieval retry:
+
+```text
+richiesta -> output parser -> retrieval schema-2
+                               |
+                               +-- unsupported -> Gemma 4 E4B Flash
+                                                    |
+                                              Intent IR vincolato
+                                                    |
+                                         span esatti -> retrieval retry
+                                                    |
+                                      Model 1 -> grounding -> compiler -> Draft
+```
+
+Flash è un worker MLX separato, persistente e caldo, non un quarto livello di
+autorità. Non emette Metis e non può scegliere tenant, catalogo, campo o valore.
+Il suo `query` è advisory e non viene eseguito; solo testo esatto già scritto
+dall'operatore può riattivare il retrieval. Il percorso è specificato in
+[`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md).
+
 ## 2. Base model e checkpoint
 
 **DECISO —** il modello logico è `Qwen/Qwen3.8-27B`.
@@ -49,6 +71,9 @@ considerata acquisita: deve superare la qualification W4.
 Il bundle Ollama resta utile solo per una prova d'inferenza informale. Non è la
 base riproducibile del training perché nasconde parte della catena di conversione,
 configurazione e identità dei file necessaria alla provenance.
+
+Nel serving Brain corrente né Model 1 né Flash passano da Ollama: entrambi sono
+worker JSONL locali supervisionati che usano MLX/MLX-VLM direttamente.
 
 ## 3. Adapter Metis
 

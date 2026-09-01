@@ -100,3 +100,11 @@ VS Code tool fallback must be explicit, policy-controlled and visible. Model
 protocol, streaming/editor workflow, app pairing, packaging, release channel
 and distribution evidence remain open for W8. Windows is outside the demo scope
 and may be evaluated only after project approval.
+
+D-016 ratifies the internal Flash intent compiler without closing O-008 or
+O-009. Gemma 4 E4B is qualified only as a direct-MLX, startup-warm,
+schema-constrained helper inside Brain. Its exact operator spans may trigger a
+reviewed retrieval retry, but it owns no result count, catalog, field, value,
+DSL or Apply decision. The local development proof is green; bundling the Gemma
+payload in the Mac app and every external distribution channel still require
+the packaging and license evidence governed by O-008/O-009.

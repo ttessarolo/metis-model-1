@@ -8,9 +8,10 @@ MAC DISTRIBUIBILE**.
 Il comando `brain-serve` avvia un processo HTTP soltanto su `127.0.0.1`, crea
 un bootstrap casuale valido per quel solo avvio e serve sessioni tenant isolate.
 Con la configurazione demo qualificata collega il checkpoint base e l'adapter
-Model 1, il retrieval semantico schema 2 e il compilatore Metis pinnato. Il
-server non scrive il tenant: genera e compila una proposta che il client apre
-come Draft o diff.
+Model 1, il retrieval semantico schema 2, il compilatore Metis pinnato e il
+Flash intent compiler Gemma 4 E4B. Model 1 e Flash vengono riscaldati prima del
+bind HTTP. Il server non scrive il tenant: genera e compila una proposta che il
+client apre come Draft o diff.
 
 ## 2. Configurazione demo
 
@@ -26,7 +27,8 @@ resta il fixture compiler-only. La configurazione demo contiene soltanto:
   `5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c`
   prima dell'avvio;
 - alias del tenant pubblico sintetico;
-- path locali qualificati di checkpoint e adapter, mai i pesi dentro Git;
+- path locali qualificati di checkpoint, adapter e Flash, mai i pesi dentro
+  Git;
 - retrieval semantico schema 2;
 - grant/capability per il client `visix`;
 - limiti di sessione e compiler.
@@ -86,8 +88,12 @@ workspace corrente.
   la compilazione reale;
 - `compiler_executions`: compilazioni archiviate completate dall'avvio;
 - `model_identity`: checkpoint/adapter locali sono configurati senza esporre
-  path; `model_loaded` resta `false` finché il worker lazy non viene avviato e
-  diventa `true` soltanto mentre quel worker locale è vivo;
+  path; nel profilo demo `model_warmup.policy=on_start` e `model_loaded=true`
+  sono prerequisiti della readiness. Il valore può restare `false` soltanto in
+  un profilo esplicitamente `lazy` o dopo la morte del worker;
+- `intent_compiler`: il worker Flash è abilitato in modalità
+  `assist_on_unresolved`, caricato prima del bind e identificato soltanto da
+  revisione modello, hash schema e decoder. Non espone path, prompt o valori;
 - `semantic_retrieval.enabled=true`, `schema=2`: campi e valori vengono scelti
   dal catalogo tenant pinnato, non memorizzati nei pesi;
 - `turn_schema_versions=[1,2]`: v2 abilita dialogo tipizzato e memoria volatile;
@@ -116,6 +122,10 @@ place. Le modifiche tracked/untracked di altri team non entrano nello snapshot.
 | `SESSION_LIMIT` / `COMPILER_BUSY` | limite locale raggiunto | backoff delimitato |
 | `CONTEXT_TOO_LARGE` / `CONTEXT_UNSUPPORTED` | oltre il contratto compiler v1 | riduci la dependency closure |
 | `COMPILER_FAILED` | toolchain sandbox non eseguibile | verifica pin/runtime, non fare fallback implicito |
+| `FLASH_RUNTIME_CONFIG` / `FLASH_RUNTIME_START_FAILED` | identità, pin, roster o warmup Flash non validi | non dichiarare ready; verifica manifest/runtime, senza Ollama o fallback remoto |
+| `FLASH_RUNTIME_DIED` / `FLASH_RUNTIME_TIMEOUT` | worker Flash morto o oltre il timeout | scarta il tentativo; riavvia Brain se health non è ready |
+| `FLASH_RESPONSE_INVALID` / `FLASH_INTENT_STALE` | IR non valido o non più legato all'identità di sessione | non usare il contenuto; riparti dal grounding corrente |
+| `FLASH_INTENT_UNSUPPORTED` | logica non rappresentabile in sicurezza dal retrieval corrente | chiedi un refine o lascia il caso unsupported; non trasformare OR/negazioni in AND |
 | `OUTPUT_CONTRACT_INVALID` | limite, intervallo qualificato o cardinalità non esatta | chiedi/conferma un totale esatto oppure una dimensione pagina esatta |
 | `OUTPUT_CONTRACT_UNAVAILABLE` | il `take`, la sorgente o un fallback esistente non è preservabile senza ambiguità | correggi esplicitamente il contratto; Brain non lo sostituisce in silenzio |
 
