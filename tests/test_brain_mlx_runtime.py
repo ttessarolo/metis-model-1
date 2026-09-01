@@ -114,6 +114,19 @@ def runtime_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "for line in sys.stdin:\n"
             "    request = json.loads(line)\n"
             "    if MODE == 'delay': time.sleep(0.2)\n"
+            "    if request.get('operation') == 'warmup':\n"
+            "        if MODE == 'warmup_malformed': print('not-json', flush=True); continue\n"
+            "        print(json.dumps({\n"
+            "            'schema_version': 2 if MODE == 'warmup_bad_schema' else 1,\n"
+            "            'request_id': 'wrong' if MODE == 'warmup_mismatch' "
+            "else request['request_id'],\n"
+            "            'status': 'ready',\n"
+            "            'worker_load_ms': -1 if MODE == 'warmup_bad_metrics' else 10,\n"
+            "            'model_revision': 'wrong' if MODE == 'warmup_bad_identity' "
+            "else 'model-revision',\n"
+            "            'adapter_sha256': 'sha256:' + 'a' * 64,\n"
+            "        }), flush=True)\n"
+            "        continue\n"
             "    if MODE == 'ignore_term': time.sleep(60)\n"
             "    if MODE == 'selective_stall' "
             "and request['messages'][-1]['content'].startswith('attendi'):\n"
@@ -166,6 +179,11 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
         "never add an unrequested filter, ordering, ranking, or business rule"
         in messages[0]["content"]
     )
+    assert (
+        "grounding.selections is the complete final finite-predicate set" in messages[0]["content"]
+    )
+    assert "not a delta" in messages[0]["content"]
+    assert "including variable-valued or boolean predicates" in messages[0]["content"]
     assert "time.fractional_second" in messages[0]["content"]
     assert "two or more assignments require a braced attributes group" in messages[0]["content"]
     assert "endpoint declaration name is exactly `demo.endpoint`" in messages[0]["content"]
@@ -255,6 +273,63 @@ def test_worker_is_started_once_and_closed_idempotently(runtime_factory) -> None
     with pytest.raises(BrainError) as raised:
         runtime.generate(_request())
     assert raised.value.code == "MODEL_RUNTIME_CLOSED"
+
+
+def test_warmup_loads_without_generation_and_reuses_the_worker(runtime_factory) -> None:
+    runtime = runtime_factory()
+    warmup = runtime.warmup()
+    assert warmup["status"] == "ready"
+    assert type(warmup["duration_ms"]) is int
+    assert 0 <= warmup["duration_ms"] <= 1000
+    assert warmup["worker_load_ms"] == 10
+    assert runtime.model_loaded
+    assert runtime.warmup_status == "ready"
+    assert runtime.warmup_duration_ms == warmup["duration_ms"]
+    assert runtime.warmup_worker_load_ms == 10
+    assert runtime._process_requests == 0  # noqa: SLF001 - warmup is not inference
+    assert runtime._process is not None  # noqa: SLF001 - lifecycle invariant under test
+    pid = runtime._process.pid  # noqa: SLF001
+
+    candidate = runtime.generate(_request("richiesta complessa"))
+
+    assert candidate.source
+    assert runtime._process_requests == 1  # noqa: SLF001
+    assert runtime._process is not None  # noqa: SLF001
+    assert runtime._process.pid == pid  # noqa: SLF001
+    runtime.close()
+
+
+def test_warmup_timeout_is_fail_closed(runtime_factory) -> None:
+    runtime = runtime_factory("startup_delay", timeout_seconds=0.03)
+    with pytest.raises(BrainError) as raised:
+        runtime.warmup()
+    assert raised.value.code == "MODEL_RUNTIME_TIMEOUT"
+    assert runtime.warmup_status == "failed"
+    assert not runtime.model_loaded
+    with pytest.raises(BrainError) as second:
+        runtime.generate(_request())
+    assert second.value.code == "MODEL_RUNTIME_BROKEN"
+    runtime.close()
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "warmup_malformed",
+        "warmup_bad_schema",
+        "warmup_mismatch",
+        "warmup_bad_metrics",
+        "warmup_bad_identity",
+    ],
+)
+def test_invalid_warmup_response_is_fail_closed(runtime_factory, mode: str) -> None:
+    runtime = runtime_factory(mode)
+    with pytest.raises(BrainError) as raised:
+        runtime.warmup()
+    assert raised.value.code == "MODEL_RESPONSE_INVALID"
+    assert runtime.warmup_status == "failed"
+    assert not runtime.model_loaded
+    runtime.close()
 
 
 @pytest.mark.parametrize(
@@ -368,6 +443,36 @@ def test_worker_is_recycled_before_qualified_request_cap(runtime_factory) -> Non
     runtime.generate(_request("richiesta dopo il riciclo"))
     assert runtime._process is not None  # noqa: SLF001
     assert runtime._process.pid != first_pid  # noqa: SLF001
+    runtime.close()
+
+
+def test_already_cancelled_request_never_starts_worker(runtime_factory) -> None:
+    runtime = runtime_factory()
+    cancellation = threading.Event()
+    cancellation.set()
+    with pytest.raises(BrainError) as raised:
+        runtime.generate(_request(cancellation=cancellation))
+    assert raised.value.code == "MODEL_GENERATION_CANCELLED"
+    assert runtime._process is None  # noqa: SLF001 - no cancelled cold start
+    assert runtime.warmup_status == "cold"
+    runtime.close()
+
+
+def test_dead_warm_worker_clears_warmup_telemetry(runtime_factory) -> None:
+    runtime = runtime_factory()
+    runtime.warmup()
+    process = _wait_for_process(runtime)
+    process.kill()
+    process.wait(timeout=2.0)
+
+    with pytest.raises(BrainError) as raised:
+        runtime.generate(_request())
+
+    assert raised.value.code == "MODEL_RUNTIME_DIED"
+    assert runtime.warmup_status == "failed"
+    assert runtime.warmup_duration_ms is None
+    assert runtime.warmup_worker_load_ms is None
+    assert not runtime.model_loaded
     runtime.close()
 
 

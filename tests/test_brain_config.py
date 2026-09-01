@@ -149,6 +149,7 @@ def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -
         model_path=model_path,
         adapter_path=adapter_path,
         timeout_seconds=12.5,
+        warmup="lazy",
     )
     assert loaded.retrieval == BrainRetrievalConfig(schema2=True)
 
@@ -160,6 +161,22 @@ def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -
     config["retrieval"] = {"schema2": True, "extra": False}
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(BrainError):
+        load_brain_config(path.resolve())
+
+    config["model"]["warmup"] = "on_start"  # type: ignore[index]
+    config["retrieval"] = {"schema2": True}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    assert load_brain_config(path.resolve()).model == BrainModelConfig(
+        python_path=python_path,
+        model_path=model_path,
+        adapter_path=adapter_path,
+        timeout_seconds=12.5,
+        warmup="on_start",
+    )
+
+    config["model"]["warmup"] = "always"  # type: ignore[index]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="warmup policy"):
         load_brain_config(path.resolve())
 
 
@@ -197,3 +214,4 @@ def test_play_demo_fixture_binds_the_workspace_tenant_identity() -> None:
             "root": "/Users/tommasotessarolo/metis-tenants/play-demo",
         }
     ]
+    assert value["model"]["warmup"] == "on_start"

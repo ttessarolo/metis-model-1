@@ -16,7 +16,7 @@ import pytest
 
 import metis_model1.brain_server as brain_server_module
 from metis_model1.brain_context import TenantRegistry
-from metis_model1.brain_protocol import CAPABILITIES, MAX_JSON_BYTES
+from metis_model1.brain_protocol import CAPABILITIES, MAX_JSON_BYTES, BrainError
 from metis_model1.brain_semantic_retrieval import Schema2SnapshotRetriever
 from metis_model1.brain_server import (
     BrainApplication,
@@ -298,6 +298,12 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
         assert health["model_identity"] == {
             "model_revision": model.model_revision,
             "adapter_sha256": model.adapter_sha256,
+        }
+        assert health["model_warmup"] == {
+            "policy": "disabled",
+            "status": "disabled",
+            "duration_ms": None,
+            "worker_load_ms": None,
         }
         assert health["semantic_retrieval"] == {
             "enabled": True,
@@ -703,3 +709,148 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
     finally:
         service.close()
     assert calls["model_closed"] is True
+
+
+def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _service_config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"fake")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config = replace(
+        config,
+        model=BrainModelConfig(python_path, model_path, adapter_path, 7.0, warmup="on_start"),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: list[str] = []
+
+    class WarmFakeModel:
+        model_loaded = False
+        model_revision = "sha256:" + "3" * 64
+        adapter_sha256 = "sha256:" + "4" * 64
+        warmup_status = "cold"
+        warmup_duration_ms = None
+        warmup_worker_load_ms = None
+
+        def __init__(self, **_kwargs: Any) -> None:
+            calls.append("constructed")
+
+        def warmup(self) -> dict[str, int | str]:
+            calls.append("warmed")
+            self.model_loaded = True
+            self.warmup_status = "ready"
+            self.warmup_duration_ms = 12
+            self.warmup_worker_load_ms = 10
+            return {"status": "ready", "duration_ms": 12, "worker_load_ms": 10}
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    class RecordingServer(_ThreadingBrainHTTPServer):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            calls.append("bound")
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", WarmFakeModel)
+    monkeypatch.setattr(brain_server_module, "_ThreadingBrainHTTPServer", RecordingServer)
+    service = MetisBrainService(
+        config,
+        compiler=ConstructibleFakeCompiler(),
+        retriever=Schema2SnapshotRetriever(lambda _snapshot: None),
+    )
+    try:
+        assert calls[:3] == ["constructed", "warmed", "bound"]
+        assert service.app.health()["model_warmup"] == {
+            "policy": "on_start",
+            "status": "ready",
+            "duration_ms": 12,
+            "worker_load_ms": 10,
+        }
+    finally:
+        service.close()
+    assert calls[-1] == "closed"
+
+
+def test_service_warmup_failure_is_fail_closed_and_cleans_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _service_config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"fake")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config = replace(
+        config,
+        model=BrainModelConfig(python_path, model_path, adapter_path, 7.0, warmup="on_start"),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: list[str] = []
+
+    class FailingWarmModel:
+        def __init__(self, **_kwargs: Any) -> None:
+            calls.append("constructed")
+
+        def warmup(self) -> None:
+            calls.append("warmup_failed")
+            raise BrainError("MODEL_RUNTIME_TIMEOUT", 504, "synthetic warmup timeout")
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", FailingWarmModel)
+    with pytest.raises(BrainError) as raised:
+        MetisBrainService(
+            config,
+            compiler=ConstructibleFakeCompiler(),
+            retriever=Schema2SnapshotRetriever(lambda _snapshot: None),
+        )
+    assert raised.value.code == "MODEL_RUNTIME_TIMEOUT"
+    assert calls == ["constructed", "warmup_failed", "closed"]
+    assert list(config.runtime_root.glob("run-*")) == []
+
+
+def test_service_rejects_incomplete_warmup_receipt_before_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _service_config(tmp_path)
+    python_path = tmp_path / "python"
+    python_path.write_bytes(b"fake")
+    model_path = tmp_path / "model"
+    model_path.mkdir()
+    adapter_path = tmp_path / "adapter"
+    adapter_path.mkdir()
+    config = replace(
+        config,
+        model=BrainModelConfig(python_path, model_path, adapter_path, 7.0, warmup="on_start"),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: list[str] = []
+
+    class IncompleteWarmModel:
+        model_loaded = False
+
+        def __init__(self, **_kwargs: Any) -> None:
+            calls.append("constructed")
+
+        def warmup(self) -> dict[str, int | str]:
+            calls.append("warmed")
+            return {"status": "ready", "duration_ms": 12, "worker_load_ms": 10}
+
+        def close(self) -> None:
+            calls.append("closed")
+
+    monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", IncompleteWarmModel)
+    with pytest.raises(BrainError, match="did not complete"):
+        MetisBrainService(
+            config,
+            compiler=ConstructibleFakeCompiler(),
+            retriever=Schema2SnapshotRetriever(lambda _snapshot: None),
+        )
+    assert calls == ["constructed", "warmed", "closed"]
+    assert list(config.runtime_root.glob("run-*")) == []

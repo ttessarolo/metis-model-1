@@ -1,7 +1,7 @@
 # Metis Brain: local latency and isolation
 
-Status: **implemented in the current local-latency wave; live performance scope
-remains bounded**.
+Status: **implemented, including explicit startup warmup; live performance
+scope remains bounded**.
 
 ## Problem
 
@@ -102,6 +102,14 @@ to `stop` or `length`. The runtime validates the complete shape and bounds
 before exposing it in proposal identity. No prompt, source context, hidden
 chain-of-thought, or internal reasoning is exposed.
 
+The local demo config sets `model.warmup` to `on_start`. Every new MLX worker
+first accepts one exact versioned `warmup` operation and responds only after
+the pinned checkpoint and adapter have loaded and passed their existing
+identity checks. That operation never calls generation and consumes no model
+token. Brain runs it before binding the HTTP server, so a failed, timed-out or
+malformed handshake prevents readiness and closes the partial worker. The
+backward-compatible `lazy` policy remains available for non-demo hosts.
+
 The 512-token cap remains unchanged. The measured baseline stopped normally
 after 86 tokens, so reducing that cap would not address the observed delay.
 Session-scoped KV/prompt caching is not introduced in this wave: its revision
@@ -156,6 +164,7 @@ modified and no Apply was performed.
 | Installed VS Code `v0.23.97`, fresh extension host and Brain child | 31 s | compiled Draft visible; no Apply |
 | Qualified 27B baseline before prompt projection | 153852 ms generation wall | 17240 prompt tokens; 86 generated; `stop`; load 3493 ms |
 | Qualified 27B edit/refine after final prompt projection | 34319 ms generation wall | 3700 prompt tokens; 72 generated; `stop`; compile 781 ms |
+| Startup-warm complex 10-filter edit | 101347 ms including service construction | service 23039 ms; retrieval 15458 ms; generation 62071 ms; compile 658 ms |
 
 The fast-path proposal observations reported `generation_strategy` as
 `grounded_renderer`, `model_loaded` as `false`, `compile_clean` as `true`, and
@@ -190,22 +199,46 @@ Git-clean on `main`. The Brain HTTP process remained alive, but no MLX worker
 was present after the smoke: this is independent process-level evidence that
 the deterministic path made zero model calls.
 
-## Warm-runtime direction
+The startup-warm complex proof deliberately edited an existing endpoint so
+the create renderer was ineligible. It resolved ten reviewed finite
+selections, reported `generation_strategy=model`, generated 326 tokens from a
+5987-token prompt with `finish_reason=stop`, and compiled on the first
+candidate. The worker handshake took 9937 ms, of which the worker reported
+1469 ms for actual weight loading; peak Metal memory was 20.10 GB. Exact
+grounding was green, `tenant_modified` remained false and Apply preflight was
+never invoked.
 
-The current MLX worker is lazy: the first model-required turn starts it, loads
-Qwen and the adapter once, and the same process is reused for up to 120
-requests or until Brain closes or the worker fails. Therefore Model 1 is warm
-*after* its first real model turn, but is not prewarmed merely because Brain or
-a fast-path session is running.
+After the final lifecycle hardening, a second real load-only startup probe
+completed the identity-bearing handshake in 10826 ms and reported 1713 ms of
+worker load. Brain compared the worker's model revision and adapter digest with
+its pinned identity before readiness, then shutdown left no worker process.
 
-An always-warm demo profile is feasible, but it must be explicit and
-observable: start Brain eagerly, build the pinned authority/catalog projection
-in the background, prewarm the MLX worker, expose readiness in health, and keep
-the worker until Brain exits (with bounded safe recycling). This removes the
-roughly 1.4–3.5 second measured worker-load cost. It does not eliminate prompt
-prefill: session-scoped prompt/KV caching, bound to context and semantic
-revisions and invalidated on any relevant change, is the separate optimization
-with the larger potential benefit for refinements.
+The probe also exposed and closed a serving-level edit defect. Before the
+prompt contract was tightened, Model 1 treated reviewed selections as a delta,
+kept old variable/boolean predicates and omitted one fixed selection. The
+grounding oracle rejected all candidates before compilation. The prompt now
+states that edit/repair `grounding.selections` is the complete final finite
+predicate set; the corrected run converged without a repair or weight change.
+
+## Warm-runtime contract
+
+The demo profile is warm when Brain announces readiness. The same process is
+reused for up to 120 generated requests or until Brain closes or the worker
+fails. A newly spawned replacement completes the same load-only handshake
+before its first generation. A controlled recycle therefore has a short
+reload interval; this design deliberately does not keep a second 27B hot copy
+in memory.
+
+Health exposes `model_warmup` with only the configured policy, one bounded
+state, total handshake duration and worker-reported load duration. It also
+exposes `model_loaded`; no model path, prompt, source, tenant value or hidden
+reasoning is included.
+
+Warmup removes the roughly 1.4–3.5 second measured worker-load cost from the
+first ordinary model turn. It does not eliminate prompt prefill or generation.
+Session-scoped prompt/KV caching, bound to context and semantic revisions and
+invalidated on any relevant change, remains the separate optimization with the
+larger potential benefit for refinements.
 
 ## Verification
 
@@ -215,9 +248,15 @@ credentials, tokens, `.env` files, or tenant payloads in commands or artifacts.
 ```bash
 uv run pytest -q \
   tests/test_brain_mlx_runtime.py \
+  tests/test_brain_config.py \
+  tests/test_brain_server.py \
   tests/test_brain_orchestrator.py \
+  tests/test_brain_turns.py \
+  tests/test_brain_semantic_retrieval.py \
   tests/test_brain_tools.py \
-  tests/test_brain_grounded_renderer.py
+  tests/test_brain_grounded_renderer.py \
+  tests/test_brain_candidate_grounding.py \
+  tests/test_video_brain_grounding.py
 uv run ruff check src/metis_model1/brain_mlx_runtime.py \
   src/metis_model1/brain_model_runtime.py \
   src/metis_model1/brain_orchestrator.py \
@@ -232,11 +271,11 @@ make check
 git diff --check -- docs/27-metis-brain-local-latency.md
 ```
 
-The authoritative repository gate completed successfully after the final code
-changes: `2631 passed, 2 skipped, 0 failed`; the foundation roster reported
-`85 passed, 0 errors`, and whole-repository Ruff and formatting checks were
-green. The required real installed VS Code no-Apply dialogue completed; the
-passing live dialogue and exact Draft are recorded above.
+The authoritative repository gate completed after the warm-runtime changes:
+foundation `85/85` with zero errors, whole-repository Ruff and formatting
+green, and `2643 passed, 2 skipped, 0 failed` in the test harness. The required
+real installed VS Code no-Apply dialogue and the current real qualified-model
+proof are recorded above.
 
 The installed extension recovered its tenant and chat surfaces after a VS Code
 window reload, and the final no-Apply Draft smoke passed. A deliberately killed

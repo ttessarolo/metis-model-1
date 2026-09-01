@@ -14,7 +14,8 @@
     "python_path": "/Users/tommasotessarolo/Developer/metis-model-1/qualification/.venv/bin/python",
     "model_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/w4/2026-08-20-qualification/checkpoint",
     "adapter_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/initial-local-qlora-v1/run-v2/checkpoints/step-00000050",
-    "timeout_seconds": 300
+    "timeout_seconds": 300,
+    "warmup": "on_start"
   },
   "retrieval": {
     "schema2": true

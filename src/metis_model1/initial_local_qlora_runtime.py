@@ -1926,9 +1926,14 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     from mlx_vlm import generate, load
     from mlx_vlm.prompt_utils import apply_chat_template
 
-    _check_checkpoint(model_path)
+    model_identity = _check_checkpoint(model_path)
     if adapter_path is not None:
         verify_checkpoint(adapter_path)
+    adapter_sha256 = (
+        _prefixed_sha256(adapter_path / "adapters.safetensors")
+        if adapter_path is not None
+        else "unavailable"
+    )
     load_started = time.monotonic()
     with contextlib.redirect_stdout(sys.stderr):
         model, processor = load(
@@ -1942,11 +1947,47 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     worker_load_ms = max(0, int((time.monotonic() - load_started) * 1000))
     if _model_type(model.config) != "qwen3_5":
         _fail("worker loaded an unexpected model type")
+    if adapter_path is not None and (
+        _prefixed_sha256(adapter_path / "adapters.safetensors") != adapter_sha256
+    ):
+        _fail("worker adapter changed while it was loaded")
+    model_revision = model_identity.get("revision")
+    if not isinstance(model_revision, str) or not model_revision:
+        _fail("worker model revision is missing")
     seen: set[str] = set()
     for line in sys.stdin:
         if len(line.encode("utf-8")) > 1_000_000:
             _fail("worker request exceeds byte limit")
         request = json.loads(line, parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)))
+        if (
+            isinstance(request, Mapping)
+            and set(request) == {"request_id", "operation"}
+            and request.get("operation") == "warmup"
+        ):
+            request_id = request.get("request_id")
+            if (
+                not isinstance(request_id, str)
+                or not request_id
+                or request_id in seen
+                or len(seen) >= 128
+            ):
+                _fail("worker warmup request schema/limits")
+            seen.add(request_id)
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "request_id": request_id,
+                        "status": "ready",
+                        "worker_load_ms": worker_load_ms,
+                        "model_revision": model_revision,
+                        "adapter_sha256": adapter_sha256,
+                    },
+                    allow_nan=False,
+                ),
+                flush=True,
+            )
+            continue
         messages = request.get("messages")
         if (
             set(request) != {"request_id", "messages", "max_tokens"}

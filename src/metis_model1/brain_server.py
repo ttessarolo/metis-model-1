@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
 from metis_model1.brain_mlx_runtime import MlxBrainModelRuntime
-from metis_model1.brain_model_runtime import UnavailableModelRuntime
+from metis_model1.brain_model_runtime import MAX_TELEMETRY_COUNT, UnavailableModelRuntime
 from metis_model1.brain_protocol import (
     MAX_JSON_BYTES,
     BrainError,
@@ -44,6 +44,7 @@ from metis_model1.brain_turns import ClarificationAnswerRequest, TurnRequest, Tu
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
 REQUEST_SOCKET_TIMEOUT_SECONDS = 15.0
+MODEL_WARMUP_POLICIES = frozenset({"lazy", "on_start"})
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class BrainModelConfig:
     model_path: Path
     adapter_path: Path
     timeout_seconds: float
+    warmup: str = "lazy"
 
 
 @dataclass(frozen=True)
@@ -184,6 +186,7 @@ def load_brain_config(path: Path) -> BrainConfig:
         exact_fields(
             model_value,
             required={"python_path", "model_path", "adapter_path", "timeout_seconds"},
+            optional={"warmup"},
             label="model config",
         )
         timeout_seconds = model_value["timeout_seconds"]
@@ -193,6 +196,9 @@ def load_brain_config(path: Path) -> BrainConfig:
             or not 0 < float(timeout_seconds) <= 600
         ):
             raise BrainError("INVALID_CONFIG", 500, "model timeout is invalid")
+        warmup = model_value.get("warmup", "lazy")
+        if not isinstance(warmup, str) or warmup not in MODEL_WARMUP_POLICIES:
+            raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
         model = BrainModelConfig(
             python_path=_config_path(
                 model_value["python_path"], label="model python path", allow_symlink=True
@@ -200,6 +206,7 @@ def load_brain_config(path: Path) -> BrainConfig:
             model_path=_config_path(model_value["model_path"], label="model path"),
             adapter_path=_config_path(model_value["adapter_path"], label="adapter path"),
             timeout_seconds=float(timeout_seconds),
+            warmup=warmup,
         )
     if "retrieval" in value:
         if not isinstance(retrieval_value, dict):
@@ -348,12 +355,16 @@ class BrainApplication:
         compiler: BrainCompiler,
         retriever: Any | None = None,
         model: Any | None = None,
+        model_warmup_policy: str = "disabled",
     ) -> None:
+        if model_warmup_policy not in {*MODEL_WARMUP_POLICIES, "disabled"}:
+            raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
         self.runtime = runtime
         self.manager = manager
         self.compiler = compiler
         self.retriever = retriever if retriever is not None else SnapshotRetriever()
         self.model = model if model is not None else UnavailableModelRuntime()
+        self.model_warmup_policy = model_warmup_policy
         self.turns = TurnStore(
             manager=manager,
             retriever=self.retriever,
@@ -368,6 +379,24 @@ class BrainApplication:
     def health(self) -> dict[str, Any]:
         metrics = self.manager.aggregate_metrics()
         metrics.update(self.turns.aggregate_metrics())
+        warmup_status = "disabled"
+        warmup_duration_ms: int | None = None
+        warmup_worker_load_ms: int | None = None
+        if self.model_warmup_policy != "disabled":
+            reported_status = getattr(self.model, "warmup_status", "cold")
+            if reported_status in {"cold", "ready", "failed", "closed"}:
+                warmup_status = reported_status
+            for attribute, target in (
+                ("warmup_duration_ms", "duration"),
+                ("warmup_worker_load_ms", "worker_load"),
+            ):
+                value = getattr(self.model, attribute, None)
+                if type(value) is not int or not 0 <= value <= MAX_TELEMETRY_COUNT:
+                    value = None
+                if target == "duration":
+                    warmup_duration_ms = value
+                else:
+                    warmup_worker_load_ms = value
         return {
             "schema_version": 1,
             "status": "ready",
@@ -381,6 +410,12 @@ class BrainApplication:
             "model_identity": {
                 "model_revision": getattr(self.model, "model_revision", None),
                 "adapter_sha256": getattr(self.model, "adapter_sha256", None),
+            },
+            "model_warmup": {
+                "policy": self.model_warmup_policy,
+                "status": warmup_status,
+                "duration_ms": warmup_duration_ms,
+                "worker_load_ms": warmup_worker_load_ms,
             },
             "semantic_retrieval": {
                 "enabled": isinstance(self.retriever, Schema2SnapshotRetriever),
@@ -821,6 +856,8 @@ class MetisBrainService:
             raise BrainError(
                 "INVALID_CONFIG", 500, "model configuration requires schema2 retrieval"
             )
+        if config.model is not None and config.model.warmup not in MODEL_WARMUP_POLICIES:
+            raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
         self.runtime = BrainRuntime(config.runtime_root)
         manager: SessionManager | None = None
         httpd: _ThreadingBrainHTTPServer | None = None
@@ -854,6 +891,27 @@ class MetisBrainService:
                     adapter_path=config.model.adapter_path,
                     timeout_seconds=config.model.timeout_seconds,
                 )
+            if config.model is not None and config.model.warmup == "on_start":
+                warmup = getattr(model_runtime, "warmup", None)
+                if not callable(warmup):
+                    raise BrainError(
+                        "MODEL_RUNTIME_CONFIG", 500, "configured model cannot be warmed"
+                    )
+                warmup_receipt = warmup()
+                if (
+                    not isinstance(warmup_receipt, dict)
+                    or set(warmup_receipt) != {"status", "duration_ms", "worker_load_ms"}
+                    or warmup_receipt.get("status") != "ready"
+                    or any(
+                        type(warmup_receipt.get(key)) is not int
+                        or not 0 <= warmup_receipt[key] <= MAX_TELEMETRY_COUNT
+                        for key in ("duration_ms", "worker_load_ms")
+                    )
+                    or getattr(model_runtime, "model_loaded", None) is not True
+                ):
+                    raise BrainError(
+                        "MODEL_RUNTIME_CONFIG", 500, "configured model warmup did not complete"
+                    )
             registry = TenantRegistry(list(config.tenant_grants))
             manager = SessionManager(
                 registry=registry,
@@ -868,6 +926,7 @@ class MetisBrainService:
                 compiler=compiler,
                 retriever=retriever,
                 model=model_runtime,
+                model_warmup_policy=config.model.warmup if config.model is not None else "disabled",
             )
             httpd = _ThreadingBrainHTTPServer((config.host, config.port), self.app)
             self.httpd = httpd
