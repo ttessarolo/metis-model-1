@@ -348,6 +348,147 @@ def test_active_error_and_cancel_payloads_preserve_request_schema_version(
     assert TurnStore._cancelled_payload(record)["schema_version"] == schema_version  # noqa: SLF001
 
 
+def test_heartbeat_is_bounded_replayable_and_contains_no_work_payload() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": context,
+            "expected_semantic_source_revision": semantic,
+            "intent": "edit",
+            "instruction": "marker-segreto-della-sessione",
+            "target": {
+                "mode": "existing",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.candidate",
+                "base_sha256": "sha256:" + "c" * 64,
+            },
+            "basis": None,
+            "clarification_response": None,
+        }
+    )
+    record = TurnRecord(
+        turn_id="turn_" + "a" * 32,
+        session_id="session_" + "a" * 32,
+        request=request,
+        payload_hash=request.payload_hash,
+    )
+
+    with record.heartbeat_while(
+        phase="inference_running",
+        label="Model 1 sta preparando il draft",
+        interval_seconds=0.01,
+    ):
+        time.sleep(0.035)
+
+    heartbeats = [item for item in record.events if item["event"] == "heartbeat"]
+    assert len(heartbeats) >= 2
+    assert [item["data"]["sequence"] for item in heartbeats] == list(range(1, len(heartbeats) + 1))
+    assert all(item["data"]["phase"] == "inference_running" for item in heartbeats)
+    assert all(0 <= item["data"]["elapsed_ms"] <= 1_000_000 for item in heartbeats)
+    assert "marker-segreto-della-sessione" not in json.dumps(heartbeats)
+
+
+def test_terminal_is_last_when_heartbeat_and_finish_race() -> None:
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": "sha256:" + "a" * 64,
+            "expected_semantic_source_revision": "sha256:" + "b" * 64,
+            "intent": "edit",
+            "instruction": "modifica l'endpoint",
+            "target": {
+                "mode": "existing",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.candidate",
+                "base_sha256": "sha256:" + "c" * 64,
+            },
+            "basis": None,
+            "clarification_response": None,
+        }
+    )
+    record = TurnRecord(
+        turn_id="turn_" + "c" * 32,
+        session_id="session_" + "c" * 32,
+        request=request,
+        payload_hash=request.payload_hash,
+    )
+    store = object.__new__(TurnStore)
+    store._lock = threading.Lock()  # noqa: SLF001
+    store._active = {record.session_id}  # noqa: SLF001
+    heartbeat_entered = threading.Event()
+    release_heartbeat = threading.Event()
+    original_emit = record.emit
+
+    def barrier_emit(event: str, phase: str, label: str, **metrics: int | str | bool) -> None:
+        if event == "heartbeat":
+            heartbeat_entered.set()
+            assert release_heartbeat.wait(timeout=2)
+        original_emit(event, phase, label, **metrics)
+
+    record.emit = barrier_emit  # type: ignore[method-assign]
+    payload = {
+        "schema_version": 2,
+        "turn_id": record.turn_id,
+        "request_id": request.request_id,
+        "status": "completed",
+        "outcome": "proposed",
+        "route": "local",
+    }
+    with record.heartbeat_while(
+        phase="inference_running",
+        label="Model 1 sta preparando il draft",
+        interval_seconds=0.01,
+    ):
+        assert heartbeat_entered.wait(timeout=2)
+        finisher = threading.Thread(target=store._finish, args=(record, payload))  # noqa: SLF001
+        finisher.start()
+        time.sleep(0.02)
+        release_heartbeat.set()
+        finisher.join(timeout=2)
+        assert not finisher.is_alive()
+
+    assert record.events[-1]["event"] == "terminal"
+    assert [item["event"] for item in record.events].count("terminal") == 1
+
+
+def test_event_sequence_remains_monotonic_after_bounded_replay_eviction() -> None:
+    request = TurnRequest.parse(
+        {
+            "schema_version": 1,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": "sha256:" + "a" * 64,
+            "expected_semantic_source_revision": "sha256:" + "b" * 64,
+            "intent": "create",
+            "instruction": "crea un endpoint",
+            "target": {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.candidate",
+                "base_sha256": None,
+            },
+            "basis": None,
+            "clarification_response": None,
+        }
+    )
+    record = TurnRecord(
+        turn_id="turn_" + "b" * 32,
+        session_id="session_" + "b" * 32,
+        request=request,
+        payload_hash=request.payload_hash,
+    )
+
+    for index in range(300):
+        record.emit("heartbeat", "test_running", "Test in corso", elapsed_ms=index)
+
+    sequences = [item["data"]["sequence"] for item in record.events]
+    assert len(sequences) == 256
+    assert sequences == list(range(45, 301))
+
+
 @pytest.mark.parametrize(
     "answer",
     [
@@ -505,6 +646,39 @@ def test_session_options_apply_preflight_and_sse_are_bounded(tmp_path: Path) -> 
         assert "terminal" in raw
         assert "metis 0.43" not in raw
         connection.close()
+
+        last_event_id = max(
+            int(line.removeprefix("id: ")) for line in raw.splitlines() if line.startswith("id: ")
+        )
+        reconnect = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=2)
+        started = time.monotonic()
+        reconnect.request(
+            "GET",
+            f"/v1/sessions/{session['id']}/turns/{turn_id}/events",
+            headers={
+                "Authorization": f"Bearer {session['token']}",
+                "Last-Event-ID": str(last_event_id),
+            },
+        )
+        replay = reconnect.getresponse()
+        assert replay.status == 200
+        assert replay.read() == b""
+        assert time.monotonic() - started < 0.5
+        reconnect.close()
+
+        hostile = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=2)
+        hostile.request(
+            "GET",
+            f"/v1/sessions/{session['id']}/turns/{turn_id}/events",
+            headers={
+                "Authorization": f"Bearer {session['token']}",
+                "Last-Event-ID": "9" * 5_000,
+            },
+        )
+        rejected = hostile.getresponse()
+        assert rejected.status == 400
+        assert json.loads(rejected.read())["error"]["code"] == "INVALID_SCHEMA"
+        hostile.close()
 
 
 def test_session_close_erases_volatile_turn_and_conversation_memory(tmp_path: Path) -> None:

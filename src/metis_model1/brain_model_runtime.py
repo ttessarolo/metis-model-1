@@ -40,13 +40,13 @@ class ModelCandidate:
     model_revision: str = "unavailable"
     adapter_sha256: str = "unavailable"
     generator: str = "model"
-    metrics: dict[str, int | float | str] = field(default_factory=dict)
+    metrics: dict[str, int | float | str | bool] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         bounded_source(self.source)
         if self.generator not in {"model", "grounded_renderer"}:
             raise BrainError("MODEL_INVALID", 503, "candidate generator is invalid")
-        allowed = {
+        legacy_allowed = {
             "worker_load_ms",
             "generation_ms",
             "prompt_tokens",
@@ -58,8 +58,24 @@ class ModelCandidate:
             "finish_reason",
             "peak_metal_gb",
         }
-        legacy_allowed = allowed - {"cache_hit"}
-        if self.metrics and set(self.metrics) not in (allowed, legacy_allowed):
+        cache_allowed = legacy_allowed | {"cache_hit"}
+        phase_allowed = cache_allowed | {
+            "cache_mode",
+            "worker_request_ms",
+            "cache_prepare_ms",
+            "tokenization_ms",
+            "time_to_first_token_ms",
+            "decode_after_first_token_ms",
+            "generation_residual_ms",
+            "worker_residual_ms",
+            "model_lock_queue_ms",
+            "uncached_prompt_tokens",
+        }
+        if self.metrics and set(self.metrics) not in (
+            legacy_allowed - {"cache_hit"},
+            cache_allowed,
+            phase_allowed,
+        ):
             raise BrainError("MODEL_INVALID", 503, "candidate metrics are invalid")
         if not self.metrics:
             return
@@ -70,6 +86,20 @@ class ModelCandidate:
             "generation_tokens",
             "cached_tokens",
         }
+        if set(self.metrics) == phase_allowed:
+            integer_keys.update(
+                {
+                    "tokenization_ms",
+                    "worker_request_ms",
+                    "cache_prepare_ms",
+                    "time_to_first_token_ms",
+                    "decode_after_first_token_ms",
+                    "generation_residual_ms",
+                    "worker_residual_ms",
+                    "model_lock_queue_ms",
+                    "uncached_prompt_tokens",
+                }
+            )
         if any(
             type(self.metrics[key]) is not int or not 0 <= self.metrics[key] <= MAX_TELEMETRY_COUNT
             for key in integer_keys
@@ -90,8 +120,42 @@ class ModelCandidate:
                 type(value) not in (int, float)
                 or not math.isfinite(float(value))
                 or not 0 <= float(value) <= MAX_TELEMETRY_RATE
+                or (set(self.metrics) == phase_allowed and float(value) <= 0)
             ):
                 raise BrainError("MODEL_INVALID", 503, "candidate rate is invalid")
+        if set(self.metrics) == phase_allowed and (
+            self.metrics["cache_mode"] not in {"disabled", "prefix"}
+            or self.metrics["uncached_prompt_tokens"]
+            != self.metrics["prompt_tokens"] - self.metrics["cached_tokens"]
+            or abs(
+                self.metrics["time_to_first_token_ms"]
+                + self.metrics["decode_after_first_token_ms"]
+                + self.metrics["generation_residual_ms"]
+                - self.metrics["generation_ms"]
+            )
+            > 2
+            or self.metrics["generation_ms"] < 1
+            or self.metrics["time_to_first_token_ms"]
+            != int(round(1000.0 * self.metrics["prompt_tokens"] / self.metrics["prompt_tps"]))
+            or self.metrics["decode_after_first_token_ms"]
+            != int(
+                round(1000.0 * self.metrics["generation_tokens"] / self.metrics["generation_tps"])
+            )
+            or abs(
+                self.metrics["cache_prepare_ms"]
+                + self.metrics["tokenization_ms"]
+                + self.metrics["generation_ms"]
+                + self.metrics["worker_residual_ms"]
+                - self.metrics["worker_request_ms"]
+            )
+            > 2
+            or self.metrics["worker_request_ms"] < 1
+            or (
+                self.metrics["cache_mode"] == "disabled"
+                and (self.metrics["cached_tokens"] != 0 or self.metrics["cache_hit"] is not False)
+            )
+        ):
+            raise BrainError("MODEL_INVALID", 503, "candidate phase telemetry is invalid")
         peak = self.metrics["peak_metal_gb"]
         if (
             type(peak) not in (int, float)

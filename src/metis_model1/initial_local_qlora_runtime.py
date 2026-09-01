@@ -82,7 +82,8 @@ CONFIG = {
     "completion_only": True,
 }
 LIMITS = {"hours": 4, "metal_gb": 110, "new_artifacts_gb": 8, "checkpoints": 4}
-MODEL_WIRE_VERSION = 2
+MODEL_WIRE_VERSION = 3
+PREFIX_CACHE_WIRE_VERSION = 2
 MAX_CACHE_SCOPE_BYTES = 128
 MAX_PREFIX_CACHE_TOKENS = 4096
 MAX_PREFIX_CACHE_BYTES = 2 * 1024 * 1024 * 1024
@@ -2187,8 +2188,11 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     ),
                     flush=True,
                 )
+                # The long-lived worker must not retain even the last request
+                # envelope while it blocks on stdin again.
+                del request_id, request, line
                 continue
-            if version != MODEL_WIRE_VERSION or set(request) != {
+            cache_fields = {
                 "schema_version",
                 "request_id",
                 "operation",
@@ -2197,7 +2201,14 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 "adapter_sha256",
                 "prefix_messages",
                 "prefix_sha256",
-            }:
+            }
+            if version == PREFIX_CACHE_WIRE_VERSION and set(request) == cache_fields:
+                cache_mode = "prefix"
+            elif version == MODEL_WIRE_VERSION and set(request) == cache_fields | {"cache_mode"}:
+                cache_mode = request["cache_mode"]
+                if cache_mode not in {"disabled", "prefix"}:
+                    _fail("worker warmup cache mode is invalid")
+            else:
                 _fail("worker warmup request schema/limits")
             scope = _cache_scope(request["cache_scope"])
             if (
@@ -2206,7 +2217,13 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 or request["prefix_sha256"] != _canonical_hash(request["prefix_messages"])
             ):
                 _fail("worker warmup identity differs")
-            if prefix_hashes.get(scope) == request["prefix_sha256"]:
+            if cache_mode == "disabled":
+                prefix_cache.pop(scope, None)
+                prefix_hashes[scope] = request["prefix_sha256"]
+                prefix_tokens_by_scope[scope] = 0
+                state = None
+                prefix_tokens = 0
+            elif prefix_hashes.get(scope) == request["prefix_sha256"]:
                 state = prefix_cache.get(scope)
                 prefix_tokens = prefix_tokens_by_scope[scope]
             else:
@@ -2225,35 +2242,49 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 prefix_cache.pop(scope, None)
                 if state is not None:
                     prefix_cache[scope] = state
-            print(
-                json.dumps(
-                    {
-                        "schema_version": MODEL_WIRE_VERSION,
-                        "request_id": request_id,
-                        "status": "ready",
-                        "worker_load_ms": worker_load_ms,
-                        "model_revision": model_revision,
-                        "adapter_sha256": adapter_sha256,
-                        "cache_scope": scope,
-                        "prefix_sha256": request["prefix_sha256"],
-                        "prefix_tokens": prefix_tokens,
-                        "cache_ready": state is not None,
-                    },
-                    allow_nan=False,
-                ),
-                flush=True,
-            )
+            warmup_response = {
+                "schema_version": version,
+                "request_id": request_id,
+                "status": "ready",
+                "worker_load_ms": worker_load_ms,
+                "model_revision": model_revision,
+                "adapter_sha256": adapter_sha256,
+                "cache_scope": scope,
+                "prefix_sha256": request["prefix_sha256"],
+                "prefix_tokens": prefix_tokens,
+                "cache_ready": state is not None,
+            }
+            if version == MODEL_WIRE_VERSION:
+                warmup_response["cache_mode"] = cache_mode
+            print(json.dumps(warmup_response, allow_nan=False), flush=True)
+            # Prefix messages are the immutable public system prefix, but the
+            # per-request envelope and response still have no reason to remain
+            # reachable between worker requests.
+            del warmup_response, state, request_id, request, line
             continue
+        worker_request_started = time.monotonic()
         messages = request.get("messages")
         version = request.get("schema_version", 1)
         if version == 1:
             expected_request = {"request_id", "messages", "max_tokens"}
+        elif version == PREFIX_CACHE_WIRE_VERSION:
+            expected_request = {
+                "schema_version",
+                "request_id",
+                "messages",
+                "max_tokens",
+                "cache_scope",
+                "model_revision",
+                "adapter_sha256",
+                "prefix_sha256",
+            }
         elif version == MODEL_WIRE_VERSION:
             expected_request = {
                 "schema_version",
                 "request_id",
                 "messages",
                 "max_tokens",
+                "cache_mode",
                 "cache_scope",
                 "model_revision",
                 "adapter_sha256",
@@ -2272,11 +2303,20 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             or request["max_tokens"] != 512
         ):
             _fail("worker request schema/limits")
+        cache_prepare_started = time.monotonic()
         scope = None
         cache_state = None
         template = None
         prepared_inputs = None
-        if version == MODEL_WIRE_VERSION:
+        full_input_ids = None
+        template_ids = None
+        full_ids = None
+        cache_mode = "disabled" if version == 1 else "prefix"
+        if version in {PREFIX_CACHE_WIRE_VERSION, MODEL_WIRE_VERSION}:
+            if version == MODEL_WIRE_VERSION:
+                cache_mode = request["cache_mode"]
+                if cache_mode not in {"disabled", "prefix"}:
+                    _fail("worker request cache mode is invalid")
             scope = _cache_scope(request["cache_scope"])
             if (
                 request["model_revision"] != model_revision
@@ -2285,13 +2325,14 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 _fail("worker request identity differs")
             if prefix_hashes.get(scope) != request["prefix_sha256"]:
                 _fail("worker request cache identity differs")
-            template = prefix_cache.get(scope)
+            template = prefix_cache.get(scope) if cache_mode == "prefix" else None
             if template is not None:
                 cache_state = _clone_prompt_cache_state(
                     template,
                     make_cache=lambda: mlx_cache.make_prompt_cache(model.language_model),
                     state_factory=PromptCacheState,
                 )
+        cache_prepare_ms = max(0, int((time.monotonic() - cache_prepare_started) * 1000))
         if any(
             not isinstance(message, Mapping)
             or set(message) != {"role", "content"}
@@ -2304,6 +2345,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         if len(seen) >= 128:
             _fail("worker request count exceeds limit")
         seen.add(request["request_id"])
+        tokenization_started = time.monotonic()
         prompt = apply_chat_template(
             processor,
             model.config,
@@ -2313,29 +2355,31 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             num_audios=0,
             enable_thinking=False,
         )
-        if version == MODEL_WIRE_VERSION and template is not None:
+        if version == MODEL_WIRE_VERSION or template is not None:
             prepared_inputs = prepare_inputs(
                 processor,
                 prompts=prompt,
                 add_special_tokens=should_add_special_tokens(model.config.model_type, processor),
                 return_tensors="mlx",
             )
-            full_input_ids = prepared_inputs.get("input_ids")
-            template_ids = getattr(template, "token_ids", None)
-            if (
-                full_input_ids is None
-                or full_input_ids.ndim != 2
-                or full_input_ids.shape[0] != 1
-                or not isinstance(template_ids, list)
-            ):
-                cache_state = None
-            else:
-                full_ids = [int(item) for item in full_input_ids.flatten().tolist()]
+            if template is not None:
+                full_input_ids = prepared_inputs.get("input_ids")
+                template_ids = getattr(template, "token_ids", None)
                 if (
-                    len(template_ids) >= len(full_ids)
-                    or full_ids[: len(template_ids)] != template_ids
+                    full_input_ids is None
+                    or full_input_ids.ndim != 2
+                    or full_input_ids.shape[0] != 1
+                    or not isinstance(template_ids, list)
                 ):
                     cache_state = None
+                else:
+                    full_ids = [int(item) for item in full_input_ids.flatten().tolist()]
+                    if (
+                        len(template_ids) >= len(full_ids)
+                        or full_ids[: len(template_ids)] != template_ids
+                    ):
+                        cache_state = None
+        tokenization_ms = max(0, int((time.monotonic() - tokenization_started) * 1000))
         generation_started = time.monotonic()
         try:
             with contextlib.redirect_stdout(sys.stderr):
@@ -2377,8 +2421,22 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 math.isfinite(float(x))
                 for x in (result.prompt_tps, result.generation_tps, result.peak_memory)
             )
+            or result.prompt_tps <= 0
+            or result.generation_tps <= 0
         ):
             _fail("worker non-finite/empty generation")
+        # MLX-VLM exposes time-to-first-token rather than a pure prefill
+        # timer: its prompt clock stops only when the first token is yielded.
+        time_to_first_token_ms = max(
+            0, int(round(1000.0 * result.prompt_tokens / float(result.prompt_tps)))
+        )
+        decode_after_first_token_ms = max(
+            0, int(round(1000.0 * result.generation_tokens / float(result.generation_tps)))
+        )
+        generation_residual_ms = max(
+            0,
+            generation_ms - time_to_first_token_ms - decode_after_first_token_ms,
+        )
         response = {
             "request_id": request.get("request_id"),
             "text": source,
@@ -2392,9 +2450,62 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             "generation_tps": float(result.generation_tps),
             "finish_reason": result.finish_reason,
         }
-        if version == MODEL_WIRE_VERSION:
+        if version in {PREFIX_CACHE_WIRE_VERSION, MODEL_WIRE_VERSION}:
             response["cache_hit"] = bool(result.cached_tokens > 0)
+        if version == MODEL_WIRE_VERSION:
+            worker_request_ms = max(0, int((time.monotonic() - worker_request_started) * 1000))
+            worker_residual_ms = max(
+                0,
+                worker_request_ms - cache_prepare_ms - tokenization_ms - generation_ms,
+            )
+            response.update(
+                {
+                    "cache_mode": cache_mode,
+                    "worker_request_ms": worker_request_ms,
+                    "cache_prepare_ms": cache_prepare_ms,
+                    "tokenization_ms": tokenization_ms,
+                    "time_to_first_token_ms": time_to_first_token_ms,
+                    "decode_after_first_token_ms": decode_after_first_token_ms,
+                    "generation_residual_ms": generation_residual_ms,
+                    "worker_residual_ms": worker_residual_ms,
+                    "uncached_prompt_tokens": result.prompt_tokens - result.cached_tokens,
+                }
+            )
         print(json.dumps(response, allow_nan=False), flush=True)
+        # A persistent worker serves unrelated sessions and tenants.  Drop
+        # every Python reference that can contain the just-completed dynamic
+        # prompt, prepared token arrays, generated tokens or source before the
+        # loop blocks for the next stdin line.  The immutable public-prefix
+        # template remains owned only by ``prefix_cache`` and was never passed
+        # to generation directly.
+        cache_state = None
+        prepared_inputs = None
+        input_overrides = None
+        full_input_ids = None
+        template_ids = None
+        full_ids = None
+        result = None
+        source = None
+        response = None
+        prompt = None
+        messages = None
+        request = None
+        line = ""
+        del (
+            cache_state,
+            prepared_inputs,
+            input_overrides,
+            full_input_ids,
+            template_ids,
+            full_ids,
+            result,
+            source,
+            response,
+            prompt,
+            messages,
+            request,
+            line,
+        )
     import mlx.core as mx
 
     mx.clear_cache()

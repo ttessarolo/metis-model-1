@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+from metis_model1.brain_latency_live import run_latency_benchmark
+from metis_model1.brain_protocol import BrainError
 from metis_model1.brain_server import run_brain_server
 from metis_model1.contracts import ValidationReport, repository_root, validate_foundation
 from metis_model1.pipeline import (
@@ -211,6 +213,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run the authenticated numeric-loopback Metis Brain service.",
     )
     brain.add_argument("--config", type=Path, required=True)
+    brain_latency = subparsers.add_parser(
+        "brain-latency-benchmark",
+        description="Run the paired local Model 1 direct/prefix qualification without Apply.",
+    )
+    brain_latency.add_argument("--config", type=Path, required=True)
+    brain_latency.add_argument("--case", type=Path, required=True)
+    brain_latency.add_argument("--output", type=Path, required=True)
     video_semantics = subparsers.add_parser(
         "video-semantics",
         description="Run bounded local preparation for video semantic grounding.",
@@ -365,6 +374,43 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "brain-serve":
         return run_brain_server(args.config)
+    if args.command == "brain-latency-benchmark":
+        try:
+            receipt = run_latency_benchmark(
+                config_path=args.config,
+                case_path=args.case,
+                output_path=args.output,
+            )
+        except BrainError as error:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation": "brain-latency-benchmark",
+                        "status": "BLOCKED",
+                        "error_code": error.code,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "operation": "brain-latency-benchmark",
+                    "status": receipt["status"],
+                    "benchmark_id": receipt["identity"]["benchmark_id"],
+                    "denominator": receipt["denominator"],
+                    "aggregates": receipt["aggregates"],
+                    "claims": receipt["claims"],
+                    "receipt_sha256": receipt["receipt_sha256"],
+                    "receipt_path": str(args.output),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
     if args.command == "video-semantics":
         operation = args.video_semantics_command
         offline_operation = {

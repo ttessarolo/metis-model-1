@@ -18,7 +18,8 @@
     "warmup": "on_start"
   },
   "retrieval": {
-    "schema2": true
+    "schema2": true,
+    "warmup": "on_start"
   },
   "intent_compiler": {
     "python_path": "/Users/tommasotessarolo/Developer/metis-model-1/qualification/.venv/bin/python",

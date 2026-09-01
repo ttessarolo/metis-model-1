@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -155,7 +156,12 @@ def runtime_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         )
         return model, adapter
 
-    def build(mode: str = "echo", *, timeout_seconds: float = 1.0) -> MlxBrainModelRuntime:
+    def build(
+        mode: str = "echo",
+        *,
+        timeout_seconds: float = 1.0,
+        prefix_cache_enabled: bool = True,
+    ) -> MlxBrainModelRuntime:
         make_worker(mode)
         return MlxBrainModelRuntime(
             python_path=sys.executable,
@@ -163,6 +169,7 @@ def runtime_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             adapter_path=adapter,
             worker_script=worker,
             timeout_seconds=timeout_seconds,
+            prefix_cache_enabled=prefix_cache_enabled,
         )
 
     return build
@@ -374,6 +381,33 @@ def test_prefix_is_stable_and_dynamic_request_data_is_after_it() -> None:
     assert '"grounding"' not in first[0]["content"]
 
 
+def test_qualification_cache_arm_can_only_toggle_one_warm_public_template() -> None:
+    class Process:
+        @staticmethod
+        def poll() -> None:
+            return None
+
+    runtime = object.__new__(MlxBrainModelRuntime)
+    runtime._request_lock = threading.Lock()  # noqa: SLF001 - qualification seam fixture
+    runtime._closed = False  # noqa: SLF001
+    runtime._broken = False  # noqa: SLF001
+    runtime._process = Process()  # noqa: SLF001
+    runtime._warmup_status = "ready"  # noqa: SLF001
+    runtime._prefix_cache_enabled = True  # noqa: SLF001
+    runtime._prefix_cache_ready = True  # noqa: SLF001
+    runtime._warmup_prefix_tokens = 60  # noqa: SLF001
+    runtime._cache_mode = "prefix"  # noqa: SLF001
+
+    runtime._set_cache_mode_for_qualification("disabled")  # noqa: SLF001
+    assert runtime.cache_mode == "disabled"
+    runtime._set_cache_mode_for_qualification("prefix")  # noqa: SLF001
+    assert runtime.cache_mode == "prefix"
+
+    runtime._prefix_cache_ready = False  # noqa: SLF001
+    with pytest.raises(BrainError, match="prefix template"):
+        runtime._set_cache_mode_for_qualification("disabled")  # noqa: SLF001
+
+
 def test_cache_scope_rejects_raw_or_unbounded_scope() -> None:
     with pytest.raises(BrainError, match="cache scope"):
         mlx_runtime._cache_scope("tenant/value")
@@ -436,6 +470,48 @@ def test_cache_hit_telemetry_must_match_cached_tokens(runtime_factory) -> None:
     runtime.close()
 
 
+def test_wire_three_phase_telemetry_is_strict_and_cache_mode_bound(runtime_factory) -> None:
+    runtime = runtime_factory(prefix_cache_enabled=False)
+    value = {
+        "request_id": "request",
+        "text": "metis 0.43\n",
+        "peak_metal_gb": 1.0,
+        "worker_load_ms": 10,
+        "worker_request_ms": 131,
+        "generation_ms": 120,
+        "cache_prepare_ms": 2,
+        "tokenization_ms": 4,
+        "time_to_first_token_ms": 70,
+        "decode_after_first_token_ms": 40,
+        "generation_residual_ms": 10,
+        "worker_residual_ms": 5,
+        "prompt_tokens": 30,
+        "uncached_prompt_tokens": 30,
+        "generation_tokens": 4,
+        "cached_tokens": 0,
+        "cache_hit": False,
+        "cache_mode": "disabled",
+        "prompt_tps": 30_000.0 / 70.0,
+        "generation_tps": 100.0,
+        "finish_reason": "stop",
+    }
+
+    assert runtime._parse_response(json.dumps(value).encode(), "request") == value  # noqa: SLF001
+    for key, replacement in (
+        ("cache_mode", "prefix"),
+        ("uncached_prompt_tokens", 29),
+        ("cached_tokens", 1),
+        ("generation_residual_ms", 20),
+    ):
+        invalid = {**value, key: replacement}
+        if key == "cached_tokens":
+            invalid["cache_hit"] = True
+            invalid["uncached_prompt_tokens"] = 29
+        with pytest.raises(BrainError, match="phase telemetry|disabled cache"):
+            runtime._parse_response(json.dumps(invalid).encode(), "request")  # noqa: SLF001
+    runtime.close()
+
+
 def test_prompt_cache_clone_keeps_public_template_immutable() -> None:
     class FakeCache:
         def __init__(self) -> None:
@@ -474,6 +550,16 @@ def test_prompt_cache_clone_keeps_public_template_immutable() -> None:
     transient.cache[0].state.append([901])
     assert template.token_ids == [11, 22]
     assert template.cache[0].state == [[11, 22]]
+    second_session = qualified_runtime._clone_prompt_cache_state(
+        template,
+        make_cache=lambda: [FakeCache()],
+        state_factory=FakeState,
+    )
+    assert second_session is not None
+    assert second_session.token_ids == [11, 22]
+    assert second_session.cache[0].state == [[11, 22]]
+    assert 901 not in second_session.token_ids
+    assert [901] not in second_session.cache[0].state
 
 
 def test_prompt_cache_clone_fails_closed_on_incompatible_cache_roster() -> None:

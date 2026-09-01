@@ -12,6 +12,7 @@ import secrets
 import signal
 import stat
 import threading
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,8 +45,10 @@ from metis_model1.brain_turns import ClarificationAnswerRequest, TurnRequest, Tu
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_HTTP_WORKERS = 64
+MAX_TENANTS = 64
 REQUEST_SOCKET_TIMEOUT_SECONDS = 15.0
 MODEL_WARMUP_POLICIES = frozenset({"lazy", "on_start"})
+RETRIEVAL_WARMUP_POLICIES = frozenset({"lazy", "on_start"})
 INTENT_COMPILER_MODES = frozenset({"assist_on_unresolved"})
 
 
@@ -61,6 +64,7 @@ class BrainModelConfig:
 @dataclass(frozen=True)
 class BrainRetrievalConfig:
     schema2: bool
+    warmup: str = "lazy"
 
 
 @dataclass(frozen=True)
@@ -225,10 +229,23 @@ def load_brain_config(path: Path) -> BrainConfig:
     if "retrieval" in value:
         if not isinstance(retrieval_value, dict):
             raise BrainError("INVALID_CONFIG", 500, "retrieval config must be an object")
-        exact_fields(retrieval_value, required={"schema2"}, label="retrieval config")
+        exact_fields(
+            retrieval_value,
+            required={"schema2"},
+            optional={"warmup"},
+            label="retrieval config",
+        )
         if type(retrieval_value["schema2"]) is not bool:
             raise BrainError("INVALID_CONFIG", 500, "retrieval schema2 must be boolean")
-        retrieval = BrainRetrievalConfig(schema2=retrieval_value["schema2"])
+        retrieval_warmup = retrieval_value.get("warmup", "lazy")
+        if (
+            not isinstance(retrieval_warmup, str)
+            or retrieval_warmup not in RETRIEVAL_WARMUP_POLICIES
+        ):
+            raise BrainError("INVALID_CONFIG", 500, "retrieval warmup policy is invalid")
+        retrieval = BrainRetrievalConfig(
+            schema2=retrieval_value["schema2"], warmup=retrieval_warmup
+        )
     if "intent_compiler" in value:
         if not isinstance(intent_compiler_value, dict):
             raise BrainError("INVALID_CONFIG", 500, "intent compiler config must be an object")
@@ -278,7 +295,7 @@ def load_brain_config(path: Path) -> BrainConfig:
 
     tenants_value = value["tenants"]
     clients_value = value["clients"]
-    if not isinstance(tenants_value, list) or not tenants_value:
+    if not isinstance(tenants_value, list) or not tenants_value or len(tenants_value) > MAX_TENANTS:
         raise BrainError("INVALID_CONFIG", 500, "tenants must be a non-empty list")
     if not isinstance(clients_value, list) or not clients_value:
         raise BrainError("INVALID_CONFIG", 500, "clients must be a non-empty list")
@@ -410,6 +427,7 @@ class BrainApplication:
         model: Any | None = None,
         model_warmup_policy: str = "disabled",
         intent_compiler: Any | None = None,
+        retrieval_warmup: dict[str, Any] | None = None,
     ) -> None:
         if model_warmup_policy not in {*MODEL_WARMUP_POLICIES, "disabled"}:
             raise BrainError("INVALID_CONFIG", 500, "model warmup policy is invalid")
@@ -420,6 +438,12 @@ class BrainApplication:
         self.model = model if model is not None else UnavailableModelRuntime()
         self.model_warmup_policy = model_warmup_policy
         self.intent_compiler = intent_compiler
+        self.retrieval_warmup = retrieval_warmup or {
+            "policy": "lazy",
+            "status": "cold",
+            "duration_ms": None,
+            "tenant_count": 0,
+        }
         self.turns = TurnStore(
             manager=manager,
             retriever=self.retriever,
@@ -490,6 +514,7 @@ class BrainApplication:
                 "enabled": isinstance(self.retriever, Schema2SnapshotRetriever),
                 "schema": 2 if isinstance(self.retriever, Schema2SnapshotRetriever) else None,
                 "implementation": type(self.retriever).__name__,
+                "warmup": dict(self.retrieval_warmup),
             },
             "metrics": metrics,
         }
@@ -854,20 +879,36 @@ class BrainRequestHandler(http.server.BaseHTTPRequestHandler):
             raise BrainError("INVALID_ROUTE", 404, "route is unavailable")
         session_id, turn_id = turn_route
         last_header = self.headers.get("Last-Event-ID", "0")
-        if not last_header.isascii() or not last_header.isdigit():
+        if len(last_header) > 16 or not last_header.isascii() or not last_header.isdigit():
+            raise BrainError("INVALID_SCHEMA", 400, "Last-Event-ID is invalid")
+        last_event_id = int(last_header)
+        if last_event_id > 1_000_000:
             raise BrainError("INVALID_SCHEMA", 400, "Last-Event-ID is invalid")
         record, events = self.app.turns.events(
             session_id=session_id,
             token=self._bearer(),
             turn_id=turn_id,
-            last_event_id=int(last_header),
+            last_event_id=last_event_id,
         )
-        if record.terminal is None:
-            with record.condition:
-                record.condition.wait(timeout=30.0)
-                events = [
-                    item for item in record.events if item["data"]["sequence"] > int(last_header)
-                ]
+        with record.condition:
+            if not events and record.terminal is None:
+                record.condition.wait_for(
+                    lambda: (
+                        any(item["data"]["sequence"] > last_event_id for item in record.events)
+                        or record.terminal is not None
+                    ),
+                    timeout=30.0,
+                )
+            if (
+                not events
+                and record.terminal is not None
+                and not any(item["event"] == "terminal" for item in record.events)
+            ):
+                record.condition.wait_for(
+                    lambda: any(item["data"]["sequence"] > last_event_id for item in record.events),
+                    timeout=1.0,
+                )
+            events = [item for item in record.events if item["data"]["sequence"] > last_event_id]
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-store")
@@ -991,7 +1032,10 @@ class MetisBrainService:
                     loader = PinnedCatalogProjectionLoader(
                         **loader_options,
                     )
-                    retriever = Schema2SnapshotRetriever(loader)
+                    retriever = Schema2SnapshotRetriever(
+                        loader,
+                        cache_size=max(8, len(config.tenant_grants)),
+                    )
                 else:
                     retriever = SnapshotRetriever()
             if model_runtime is None and config.model is not None:
@@ -1057,6 +1101,47 @@ class MetisBrainService:
                         "configured intent compiler warmup did not complete",
                     )
             registry = TenantRegistry(list(config.tenant_grants))
+            retrieval_warmup = {
+                "policy": config.retrieval.warmup if config.retrieval is not None else "lazy",
+                "status": "cold",
+                "duration_ms": None,
+                "tenant_count": 0,
+            }
+            if config.retrieval is not None and config.retrieval.warmup == "on_start":
+                prewarm = getattr(retriever, "prewarm", None)
+                if not callable(prewarm):
+                    raise BrainError(
+                        "RETRIEVAL_INVALID", 500, "configured semantic retrieval cannot be warmed"
+                    )
+                retrieval_started = time.monotonic()
+                for tenant_alias, _tenant_id, _tenant_root in config.tenant_grants:
+                    snapshot = registry.capture(
+                        tenant_alias,
+                        toolchain_binding=compiler.toolchain_binding,
+                    )
+                    receipt = prewarm(snapshot)
+                    if (
+                        not isinstance(receipt, dict)
+                        or set(receipt)
+                        != {
+                            "context_revision",
+                            "semantic_source_revision",
+                            "toolchain_binding",
+                        }
+                        or receipt["context_revision"] != snapshot.revision
+                        or receipt["semantic_source_revision"]
+                        != snapshot.semantic_source_revision()
+                        or receipt["toolchain_binding"] != compiler.toolchain_binding
+                    ):
+                        raise BrainError(
+                            "RETRIEVAL_INVALID", 500, "semantic retrieval warmup is invalid"
+                        )
+                retrieval_warmup = {
+                    "policy": "on_start",
+                    "status": "ready",
+                    "duration_ms": max(0, int((time.monotonic() - retrieval_started) * 1000)),
+                    "tenant_count": len(config.tenant_grants),
+                }
             manager = SessionManager(
                 registry=registry,
                 policies=list(config.client_policies),
@@ -1072,6 +1157,7 @@ class MetisBrainService:
                 model=model_runtime,
                 model_warmup_policy=config.model.warmup if config.model is not None else "disabled",
                 intent_compiler=intent_runtime,
+                retrieval_warmup=retrieval_warmup,
             )
             httpd = _ThreadingBrainHTTPServer((config.host, config.port), self.app)
             self.httpd = httpd

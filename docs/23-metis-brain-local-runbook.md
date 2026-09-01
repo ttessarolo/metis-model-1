@@ -9,9 +9,13 @@ Il comando `brain-serve` avvia un processo HTTP soltanto su `127.0.0.1`, crea
 un bootstrap casuale valido per quel solo avvio e serve sessioni tenant isolate.
 Con la configurazione demo qualificata collega il checkpoint base e l'adapter
 Model 1, il retrieval semantico schema 2, il compilatore Metis pinnato e il
-Flash intent compiler Gemma 4 E4B. Model 1 e Flash vengono riscaldati prima del
-bind HTTP. Il server non scrive il tenant: genera e compila una proposta che il
-client apre come Draft o diff.
+Flash intent compiler Gemma 4 E4B. Model 1, Flash e le proiezioni semantiche di
+tutti i tenant autorizzati vengono riscaldati prima del bind HTTP. Il warmup
+Model 1 accetta solo l'operazione versionata `warmup`,
+verifica checkpoint/adattatore e fa prefill del prefisso pubblico immutabile,
+senza generare token utente. Se prefill, identità o timeout falliscono, health
+non diventa ready e il worker parziale viene chiuso. Il server non scrive il
+tenant: genera e compila una proposta che il client apre come Draft o diff.
 
 ## 2. Configurazione demo
 
@@ -98,12 +102,22 @@ workspace corrente.
   revisione modello, hash schema e decoder. Non espone path, prompt o valori;
 - `semantic_retrieval.enabled=true`, `schema=2`: campi e valori vengono scelti
   dal catalogo tenant pinnato, non memorizzati nei pesi;
+- `semantic_retrieval.warmup.policy=on_start`, `status=ready`: le proiezioni di
+  tutti i grant sono state costruite prima del bind; `tenant_count` deve
+  coincidere con il numero di tenant autorizzati e `duration_ms` resta un
+  intero limitato;
 - `turn_schema_versions=[1,2]`: v2 abilita dialogo tipizzato e memoria volatile;
 - `clarification_answer_schema_versions=[1]`: i client possono riprendere una
   domanda tramite la route compatta `/answer` senza reinviare il prompt;
   v1 resta il percorso legacy senza domande numeriche non rappresentabili;
 - `metrics`: sessioni, turni, conversazioni e domande pendenti sono osservabili
   senza prompt, token o sorgenti.
+
+Il flusso SSE `GET /v1/sessions/{id}/turns/{turn_id}/events` emette eventi di
+fase e heartbeat con id numerici monotoni. Su riconnessione il client invia
+`Last-Event-ID` con l'ultimo id ricevuto; il server riproduce soltanto eventi
+successivi. Il terminal envelope resta l'autorità del risultato: heartbeat e
+progress sono liveness osservabile, non prova di correttezza.
 
 Il compiler materializza il tooling tracciato soltanto dall'archivio Git al pin.
 L'unica dipendenza letta dal live root è `tooling/node_modules`: viene copiata in

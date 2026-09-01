@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "play-demo-model1-prefix-latency-v1",
+  "client_id": "visix",
+  "tenant_alias": "play-demo",
+  "instruction": "Modifica l'endpoint demo.a_b_test sul catalogo video: voglio 24 risultati totali di film con mood romantico, protagonista femminile e umano; mantieni response.expanded e l'ordinamento per data di pubblicazione.",
+  "intent": "edit",
+  "target": {
+    "mode": "existing",
+    "relative_path": "properties/demo/a_b_test.metis",
+    "endpoint": "demo.a_b_test"
+  },
+  "expected_selections": [
+    {"catalog": "play-demo.video", "field": "tipologia", "literal": "Film"},
+    {"catalog": "play-demo.video", "field": "mood", "literal": "Romantico"},
+    {"catalog": "play-demo.video", "field": "protagonistaSesso", "literal": "Femmina"},
+    {"catalog": "play-demo.video", "field": "protagonistaSpecie", "literal": "Umano"}
+  ],
+  "expected_surface": {
+    "take": {"mode": "count", "value": 24},
+    "order_field": "publication_date",
+    "order_direction": "descending",
+    "response": "response.expanded"
+  },
+  "pairs": 6,
+  "arm_order": ["direct", "prefix"],
+  "seed": 17
+}

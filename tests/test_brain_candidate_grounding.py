@@ -5,6 +5,7 @@ import pytest
 from metis_model1.brain_candidate_grounding import (
     TakeContract,
     adjudicate_candidate,
+    adjudicate_candidate_shape,
     source_endpoint_has_fallback,
     source_take_contract,
 )
@@ -830,3 +831,84 @@ endpoint demo.with_fallback {
 """
     assert source_endpoint_has_fallback(source, "demo.target") is False
     assert source_endpoint_has_fallback(source, "demo.with_fallback") is True
+
+
+def test_candidate_shape_oracle_ignores_comments_and_labels_but_reads_real_tokens() -> None:
+    source = """metis 0.43
+endpoint demo.target as "response.expanded order by decoy" {
+  take 24 from @video as items "Etichetta libera" {
+    include where {
+      @mood is "Romantico"
+    }
+    // order by @decoy ascending; return response.default
+    order by @publication_date descending
+    return response.expanded
+  }
+}
+"""
+    assert adjudicate_candidate_shape(
+        source,
+        endpoint="demo.target",
+        take_mode="count",
+        take_value=24,
+        order_field="publication_date",
+        order_direction="descending",
+        response="response.expanded",
+    ).ok
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "order by @publication_date ascending",
+        "order by @title descending",
+        "return response.default",
+    ],
+)
+def test_candidate_shape_oracle_rejects_wrong_order_or_response(replacement: str) -> None:
+    source = """metis 0.43
+endpoint demo.target {
+  take 24 from @video {
+    include where { @mood is "Romantico" }
+    order by @publication_date descending
+    return response.expanded
+  }
+}
+"""
+    original = (
+        "return response.expanded"
+        if replacement.startswith("return")
+        else "order by @publication_date descending"
+    )
+    result = adjudicate_candidate_shape(
+        source.replace(original, replacement),
+        endpoint="demo.target",
+        take_mode="count",
+        take_value=24,
+        order_field="publication_date",
+        order_direction="descending",
+        response="response.expanded",
+    )
+    assert not result.ok
+
+
+def test_candidate_shape_oracle_rejects_wrong_take_count() -> None:
+    source = """metis 0.43
+endpoint demo.target {
+  take 12 from @video {
+    include where { @mood is "Romantico" }
+    order by @publication_date descending
+    return response.expanded
+  }
+}
+"""
+    result = adjudicate_candidate_shape(
+        source,
+        endpoint="demo.target",
+        take_mode="count",
+        take_value=24,
+        order_field="publication_date",
+        order_direction="descending",
+        response="response.expanded",
+    )
+    assert not result.ok

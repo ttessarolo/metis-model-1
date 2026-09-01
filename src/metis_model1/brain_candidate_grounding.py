@@ -858,6 +858,113 @@ def _values(predicates: list[_Predicate]) -> list[str]:
     return [literal for predicate in predicates for literal in predicate.literals]
 
 
+def adjudicate_candidate_shape(
+    source: str,
+    *,
+    endpoint: str,
+    take_mode: str,
+    take_value: int,
+    order_field: str,
+    order_direction: str,
+    response: str,
+) -> CandidateGroundingCheck:
+    """Verify one endpoint's top-level order and response tokens, ignoring trivia.
+
+    The pinned compiler remains the grammar authority.  This deliberately small
+    scanner is only an independent product oracle for operator-requested shape;
+    comments and quoted labels cannot satisfy it.
+    """
+
+    if (
+        not isinstance(source, str)
+        or not source
+        or len(source.encode("utf-8")) > MAX_SOURCE_BYTES
+        or not isinstance(endpoint, str)
+        or not endpoint
+        or take_mode != "count"
+        or type(take_value) is not int
+        or not 1 <= take_value <= 1_000_000
+        or not isinstance(order_field, str)
+        or not order_field
+        or order_direction not in {"ascending", "descending"}
+        or response != "response.expanded"
+    ):
+        raise BrainError("GROUNDING_INVALID", 500, "candidate shape contract is invalid")
+    for value in (endpoint, order_field, response):
+        parsed, parsed_end = _word_after(value, 0)
+        if parsed != value or parsed_end != len(value):
+            raise BrainError("GROUNDING_INVALID", 500, "candidate shape contract is invalid")
+    try:
+        endpoint_blocks = _endpoint_blocks(source)
+        if len(endpoint_blocks) != 1 or endpoint_blocks[0][0] != endpoint:
+            raise _ScanFailure("candidate endpoint identity differs")
+        regions = _endpoint_take_regions(source)
+        if len(regions) != 1:
+            raise _ScanFailure("candidate take is not unique")
+        region = regions[0]
+        if region.directive != TakeContract(take_mode, take_value):
+            raise _ScanFailure("candidate take differs from the operator contract")
+        opening = region.start
+        while opening < region.end:
+            if source[opening].isspace() or source.startswith(("//", "/*"), opening):
+                opening = _skip_trivia(source, opening)
+                continue
+            if source[opening] == '"':
+                _literal, opening = _scan_string(source, opening)
+                continue
+            if source[opening] == "{":
+                break
+            opening += 1
+        if opening >= region.end or source[opening] != "{":
+            raise _ScanFailure("candidate take block is unavailable")
+        closing = _block_end(source, opening)
+        orders: list[tuple[str, str]] = []
+        responses: list[str] = []
+        index = opening + 1
+        while index < closing:
+            if source[index].isspace() or source.startswith(("//", "/*"), index):
+                index = _skip_trivia(source, index)
+                continue
+            if source[index] == '"':
+                _literal, index = _scan_string(source, index)
+                continue
+            if source[index] == "{":
+                index = _block_end(source, index) + 1
+                continue
+            if _word_at(source, index, "order"):
+                by, cursor = _word_after(source, index + len("order"))
+                cursor = _skip_trivia(source, cursor)
+                if by != "by" or cursor >= closing or source[cursor] != "@":
+                    raise _ScanFailure("candidate order surface is invalid")
+                field, cursor = _word_after(source, cursor + 1)
+                direction, cursor = _word_after(source, cursor)
+                if field is None or direction not in {"ascending", "descending"}:
+                    raise _ScanFailure("candidate order surface is invalid")
+                orders.append((field, direction))
+                index = cursor
+                continue
+            if _word_at(source, index, "return"):
+                returned, cursor = _word_after(source, index + len("return"))
+                if returned is None:
+                    raise _ScanFailure("candidate response surface is invalid")
+                responses.append(returned)
+                index = cursor
+                continue
+            word, word_end = _word_after(source, index)
+            index = word_end if word is not None and word_end > index else index + 1
+        if orders != [(order_field, order_direction)] or responses != [response]:
+            raise _ScanFailure("candidate shape differs from the operator contract")
+    except _ScanFailure as error:
+        return CandidateGroundingCheck(
+            False,
+            {
+                "code": "CANDIDATE_SHAPE_MISMATCH",
+                "reason": str(error),
+            },
+        )
+    return CandidateGroundingCheck(True)
+
+
 def _predicate_view(predicate: _Predicate) -> dict[str, Any]:
     return {"operator": predicate.operator, "literals": list(predicate.literals)}
 

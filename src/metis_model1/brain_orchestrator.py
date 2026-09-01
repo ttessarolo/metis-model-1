@@ -107,7 +107,10 @@ class BrainOrchestrator:
                 raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
             retrieval_started = time.monotonic()
             record.emit("retrieval.started", "retrieval_started", "Recupero contesto")
-            retrieved = self._retriever.retrieve(lease=lease, request=request)
+            with record.heartbeat_while(
+                phase="retrieval_running", label="Recupero contesto in corso"
+            ):
+                retrieved = self._retriever.retrieve(lease=lease, request=request)
             self._check_semantic_revision(request, retrieved)
             record.emit(
                 "retrieval.completed",
@@ -187,7 +190,10 @@ class BrainOrchestrator:
             )
             if candidate is None:
                 record.emit("inference.started", "inference_started", "Model 1 in generazione")
-                candidate = self._generate(model_request)
+                with record.heartbeat_while(
+                    phase="inference_running", label="Model 1 sta preparando il draft"
+                ):
+                    candidate = self._generate(model_request)
             else:
                 record.emit(
                     "inference.started",
@@ -238,7 +244,10 @@ class BrainOrchestrator:
                         cancellation=record.cancellation,
                     )
                     repair_started = time.monotonic()
-                    candidate = self._generate(repair_request)
+                    with record.heartbeat_while(
+                        phase="repair_running", label="Correzione verificata in corso"
+                    ):
+                        candidate = self._generate(repair_request)
                     record.emit(
                         "repair.completed",
                         "repair_completed",
@@ -256,13 +265,16 @@ class BrainOrchestrator:
                 )
                 compile_started = time.monotonic()
                 try:
-                    compile_receipt = self._compiler.compile(
-                        lease=lease,
-                        source=candidate.source,
-                        filename=request.target["relative_path"],
-                        execution_mode="endpoint" if request.target["endpoint"] else "source",
-                        endpoint=request.target["endpoint"],
-                    )
+                    with record.heartbeat_while(
+                        phase="compile_running", label="Validazione del compilatore in corso"
+                    ):
+                        compile_receipt = self._compiler.compile(
+                            lease=lease,
+                            source=candidate.source,
+                            filename=request.target["relative_path"],
+                            execution_mode=("endpoint" if request.target["endpoint"] else "source"),
+                            endpoint=request.target["endpoint"],
+                        )
                 except BrainError:
                     raise
                 except Exception as error:
@@ -306,7 +318,10 @@ class BrainOrchestrator:
                     cancellation=record.cancellation,
                 )
                 repair_started = time.monotonic()
-                candidate = self._generate(repair_request)
+                with record.heartbeat_while(
+                    phase="repair_running", label="Correzione verificata in corso"
+                ):
+                    candidate = self._generate(repair_request)
                 record.emit(
                     "repair.completed",
                     "repair_completed",
@@ -370,7 +385,10 @@ class BrainOrchestrator:
                 "Interpreto i requisiti non risolti",
             )
             try:
-                compiled = self._intent_compiler.compile(compile_request)
+                with record.heartbeat_while(
+                    phase="intent_running", label="Interpretazione locale in corso"
+                ):
+                    compiled = self._intent_compiler.compile(compile_request)
             except BrainError:
                 raise
             except Exception as error:
@@ -421,7 +439,10 @@ class BrainOrchestrator:
             "retrieval_retry_started",
             "Riprovo il grounding sui requisiti esatti",
         )
-        retried = self._retriever.retrieve(lease=lease, request=request)
+        with record.heartbeat_while(
+            phase="retrieval_running", label="Grounding delimitato in corso"
+        ):
+            retried = self._retriever.retrieve(lease=lease, request=request)
         self._check_semantic_revision(request, retried)
         record.emit(
             "retrieval.completed",
@@ -1117,6 +1138,11 @@ class BrainOrchestrator:
             "diagnostics": diagnostics,
             "attempts": attempts,
             "compiler_receipt_sha256": receipt.get("receipt_sha256", "unavailable"),
+            "compiled_endpoint_sha256": (
+                receipt.get("compiler", {}).get("endpoint_sha256")
+                if isinstance(receipt.get("compiler"), Mapping)
+                else None
+            ),
         }
         grounding = self._grounding(retrieved)
         semantically_grounded = (

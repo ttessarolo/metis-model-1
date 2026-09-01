@@ -1511,6 +1511,16 @@ class Schema2SnapshotRetriever:
         if callable(close):
             close()
 
+    def prewarm(self, snapshot: Any) -> dict[str, str]:
+        """Build the immutable snapshot index before the first user turn."""
+
+        indexed = self._indexed(snapshot)
+        return {
+            "context_revision": snapshot.revision,
+            "semantic_source_revision": indexed.index["semantic_source_revision"],
+            "toolchain_binding": indexed.index["toolchain_revision"],
+        }
+
     def _indexed(self, snapshot: Any) -> _IndexedSnapshot:
         try:
             semantic_revision = snapshot.semantic_source_revision()

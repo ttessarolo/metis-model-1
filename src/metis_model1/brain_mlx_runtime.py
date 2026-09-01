@@ -43,7 +43,8 @@ WORKER_MAX_TOKENS = MAX_GENERATION_TOKENS
 DEFAULT_TIMEOUT_SECONDS = 300.0
 MAX_STDERR_BYTES = 128 * 1024
 MAX_REQUESTS_PER_PROCESS = 120
-MODEL_WIRE_VERSION = 2
+MODEL_WIRE_VERSION = 3
+PREFIX_CACHE_WIRE_VERSION = 2
 DEFAULT_CACHE_SCOPE = "model1-prefix-v1"
 MAX_CACHE_SCOPE_BYTES = 128
 MAX_PREFIX_CACHE_TOKENS = 4096
@@ -52,7 +53,7 @@ KILL_WAIT_SECONDS = 5.0
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_PATH = PROJECT_ROOT / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md"
 REFERENCE_SHA256 = "ca2f7fc354e75a5c9367f6c934e67a04f7e44fd1615e26a8f19be6cde444194b"
-WORKER_SHA256 = "sha256:674e437b08d2529309dd6f9b3e6f2847f0f4e94634e55ca914d4ab60204302b5"
+WORKER_SHA256 = "sha256:47914f2109a3764a1e192e2cdbf6f6a1973fd05d083f04376f35af0293654466"
 _RUNTIME_REFERENCE_SECTIONS = (
     "## Output discipline",
     "### Catalog, fields, and value domains",
@@ -345,6 +346,7 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         worker_script: Path | str | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         cache_scope: str = DEFAULT_CACHE_SCOPE,
+        prefix_cache_enabled: bool = True,
     ) -> None:
         if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds):
             raise BrainError("MODEL_RUNTIME_CONFIG", 500, "model timeout is invalid")
@@ -361,6 +363,10 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             raise BrainError("MODEL_RUNTIME_CONFIG", 500, "model sandbox is unavailable")
         self._timeout_seconds = float(timeout_seconds)
         self._cache_scope = _cache_scope(cache_scope)
+        if type(prefix_cache_enabled) is not bool:
+            raise BrainError("MODEL_RUNTIME_CONFIG", 500, "model prefix-cache mode is invalid")
+        self._prefix_cache_enabled = prefix_cache_enabled
+        self._cache_mode = "prefix" if prefix_cache_enabled else "disabled"
         self._prefix_hash = (
             "sha256:" + hashlib.sha256(canonical_json(_prefix_messages())).hexdigest()
         )
@@ -412,6 +418,18 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         return self._adapter_sha256
 
     @property
+    def worker_sha256(self) -> str:
+        return self._worker_sha256
+
+    @property
+    def prompt_prefix_sha256(self) -> str:
+        return self._prefix_hash
+
+    @property
+    def cache_mode(self) -> str:
+        return self._cache_mode
+
+    @property
     def runtime_identity(self) -> dict[str, Any]:
         return dict(self._runtime_identity)
 
@@ -450,6 +468,35 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         with self._request_lock:
             return self._prefix_cache_ready
 
+    def _set_cache_mode_for_qualification(self, mode: str) -> None:
+        """Select one A/B arm on the same warm worker.
+
+        This private seam is intentionally unavailable to Brain configuration.
+        It exists only so the local qualification harness can alternate direct
+        and prefix requests without changing weights, process, prompt template
+        or host thermal history.  The disabled arm merely declines to clone the
+        already-qualified public prefix; it never destroys or rewrites it.
+        """
+
+        if mode not in {"disabled", "prefix"}:
+            raise BrainError("MODEL_RUNTIME_CONFIG", 500, "qualification cache mode is invalid")
+        with self._request_lock:
+            self._ensure_open()
+            process = self._process
+            if (
+                process is None
+                or process.poll() is not None
+                or self._warmup_status != "ready"
+                or not self._prefix_cache_enabled
+                or not self._prefix_cache_ready
+                or type(self._warmup_prefix_tokens) is not int
+                or self._warmup_prefix_tokens < 1
+            ):
+                raise BrainError(
+                    "MODEL_RUNTIME_BROKEN", 503, "qualification prefix template is unavailable"
+                )
+            self._cache_mode = mode
+
     def warmup(self) -> dict[str, int | str]:
         """Load the worker and prefill the public prefix without a user turn."""
 
@@ -479,6 +526,7 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             "request_id": request_id,
             "messages": messages,
             "max_tokens": WORKER_MAX_TOKENS,
+            "cache_mode": self._cache_mode,
             "cache_scope": self._cache_scope,
             "model_revision": self._model_revision,
             "adapter_sha256": self._adapter_sha256,
@@ -488,7 +536,9 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         if len(raw) > MAX_WORKER_REQUEST_BYTES:
             raise BrainError("MODEL_INPUT_TOO_LARGE", 413, "model request exceeds the worker limit")
 
+        queue_started = time.monotonic()
         with self._request_lock:
+            model_lock_queue_ms = max(0, int((time.monotonic() - queue_started) * 1000))
             self._ensure_open()
             if request.cancellation is not None and request.cancellation.is_set():
                 raise BrainError(
@@ -511,26 +561,39 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             try:
                 response = self._parse_response(line, request_id)
                 source = response["text"]
+                metrics = {
+                    key: response[key]
+                    for key in (
+                        "worker_load_ms",
+                        "worker_request_ms",
+                        "generation_ms",
+                        "cache_prepare_ms",
+                        "tokenization_ms",
+                        "time_to_first_token_ms",
+                        "decode_after_first_token_ms",
+                        "generation_residual_ms",
+                        "worker_residual_ms",
+                        "prompt_tokens",
+                        "uncached_prompt_tokens",
+                        "generation_tokens",
+                        "cached_tokens",
+                        "cache_hit",
+                        "cache_mode",
+                        "prompt_tps",
+                        "generation_tps",
+                        "finish_reason",
+                        "peak_metal_gb",
+                    )
+                    if key in response
+                }
+                if "worker_request_ms" in metrics:
+                    metrics["model_lock_queue_ms"] = model_lock_queue_ms
                 candidate = ModelCandidate(
                     source,
                     self._model_revision,
                     self._adapter_sha256,
                     generator="model",
-                    metrics={
-                        key: response[key]
-                        for key in (
-                            "worker_load_ms",
-                            "generation_ms",
-                            "prompt_tokens",
-                            "generation_tokens",
-                            "cached_tokens",
-                            "cache_hit",
-                            "prompt_tps",
-                            "generation_tps",
-                            "finish_reason",
-                            "peak_metal_gb",
-                        )
-                    },
+                    metrics=metrics,
                 )
             except BrainError as error:
                 self._mark_broken(process)
@@ -664,6 +727,7 @@ class MlxBrainModelRuntime(BrainModelRuntime):
                     "schema_version": MODEL_WIRE_VERSION,
                     "request_id": request_id,
                     "operation": "warmup",
+                    "cache_mode": self._cache_mode,
                     "cache_scope": self._cache_scope,
                     "model_revision": self._model_revision,
                     "adapter_sha256": self._adapter_sha256,
@@ -693,14 +757,15 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         return process
 
     def _verify_worker(self) -> None:
-        if not self._production_worker:
-            return
         try:
             digest = qualified_runtime._prefixed_sha256(self._worker_script)
         except Exception as error:
             raise BrainError(
                 "MODEL_RUNTIME_CONFIG", 500, "qualified model worker is unavailable"
             ) from error
+        self._worker_sha256 = digest
+        if not self._production_worker:
+            return
         if digest != WORKER_SHA256:
             raise BrainError("MODEL_RUNTIME_CONFIG", 500, "qualified model worker differs")
 
@@ -812,7 +877,7 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             raise BrainError(
                 "MODEL_RESPONSE_INVALID", 502, "local Model 1 response is invalid"
             ) from error
-        expected_fields = {
+        legacy_fields = {
             "request_id",
             "text",
             "peak_metal_gb",
@@ -826,22 +891,47 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             "generation_tps",
             "finish_reason",
         }
+        phase_fields = legacy_fields | {
+            "cache_mode",
+            "worker_request_ms",
+            "cache_prepare_ms",
+            "tokenization_ms",
+            "time_to_first_token_ms",
+            "decode_after_first_token_ms",
+            "generation_residual_ms",
+            "worker_residual_ms",
+            "uncached_prompt_tokens",
+        }
         if not isinstance(value, dict) or set(value) not in (
-            expected_fields,
-            expected_fields - {"cache_hit"},
+            legacy_fields,
+            legacy_fields - {"cache_hit"},
+            phase_fields,
         ):
             raise BrainError(
                 "MODEL_RESPONSE_INVALID", 502, "local Model 1 response schema is invalid"
             )
         peak = value["peak_metal_gb"]
         text = value["text"]
-        integer_metrics = (
+        integer_metrics = [
             value["worker_load_ms"],
             value["generation_ms"],
             value["prompt_tokens"],
             value["generation_tokens"],
             value["cached_tokens"],
-        )
+        ]
+        if set(value) == phase_fields:
+            integer_metrics.extend(
+                [
+                    value["tokenization_ms"],
+                    value["worker_request_ms"],
+                    value["cache_prepare_ms"],
+                    value["time_to_first_token_ms"],
+                    value["decode_after_first_token_ms"],
+                    value["generation_residual_ms"],
+                    value["worker_residual_ms"],
+                    value["uncached_prompt_tokens"],
+                ]
+            )
         rate_metrics = (value["prompt_tps"], value["generation_tps"])
         if (
             value["request_id"] != request_id
@@ -880,6 +970,41 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             raise BrainError(
                 "MODEL_RESPONSE_INVALID", 502, "local Model 1 cache telemetry is invalid"
             )
+        if self._cache_mode == "disabled" and (
+            value["cached_tokens"] != 0 or value["cache_hit"] is not False
+        ):
+            raise BrainError(
+                "MODEL_RESPONSE_INVALID", 502, "local Model 1 disabled cache was reused"
+            )
+        if set(value) == phase_fields and (
+            value["cache_mode"] != self._cache_mode
+            or value["uncached_prompt_tokens"] != value["prompt_tokens"] - value["cached_tokens"]
+            or abs(
+                value["time_to_first_token_ms"]
+                + value["decode_after_first_token_ms"]
+                + value["generation_residual_ms"]
+                - value["generation_ms"]
+            )
+            > 2
+            or value["generation_ms"] < 1
+            or abs(
+                value["cache_prepare_ms"]
+                + value["tokenization_ms"]
+                + value["generation_ms"]
+                + value["worker_residual_ms"]
+                - value["worker_request_ms"]
+            )
+            > 2
+            or value["worker_request_ms"] < 1
+            or any(float(item) <= 0 for item in rate_metrics)
+            or (
+                value["cache_mode"] == "disabled"
+                and (value["cached_tokens"] != 0 or value["cache_hit"] is not False)
+            )
+        ):
+            raise BrainError(
+                "MODEL_RESPONSE_INVALID", 502, "local Model 1 phase telemetry is invalid"
+            )
         return value
 
     def _parse_warmup_response(self, line: bytes, request_id: str) -> dict[str, Any]:
@@ -904,21 +1029,28 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             "model_revision",
             "adapter_sha256",
         }
-        current_fields = legacy_fields | {
+        cache_fields = legacy_fields | {
             "cache_scope",
             "prefix_sha256",
             "prefix_tokens",
             "cache_ready",
         }
-        if set(value) == legacy_fields and value.get("schema_version") == 1:
+        current_fields = cache_fields | {"cache_mode"}
+        legacy_response = set(value) == legacy_fields and value.get("schema_version") == 1
+        if legacy_response:
             value.update(
                 {
                     "cache_scope": self._cache_scope,
                     "prefix_sha256": self._prefix_hash,
                     "prefix_tokens": 0,
                     "cache_ready": False,
+                    "cache_mode": self._cache_mode,
                 }
             )
+        elif (
+            set(value) == cache_fields and value.get("schema_version") == PREFIX_CACHE_WIRE_VERSION
+        ):
+            value["cache_mode"] = "prefix"
         elif set(value) != current_fields or value.get("schema_version") != MODEL_WIRE_VERSION:
             raise BrainError(
                 "MODEL_RESPONSE_INVALID", 502, "local Model 1 warmup response is invalid"
@@ -929,9 +1061,20 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             or value["adapter_sha256"] != self._adapter_sha256
             or value["cache_scope"] != self._cache_scope
             or value["prefix_sha256"] != self._prefix_hash
+            or value["cache_mode"] != self._cache_mode
             or type(value["prefix_tokens"]) is not int
             or not 0 <= value["prefix_tokens"] <= MAX_PREFIX_CACHE_TOKENS
             or type(value["cache_ready"]) is not bool
+            or (
+                not legacy_response
+                and self._prefix_cache_enabled
+                and (value["prefix_tokens"] < 1 or value["cache_ready"] is not True)
+            )
+            or (
+                not legacy_response
+                and not self._prefix_cache_enabled
+                and (value["prefix_tokens"] != 0 or value["cache_ready"] is not False)
+            )
             or type(value["worker_load_ms"]) is not int
             or not 0 <= value["worker_load_ms"] <= MAX_TELEMETRY_COUNT
             or self._stderr_overflow

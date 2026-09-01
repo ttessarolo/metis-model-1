@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 import secrets
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -29,6 +31,8 @@ _REF_RE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
 _PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 _INTENTS = frozenset({"create", "edit", "repair", "review", "migrate"})
 MAX_SESSION_TURNS = 64
+HEARTBEAT_INTERVAL_SECONDS = 4.0
+MAX_EVENT_METRIC = 1_000_000
 _EVENTS = frozenset(
     {
         "turn.accepted",
@@ -44,6 +48,7 @@ _EVENTS = frozenset(
         "compile.completed",
         "repair.started",
         "repair.completed",
+        "heartbeat",
         "terminal",
     }
 )
@@ -336,32 +341,85 @@ class TurnRecord:
     condition: threading.Condition = field(default_factory=threading.Condition)
     apply_ticket: str | None = None
     apply_ticket_expires_at: datetime | None = None
+    _next_sequence: int = field(default=1, repr=False)
 
     def emit(self, event: str, phase: str, label: str, **metrics: int | str | bool) -> None:
         if event not in _EVENTS:
             raise ValueError("event is not public")
-        safe_metrics = {
-            key: value
-            for key, value in metrics.items()
-            if key in {"attempt", "count", "bytes", "duration_ms", "replayed"}
-            and isinstance(value, (int, str, bool))
-        }
+        safe_metrics: dict[str, int | bool] = {}
+        for key, value in metrics.items():
+            valid_boolean = key == "replayed" and type(value) is bool
+            valid_count = (
+                key in {"attempt", "count", "bytes", "duration_ms", "elapsed_ms"}
+                and type(value) is int
+                and 0 <= value <= MAX_EVENT_METRIC
+            )
+            if valid_boolean or valid_count:
+                safe_metrics[key] = value
         with self.condition:
             event_value = {
                 "event": event,
                 "data": {
                     "schema_version": 1,
                     "turn_id": self.turn_id,
-                    "sequence": len(self.events) + 1,
+                    "sequence": self._next_sequence,
                     "phase": phase,
                     "label": label,
                     **safe_metrics,
                 },
             }
+            self._next_sequence += 1
             self.events.append(event_value)
             if len(self.events) > 256:
                 del self.events[0]
             self.condition.notify_all()
+
+    @contextmanager
+    def heartbeat_while(
+        self,
+        *,
+        phase: str,
+        label: str,
+        interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
+    ):
+        """Emit bounded liveness only while one authentic phase is blocked."""
+
+        if (
+            type(interval_seconds) not in (int, float)
+            or not 0.01 <= float(interval_seconds) <= 5.0
+            or not isinstance(phase, str)
+            or not phase
+            or len(phase.encode("utf-8")) > 96
+            or not isinstance(label, str)
+            or not label
+            or len(label.encode("utf-8")) > 160
+        ):
+            raise ValueError("heartbeat contract is invalid")
+        stop = threading.Event()
+        started = time.monotonic()
+
+        def emit_heartbeats() -> None:
+            while not stop.wait(float(interval_seconds)):
+                with self.condition:
+                    if self.terminal is not None:
+                        return
+                    elapsed_ms = min(
+                        MAX_EVENT_METRIC,
+                        max(0, int((time.monotonic() - started) * 1000)),
+                    )
+                    self.emit("heartbeat", phase, label, elapsed_ms=elapsed_ms)
+
+        thread = threading.Thread(
+            target=emit_heartbeats,
+            name=f"brain-heartbeat-{self.turn_id[:12]}",
+            daemon=True,
+        )
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join(timeout=min(1.0, float(interval_seconds) + 0.1))
 
     def public_status(self) -> dict[str, Any]:
         with self.condition:
@@ -972,13 +1030,13 @@ class TurnStore:
         )
 
     def _finish(self, record: TurnRecord, payload: dict[str, Any]) -> None:
-        if record.terminal is not None:
-            return
-        record.terminal = payload
-        record.emit("terminal", "terminal", "Turn terminato")
+        with record.condition:
+            if record.terminal is not None:
+                return
+            record.terminal = payload
+            record.emit("terminal", "terminal", "Turn terminato")
         with self._lock:
             self._active.discard(record.session_id)
-        record.condition.notify_all()
 
     @staticmethod
     def _error_payload(record: TurnRecord, error: BrainError) -> dict[str, Any]:

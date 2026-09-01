@@ -153,6 +153,22 @@ def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -
     )
     assert loaded.retrieval == BrainRetrievalConfig(schema2=True)
 
+    config["retrieval"] = {"schema2": True, "warmup": "on_start"}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    assert load_brain_config(path.resolve()).retrieval == BrainRetrievalConfig(
+        schema2=True, warmup="on_start"
+    )
+
+    config["retrieval"] = {"schema2": True, "warmup": "always"}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="retrieval warmup policy"):
+        load_brain_config(path.resolve())
+
+    config["retrieval"] = {"schema2": True, "warmup": []}
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="retrieval warmup policy"):
+        load_brain_config(path.resolve())
+
     config["retrieval"] = {"schema2": False}
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(BrainError, match="requires schema2"):
@@ -215,3 +231,4 @@ def test_play_demo_fixture_binds_the_workspace_tenant_identity() -> None:
         }
     ]
     assert value["model"]["warmup"] == "on_start"
+    assert value["retrieval"] == {"schema2": True, "warmup": "on_start"}

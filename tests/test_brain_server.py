@@ -311,6 +311,12 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
             "enabled": True,
             "schema": 2,
             "implementation": "Schema2SnapshotRetriever",
+            "warmup": {
+                "policy": "lazy",
+                "status": "cold",
+                "duration_ms": None,
+                "tenant_count": 0,
+            },
         }
     finally:
         app.close()
@@ -688,8 +694,9 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
             calls["loader"] = kwargs
 
     class FakeRetriever:
-        def __init__(self, loader: Any) -> None:
+        def __init__(self, loader: Any, **kwargs: Any) -> None:
             calls["retriever_loader"] = loader
+            calls["retriever_options"] = kwargs
 
     monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", FakeModel)
     monkeypatch.setattr(brain_server_module, "PinnedCatalogProjectionLoader", FakeLoader)
@@ -708,9 +715,44 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
             "max_concurrency": config.compiler_concurrency,
         }
         assert calls["retriever_loader"] is not None
+        assert calls["retriever_options"] == {"cache_size": 8}
     finally:
         service.close()
     assert calls["model_closed"] is True
+
+
+def test_service_sizes_schema2_cache_for_every_configured_tenant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = _service_config(tmp_path)
+    grants = tuple(
+        (f"tenant-{index}", "tenant-one", _tenant(tmp_path / f"tenant-root-{index}"))
+        for index in range(9)
+    )
+    aliases = frozenset(item[0] for item in grants)
+    config = replace(
+        base,
+        tenant_grants=grants,
+        client_policies=(ClientPolicy("visix", aliases, CAPABILITIES),),
+        retrieval=BrainRetrievalConfig(schema2=True),
+    )
+    calls: dict[str, Any] = {}
+
+    class FakeLoader:
+        def __init__(self, **_kwargs: Any) -> None:
+            return None
+
+    class FakeRetriever:
+        def __init__(self, _loader: Any, **kwargs: Any) -> None:
+            calls.update(kwargs)
+
+    monkeypatch.setattr(brain_server_module, "PinnedCatalogProjectionLoader", FakeLoader)
+    monkeypatch.setattr(brain_server_module, "Schema2SnapshotRetriever", FakeRetriever)
+    service = MetisBrainService(config, compiler=ConstructibleFakeCompiler())
+    try:
+        assert calls == {"cache_size": 9}
+    finally:
+        service.close()
 
 
 def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
@@ -781,6 +823,50 @@ def test_service_warms_configured_model_before_binding_and_exposes_safe_health(
     finally:
         service.close()
     assert calls[-1] == "closed"
+
+
+def test_service_prewarms_schema2_retrieval_before_binding_and_reports_exact_roster(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = replace(
+        _service_config(tmp_path),
+        retrieval=BrainRetrievalConfig(schema2=True, warmup="on_start"),
+    )
+    calls: list[str] = []
+
+    class WarmRetriever:
+        def prewarm(self, snapshot: Any) -> dict[str, str]:
+            calls.append(f"prewarm:{snapshot.tenant_alias}")
+            return {
+                "context_revision": snapshot.revision,
+                "semantic_source_revision": snapshot.semantic_source_revision(),
+                "toolchain_binding": snapshot.toolchain_binding,
+            }
+
+        def close(self) -> None:
+            calls.append("retriever-closed")
+
+    class RecordingServer(_ThreadingBrainHTTPServer):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            calls.append("bound")
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(brain_server_module, "_ThreadingBrainHTTPServer", RecordingServer)
+    service = MetisBrainService(
+        config,
+        compiler=ConstructibleFakeCompiler(),
+        retriever=WarmRetriever(),
+    )
+    try:
+        assert calls[:2] == ["prewarm:demo", "bound"]
+        warmup = service.app.health()["semantic_retrieval"]["warmup"]
+        assert warmup["policy"] == "on_start"
+        assert warmup["status"] == "ready"
+        assert warmup["tenant_count"] == 1
+        assert type(warmup["duration_ms"]) is int
+    finally:
+        service.close()
+    assert calls[-1] == "retriever-closed"
 
 
 def test_service_warmup_failure_is_fail_closed_and_cleans_runtime(

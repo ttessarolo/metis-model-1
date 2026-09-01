@@ -1,7 +1,7 @@
 # Metis Brain: local latency and isolation
 
-Status: **implemented, including explicit startup warmup; live performance
-scope remains bounded**.
+Status: **implemented and statically qualified; the frozen live receipt and
+current installed-VS-Code proof are still required for promotion**.
 
 ## Problem
 
@@ -95,12 +95,22 @@ likewise projected to the endpoint-authoring, catalog-domain, condition, block,
 and standard-library sections; the complete reference hash remains the source
 authority.
 
-The worker now reports bounded numeric telemetry:
-load and generation milliseconds, prompt/generation/cached token counts,
-an exact cache-hit flag, prompt and generation rates, peak Metal memory, and
-`finish_reason` restricted to `stop` or `length`. The runtime validates the
-complete shape and bounds before exposing it in proposal identity. No prompt,
-source context, hidden chain-of-thought, or internal reasoning is exposed.
+The worker now reports bounded numeric telemetry: worker request, cache
+preparation, tokenization, generation, time-to-first-token (TTFT),
+decode-after-first-token, residual worker/host time, prompt/generated/cached
+token counts, an exact cache-hit flag, prompt and generation rates, peak Metal
+memory, and `finish_reason` restricted to `stop` or `length`. The host also
+measures the exact wait for the serialized model lock as
+`model_lock_queue_ms`;
+startup health separately reports worker load.
+
+The pinned MLX-VLM API produces its first observable result only after dynamic
+prefill and the first token have both completed. Therefore TTFT is deliberately
+labelled as that indivisible interval: Brain does **not** claim a pure dynamic
+prefill timer it cannot observe. Decode-after-first-token is separate. The
+runtime validates the complete shape and bounds before exposing it in proposal
+identity. No prompt, source context, hidden chain-of-thought, or internal
+reasoning is exposed.
 
 The local demo config sets `model.warmup` to `on_start`. Every new MLX worker
 first accepts one exact versioned `warmup` operation and responds only after
@@ -128,10 +138,63 @@ matrix is run.
 
 The event stream exposes only allow-listed phase names, labels, sequence data,
 and bounded metrics. Started/completed events cover retrieval, inference,
-compile, and bounded repair; completed events include `duration_ms` where
-available. The terminal envelope remains the authoritative proposal/validation
-result. Public progress contains phase duration, not prompts, tenant values
-beyond the existing proposal contract, source internals, or chain-of-thought.
+compile, and bounded repair; heartbeat events provide bounded elapsed progress.
+Every event has a monotonic numeric SSE id. A reconnect supplies
+`Last-Event-ID`; the server replays only events with a greater sequence. The
+terminal envelope remains the authoritative proposal/validation result. Public
+progress contains phase duration, not prompts, tenant values beyond the
+existing proposal contract, source internals, or chain-of-thought.
+
+## Frozen A/B receipt runner
+
+The runner starts one persistent prefix-qualified worker, executes one excluded
+preflight for each physical path (`direct`, then `prefix`), and only then runs
+six adjacent pairs counterbalanced AB/BA. Request, source, snapshot, seed,
+output budget, reviewed selections, requested take, ordering, response form and
+first-attempt compiler result must remain identical. The two preflight
+projections are retained as redacted hashes and are not counted in the 12
+measured observations.
+
+The receipt binds the exact case bytes, clean Model 1 commit/tree, tenant
+commit/tree/roster/target, model/adapter/worker/prefix, semantic/toolchain
+identity, and Flash identity if the bounded retry route was actually used. A
+structural oracle verifies endpoint name, top-level order and exact response;
+the compiled-endpoint hash is required to remain identical to the preflights
+but is not mistaken for a formatting-independent semantic oracle. Receipt
+creation walks from the fixed ignored root through no-follow directory
+descriptors and holds the exact parent descriptor until all post-write guards
+pass. Bytes are first fsynced under a random dot-pending name. The final receipt
+name is published create-only, through the retained parent descriptor, only
+after those guards pass; discard or a pre-publication crash therefore cannot
+leave a file that looks like an accepted final receipt. A distinguishable
+`.pending` file may remain after an abrupt process death and is never admitted
+as evidence.
+
+The runner writes only this redacted receipt below
+`artifacts/metis-brain-latency/`. The bounded command is:
+
+```bash
+uv run metis-model1 brain-latency-benchmark \
+  --config /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.play-demo.local.json \
+  --case /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-latency.play-demo.json \
+  --output /Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-latency/play-demo.json
+```
+
+The receipt retains per-observation telemetry, event/heartbeat counts,
+grounding/compiler/source hashes and tenant guards. Replay verifies the full
+roster, including both excluded preflights, but independent review must still
+compare `case_sha256` with the exact committed case. This is a procedure, not a
+claim that a benchmark, VS Code proof or promotion has completed.
+
+## Optimization boundary and fail-closed compiler
+
+The public-prefix cache is the only currently compatible optimization.
+Speculative decode is **STOP**: qualified Qwen has no compatible drafter/MTP
+payload, and no new downloads are authorized. The lossless compiler renderer
+is being developed independently in the compiler repository; until its
+byte-preserving parse/render and untouched-span golden tests are delivered and
+reviewed here, `EditPlan` remains fail-closed. Compile-clean output alone does
+not close this gate.
 
 ## Lifecycle and cleanup
 
@@ -316,11 +379,12 @@ make check
 git diff --check -- docs/27-metis-brain-local-latency.md
 ```
 
-The authoritative repository gate completed after the warm-runtime changes:
-foundation `85/85` with zero errors, whole-repository Ruff and formatting
-green, and `2643 passed, 2 skipped, 0 failed` in the test harness. The required
-real installed VS Code no-Apply dialogue and the current real qualified-model
-proof are recorded above.
+The following counts belong to the preceding warm-runtime delivery, not to the
+current prefix-promotion diff: foundation `85/85` with zero errors,
+whole-repository Ruff and formatting green, and `2643 passed, 2 skipped, 0
+failed`. The current diff is promoted only after its own `make check`, sealed
+live receipt and installed-VS-Code Draft proof are recorded on the active
+board.
 
 The installed extension recovered its tenant and chat surfaces after a VS Code
 window reload, and the final no-Apply Draft smoke passed. A deliberately killed
