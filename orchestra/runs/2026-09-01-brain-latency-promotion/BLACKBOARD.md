@@ -1,6 +1,6 @@
 # Metis Brain latency promotion wave
 
-Status: **ACTIVE — CHECKPOINTED FOR HOST RESTART AT THE INSTALLED VS CODE GATE**
+Status: **STOPPED — VS CODE HAS NO RESOLVABLE CHAT MODEL BEFORE `@metis` DISPATCH**
 
 ## Mandate
 
@@ -429,3 +429,57 @@ unfinished wave.
 - If the corrected request again reports unavailable, capture the exact visible
   error and stop the UX gate. Do not weaken warmup, grounding, compiler,
   isolation or the 60-second client deadline to force green.
+
+## POST-RESTART INSTALLED GATE — 2026-09-02 10:01 CEST
+
+- DONE — Independent read-only Orchestra preflight after reboot found Model 1
+  `HEAD == origin/main == 3d9e9c713bf9e97593416c7c5e2bf7d9fdab2a2f`
+  and the VS Code tenant
+  `HEAD == origin/main == bfd6cbe4c7b06cc00a2493eac34db02887bc997b`,
+  both aligned `0/0` and clean. Installed `metis.metis-dsl@0.23.97`, the
+  executable/config/client settings, pinned Node, Model 1 checkpoint, adapter
+  and Flash payload are present. No Brain, Model 1 or Flash worker survived the
+  reboot.
+- FACT — L0 opened the exact `play-demo` workspace in installed VS Code,
+  observed tenant `play-demo` and extension `v0.23.97`, started a new native
+  Chat, selected the `@metis` participant through autocomplete and submitted
+  the exact restart-checkpoint request. The visible terminal result was
+  `Language model unavailable`, elapsed `2s`. No Draft or Apply surface was
+  produced.
+- FACT — The extension host proves this failure precedes the Metis participant
+  handler. `exthost.log:26` records successful activation of
+  `metis.metis-dsl`; `exthost.log:58-61` records
+  `[LanguageModelProxy](metis.metis-dsl)` failing to resolve `copilot/auto`,
+  followed by `Language model unavailable` from `$invokeAgent`. The Copilot
+  log at lines `23-28` records HTTP `403`, an ended subscription for the
+  current account and unavailable BYOK providers.
+- FACT — The installed/source handler is registered at
+  `tooling/src/extension/metis-chat.ts:253-262`; only after callback dispatch
+  does it request tenant context at `:307-317`. Brain spawn begins only in
+  `tooling/src/extension/metis-brain-controller.ts:68-89`. No Brain process was
+  created during the failed request, so the three local Brain settings were
+  never read by the request path.
+- DONE — The canonical tenant remained byte/Git invariant after the attempt:
+  exact HEAD `bfd6cbe4c7b06cc00a2493eac34db02887bc997b`, aligned `0/0`, empty
+  status. Model 1 likewise remained clean and aligned. No VPN, OpenSearch,
+  credential, remote model, Ollama, download, training, tenant write or Apply
+  was used.
+- STOP — Installed native-chat closure cannot be called GREEN: current VS Code
+  requires a resolvable selected language model before invoking even a
+  participant whose handler owns its complete local orchestration. Renewing
+  Copilot would exercise the gate but would silently make a remote commercial
+  entitlement a prerequisite for a product required to work locally.
+- OPEN — Visix must remove that accidental prerequisite. The recommended
+  product fix is a first-party local language-model provider in the Metis
+  extension, registered through the stable
+  `contributes.languageModelChatProviders` plus
+  `vscode.lm.registerLanguageModelChatProvider` contract, with a bounded safe
+  direct-use response and the existing `@metis` handler remaining the sole
+  tenant-aware orchestrator. This is a change to the separate Metis/Visix
+  repository and a new VSIX; it is outside this wave's explicitly read-only
+  external-repository/installed-VSIX boundary and therefore requires a new
+  owner-authorized integration lane before implementation.
+- OPEN — After that VSIX is installed, repeat only the exact Draft-only request
+  and before/after tenant checks. Do not rerun the 48-minute Model 1 gate unless
+  Model 1 production bytes change; a Visix-only patch instead needs its own
+  extension contract/package gates plus this installed proof.

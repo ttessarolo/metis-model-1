@@ -2,7 +2,7 @@
 
 Status: **implemented, repository-qualified and live-measured; the prefix path
 is measurably faster but not promoted, and the current installed-VS-Code proof
-is still required for UX closure**.
+is stopped before Brain by an unavailable VS Code chat-model provider**.
 
 ## Problem
 
@@ -316,6 +316,7 @@ receipt. No tenant was modified and no Apply was performed.
 | Post-answer proposal | 1574 ms | retrieval 861 ms; compile 696 ms |
 | Cold one-turn explicit request (`24` total), final qualified source | 11067 ms | retrieval 10451 ms; compile 602 ms |
 | Installed VS Code `v0.23.97`, fresh extension host and Brain child | 31 s | compiled Draft visible; no Apply |
+| Installed VS Code `v0.23.97`, post-reboot without a resolvable Chat model | 2 s | VS Code rejected `copilot/auto` before the `@metis` callback; Brain did not start |
 | Qualified 27B baseline before prompt projection | 153852 ms generation wall | 17240 prompt tokens; 86 generated; `stop`; load 3493 ms |
 | Qualified 27B edit/refine after final prompt projection | 34319 ms generation wall | 3700 prompt tokens; 72 generated; `stop`; compile 781 ms |
 | Startup-warm complex 10-filter edit | 101347 ms including service construction | service 23039 ms; retrieval 15458 ms; generation 62071 ms; compile 658 ms |
@@ -476,9 +477,16 @@ failed`. The current diff is promoted only after its own `make check`, sealed
 live receipt and installed-VS-Code Draft proof are recorded on the active
 board.
 
-The installed extension recovered its tenant and chat surfaces after a VS Code
-window reload, and the final no-Apply Draft smoke passed. A deliberately killed
-Brain child exposed a downstream operational limitation: the current VSIX
+The installed extension historically recovered its tenant and chat surfaces
+after a VS Code window reload, and one no-Apply Draft smoke passed while a Chat
+model provider was available. The post-reboot proof on 2026-09-02 exposed a
+stronger upstream limitation: VS Code tried to resolve `copilot/auto`, returned
+`Language model unavailable`, and never invoked the Metis participant. No Brain
+process started and the tenant remained unchanged. Product closure therefore
+requires a first-party local Metis Language Model Chat Provider in the VSIX;
+renewing a Copilot entitlement is not treated as closure for a local product.
+
+A deliberately killed Brain child had separately shown that the current VSIX
 keeps its dead client until the extension host reloads. Automatic child restart
-is a Visix integration backlog item, separate from the latency measurements and
-from Brain's tenant-write boundary.
+remains a Visix integration backlog item, distinct from both the provider STOP,
+the latency measurements and Brain's tenant-write boundary.

@@ -2,7 +2,7 @@
 
 | Lane | Owner | Model / effort | Scope | Writable surface | Verification | Status |
 |---|---|---|---|---|---|---|
-| L0 | Root coordinator | frontier / maximum | architecture, semantics, implementation, live benchmark, VS Code proof, promotion and delivery | integrated Model 1 source/tests/docs/config/board | focused gates, frozen live roster, `make check`, post-push alignment | checkpointed for host restart; resume only at installed `@metis` Draft gate |
+| L0 | Root coordinator | frontier / maximum | architecture, semantics, implementation, live benchmark, VS Code proof, promotion and delivery | integrated Model 1 source/tests/docs/config/board | focused gates, frozen live roster, `make check`, post-push alignment | stopped after exact installed retry: VS Code rejects unresolved `copilot/auto` before `@metis` callback; tenant invariant |
 | L601 | MLX speculative census | delegated `gpt-5.6-luna` / medium | installed prompt-lookup/speculative API and compatibility | none; read-only | file/line evidence and fail-closed verdict | done: speculative STOP, prefix candidate only |
 | L602 | Benchmark census | delegated `gpt-5.6-luna` / medium | same-snapshot A/B receipt and timing seams | none; read-only | file/line evidence and minimal runner plan | done |
 | L603 | Isolation/progress census | delegated `gpt-5.6-luna` / medium | cache isolation, heartbeat/events and VS Code seam | none; read-only | P0/P1/P2 audit and test roster | done |
@@ -13,6 +13,7 @@
 | L608 | Hard-prompt census | delegated Codex frontier / inherited maximum | read-only census of ten complex play-prod endpoints; edit prompt plus create/refine journey per endpoint | `examples/metis-brain-hard-prompts.play-prod-v1.json` only | tenant before/after identity, SHA/value/capability census, `10/10/10/0` | done: GREEN; no tenant write/model/network |
 | L609 | Lossless/telemetry red-team | delegated Codex frontier / inherited maximum | adversarial hostref, inventory, receipt, event, preservation and fallback review | none; read-only | P0/P1/P2 reproduction and closure rerun | done: GREEN; P0=0 P1=0 P2=1 conservative refine restriction |
 | L610 | Installed-proof target census | delegated `gpt-5.6-luna` / medium | read-only census of current `play-demo` endpoints for exact lossless eligibility | none; read-only | endpoint roster, source evidence and tenant identity | done: no persisted endpoint admitted; installed positive proof uses create Draft without pretending it is lossless |
+| L611 | Post-reboot installed-gate audit | delegated `gpt-5.6-luna` / medium | read-only Git/runtime/VSIX preflight and independent diagnosis of native Chat failure | none; read-only | exact log/source evidence, process and tenant invariants, P0/P1/P2 | done: P0=0 P1=1 P2=0; host model resolution blocks before Brain spawn |
 
 ## Global exclusions
 
