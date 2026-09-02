@@ -84,6 +84,70 @@ top-level finite predicate placed outside the one authorized endpoint `take`.
 These surfaces cannot be used to smuggle an ungrounded business rule past the
 finite-value comparison.
 
+## Compiler-owned lossless existing-edit path
+
+Brain now admits one deliberately narrow existing-endpoint fast path backed by
+the compiler renderer delivered at Metis revision
+`2ad60b3c804fb1c45e45883b0479a46f660d98f6`. This is not the earlier Python
+bounded string renderer. The pinned Metis AST owns the node inventory and the
+compiler applies the translated plan on a private full-tenant snapshot with
+`compileProof=validate`.
+
+The public Brain EditPlan is version 2 and contains only typed opaque
+`hostref:` capabilities. Source paths, AST node ids, preimage hashes, payload
+text, insertion placement and delete mode remain server-owned. References are
+single-use and bind the context revision, workspace base, current edit source,
+optional proposal basis and exact toolchain. The private compiler receipt is
+checked independently for toolchain identity, source before/after hashes,
+touched span, rendered text and untouched prefix/suffix. Only a redacted receipt
+hash and six bounded proof fields can reach the Draft response.
+
+Eligibility is intentionally conservative:
+
+- target mode is `existing`, with one exact endpoint, one direct `take` and one
+  direct `include where` owned by the compiler inventory;
+- grounding is resolved, finite and reviewed, fallback is `none`, and the take
+  contract is exact;
+- the existing include is a strict finite-literal surface and its field roster
+  equals the final reviewed grounding roster exactly;
+- comments, guards, variables, booleans, duplicate fields, extra technical
+  predicates, ambiguous AST ownership or any unprovable surface cannot enter
+  the lossless renderer;
+- within this admitted one-take surface, an existing field absent from grounding
+  is a preservation conflict: Brain fails before Model 1 instead of allowing an
+  exact-grounding oracle to delete the old technical constraint;
+- the ordinary grounding oracle and the ordinary pinned compile gate still run
+  after the lossless receipt. A disagreement is a server error, never a repair
+  or silent model fallback.
+
+For an already resolved request this path calls neither Flash nor Model 1. If
+the first retrieval was unsupported, Flash may still have run before the
+lossless decision; therefore `lossless_renderer` is not globally described as
+"zero model calls" without the processing-route evidence.
+
+The real integration proof used an in-memory snapshot derived from canonical
+`Developer/play-demo` and the pinned Node/archive. Inventory, apply with full
+validation, independent receipt verification and a second endpoint compile
+completed GREEN in `19.786 s`; Model 1 calls and tenant writes were both zero.
+The candidate hash was
+`sha256:ab0f00e779bb4d8a6ab1be9fd7ca5fc95e76db0011d8cee4fa70136a268c22a8`,
+the private lossless receipt hash was
+`sha256:e03a916cc2d4d0289551fbd6b9423954427c08c3d14f9b7bf7a2d4de1f12b9f9`,
+and the independent compile receipt hash was
+`sha256:ed9ce30fc8eafc5e32e988619407640e9823d8fb62ecc3d2ceb39c4312b7f709`.
+The canonical tenant remained clean at
+`44aa8ec170003b3822db71cb9443c8e7db9e3dd0`; no Apply was invoked.
+
+The inspectable hard-path corpus is
+[`metis-brain-hard-prompts.play-prod-v1.json`](../examples/metis-brain-hard-prompts.play-prod-v1.json).
+It binds ten distinct, read-only `play-prod` endpoints and supplies both one
+existing-endpoint edit prompt and one four-turn create/refine journey per
+endpoint. The roster covers multi-block, parameterized blocks, fallbacks,
+pagination, view-all, expanded responses and alternatives. These complex cases
+are expected to decline the current one-IncludeClause lossless subset and
+exercise the full Model 1 path only when preservation authority is complete;
+otherwise Brain must fail closed. Every result remains Draft-only.
+
 ## Qualified model path and telemetry
 
 Requests outside the renderer retain Qwen3.8-27B with the sealed adapter and
@@ -207,18 +271,14 @@ default promoted by this gate. The next optimization must reduce decode and
 the still-large prefix TTFT while preserving the exact same semantic and
 compiler oracles.
 
-## Optimization boundary and fail-closed compiler
+## Optimization boundary
 
-The public-prefix cache is the only currently compatible optimization.
 Speculative decode is **STOP**: qualified Qwen has no compatible drafter/MTP
-payload, and no new downloads are authorized. The lossless compiler renderer
-handover dated 2026-09-01 passed its local artifact audit, including the whole
-corpus and all five probes on the Brain-pinned Node. That does not enable the
-path: Brain still requires a remotely reachable pinned revision, an executable
-probe seal, a typed opaque-reference registry, exact base/preimage binding,
-mandatory full-tenant `compileProof=validate`, and strict receipt translation.
-Until all those gates are green, `EditPlan` remains fail-closed. Compile-clean
-output alone does not close this gate.
+payload, and no new downloads are authorized. Public-prefix caching remains
+qualified but missed its promotion thresholds. The compiler-owned lossless path
+above is now the second compatible optimization, but only for its exact narrow
+subset; it is not generalized to block, variant, fallback or arbitrary source
+editing. Compile-clean output alone never expands that subset.
 
 ## Lifecycle and cleanup
 
@@ -383,6 +443,9 @@ uv run pytest -q \
   tests/test_brain_turns.py \
   tests/test_brain_semantic_retrieval.py \
   tests/test_brain_tools.py \
+  tests/test_brain_edit_plan.py \
+  tests/test_brain_lossless_edit.py \
+  tests/test_brain_toolchain_pin.py \
   tests/test_brain_grounded_renderer.py \
   tests/test_brain_candidate_grounding.py \
   tests/test_video_brain_grounding.py \
@@ -393,6 +456,9 @@ uv run ruff check src/metis_model1/brain_mlx_runtime.py \
   src/metis_model1/brain_model_runtime.py \
   src/metis_model1/brain_orchestrator.py \
   src/metis_model1/brain_tools.py \
+  src/metis_model1/brain_edit_plan.py \
+  src/metis_model1/brain_lossless_edit.py \
+  src/metis_model1/brain_toolchain_pin.py \
   src/metis_model1/brain_grounded_renderer.py
 uv run ruff format --check src/metis_model1/brain_mlx_runtime.py \
   src/metis_model1/brain_model_runtime.py \

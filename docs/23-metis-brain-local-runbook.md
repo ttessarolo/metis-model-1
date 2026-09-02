@@ -51,6 +51,21 @@ uv run metis-model1 brain-serve \
   --config /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.play-demo.local.json
 ```
 
+Per la prova nativa in VS Code non serve avviare prima questo comando: la VSIX
+avvia e mantiene il processo caldo alla prima richiesta `@metis`. Il workspace
+locale gitignored deve dichiarare i tre setting seguenti, con percorsi canonici:
+
+```jsonc
+"metis.brain.executablePath": "/Users/tommasotessarolo/Developer/metis-model-1/.venv/bin/metis-model1",
+"metis.brain.configPath": "/Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.play-demo.local.json",
+"metis.brain.clientId": "visix"
+```
+
+Il fixture demo lega l'alias `play-demo` alla stessa copia aperta nella VSIX,
+`/Users/tommasotessarolo/metis-tenants/play-demo`; usare una seconda clone
+anche se momentaneamente allineata renderebbe la base del Draft silenziosamente
+stale.
+
 La prima riga stdout è un JSON redatto con host, porta effettiva e path del file
 bootstrap. Non contiene il token. Il processo chiamante (in futuro l'app Mac)
 legge quel file con lo stesso UID, apre la sessione, poi usa solo il token

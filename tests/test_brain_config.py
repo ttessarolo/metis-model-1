@@ -227,7 +227,7 @@ def test_play_demo_fixture_binds_the_workspace_tenant_identity() -> None:
         {
             "alias": "play-demo",
             "tenant_id": "play-demo",
-            "root": "/Users/tommasotessarolo/Developer/play-demo",
+            "root": "/Users/tommasotessarolo/metis-tenants/play-demo",
         }
     ]
     assert value["model"]["warmup"] == "on_start"

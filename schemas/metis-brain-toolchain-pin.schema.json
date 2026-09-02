@@ -24,12 +24,12 @@
     "schema_version": {"const": 1},
     "pin_id": {"const": "metis-brain-toolchain/2026-08-30-v1"},
     "repository": {"const": "ares-matioska/metis"},
-    "revision": {"const": "c9f410a9b9b28e61dd1505b661ebc996e388e6e0"},
-    "tree": {"const": "40bb657e67cf3521ca94bcc8a636031bcb50815f"},
+    "revision": {"const": "2ad60b3c804fb1c45e45883b0479a46f660d98f6"},
+    "tree": {"const": "ea29b935934fadd5f99711c0470566a2484b35f6"},
     "remote_url": {"const": "git@github.com:ttessarolo/metis.git"},
     "remote_ref": {"const": "refs/remotes/origin/main"},
     "language_version": {"const": "0.43"},
-    "tooling_version": {"const": "0.23.93"},
+    "tooling_version": {"const": "0.23.97"},
     "runtime": {
       "type": "object",
       "additionalProperties": false,
@@ -38,6 +38,9 @@
         "node_sha256",
         "node_bytes",
         "node_modules_sha256",
+        "langium_version",
+        "metis_language_version",
+        "grammar_sha256",
         "package_sha256",
         "lock_sha256"
       ],
@@ -46,20 +49,23 @@
         "node_sha256": {"const": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"},
         "node_bytes": {"const": 112915776},
         "node_modules_sha256": {"const": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"},
-        "package_sha256": {"const": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b"},
-        "lock_sha256": {"const": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21"}
+        "langium_version": {"const": "4.3.0"},
+        "metis_language_version": {"const": "0.43"},
+        "grammar_sha256": {"const": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"},
+        "package_sha256": {"const": "sha256:99584c57dff11fe4fe623fba3d3bcf96630e72f68aa0be8f4b67ad4f63b6b7af"},
+        "lock_sha256": {"const": "sha256:4a362a20ad10a44adfa1e8c73bbfd7b536fb3a8f71bc12fd54220547adfbf9dd"}
       }
     },
     "evidence": {
       "type": "array",
-      "minItems": 16,
-      "maxItems": 16,
+      "minItems": 29,
+      "maxItems": 29,
       "items": {"$ref": "#/$defs/evidence"}
     },
     "probes": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 9,
+      "maxItems": 9,
       "items": {"$ref": "#/$defs/probe"}
     },
     "policy": {

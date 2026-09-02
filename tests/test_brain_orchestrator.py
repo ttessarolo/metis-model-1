@@ -7,10 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
+import metis_model1.brain_orchestrator as orchestrator_module
+from metis_model1.brain_lossless_edit import LosslessRenderResult
 from metis_model1.brain_model_runtime import ModelCandidate
 from metis_model1.brain_orchestrator import BrainOrchestrator
 from metis_model1.brain_output_contract import parse_output_request
-from metis_model1.brain_protocol import BrainError
+from metis_model1.brain_protocol import BrainError, bytes_sha256
 from metis_model1.brain_retrieval import RetrievalResult
 from metis_model1.brain_turns import TurnRecord, TurnRequest
 
@@ -1061,3 +1063,161 @@ def test_invalid_compiler_receipt_never_produces_proposal(max_repairs: int) -> N
         _run_with_model(model, compiler, max_repairs=max_repairs)
     assert raised.value.code == "COMPILER_REJECTED"
     assert compiler.calls == max_repairs + 1
+
+
+def test_lossless_existing_path_calls_no_model1_and_publishes_only_redacted_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/demo/test.metis"
+    previous = '@paesiorigine is "ITALIA"'
+    source = '@paesiorigine in ["ITALIA", "italia"]'
+    request = _request(
+        context,
+        semantic,
+        instruction="modifica la selezione",
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.test",
+            "base_sha256": bytes_sha256(previous.encode()),
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    proof = {
+        "contract": "metis-lossless-receipt/v1",
+        "proof_mode": "validate",
+        "receipt_sha256": "sha256:" + "c" * 64,
+        "sha_before": bytes_sha256(previous.encode()),
+        "sha_after": bytes_sha256(source.encode()),
+        "touched_count": 1,
+    }
+    monkeypatch.setattr(
+        orchestrator_module,
+        "render_lossless_existing",
+        lambda **_kwargs: LosslessRenderResult(
+            ModelCandidate(source, "not_used", "not_used", "lossless_renderer"),
+            proof,
+        ),
+    )
+
+    @contextmanager
+    def immediate_heartbeat(
+        current: TurnRecord,
+        *,
+        phase: str,
+        label: str,
+        interval_seconds: float = 1.0,
+    ):
+        assert interval_seconds > 0
+        current.emit("heartbeat", phase, label, elapsed_ms=0)
+        yield
+
+    monkeypatch.setattr(TurnRecord, "heartbeat_while", immediate_heartbeat)
+    model = _SequenceModel([])
+    compiler = _CountingCompiler()
+    flash_calls: list[object] = []
+
+    def unexpected_flash(value: object) -> object:
+        flash_calls.append(value)
+        raise AssertionError("resolved deterministic grounding must not invoke Flash")
+
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
+        cancellation=threading.Event(),
+    )
+
+    result = BrainOrchestrator(
+        retriever=SimpleNamespace(
+            retrieve=lambda **_kwargs: _grounded_retrieval(context, semantic)
+        ),
+        model=model,
+        compiler=compiler,
+        intent_compiler=SimpleNamespace(compile=unexpected_flash),
+    ).run(
+        manager=_FakeManager(lease),
+        session_id=_SESSION_ID,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert result["outcome"] == "proposed"
+    assert model.requests == []
+    assert flash_calls == []
+    assert compiler.calls == 1
+    assert result["identity"]["generation_strategy"] == "lossless_renderer"
+    assert result["identity"]["model_revision"] == "not_used"
+    assert result["validation"]["lossless"] == proof
+    assert "hostref:" not in str(result)
+    assert "targetId" not in str(result)
+    assert "hostref:" not in str(record.events)
+    assert "targetId" not in str(record.events)
+    for private_marker in (
+        "/var/folders/",
+        "/tmp/",
+        "metis-brain-authority-",
+        "metis-brain-job-",
+    ):
+        assert private_marker not in str(result)
+        assert private_marker not in str(record.events)
+    inference_events = [
+        (item["event"], item["data"]["phase"])
+        for item in record.events
+        if item["event"] in {"inference.started", "inference.completed", "heartbeat"}
+        and item["data"]["phase"].startswith("inference")
+    ]
+    assert inference_events == [
+        ("inference.started", "inference_started"),
+        ("heartbeat", "inference_running"),
+        ("inference.completed", "inference_completed"),
+    ]
+
+
+def test_lossless_bridge_failure_never_falls_back_to_model1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/demo/test.metis"
+    previous = '@paesiorigine is "ITALIA"'
+    request = _request(
+        context,
+        semantic,
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.test",
+            "base_sha256": bytes_sha256(previous.encode()),
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+
+    def fail(**_kwargs: object) -> None:
+        raise BrainError("LOSSLESS_INVALID", 503, "lossless receipt differs")
+
+    monkeypatch.setattr(orchestrator_module, "render_lossless_existing", fail)
+    model = _SequenceModel(['@paesiorigine in ["ITALIA", "italia"]'])
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
+        cancellation=threading.Event(),
+    )
+
+    with pytest.raises(BrainError) as raised:
+        BrainOrchestrator(
+            retriever=SimpleNamespace(
+                retrieve=lambda **_kwargs: _grounded_retrieval(context, semantic)
+            ),
+            model=model,
+            compiler=_CountingCompiler(),
+        ).run(
+            manager=_FakeManager(lease),
+            session_id=_SESSION_ID,
+            token="token-test",
+            request=request,
+            record=record,
+        )
+
+    assert raised.value.code == "LOSSLESS_INVALID"
+    assert model.requests == []

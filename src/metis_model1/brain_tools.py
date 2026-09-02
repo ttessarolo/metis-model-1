@@ -39,8 +39,9 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:0a8d5a1962a391baf7a348115e2d9959316c6e1655281192f66f2c791666601e"
+RUNNER_SHA256 = "sha256:b793c47d71c9e24dad49acd1e5002e2c8899bc37de53fdf65f7b75a174ad3e9c"
 MAX_RUNNER_BYTES = 256 * 1024
+MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
 MAX_RUNNER_STDERR_BYTES = 128 * 1024
 MAX_SNAPSHOT_FILES = 1024
@@ -514,6 +515,9 @@ def _run_brain_runner(
     node_path: Path,
     request: Mapping[str, Any],
 ) -> dict[str, Any]:
+    request_raw = canonical_json(dict(request))
+    if not request_raw or len(request_raw) > MAX_RUNNER_REQUEST_BYTES:
+        raise _BrainIsolationError("Brain runner request exceeds its limit")
     policy = _sandbox_policy(isolated_root, node_path, additional_read_roots)
     boundary_root = additional_read_roots[-1] if additional_read_roots else isolated_root
     sandbox_support._assert_sandbox_boundaries(boundary_root, policy)
@@ -530,7 +534,7 @@ def _run_brain_runner(
         completed = subprocess.run(
             command,
             cwd=isolated_root / "tooling",
-            input=canonical_json(dict(request)),
+            input=request_raw,
             capture_output=True,
             check=False,
             timeout=RUNNER_TIMEOUT_SECONDS,
@@ -652,6 +656,144 @@ class BrainCompiler(_PinnedBridge):
     def execution_count(self) -> int:
         with self._execution_lock:
             return self._execution_count
+
+    @property
+    def lossless_toolchain_identity(self) -> dict[str, str]:
+        """Exact compiler identity expected in every lossless receipt."""
+
+        keys = {
+            "toolingVersion": "tooling_version",
+            "langiumVersion": "langium_version",
+            "metisLanguageVersion": "metis_language_version",
+            "grammarSha256": "grammar_sha256",
+        }
+        try:
+            identity = {public: self._pin[pinned] for public, pinned in keys.items()}
+        except KeyError as error:
+            raise BrainError(
+                "TOOLCHAIN_UNAVAILABLE",
+                503,
+                "pinned lossless toolchain identity is incomplete",
+            ) from error
+        if any(not isinstance(value, str) or not value for value in identity.values()):
+            raise BrainError(
+                "TOOLCHAIN_UNAVAILABLE",
+                503,
+                "pinned lossless toolchain identity is invalid",
+            )
+        return identity
+
+    def _lossless_call(
+        self,
+        *,
+        operation: str,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+        plan: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        source_text, filename_text, _execution_mode, endpoint_text = validate_compile_request(
+            source=source,
+            filename=filename,
+            execution_mode="endpoint",
+            endpoint=endpoint,
+        )
+        if operation not in {"lossless-inventory", "lossless-apply"}:
+            raise BrainError("INVALID_SCHEMA", 500, "lossless operation is invalid")
+        if operation == "lossless-inventory" and plan is not None:
+            raise BrainError("INVALID_SCHEMA", 500, "inventory request contains a plan")
+        if operation == "lossless-apply" and not isinstance(plan, Mapping):
+            raise BrainError("INVALID_SCHEMA", 500, "lossless plan is invalid")
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        if lease.snapshot.toolchain_binding != self._binding:
+            raise BrainError("STALE_CONTEXT", 409, "session toolchain binding is stale")
+        if filename_text not in {item.path for item in lease.snapshot.files}:
+            raise BrainError("STALE_CONTEXT", 409, "lossless target is absent from the snapshot")
+        try:
+            with (
+                self._slot(busy_code="COMPILER_BUSY"),
+                _isolated_metis_repository(
+                    metis_root=self._metis_root,
+                    node_path=self._node_path,
+                    expected_identity=self._external_identity,
+                    authority=self._authority,
+                ) as isolation,
+            ):
+                authority_root, job_root, additional_read_roots = _job_paths(isolation)
+                tenant_root = _materialize_snapshot(
+                    lease.snapshot,
+                    job_root,
+                    candidate_filename=filename_text,
+                    candidate_source=source_text,
+                )
+                request: dict[str, Any] = {
+                    "schema_version": 1,
+                    "operation": operation,
+                    "tenant_root": str(tenant_root),
+                    "relative_path": filename_text,
+                    "endpoint": endpoint_text,
+                }
+                if plan is not None:
+                    request["plan"] = dict(plan)
+                envelope = _run_brain_runner(
+                    isolated_root=authority_root,
+                    additional_read_roots=additional_read_roots,
+                    node_path=self._node_path,
+                    request=request,
+                )
+        except BrainError:
+            raise
+        except (
+            brain_pin.BrainToolchainPinError,
+            sandbox_support.CatalogMaintenancePinError,
+            _BrainIsolationError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            raise BrainError(
+                "LOSSLESS_FAILED",
+                503,
+                "pinned lossless compiler execution failed",
+            ) from error
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        return envelope
+
+    def lossless_inventory(
+        self,
+        *,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+    ) -> dict[str, Any]:
+        return self._lossless_call(
+            operation="lossless-inventory",
+            lease=lease,
+            source=source,
+            filename=filename,
+            endpoint=endpoint,
+        )
+
+    def lossless_apply(
+        self,
+        *,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+        plan: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return self._lossless_call(
+            operation="lossless-apply",
+            lease=lease,
+            source=source,
+            filename=filename,
+            endpoint=endpoint,
+            plan=plan,
+        )
 
     def compile(
         self,

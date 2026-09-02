@@ -14,14 +14,17 @@ def test_brain_pin_contract_is_exact_and_deterministic() -> None:
     manifest = pin.load_metis_brain_toolchain_pin()
 
     assert pin.validate_metis_brain_toolchain_pin_contract() == []
-    assert manifest["revision"] == "c9f410a9b9b28e61dd1505b661ebc996e388e6e0"
-    assert manifest["tree"] == "40bb657e67cf3521ca94bcc8a636031bcb50815f"
-    assert manifest["tooling_version"] == "0.23.93"
+    assert manifest["revision"] == "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
+    assert manifest["tree"] == "ea29b935934fadd5f99711c0470566a2484b35f6"
+    assert manifest["tooling_version"] == "0.23.97"
     assert manifest["runtime"]["node_version"] == "v22.22.3"
+    assert manifest["runtime"]["langium_version"] == "4.3.0"
+    assert manifest["runtime"]["metis_language_version"] == "0.43"
+    assert manifest["runtime"]["grammar_sha256"].startswith("sha256:")
     assert manifest["runtime"]["node_bytes"] == 112915776
-    assert len(manifest["evidence"]) == 16
-    assert len({item["id"] for item in manifest["evidence"]}) == 16
-    assert len(manifest["probes"]) == 4
+    assert len(manifest["evidence"]) == 29
+    assert len({item["id"] for item in manifest["evidence"]}) == 29
+    assert len(manifest["probes"]) == 9
     assert pin.manifest_sha256(manifest) == pin.manifest_sha256(deepcopy(manifest))
 
 
@@ -29,12 +32,19 @@ def test_brain_identity_is_typed_immutable_and_binding_stable() -> None:
     identity = pin.load_metis_brain_toolchain_identity()
 
     assert isinstance(identity, pin.BrainToolchainIdentity)
-    assert identity.revision == "c9f410a9b9b28e61dd1505b661ebc996e388e6e0"
-    assert identity.tree == "40bb657e67cf3521ca94bcc8a636031bcb50815f"
+    assert identity.revision == "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
+    assert identity.tree == "ea29b935934fadd5f99711c0470566a2484b35f6"
     assert identity.toolchain_binding == identity.manifest_sha256
-    assert identity.as_dict()["tooling_version"] == "0.23.93"
+    assert identity.as_dict()["tooling_version"] == "0.23.97"
+    assert identity.langium_version == "4.3.0"
+    assert identity.metis_language_version == "0.43"
+    assert identity.grammar_sha256 == manifest_grammar_hash()
     with pytest.raises(FrozenInstanceError):
         identity.tree = "0" * 40  # type: ignore[misc]
+
+
+def manifest_grammar_hash() -> str:
+    return "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"
 
 
 @pytest.mark.parametrize(
@@ -94,3 +104,71 @@ def test_schema_file_hash_tamper_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(pin.BrainToolchainPinError, match="fixed digest"):
         pin._read_contract_file(target, pin.SCHEMA_FILE_SHA256, "Brain pin schema")
+
+
+def test_probe_execution_is_opt_in_by_default() -> None:
+    assert pin.verify_metis_brain_toolchain_pin.__kwdefaults__ == {"execute_probes": False}
+
+
+def test_probe_marker_missing_fails_closed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manifest = {
+        "revision": "r",
+        "probes": [{"id": "x", "argv": ["node"], "success_marker": "OK"}],
+        "runtime": {"node_version": "v"},
+    }
+    root = tmp_path
+    (root / "tooling" / "node_modules").mkdir(parents=True)
+    monkeypatch.setattr(
+        pin,
+        "_git",
+        lambda *args, **kwargs: b"archive" if kwargs.get("text") is False else "r",
+    )
+    monkeypatch.setattr(
+        pin._sandbox_support,
+        "_safe_extract_archive",
+        lambda raw, destination: (destination / "tooling" / "node_modules").mkdir(parents=True),
+    )
+    monkeypatch.setattr(pin._sandbox_support, "_sandbox_policy", lambda snapshot: "policy")
+    monkeypatch.setattr(
+        pin._sandbox_support,
+        "_assert_sandbox_boundaries",
+        lambda snapshot, policy: None,
+    )
+    monkeypatch.setattr(pin, "_node_modules_sha256", lambda path: "modules")
+    monkeypatch.setattr(pin.shutil, "copytree", lambda *args, **kwargs: None)
+
+    class Completed:
+        returncode = 0
+        stderr = b""
+
+        def __init__(self, version: bool) -> None:
+            self.stdout = "v" if version else b"v"
+
+    monkeypatch.setattr(
+        pin.subprocess,
+        "run",
+        lambda command, **kwargs: Completed("--version" in command),
+    )
+    with pytest.raises(pin.BrainToolchainPinError, match="probe failed"):
+        pin._run_brain_archive_probes(
+            manifest,
+            root,
+            b"node",
+            remote_revision="r",
+            modules_sha256="sha256:modules",
+        )
+
+
+def test_probe_roster_incomplete_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = pin._load_json
+
+    def load(path: Path, expected_sha256: str, label: str) -> Any:
+        value = original(path, expected_sha256, label)
+        if path.name == pin.MANIFEST_PATH.name:
+            value = deepcopy(value)
+            value["probes"].pop()
+        return value
+
+    monkeypatch.setattr(pin, "_load_json", load)
+    with pytest.raises(pin.BrainToolchainPinError, match="too short"):
+        pin.load_metis_brain_toolchain_pin()

@@ -1,6 +1,6 @@
 # Metis Brain latency promotion wave
 
-Status: **ACTIVE**
+Status: **ACTIVE — CHECKPOINTED FOR HOST RESTART AT THE INSTALLED VS CODE GATE**
 
 ## Mandate
 
@@ -185,3 +185,238 @@ minimal-diff or no-Apply gates.
   `v22.22.3` but three assertions are RED on the host default Node `v26.5.0`;
   the integration must invoke the pinned runtime explicitly and cannot claim
   generic Node portability.
+
+## Lossless integration closure and hard-prompt corpus
+
+- FACT — The Metis delivery is now present on both local `main` and
+  `origin/main` at exact revision
+  `2ad60b3c804fb1c45e45883b0479a46f660d98f6`, tree
+  `ea29b935934fadd5f99711c0470566a2484b35f6`; the prior remote-reachability
+  STOP is superseded.
+- FIX — The Brain toolchain pin now binds tooling `0.23.97`, Langium `4.3.0`,
+  language `0.43`, grammar
+  `sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01`,
+  Node `v22.22.3`, and all lossless source/spec/gate blobs. Evidence roster is
+  `in=29 out=29 distinct=29 gaps=0`.
+- DONE — L0 accepted the executable archive seal: exact probe roster
+  `in=9 out=9 distinct=9 gaps=0`, pinned Node, private Git archive, scratch-only
+  writes, network/home/snapshot denied. Probe receipt is
+  `sha256:03a3c626aad54779b8ca2a6b4d55b2d600eb8f31c0f40611d9f82f0ac2149e06`.
+- FIX — Brain EditPlan v2 now carries only typed, opaque and single-use host
+  references. Server authority owns path, AST node/preimage, payload,
+  placement/delete mode, workspace base, current edit source, proposal basis,
+  context and toolchain binding; raw authority never enters a model or public
+  proposal.
+- FIX — The pinned Brain runner exposes bounded `lossless-inventory` and
+  `lossless-apply` operations. Inventory binds exact Endpoint -> direct Take ->
+  direct IncludeClause AST/CST ancestry; apply is forced to
+  `compileProof=validate` on the private full-session snapshot. Python validates
+  the closed receipt, exact before/after hashes, touched span and untouched
+  prefix/suffix before publication.
+- FIX — Existing-endpoint lossless eligibility is deliberately narrow: one
+  exact direct include, reviewed finite selections, exact take, no fallback,
+  and existing finite-field roster equal to the final grounding roster.
+  Comments, guards, variables, booleans, extra fields or an unprovable predicate
+  surface cannot enter the renderer.
+- FIX — A preservation conflict cannot silently fall through to Model 1.
+  Plain, inline-comment and block-comment variants with an existing technical
+  field absent from grounding return `EDIT_PRESERVATION_CONFLICT` before any
+  model, lossless apply or ordinary compile call. This supersedes the earlier
+  STOP over destructive fallback.
+- DONE — Real pinned integration proof, not a fake: canonical `play-demo` was
+  captured read-only, the one test surface was changed only inside an in-memory
+  snapshot, and Brain executed inventory -> apply(validate full snapshot) ->
+  independent receipt validation -> endpoint compile in `19786 ms`. Candidate
+  hash is
+  `sha256:ab0f00e779bb4d8a6ab1be9fd7ca5fc95e76db0011d8cee4fa70136a268c22a8`,
+  lossless receipt
+  `sha256:e03a916cc2d4d0289551fbd6b9423954427c08c3d14f9b7bf7a2d4de1f12b9f9`,
+  compile receipt
+  `sha256:ed9ce30fc8eafc5e32e988619407640e9823d8fb62ecc3d2ceb39c4312b7f709`;
+  Model 1 calls `0`, tenant writes `0`.
+- FACT — Post-proof canonical identities are unchanged and clean:
+  `Developer/play-demo` at
+  `44aa8ec170003b3822db71cb9443c8e7db9e3dd0`; Metis local/remote at exact
+  `2ad60b3c804fb1c45e45883b0479a46f660d98f6`.
+- DONE — Focused lossless integration denominator is
+  `in=247 out=247 distinct=247 gaps=0`: EditPlan `12`, lossless bridge `26`,
+  orchestrator `157`, toolchain pin `16`, compiler tools `24`, isolated harness
+  `10`, TurnStore workspace-base/proposal-basis boundary `2`; Ruff, format and
+  diff checks GREEN. This includes CRLF, Unicode outside the touched node,
+  UTF-16 mid-surrogate corruption, role laundering, ancestry, receipt tamper,
+  refine lineage, event ordering and private-path redaction.
+- DONE — Read-only `play-prod` hard-path census examined `176` property files,
+  `170` endpoint files and `170` endpoint declarations, then selected ten
+  distinct complex endpoints. Artifact
+  `examples/metis-brain-hard-prompts.play-prod-v1.json` contains
+  `10` edit prompts plus `10` four-turn create/refine journeys with capability
+  coverage for multi-block, parametric blocks, fallback, pagination, view-all,
+  expanded response and alternatives: `in=10 out=10 distinct=10 gaps=0`.
+  Tenant remained clean at
+  `5f56bdfe27e3fb00b735db630a4eb5cdf5ab12c3`; no Apply/model/network occurred.
+- FACT — `lossless_renderer` means zero Model 1 calls only on an already-resolved
+  route. If the first retrieval was unsupported, Flash may have run before the
+  lossless decision; public identity retains that processing route and no
+  broader zero-model claim is made.
+- DONE — Independent final red-team verdict for the bounded lossless lane:
+  GREEN, `P0=0 P1=0`. Plain and block-comment preservation attacks both stop
+  with `EDIT_PRESERVATION_CONFLICT`; Model 1, lossless apply and ordinary
+  compile call counts are all zero.
+- RISK — Non-blocking `P2`: a proposal-basis refinement that intentionally
+  removes or fully replaces an existing field is currently refused by the same
+  preservation guard. This is a conservative capability restriction, not data
+  loss. Re-admission requires an explicit, server-validated removal authority;
+  proposal basis alone is not treated as permission to delete a constraint.
+- OPEN — Authoritative post-integration `make check` on the final diff.
+- OPEN — Installed VS Code Draft-only proof of the admitted path, with no Apply
+  and canonical tenant identity unchanged.
+- OPEN — Final board verdict, commit, push, origin alignment and clean-tree
+  audit.
+
+## Final integration gate and installed-client preflight
+
+- DONE — Authoritative post-integration `make check` completed with exit `0`:
+  foundation `in=86 out=86 distinct=86 gaps=0`, whole-repository Ruff and
+  formatting GREEN, pytest `2900 passed, 2 skipped, 0 failed` in `2898.77 s`,
+  and the post-run Metis Git/tree/runtime authority seal GREEN. The earlier
+  post-integration OPEN is superseded.
+- DONE — L610 performed a read-only census of every current `play-demo`
+  endpoint. No persisted endpoint is fully inside the one-direct-take lossless
+  subset: `demo.a_b_test` is the only structural candidate but owns an inline
+  comment inside its include, while every other endpoint has variables,
+  guards, booleans, nested/multiple takes or another unsupported surface. The
+  installed positive proof must therefore use the admitted create-Draft path;
+  the compiler-owned lossless path remains separately proven by the real
+  pinned inventory/apply/compile receipt above. No tenant fixture will be
+  edited to manufacture an eligible UI case or to overstate the refine route.
+- FACT — Installed VS Code exposes `metis.metis-dsl@0.23.97` and the native
+  `@metis` participant on the clean `~/metis-tenants/play-demo` workspace at
+  `bfd6cbe4c7b06cc00a2493eac34db02887bc997b`. The first real chat request
+  returned `Language model unavailable` in `2 s`: Brain was not configured in
+  that workspace, so no generation or tenant mutation occurred.
+- FIX — The non-secret demo fixture and its contract test now bind the same
+  workspace actually open in VS Code,
+  `/Users/tommasotessarolo/metis-tenants/play-demo`, instead of the separate
+  stale clone under `Developer/play-demo`. The gitignored local VS Code
+  settings now provide the qualified Brain executable, config and `visix`
+  client id. Config tests are `in=13 out=13 distinct=13 gaps=0`; Ruff, format
+  and diff checks are GREEN. Config/server focused tests are
+  `in=38 out=38 distinct=38 gaps=0`. No tracked tenant file or endpoint source
+  changed.
+- DECISION — The owner-authorized installed-client preflight may add only the
+  three non-secret `metis.brain.*` keys to the already gitignored local VS Code
+  settings. This is local launch configuration, not tenant semantic source;
+  endpoint/catalog files, installed VSIX bytes and Git-tracked tenant state
+  remain read-only.
+- DONE — The installed extension payload is byte-identical to the packaged
+  `metis-dsl-0.23.97.vsix` in the Metis integration worktree: extension bundle
+  SHA-256
+  `b4b4b350b4501b7685a7f2c51b90af70a44dbe23911c8d91e29b7e62889f68b3`.
+- DONE — The hard-prompt artifact now has a repository contract gate covering
+  the exact endpoint/edit/journey mapping, safe relative source paths, source
+  hashes, non-empty semantic/compiler/Draft oracles, four-turn action order and
+  read-only/no-Apply boundary: `in=4 out=4 distinct=4 gaps=0`, Ruff and format
+  GREEN.
+- DONE — Independent read-only delivery census after the integration work:
+  changed-path roster `in=25 out=25 distinct=25 gaps=0`, `P0=0`; focused source
+  suite `281 passed`, the subsequently added hard-prompt contract `4 passed`,
+  changed-Python Ruff/format and `git diff --check` all GREEN. No secret,
+  `.env`, credential, private key, raw tenant payload, dataset, model weight,
+  adapter or checkpoint payload is tracked. The three existing local commits
+  plus this dirty delivery remain intentionally unpushed until the installed
+  Draft proof closes.
+- OPEN — Repeat the installed `@metis` create-Draft after the Mac is unlocked;
+  inspect the Draft, never invoke Apply, and recheck tenant HEAD/status. A
+  same-session refine may additionally verify volatile dialogue UX, but is not
+  claimed as a positive lossless edit because the target remains create-mode.
+- OPEN — Final board verdict, commit, push, origin alignment and clean-tree
+  audit after that installed-client proof.
+
+## HOST-RESTART CHECKPOINT — 2026-09-02 08:09 CEST
+
+Read this section first after reboot. It is the single resume authority for the
+unfinished wave.
+
+### Durable state already closed
+
+- DONE — Source implementation, compiler-owned lossless bridge, Metis pin
+  `2ad60b3c804fb1c45e45883b0479a46f660d98f6`, red-team, hard-prompt corpus,
+  executable archive proof and full `make check` are closed by the evidence
+  above. Do not repeat the 48-minute full gate unless a production source,
+  runtime, schema, manifest or test changes after this checkpoint.
+- DONE — The hard-prompt artifact is
+  `examples/metis-brain-hard-prompts.play-prod-v1.json`: ten distinct real
+  `play-prod` endpoints, ten inspectable edit prompts and ten four-turn
+  create/refine journeys. Its dedicated contract has four passing tests.
+- DONE — The current installed extension is
+  `metis.metis-dsl@0.23.97`; its installed bundle matches the packaged VSIX at
+  SHA-256
+  `b4b4b350b4501b7685a7f2c51b90af70a44dbe23911c8d91e29b7e62889f68b3`.
+- DONE — The VS Code workspace tenant is
+  `/Users/tommasotessarolo/metis-tenants/play-demo`, clean on `main` at
+  `bfd6cbe4c7b06cc00a2493eac34db02887bc997b`. The non-secret Brain fixture now
+  binds this exact root. Its gitignored `.vscode/settings.json` already contains
+  canonical `metis.brain.executablePath`, `metis.brain.configPath` and
+  `metis.brain.clientId=visix`; do not rewrite it after reboot unless one of
+  those paths is missing.
+
+### Last observed live state
+
+- FACT — VS Code was open on `~/metis-tenants/play-demo`. A native `@metis`
+  create request was submitted before the settings fix and returned
+  `Language model unavailable` after `2 s`. It produced no Draft, model turn,
+  Apply or tenant mutation.
+- FACT — The settings/config alignment was then fixed and passed the exact
+  config/server focused suite (`38 passed`). The Mac locked before the corrected
+  request could be retried.
+- FACT — Immediately before this checkpoint there was no surviving Brain,
+  Model 1 or Flash worker process. After reboot the VSIX must therefore perform
+  one normal `on_start` warmup; historical measured startup with both workers
+  was about `31.5 s`, inside the VSIX `60 s` readiness deadline.
+- FACT — No QWEN-labelled delegated lane was used in this final installed-proof
+  segment. Existing Qwen3.8-27B Model 1 remains the configured qualified model;
+  this note refers only to Orchestra task routing.
+
+### Exact resume procedure — do not broaden it
+
+1. Open `/Users/tommasotessarolo/metis-tenants/play-demo` in VS Code and verify
+   `metis.metis-dsl@0.23.97` is active.
+2. Verify the Model 1 repository is clean and aligned with `origin/main` at the
+   pushed checkpoint. If it is not clean, inspect before changing anything.
+3. Start a new native Chat, type `@metis`, accept the participant, and submit
+   exactly:
+
+   > Nel tenant già aperto, crea una nuova bozza dell endpoint
+   > demo.brain_lossless_smoke as brainLosslessSmoke: take 12 from @video,
+   > includendo solo tipologia Film e genere_mcm Azione, con risposta standard.
+   > Non applicare nulla.
+
+4. Wait for the startup-warm local server and terminal chat result. Expected
+   positive surface: compiled proposal, reviewed mappings for `tipologia=Film`
+   and `genere_mcm=Azione`, plus `Apri bozza`, `Applica`, `Scarta`.
+5. Click **only** `Apri bozza`. Never click `Applica`. Inspect that the Draft
+   contains `metis 0.43`, an exact `take 12 from @play-demo.video`, the two
+   reviewed predicates, and `return response.default` without legacy `val ...`
+   literals or invented filters.
+6. Record visible elapsed time and result. Recheck the tenant remains exactly
+   on HEAD `bfd6cbe4c7b06cc00a2493eac34db02887bc997b` with empty tracked/untracked
+   status. Do not use the failing Metis Serve preview as Brain evidence: the VPN
+   is intentionally down and that separate serve failure is outside this gate.
+7. A same-session refine is optional UX evidence and must not be described as a
+   positive lossless edit: a Draft-created target remains create-mode. The
+   positive lossless claim is already closed only by the pinned real
+   inventory/apply/receipt/compile proof above.
+8. Append the live FACT/DONE or STOP here. If GREEN, change Status to
+   `COMPLETED`, close the two final OPEN entries, run the bounded Git/diff checks,
+   commit the closure note, push `main`, and verify `HEAD == origin/main` with an
+   empty worktree.
+
+### Fail-closed restart rules
+
+- No Apply, tenant source edit, VPN, OpenSearch, `.env`, Keychain, remote model,
+  Ollama, model download, training or new endpoint fixture is authorized.
+- Do not mutate `demo.a_b_test` merely to manufacture a positive lossless UI
+  case; its inline comment intentionally keeps it outside the admitted subset.
+- If the corrected request again reports unavailable, capture the exact visible
+  error and stop the UX gate. Do not weaken warmup, grounding, compiler,
+  isolation or the 60-second client deadline to force green.

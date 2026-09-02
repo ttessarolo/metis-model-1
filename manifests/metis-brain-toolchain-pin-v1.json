@@ -2,19 +2,22 @@
   "schema_version": 1,
   "pin_id": "metis-brain-toolchain/2026-08-30-v1",
   "repository": "ares-matioska/metis",
-  "revision": "c9f410a9b9b28e61dd1505b661ebc996e388e6e0",
-  "tree": "40bb657e67cf3521ca94bcc8a636031bcb50815f",
+  "revision": "2ad60b3c804fb1c45e45883b0479a46f660d98f6",
+  "tree": "ea29b935934fadd5f99711c0470566a2484b35f6",
   "remote_url": "git@github.com:ttessarolo/metis.git",
   "remote_ref": "refs/remotes/origin/main",
   "language_version": "0.43",
-  "tooling_version": "0.23.93",
+  "tooling_version": "0.23.97",
   "runtime": {
     "node_version": "v22.22.3",
     "node_sha256": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
     "node_bytes": 112915776,
     "node_modules_sha256": "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463",
-    "package_sha256": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b",
-    "lock_sha256": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21"
+    "langium_version": "4.3.0",
+    "metis_language_version": "0.43",
+    "grammar_sha256": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01",
+    "package_sha256": "sha256:99584c57dff11fe4fe623fba3d3bcf96630e72f68aa0be8f4b67ad4f63b6b7af",
+    "lock_sha256": "sha256:4a362a20ad10a44adfa1e8c73bbfd7b536fb3a8f71bc12fd54220547adfbf9dd"
   },
   "evidence": [
     {"id": "grammar", "path": "tooling/src/language/metis.langium", "blob_oid": "7812a896fbf5c7b97683c6a487ed390687bff3d1", "sha256": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"},
@@ -31,14 +34,32 @@
     {"id": "semantic_retrieval_oracle", "path": "tooling/test/catalog-semantic.ts", "blob_oid": "c63dfaa43929b23395add6bec84eebd0148ab78c", "sha256": "sha256:e9e02bed80c74533115a9b275e5dddb5351d86fdb69aa61e88d2e04c02e1d52e"},
     {"id": "r8_description", "path": "tooling/test/r8-description-invariant.ts", "blob_oid": "0350c44490ebb20538211f3c8500d25d65da83b0", "sha256": "sha256:651f52b8ed82f584cad8209a136a90022c4019ab4a64a13b8416c4e73a2cf70d"},
     {"id": "r8_surface", "path": "tooling/test/r8-semantic-surface.ts", "blob_oid": "6bb94d02c32cf0f80a645f607bc55992b7d31718", "sha256": "sha256:0a21cab1a52ed4a8d67374cbddae81e55eac415f7da6e5e048586dfd055659b5"},
-    {"id": "tooling_package", "path": "tooling/package.json", "blob_oid": "277b1da4ed8795f734ed6cb2536bba907eeee85a", "sha256": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b"},
-    {"id": "tooling_lock", "path": "tooling/package-lock.json", "blob_oid": "95d7663087dffe5e0241a1ff9a5abe67a0aadb60", "sha256": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21"}
+    {"id": "tooling_package", "path": "tooling/package.json", "blob_oid": "9ff735e0a42cc769c084f862b6ad12e6d0371130", "sha256": "sha256:99584c57dff11fe4fe623fba3d3bcf96630e72f68aa0be8f4b67ad4f63b6b7af"},
+    {"id": "tooling_lock", "path": "tooling/package-lock.json", "blob_oid": "08ede6917704d646d4dcdc36d117fe9bf8328d8a", "sha256": "sha256:4a362a20ad10a44adfa1e8c73bbfd7b536fb3a8f71bc12fd54220547adfbf9dd"}
+    ,{"id": "lossless_types", "path": "tooling/src/lossless/types.ts", "blob_oid": "c9bd23a5d72cccaf7e4e51b6bcac2656b26a30eb", "sha256": "sha256:b0eb1de471f7b92719fdb70b084b21d00f1be0a6127bb6b316e1599bc7db4b8d"}
+    ,{"id": "lossless_inventory", "path": "tooling/src/lossless/inventory.ts", "blob_oid": "770177d5b0547d1daa3e11b519cba72c08f97cac", "sha256": "sha256:d3e8af05fe39848257ebe7234c6e343c5bb51feb30cca694d82fbd0c023b058e"}
+    ,{"id": "lossless_plan", "path": "tooling/src/lossless/plan.ts", "blob_oid": "78351e5927aa71d27648710f759a398f1d1b0e20", "sha256": "sha256:1d982994f0c27577553d9d9c63d069409e5b84bb2abe74f12376275884ab5f6e"}
+    ,{"id": "lossless_apply", "path": "tooling/src/lossless/apply.ts", "blob_oid": "1d25e9faf7d2ebf1e413ac3fde27673b544d5717", "sha256": "sha256:88a7155c5ad342295f03ca563a3e9ae6ccb49dd8498ba0359a254ed9d2c825c5"}
+    ,{"id": "lossless_toolchain", "path": "tooling/src/lossless/toolchain.ts", "blob_oid": "45ebb166e2b82cfa82bd221e1f7bbc878e1807cc", "sha256": "sha256:f8b1aa6bafd21cd42c9a4a3580f99a13124cfb256a9d88ac4dece2186a8c6127"}
+    ,{"id": "lossless_cli", "path": "tooling/src/cli/lossless.ts", "blob_oid": "4662c09509faf6c8ae7152ddc3bfb14e458b9576", "sha256": "sha256:8965bcfb5634074e8df6c9b54c303078b8840ee0556d79d6dab9830931accf77"}
+    ,{"id": "lossless_spec", "path": "docs/design/lossless-renderer/spec.md", "blob_oid": "f2a7139ea61ba6b48bad255f173495a1c2beefe2", "sha256": "sha256:6091ba319005fc26ef4d3276be486efbbe236db2e24ab2fc7434525a116bb717"}
+    ,{"id": "lossless_api", "path": "docs/design/lossless-renderer/api.md", "blob_oid": "98e871ef50c61329e6a1a7fd9a20fea93b243778", "sha256": "sha256:fcf9812049b4f843c26e21f85370c9827ace650a14b273795c0b1c1c05a473eb"}
+    ,{"id": "lossless_gate_roundtrip", "path": "tooling/test/lossless-roundtrip-corpus.ts", "blob_oid": "33cd3bfa24f4007e1f8c122115cc174888680213", "sha256": "sha256:f080e50cb10432809b3fcfce70fd1eac95854d9ca6b6281f371b6bfad865297f"}
+    ,{"id": "lossless_gate_adversarial", "path": "tooling/test/lossless-adversarial.ts", "blob_oid": "6e9a5a7ad044086eb7117767c4e5d060f1b3fe97", "sha256": "sha256:8d4aa0b0de7e4d314c4e7a5b592dc7d6fe5807f044224f1db8f0c14cfe820c5f"}
+    ,{"id": "lossless_gate_editplan", "path": "tooling/test/lossless-editplan.ts", "blob_oid": "2536764739450296f80625a6ad0982bbd0a087da", "sha256": "sha256:d26ac69424361dced94de86c5978b531e2b96f8ba206f6fc6e4516f819c70d85"}
+    ,{"id": "lossless_gate_minimal", "path": "tooling/test/lossless-edit-minimal.ts", "blob_oid": "219e3b4b0d567161af18e9b123c06b155cdd6075", "sha256": "sha256:d46f91d33382fd09a91fcafbcb2b0011d76ad22ad00019d99e0571b980073dfa"}
+    ,{"id": "lossless_gate_compile", "path": "tooling/test/lossless-compile-proof.ts", "blob_oid": "2cbb069e325687abf05a93d3f0b10073f57ae2f0", "sha256": "sha256:2f84501b5cb18ffc74fdb5a8ef91f415a7d071cc050c1fb83a4d164174b06a89"}
   ],
   "probes": [
     {"id": "typecheck", "cwd": "tooling", "argv": ["node", "node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.probes.json"], "success_marker": null},
     {"id": "semantic_retrieval", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/catalog-semantic.ts"], "success_marker": "catalog semantic retrieval (schema 2): VERDE ✓"},
     {"id": "r8_description", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/r8-description-invariant.ts"], "success_marker": "R8 invariante (esteso a Catalog/Field/ValueItem/ListEntry): OK"},
-    {"id": "r8_surface", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/r8-semantic-surface.ts"], "success_marker": "superficie semantica: OK"}
+    {"id": "r8_surface", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/r8-semantic-surface.ts"], "success_marker": "superficie semantica: OK"},
+    {"id": "lossless_roundtrip", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/lossless-roundtrip-corpus.ts"], "success_marker": "LOSSLESS_ROUNDTRIP_CORPUS: VERDE ✓"},
+    {"id": "lossless_adversarial", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/lossless-adversarial.ts"], "success_marker": "LOSSLESS_ADVERSARIAL: VERDE ✓"},
+    {"id": "lossless_editplan", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/lossless-editplan.ts"], "success_marker": "LOSSLESS_EDITPLAN: VERDE ✓"},
+    {"id": "lossless_minimal", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/lossless-edit-minimal.ts"], "success_marker": "LOSSLESS_EDIT_MINIMAL: VERDE ✓"},
+    {"id": "lossless_compile", "cwd": "tooling", "argv": ["node", "--import", "tsx", "test/lossless-compile-proof.ts"], "success_marker": "LOSSLESS_COMPILE_PROOF: VERDE ✓"}
   ],
   "policy": {
     "git_objects_only": true,

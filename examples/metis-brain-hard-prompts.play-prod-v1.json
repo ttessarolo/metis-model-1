@@ -1,0 +1,500 @@
+{
+  "artifact_id": "metis-brain-hard-prompts.play-prod-v1",
+  "artifact_version": 1,
+  "language": "en",
+  "purpose": "Ten structurally inspected, real play-prod endpoint edit prompts for Metis Brain hard-path qualification.",
+  "safety_boundary": {
+    "tenant_access": "read_only",
+    "contains_secrets": false,
+    "contains_credentials": false,
+    "contains_raw_live_payloads": false,
+    "model_or_network_execution": false,
+    "apply_authorized": false
+  },
+  "census": {
+    "scope": "properties/**/*.metis",
+    "files_examined": 176,
+    "endpoint_files_examined": 170,
+    "endpoint_declarations": 170,
+    "property_only_files_excluded": 6,
+    "property_only_paths": [
+      "properties/dem/_property.metis",
+      "properties/general/_property.migrated.metis",
+      "properties/play/_property.metis",
+      "properties/search/_property.metis",
+      "properties/sky/_property.migrated.metis",
+      "properties/snap/_property.migrated.metis"
+    ],
+    "selection_rule": "Ranked from parsed declarations and observed constructs, then diversified across search, similarity, TVOD, 4K capability, personalized context, parameterized blocks, variants, output contracts, fallbacks and alternatives. Endpoint names alone were not used as complexity evidence.",
+    "selected_roster": {
+      "in": 10,
+      "out": 10,
+      "distinct": 10,
+      "gaps": 0
+    }
+  },
+  "tenant_snapshot": {
+    "repository": "/Users/tommasotessarolo/Developer/metis-tenant-play-prod",
+    "branch": "main",
+    "head": "5f56bdfe27e3fb00b735db630a4eb5cdf5ab12c3",
+    "status": "clean",
+    "verification": "Read-only HEAD/status/tree check before and after census; no tenant path is writable in this task."
+  },
+  "shared_oracle_contract": {
+    "grounding": [
+      "Use the pinned schema-2 reviewed projection with catalog identity (catalog, field); draft, fuzzy, legacy-only or unreviewed literals are not grounding authority.",
+      "grounding.selections is the complete final finite-predicate set for the edited scope: reject stale predicates, omitted requested selections and duplicate selections.",
+      "Every changed finite value must be an exact reviewed value; structural/output edits do not authorize inventing a catalog value."
+    ],
+    "output": [
+      "Preserve the exact existing take mode and cardinality unless the prompt explicitly changes the named occurrence; total results and page size are never conflated.",
+      "Preserve response shape, metadata template, ordering, deduplication, view-all and fallback semantics unless an explicitly named occurrence is changed.",
+      "Fallback is source behavior to preserve and inspect, not permission to invent a fallback or silently remove one."
+    ],
+    "compiler": [
+      "Validate the candidate against the pinned Metis grammar/toolchain and the complete tenant snapshot before any proposal is considered successful.",
+      "Require first-attempt compile-clean evidence plus the semantic/output oracle; compile-clean text alone is insufficient.",
+      "The compiler-owned lossless bridge is admitted only for one exact IncludeClause whose existing finite-field roster equals the reviewed grounding roster; every more complex occurrence must decline to the full Model 1 path."
+    ],
+    "draft_only": [
+      "Emit an inspectable Draft/proposal and exact changed spans only; never call Apply.",
+      "Require tenant_modified=false, unchanged tenant HEAD/tree/status and unchanged target source hash outside the declared edit spans.",
+      "Any unresolved scope, branch, count/page, fallback, or grounding ambiguity must yield a typed clarification or unsupported/fail-closed result."
+    ]
+  },
+  "endpoints": [
+    {
+      "source_path": "properties/play/similar_cinema.metis",
+      "endpoint_identity": {
+        "qualified": "play.similar_cinema",
+        "public_name": "similarCinema"
+      },
+      "source_sha256": "sha256:6b4bdcdf7b4926326da2d091dcff7e154e77df4484ab1ccc18c53d04514ca133",
+      "structural_feature_evidence": [
+        "lines 13-129: context fan-out with seed plus nine 150-item candidate takes, exclusions, similarity promotion and group-by/order logic",
+        "lines 131-144: named block with a 24-result take, preset exclusions and publication ordering",
+        "lines 146-356: five variants with HDR/SDR, Infinity, Noleggio and default branches; ten endpoint takes; multiple orders and response pipelines",
+        "lines 193, 255, 356: deduplicate/limit and an empty-result fallback to block.most_recent_film_2"
+      ],
+      "operator_edit_prompt_it": "Modifica play.similar_cinema: nella variante Similar 4K porta entrambe le righe HDR e SDR da 30 a 24 risultati e il relativo limite finale a 24. Lascia invariati i candidati di contesto, i filtri di similarità, tutte le altre varianti e il fallback della riga principale.",
+      "expected_clarifications": [
+        "Confermare che la modifica vale solo per la variante Similar 4K e per entrambe le occorrenze HDR/SDR, non per la riga 24-result del blocco principale né per le altre varianti.",
+        "Confermare che 24 significa totale dei risultati e non page size.",
+        "Se il client non identifica il ramo, chiedere quale guard di formato deve essere modificato invece di applicare a tutte le varianti."
+      ],
+      "exact_intended_changes": [
+        "In the Similar 4K variant, change the HDR take cardinality 30 to 24 (source line 148).",
+        "In the same variant, change the SDR take cardinality 30 to 24 (source line 171).",
+        "Change only that variant's final response limit 30 to 24 (source line 193)."
+      ],
+      "strict_preserve_roster": [
+        "Endpoint identity, source path and all params/inputs.",
+        "All seed and candidate context takes, finite predicates, exclusions, promotions, group-by clauses and candidate ordering.",
+        "All non-target variants and their guards, takes, response pipelines, metadata and orders.",
+        "The main block take 24 and its publication order, plus its untouched empty fallback.",
+        "All source bytes outside the three declared numeric spans."
+      ],
+      "grounding_oracles": ["No new finite catalog value is authorized; exact selection set must remain unchanged from the reviewed basis.", "Reject any candidate that changes context or similarity predicates while changing cardinality."],
+      "output_oracles": ["Exactly two Similar 4K takes become total=24 and its local response limit becomes 24; every other take/order/dedup/fallback remains byte/semantically identical."],
+      "compiler_oracles": ["Pinned compiler accepts the candidate on the full snapshot; structural diff identifies only the three numeric occurrences."],
+      "draft_only_oracles": ["Draft only; no Apply; tenant HEAD/tree/status and this target hash remain unchanged."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "Multiple conditional occurrences and shared similarity context are outside Brain's admitted one-IncludeClause lossless subset.", "eligible_only_if": "A future pinned lossless inventory can bind the exact variant/occurrence spans and full-snapshot compile proof without broadening the current subset."}
+    },
+    {
+      "source_path": "properties/play/similar_serie_tv_fiction.metis",
+      "endpoint_identity": {"qualified": "play.similar_serie_tv_fiction", "public_name": "similarSerieTvFiction"},
+      "source_sha256": "sha256:491072f3c8ed41feb93cb8f404c37eed3be8f76c158e82eb15323d57efca84f7",
+      "structural_feature_evidence": [
+        "lines 14-31: seed context and a reusable most_recent_serie_tv_e_fiction block",
+        "lines 33-241: three variants, nine takes including take 24 * 2, conditional context predicates and several nested response fallbacks",
+        "lines 107, 135, 154, 194, 238-241: repeated fallback to the named most-recent block, with shuffle/deduplicate/limit response pipelines"
+      ],
+      "operator_edit_prompt_it": "Su play.similar_serie_tv_fiction, nella variante Similar Serie TV e Fiction modifica solo il blocco di clip che oggi prende 5 elementi: portalo a 4. Mantieni lo shuffle, tutti i fallback verso most_recent_serie_tv_e_fiction e le altre righe/varianti senza variazioni.",
+      "expected_clarifications": [
+        "Confermare che si tratta dell'unico take 5 della variante Similar Serie TV e Fiction, non dei take 1/6/10 o del take 24 * 2.",
+        "Confermare che il fallback deve restare attivo quando la riga ridotta è vuota.",
+        "Chiedere il ramo Infinity/CHNLS/default se la variante non è determinabile dal contesto."
+      ],
+      "exact_intended_changes": ["Change only take 5 to take 4 at source line 110.", "Keep the local shuffle response and its existing empty fallback unchanged."],
+      "strict_preserve_roster": [
+        "All three variant guards, seed context and reusable block declaration.",
+        "All finite predicates, exclusions, presets, similarity clauses and orders in the target take.",
+        "All six fallback occurrences and every non-target take/cardinality, including take 24 * 2.",
+        "All response shapes, labels and source bytes outside the single numeric span."
+      ],
+      "grounding_oracles": ["No new catalog value; grounding selection set is empty for this cardinality-only edit.", "Reject stale or extra predicate changes in the model candidate."],
+      "output_oracles": ["Target row is total=4, still shuffled, with its exact existing fallback; all other counts and fallbacks are preserved."],
+      "compiler_oracles": ["Pinned compiler and structural oracle accept one take-token replacement only."],
+      "draft_only_oracles": ["Return a Draft proposal only; assert no tenant mutation and unchanged source hash outside the target span."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "The requested occurrence is nested inside a variant with repeated fallback semantics, outside Brain's admitted one-IncludeClause lossless subset.", "eligible_only_if": "A future exact variant/block/take identity and fallback-preservation contract is sealed by compiler-owned inventory and full-snapshot proof."}
+    },
+    {
+      "source_path": "properties/search/filtered_search.metis",
+      "endpoint_identity": {"qualified": "search.filtered_search", "public_name": "filteredSearch"},
+      "source_sha256": "sha256:badff812601ab16a93d3eca20e60d22d40e78377e625650a4ffb91b5e2e5da8f",
+      "source_status": "NON-PROMOTE, as declared by the source comments at lines 3-5; this artifact remains Draft-only.",
+      "structural_feature_evidence": [
+        "lines 31-91: search context plus reusable src_search_video block with query normalization pipeline, relevance/count ordering and multiple takes",
+        "lines 93-418: seven query/channel variants, fourteen takes, ten view-all references and multiple metadata templates",
+        "lines 198, 244, 272, 277, 346, 415: page/default materialized fallbacks with both substitute and append semantics",
+        "lines 213-224, 261-266, 290-303, 335-338: best-plus-near-full alternatives, query matching and subscription/channel guards"
+      ],
+      "operator_edit_prompt_it": "Modifica search.filtered_search: per la variante ricerca_film voglio 24 risultati totali invece dei 50 attuali. Non cambiare la ricerca fuzzy, il doppio ordinamento per rilevanza e titolo, il view-all, il template POSTER o il fallback della pagina; le altre varianti devono restare identiche.",
+      "expected_clarifications": [
+        "Confermare che 24 è il totale della variante ricerca_film e non la dimensione di una pagina.",
+        "Confermare che la variante è ricerca_film ($params_variant=movie), non ricerca_programmi_e_serie o ricerca_gratis_per_te.",
+        "Chiedere conferma separata se l'operatore intende anche cambiare il fallback materializzato; omissione significa preservarlo."
+      ],
+      "exact_intended_changes": ["Change only the ricerca_film take 50 to take 24 at source line 250.", "Do not alter its view-all, POSTER metadata, relevance/title order or page fallback at line 272."],
+      "strict_preserve_roster": [
+        "Endpoint inputs, search context and all seven variant guards.",
+        "All query matching, channel/geolocation/4K conditions, alternatives, exclusions, promotions and ordering.",
+        "All ten view-all references, templates and all materialized fallback targets/thresholds.",
+        "All non-target takes and source bytes outside the single cardinality span."
+      ],
+      "grounding_oracles": ["No finite editorial selection is changed; query text remains operator input and is not converted into an invented catalog value.", "Reject candidates that turn 24 total into take page or alter search field authority."],
+      "output_oracles": ["Only ricerca_film changes to total=24; fallback remains substitute-on-page-below-one and every other variant preserves its count/pagination behavior."],
+      "compiler_oracles": ["Pinned compiler validates the complete search source and an occurrence-aware diff proves the target variant is the only changed take."],
+      "draft_only_oracles": ["Draft-only proposal; no fallback materialization, tenant write or Apply."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "Many variants reuse the same search/output vocabulary and fallback surfaces; the admitted one-IncludeClause lossless subset cannot safely infer the intended occurrence from prose alone.", "eligible_only_if": "A future typed lossless plan binds the exact ricerca_film occurrence and total-count contract."}
+    },
+    {
+      "source_path": "properties/search/detail.metis",
+      "endpoint_identity": {"qualified": "search.detail", "public_name": null},
+      "source_sha256": "sha256:3d19d3363433df171a34bb657dcaf239a7e52cf95be5f5c222cfb8fc063f3314",
+      "structural_feature_evidence": [
+        "lines 16-39: five inputs, time dependency and derived attributes has_query/has_channel/inf_channel",
+        "lines 41-173: three reusable blocks with nine conditional takes and deduplicate pipelines",
+        "lines 176-255: nine active variant routes covering searched video, brand, clip, full episode, movie and Infinity modes",
+        "lines 182-224: KEYFRAME/POSTER templates and searchDetailParams metadata coupled to clip/fep/movie variants"
+      ],
+      "operator_edit_prompt_it": "Rendi più chiara solo l'etichetta mostrata dalla variante film di search.detail: sostituisci Film con Film in evidenza. Non modificare query, filtri, conteggio 30, template POSTER o i metadati searchDetailParams.",
+      "expected_clarifications": [
+        "Confermare che titolo significa l'etichetta della riga/variant e non il campo catalogo @title.",
+        "Confermare che l'etichetta va cambiata solo nella variante film ($params_variant=movie), non nei blocchi riusati o nei testi dei parametri UX.",
+        "Nessuna domanda di grounding è necessaria se l'operazione resta puramente editoriale e non introduce un filtro."
+      ],
+      "exact_intended_changes": ["Change the visible label on the film variant take from Film to Film in evidenza at source line 226.", "Leave the adjacent searchDetailParams string and all query semantics byte-identical."],
+      "strict_preserve_roster": [
+        "Implicit endpoint identity and all five input fields, time dependency and attributes.",
+        "All three reusable blocks, nine takes, conditional guards, finite predicates, presets, promotions and orders.",
+        "All nine variant routes and every POSTER/KEYFRAME/searchDetailParams metadata field.",
+        "All source bytes outside the target display-label span."
+      ],
+      "grounding_oracles": ["No catalog predicate or grounding selection may appear in the proposal.", "Reject any candidate that edits @title, query matching or a shared block instead of the display label."],
+      "output_oracles": ["Only the film row label changes; take=30, POSTER, ordering and searchDetailParams remain unchanged."],
+      "compiler_oracles": ["Pinned compiler accepts the label-only edit and the lossless span oracle reports no structural movement."],
+      "draft_only_oracles": ["Open a Draft proposal only; no search endpoint or tenant file is modified."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "Although label-only, this edit is outside the admitted IncludeClause lossless subset and the source has shared block/variant metadata where a wrong label scope is destructive.", "eligible_only_if": "A future compiler-owned inventory binds the film-variant display label separately from searchDetailParams and proves untouched bytes."}
+    },
+    {
+      "source_path": "properties/play/multiple_block_compleanno.metis",
+      "endpoint_identity": {"qualified": "play.multiple_block_compleanno", "public_name": "multipleBlockDemCompleanno"},
+      "source_sha256": "sha256:a5394dfd8a284f995f7f2cb5192acbcf8dae0872adeccbc7060e5239a1e47c51",
+      "structural_feature_evidence": [
+        "lines 21-81: user/seed context and top-level block scope",
+        "lines 83-490: eleven named blocks and twenty-six takes across films, fiction, kids, information and sport",
+        "lines 124, 198, 250, 278, 377, 411, 443, 495, 507: view-all references across cluster and one-hour routes",
+        "lines 164-499: seven fallback paths, multiple deduplicate/limit/shuffle/order pipelines and cluster-conditioned takes",
+        "lines 493-525: ciak and static variants with block reuse and different caps"
+      ],
+      "operator_edit_prompt_it": "Nel Draft di play.multiple_block_compleanno cambia solo l'etichetta dell'istanza film_similar_to_cluster usata nella variante ciak da Altri film suggeriti per te a Altri film per te. Mantieni tutti gli 11 blocchi, i 26 take, i view-all, i fallback e la variante statica.",
+      "expected_clarifications": [
+        "Confermare che si modifica l'etichetta dell'istanza usata da ciak (linea use) e non il nome/dichiarazione condivisa del blocco.",
+        "Confermare che non si desidera cambiare il titolo del blocco nel ramo statico né alcun filtro/ordinamento.",
+        "Se ciak non è il ramo attivo, chiedere se la richiesta deve rimanere Draft-only senza selezionare automaticamente statico."
+      ],
+      "exact_intended_changes": ["Change only the ciak use-instance label at source line 501 from Altri film suggeriti per te to Altri film per te."],
+      "strict_preserve_roster": [
+        "All params, inputs, time/context fields and every named block definition.",
+        "All 26 take cardinalities and finite include/exclude/promote predicates, including cluster guards.",
+        "All nine view-all references, seven fallback targets/conditions, order/deduplicate/limit/shuffle pipelines and metadata templates.",
+        "The static variant and every source byte outside the label span."
+      ],
+      "grounding_oracles": ["No grounding selection is permitted for a display-label-only edit.", "Reject a candidate that changes the cluster/seed predicates or converts an instance-label edit into a shared block edit."],
+      "output_oracles": ["Only the ciak displayed label changes; all block order, caps, view-all and fallback behavior is preserved."],
+      "compiler_oracles": ["Pinned compiler validates all nested blocks and proves the use-instance label is the sole changed semantic node."],
+      "draft_only_oracles": ["Draft only, no Apply, no materialized fallback write and unchanged tenant state."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "Deep multi-block reuse and variant-specific instance labels require an exact ownership/span map beyond the admitted IncludeClause lossless subset.", "eligible_only_if": "A future lossless plan distinguishes the ciak use-instance from the shared film_similar_to_cluster declaration and verifies the full snapshot."}
+    },
+    {
+      "source_path": "properties/play/multiple_block_dem_titoli_momento.metis",
+      "endpoint_identity": {"qualified": "play.multiple_block_dem_titoli_momento", "public_name": "multipleBlockDemTitoliMomento"},
+      "source_sha256": "sha256:632b9ddcad7f55c7cf94076188bc6fd12dea215488a5b8e63e7175fcb7aa7082",
+      "structural_feature_evidence": [
+        "lines 23-389: ten named blocks with context-derived seed/user behavior and reusable movable blocks",
+        "lines 29-369: twenty-seven takes, including take 20 * 2, per-block limits, multiple order fields and cluster-conditioned branches",
+        "lines 83, 153, 170, 279, 392, 457, 470: seven view-all routes including film_clustering",
+        "lines 130-446: six fallback occurrences, dedup/limit/order-to-similarity pipelines and two top-level variants"
+      ],
+      "operator_edit_prompt_it": "Su play.multiple_block_dem_titoli_momento rinomina solo l'istanza movable `fiction_originals_2_movable` da Le serie di Mediaset Infinity a Le serie Infinity da vedere. Non cambiare il blocco condiviso, i 27 take, i parametri di cluster, i view-all o i fallback.",
+      "expected_clarifications": [
+        "Confermare che il cambio vale per l'istanza movable usata dalla variante clusterizzato e non per la dichiarazione fiction_originals_2 riusata altrove.",
+        "Confermare che l'operatore intende cambiare solo il titolo visibile, non il catalogo, il filtro fiction o la cardinalità.",
+        "Se la variante non è esplicita, chiedere clusterizzato versus dem_titoli_del_momento invece di modificare entrambe."
+      ],
+      "exact_intended_changes": ["Change only the use-instance label at source line 450 from Le serie di Mediaset Infinity to Le serie Infinity da vedere."],
+      "strict_preserve_roster": [
+        "Endpoint identity, params, inputs, time dependency and context seed/user logic.",
+        "All ten block declarations, 27 takes, take 20 * 2, guards, predicates, presets, promotions and orders.",
+        "All seven view-all references, six fallback paths, deduplicate/limit/similarity pipelines and both variants.",
+        "All source bytes outside the one movable-instance label span."
+      ],
+      "grounding_oracles": ["No finite catalog selection may be added; only an instance display label is changed.", "Reject shared-block or variant-wide edits when the requested occurrence is instance-scoped."],
+      "output_oracles": ["Only the clusterized movable row label changes; counts, pagination-like take forms, view-all and fallbacks remain exact."],
+      "compiler_oracles": ["Pinned compiler validates nested block/use syntax and occurrence-aware label ownership."],
+      "draft_only_oracles": ["Emit a Draft only and assert tenant_modified=false and no Apply."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "The same block family is declared and used under multiple variants; the admitted IncludeClause lossless subset does not cover instance ownership.", "eligible_only_if": "Future typed host references and full-snapshot lossless compile proof bind exactly the movable use line."}
+    },
+    {
+      "source_path": "properties/play/tvod_multiple_block.metis",
+      "endpoint_identity": {"qualified": "play.tvod_multiple_block", "public_name": "tvodMultipleBlock"},
+      "source_sha256": "sha256:4246faf6c178f8cce4cda934719796b0daf5797bf05a670ea34179f2cf69435f",
+      "structural_feature_evidence": [
+        "lines 5-43: explicit timeout/expiry/pagination params, five inputs and user history/seed/similarity context",
+        "lines 45-149: parameterized block tvod_multiple_block_generi_per_parametri(genere_mcm!, is_pinned boolean=true) with five takes, arg guards, alternatives and orders",
+        "lines 151-183: personalized expanded-response block with view-all, seed predicates, promotions and exclusions",
+        "lines 187-206: one variant instantiating the parameterized block ten times with different genre arguments, then smart ordering and error fallback"
+      ],
+      "operator_edit_prompt_it": "Su play.tvod_multiple_block cambia solo il titolo visibile dell'istanza parametrica `azione` da Azione a Azione in primo piano. Conserva l'argomento genere_mcm=\"Azione\", il blocco parametrico, tutti gli altri nove generi, la riga expanded e il fallback di errore.",
+      "expected_clarifications": [
+        "Confermare che Azione è l'etichetta dell'istanza e non il valore arg.genere_mcm da cambiare.",
+        "Confermare che il cambio non va propagato alla dichiarazione parametrica o alle altre istanze genere.",
+        "Nessuna domanda di conteggio: tutti i take 10/5/3/10/300/20 e la paginazione vanno preservati."
+      ],
+      "exact_intended_changes": ["Change only the use-instance label at source line 190 from Azione to Azione in primo piano.", "Keep the argument genre_mcm=\"Azione\" byte-identical."],
+      "strict_preserve_roster": [
+        "All params, five inputs, time dependency and user/watched/seed/candidate context.",
+        "Parameterized block signature/default, all five takes, arg conditions, alternatives, exclusions, promotion and ordering.",
+        "All ten genre instances, view-all references, expanded output and smart-order/error fallback.",
+        "All source bytes outside the instance label span."
+      ],
+      "grounding_oracles": ["The existing reviewed value Azione remains the sole genre argument; no new catalog value or selection is emitted.", "Reject any candidate that changes arg.genere_mcm or the shared parameterized block."],
+      "output_oracles": ["Only the instance label changes; all total takes, `response.expanded`, smart ordering and error fallback remain unchanged."],
+      "compiler_oracles": ["Pinned compiler validates parameter binding and confirms the label/argument distinction."],
+      "draft_only_oracles": ["Draft-only proposal, no Apply, no tenant mutation or fallback materialization."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "A parameterized block has many instances and a label/argument distinction, which is outside the admitted IncludeClause lossless subset.", "eligible_only_if": "Future typed host references prove the exact use-instance label and preserve its argument and shared block bytes."}
+    },
+    {
+      "source_path": "properties/play/multiple_block4_k.metis",
+      "endpoint_identity": {"qualified": "play.multiple_block4_k", "public_name": "multipleBlock4K"},
+      "source_sha256": "sha256:e4f9fced0970fa5ffc7c38cf7b458c7be8b90bcc98dbd0be33623c261cbbcbb0",
+      "structural_feature_evidence": [
+        "lines 16-20: context seed and capability input used to select HDR/SDR behavior",
+        "lines 21-104: two named blocks with six takes, paired HDR/SDR conditional branches, view-all, order fields and deduplicate/limit pipelines",
+        "lines 106-121: populated capability variant plus explicit empty default variant",
+        "lines 27-68: repeated 20/50 cardinality pairs and 4K format predicates make branch-local edits easy to misapply"
+      ],
+      "operator_edit_prompt_it": "Modifica play.multiple_block4_k solo per il ramo HDR della variante capability: porta il primo take da 20 a 24, lasciando il secondo take HDR da 50 e tutti i take SDR/default invariati. Mantieni view-all, ordinamenti e limite finale 50.",
+      "expected_clarifications": [
+        "Confermare che HDR significa $context_4kcapability contiene 4khdr e non il ramo 4ksdr.",
+        "Confermare che si modifica il primo take HDR (20) e non il secondo take HDR (50) né il limite finale.",
+        "Confermare che il default empty resta senza righe e non deve ricevere un nuovo take."
+      ],
+      "exact_intended_changes": ["Change only source line 27 from take 20 to take 24 under the 4khdr guard."],
+      "strict_preserve_roster": [
+        "Capability input, seed context, params and both variant declarations/guards.",
+        "The HDR second take=50, both SDR takes=20/50 and both default-path takes.",
+        "All 4K format predicates, arg.genere_mcm use, view-all references, orders, deduplicate/limit pipelines and block uses.",
+        "All source bytes outside the single HDR cardinality span."
+      ],
+      "grounding_oracles": ["No finite catalog selection is changed; exact grounding set remains empty.", "Reject branch drift where the candidate edits SDR/default or changes 4K predicates."],
+      "output_oracles": ["Only HDR's first total changes 20 to 24; the second HDR take remains 50 and final response limit remains 50."],
+      "compiler_oracles": ["Pinned compiler plus branch-aware structural oracle prove the changed take is nested under 4khdr."],
+      "draft_only_oracles": ["Draft only, no Apply; tenant and source authority remain unchanged."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "Paired HDR/SDR occurrences and an explicit empty variant create a high-risk branch-selection edit outside the admitted IncludeClause lossless subset.", "eligible_only_if": "A future typed branch/take host reference and full-snapshot lossless receipt are available."}
+    },
+    {
+      "source_path": "properties/play/inf_multiple_block_film_serie.metis",
+      "endpoint_identity": {"qualified": "play.inf_multiple_block_film_serie", "public_name": "infMultipleBlockFilmSerie"},
+      "source_sha256": "sha256:d3674ee8bb4202d4be293d64e8ae2698fc38171697030deeee6fd2d2ca041018",
+      "structural_feature_evidence": [
+        "lines 26-40: timeout/expiry/paginate snapshot, user context and derived fingerprint attribute",
+        "lines 42-206: four parameterized genre block declarations (personalized and anonymous film/series), each with multiple takes and view-all routes",
+        "lines 208-228: personalized and anonymous variants instantiate six genre blocks each with explicit argument tuples",
+        "lines 217-218: personalized response smart-orders rows by user historical fingerprint"
+      ],
+      "operator_edit_prompt_it": "In play.inf_multiple_block_film_serie, nella variante personalizzata aggiungi Avventura alla lista genere della sola istanza film_azione: da Azione,Thriller,Crime a Azione,Avventura,Thriller,Crime. Non cambiare la dichiarazione parametrica, la variante anonima, le altre cinque istanze o lo smart-order.",
+      "expected_clarifications": [
+        "Confermare che il cambio vale solo per l'argomento dell'istanza personalizzata film_azione e non per il blocco generi_per_parametri_film in tutte le istanze.",
+        "Confermare che Avventura è un valore reviewed del campo genere_mcm e che la lista deve restare una lista di genere, non un nuovo filtro inline.",
+        "Confermare che la variante anonima resta con i suoi argomenti distinti."
+      ],
+      "exact_intended_changes": ["Change only the personalized use argument at source line 212 from genere=\"Azione,Thriller,Crime\" to genere=\"Azione,Avventura,Thriller,Crime\"."],
+      "strict_preserve_roster": [
+        "All params, user context, fingerprint attribute and four parameterized block declarations/signatures.",
+        "All block takes, filters, exclusions, view-all choices, response limits and metadata.",
+        "The other five personalized instances, all six anonymous instances and both variant guards/ordering.",
+        "All source bytes outside the one instance-argument span."
+      ],
+      "grounding_oracles": ["Resolve Avventura exactly in the reviewed `(catalog, field)=genere_mcm` projection; emit one final selection for the changed instance scope.", "Reject stale/duplicate genre selections or candidates that retain the old argument in the target occurrence."],
+      "output_oracles": ["Only personalized film_azione receives the additional reviewed genre argument; all block cardinalities, view-all, response limits and smart ordering remain unchanged."],
+      "compiler_oracles": ["Pinned compiler validates parameter binding and full source; semantic oracle confirms the target instance only."],
+      "draft_only_oracles": ["Produce a Draft; no Apply; tenant HEAD/tree/status and source authority remain unchanged."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "The same parameterized declaration is instantiated repeatedly across two variants, so this argument edit is outside the admitted IncludeClause lossless subset.", "eligible_only_if": "A future lossless plan binds personalized/film_azione's exact argument node and proves all other instances byte-identical."}
+    },
+    {
+      "source_path": "properties/play/similar_intrat_abtest.metis",
+      "endpoint_identity": {"qualified": "play.similar_intrat_abtest", "public_name": "similarIntrABtest"},
+      "source_sha256": "sha256:25d61ce7ef6eaac9045b76bcf9a7bb3504b18189cfc7bfa49416bfbdc6d951cc",
+      "structural_feature_evidence": [
+        "lines 20-88: four context candidate takes with 18M time windows, exclusions, similarity promotion and group-by limits",
+        "lines 90-142: hypothesis-C variant with a named block and two consumer takes (4 and 24)",
+        "lines 96-121: best plus near_full alternatives combine candidate sources",
+        "lines 139-140: deduplicate/limit-to-24 response with nested flat-item fallback append behavior"
+      ],
+      "operator_edit_prompt_it": "Modifica play.similar_intrat_abtest: nella riga consumer da 24 della variante similar_intrattenimento_ipotesi_c porta il totale a 30 e aggiorna il relativo limite finale a 30. Conserva le quattro sorgenti candidate, le finestre 18M/14d, le alternative best-plus-near-full e il fallback append.",
+      "expected_clarifications": [
+        "Confermare che si modifica il take consumer 24 a line 113, non i quattro take di contesto da 50 né il take 4.",
+        "Confermare che 30 è un totale e che il fallback append resta invariato.",
+        "Chiedere conferma del ramo hypothesis-C se una futura variante ABtest fosse presentata come target."
+      ],
+      "exact_intended_changes": ["Change the consumer take at source line 113 from 24 to 30.", "Change only its final response limit at source line 139 from 24 to 30; preserve the nested fallback append at line 140."],
+      "strict_preserve_roster": [
+        "Endpoint params/inputs/persona exclusion/time dependency and all four context candidate queries.",
+        "All 18M windows, group-by limits, exclusions, promotions, alternative source IDs and 14d promotion windows.",
+        "The take 4 row, all finite predicates, response deduplication and nested fallback append semantics.",
+        "All source bytes outside the two declared cardinality spans."
+      ],
+      "grounding_oracles": ["No new catalog value; grounding selections remain empty for cardinality-only output edit.", "Reject candidates that alter source candidate IDs, similarity alternatives or fallback policy."],
+      "output_oracles": ["Consumer total and local final limit are exactly 30; fallback remains append-on-nested-flat-items-below-one and all context takes stay 50."],
+      "compiler_oracles": ["Pinned compiler validates alternatives/grouping and an occurrence-aware output oracle proves only the consumer pair changed."],
+      "draft_only_oracles": ["Draft-only proposal, no Apply or materialized fallback mutation; tenant state unchanged."],
+      "lossless_path": {"decision": "fail_closed_fallback", "reason": "The target is a consumer occurrence downstream of multiple grouped candidate contexts and alternative operators, outside the admitted IncludeClause lossless subset.", "eligible_only_if": "A future typed consumer-take reference and full-snapshot compile receipt preserve all upstream candidate and fallback spans."}
+    }
+  ],
+  "zero_generation_contract": {
+    "scenario_id": "B",
+    "universal_capabilities": [
+      "Keep the conversation and Draft lineage server-owned; each turn carries only the new user decision and the delta from the prior Draft.",
+      "Ask only a typed clarification whose answer changes catalog, total-versus-page cardinality, response shape, fallback policy or a genuinely ambiguous parameter/branch.",
+      "After every accepted turn, preserve prior accepted choices and all non-target structure; never infer an omitted filter, fallback, branch or parameter.",
+      "Validate exact reviewed grounding, complete final finite-predicate selections, output contract and pinned compiler on every Draft; unresolved ambiguity fails closed.",
+      "Converge only when the final Draft has the requested structure, first-attempt compile-clean evidence, no duplicate/omitted selections, and Draft-only tenant invariance."
+    ],
+    "case_dependent_capabilities": [
+      "Similarity endpoints require seed/candidate context, similarity promotion and branch-specific alternatives.",
+      "Search endpoints require query/channel inputs, variant routing, relevance/order rules and search-specific view-all/fallback behavior.",
+      "Homepage multi-block endpoints require named block reuse, instance arguments, row ordering and optional personalization.",
+      "TVOD/4K endpoints require parameter or capability guards and must distinguish shared block declarations from instance arguments.",
+      "Fallback, expanded response, nested pagination, `take * 2`, metadata templates and smart ordering are preserved only for cases that actually contain them."
+    ],
+    "global_convergence": [
+      "Final proposal is semantically/structurally equivalent to the selected source feature roster, while allowing the explicitly requested business delta.",
+      "All requested clarifications are answered once; no repeated question/options and no more than three blocking questions.",
+      "Grounding, output, pinned compiler and Draft-only oracles are green; a private lossless render is allowed only in the admitted subset, while public tenant Apply remains disabled."
+    ]
+  },
+  "zero_generation_scenarios": [
+    {
+      "endpoint_qualified": "play.similar_cinema",
+      "case_dependent_capabilities": ["seed and candidate context fan-out", "HDR/SDR/Infinity/Noleggio conditional variants", "grouped alternatives, multi-order and empty fallback"],
+      "turns": [
+        {"turn": 1, "user_message": "Voglio una riga di film simili per la sezione cinema.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "No Draft yet; ask for the authorized catalog and a bounded total result count.", "invariants": ["Do not invent a catalog, seed field or fallback."] , "compile_and_oracles": ["No compile until catalog and cardinality are admitted; pending question is typed and session-bound."]},
+        {"turn": 2, "user_message": "Usa il catalogo video e dammi 24 risultati totali.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create a minimal film-similarity Draft with one seed context and one 24-result consumer row.", "invariants": ["catalog=video", "total=24", "No page mode, branch or fallback unless requested."], "compile_and_oracles": ["Grounding has no unreviewed finite values; pinned compiler validates the minimal Draft; tenant remains untouched."]},
+        {"turn": 3, "user_message": "Aggiungi una riga principale e rami separati per HDR, SDR, Infinity e Noleggio; per ogni ramo usa candidati simili al seed e ordina la riga principale per data.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the named block, four guarded variants and the source-equivalent ten endpoint take roles, plus seed/candidate context and branch-local output/order rules.", "invariants": ["Preserve catalog and 24-result consumer intent", "Do not add a fallback or change the result total silently."], "compile_and_oracles": ["Branch guards and all finite predicates must be schema-reviewed; structural oracle checks one consumer per requested branch and ten distinct endpoint takes."]},
+        {"turn": 4, "user_message": "Se la riga principale è vuota usa il blocco most_recent_film_2; nei rami con candidati combina le alternative e limita il risultato finale a 24.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the explicitly named empty fallback, candidate alternative pipeline and final limit=24 while retaining all previous branches.", "invariants": ["Fallback applies only to the main row", "All HDR/SDR/Infinity/Noleggio guards and seed context remain unchanged."], "compile_and_oracles": ["Exact fallback target and alternative operators compile on the full snapshot; grounding selections remain complete and duplicate-free."]}
+      ],
+      "convergence": {"criterion": "Draft has seed plus candidate context, main block, four guarded variants with the source-equivalent ten endpoint take roles, requested 24 cardinality, explicit fallback and similarity/order pipelines equivalent to the selected source; no Apply.", "universal_capabilities": ["typed catalog/count clarification", "incremental Draft delta", "full-snapshot compile and no-Apply oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.similar_serie_tv_fiction",
+      "case_dependent_capabilities": ["Infinity and CHNLS branch guards", "reusable most-recent block", "nested empty fallbacks, shuffle and `take 24 * 2`"],
+      "turns": [
+        {"turn": 1, "user_message": "Crea una riga con serie TV e fiction simili a quello che sta guardando l'utente.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog and bounded total results; the seed is not guessed.", "invariants": ["No assumed user-history field or editorial type."], "compile_and_oracles": ["No Draft/compile before required catalog and count decisions."]},
+        {"turn": 2, "user_message": "Catalogo video, 24 risultati totali, usando il contenuto visto come seed.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create one seed context and a 24-result most-recent series/fiction block.", "invariants": ["catalog=video", "total=24", "Seed is context only and no fallback is invented."], "compile_and_oracles": ["Pinned compiler validates seed and block; reviewed grounding contains no fabricated values."]},
+        {"turn": 3, "user_message": "Prevedi tre percorsi: Infinity, canali diversi da Infinity/MediasetPlay/Noleggio e una variante generale; usa similarità al seed e mantieni una riga per episodi recenti.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add three guarded variants and the reusable recent-episode block, retaining the seed.", "invariants": ["The original 24-result block remains", "No fallback is introduced yet."], "compile_and_oracles": ["All guards and reused block references compile; no duplicate endpoint or variant identity."]},
+        {"turn": 4, "user_message": "Nei rami che possono restare vuoti usa sempre la riga degli episodi più recenti; per il percorso principale aggiungi una sequenza 24 per 2 e fai shuffle solo sulla riga clip da 5.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add only the requested repeated fallback, `take 24 * 2` path and local shuffle on the 5-result clip row.", "invariants": ["All three branch guards, seed predicates and non-target takes remain", "Fallback target is the recent block, not a new materialized guess."], "compile_and_oracles": ["Compiler accepts nested fallback and multiplied cardinality; output oracle distinguishes total from page and confirms no stale fallback is removed."]}
+      ],
+      "convergence": {"criterion": "Final Draft contains the seed, reusable recent block, three branch variants, nine source-equivalent take roles, repeated fallback, shuffle and `take 24 * 2`; no Apply.", "universal_capabilities": ["catalog/count clarification", "branch-aware refinement", "fallback-preservation oracle"]}
+    },
+    {
+      "endpoint_qualified": "search.filtered_search",
+      "case_dependent_capabilities": ["query/channel inputs", "seven search variants", "view-all parameter endpoint", "relevance/title ordering and substitute-versus-append fallbacks"],
+      "turns": [
+        {"turn": 1, "user_message": "Mi serve una ricerca dei contenuti del servizio.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog plus whether the requested number is total or per page; the query/channel contract is not assumed.", "invariants": ["No invented search fields, page size or fallback."], "compile_and_oracles": ["Typed clarification only; no source generated yet."]},
+        {"turn": 2, "user_message": "Catalogo video, 50 risultati per pagina, con ricerca su testo e canale; normalizza il testo di ricerca prima di eseguire le query.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create a paginated search Draft with query/channel inputs, a query-normalization pipeline, one reusable video-search block, view-all and relevance/title ordering.", "invariants": ["50 is page size", "Query and channel remain operator inputs", "The normalization pipeline does not invent editorial values", "No finite editorial value is fabricated."], "compile_and_oracles": ["Output oracle records page mode; compiler validates query normalization, matching and view-all reference."]},
+        {"turn": 3, "user_message": "Aggiungi percorsi distinti per tutti, programmi/serie, film, video e gratis per te, oltre al caso Mediaset Italia senza query; nei percorsi con query combina le alternative di titolo, persone e genere mantenendo il ranking.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the seven source-equivalent guarded variant routes and fourteen route takes, their alternative query paths and retain the shared search block.", "invariants": ["The 50-per-page contract and search inputs persist", "Each route has an explicit guard; no route is selected by name alone."], "compile_and_oracles": ["Variant uniqueness, fourteen-take coverage and alternative-source scope are checked; compile remains Draft-only."]},
+        {"turn": 4, "user_message": "Per ogni percorso abilita Vedi tutto; usa fallback sostitutivi quando una pagina è vuota e, nel default, aggiungi il fallback in coda quando gli elementi piatti sono meno di uno.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add ten view-all uses and the distinct substitute/append fallback policies without changing query semantics.", "invariants": ["No fallback target is invented if unresolved", "Ordering, templates and page size remain stable."], "compile_and_oracles": ["Full output oracle distinguishes page fallback substitute from default append; pinned compiler and grounding pass; tenant unchanged."]}
+      ],
+      "convergence": {"criterion": "Draft reaches query/channel search with seven routes and fourteen source-equivalent route takes, reusable block, ten view-all occurrences, relevance/title/date orders and both fallback policies equivalent to the selected source; no Apply.", "universal_capabilities": ["total-versus-page clarification", "shared-block incremental refinement", "output/fallback oracle"]}
+    },
+    {
+      "endpoint_qualified": "search.detail",
+      "case_dependent_capabilities": ["derived query/channel/4K attributes", "three reusable blocks", "nine variant routes", "KEYFRAME/POSTER and searchDetailParams metadata"],
+      "turns": [
+        {"turn": 1, "user_message": "Crea la pagina di dettaglio per la ricerca dei contenuti.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask which authorized catalog/context supplies query, variant, channel and capability inputs; do not guess a catalog.", "invariants": ["No default variant or metadata is invented."], "compile_and_oracles": ["No compile until source authority is selected."]},
+        {"turn": 2, "user_message": "Usa il catalogo video e ricevi query, variante, canale e capacità 4K.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create inputs plus derived has_query/has_channel/inf_channel attributes and an initial block-level search Draft.", "invariants": ["Inputs remain external request data", "No catalog values are hard-coded from prose."], "compile_and_oracles": ["Pinned compiler validates input/attribute syntax and an empty-safe Draft."]},
+        {"turn": 3, "user_message": "Separa tre blocchi riusabili: video predefiniti, serie/programmi e stagioni; ogni blocco deve avere i suoi take condizionati per canale e query e deduplicare la risposta.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the three reusable blocks and their nine source-equivalent conditional take/order pipelines.", "invariants": ["Derived attributes and input names are preserved", "No variant route changes yet."], "compile_and_oracles": ["Block names are unique; nine conditional takes compile and output deduplication is explicit."]},
+        {"turn": 4, "user_message": "Instrada searchedVideo, brand, clip, fep, movie e i tre percorsi Infinity verso i blocchi corretti; per clip/fep/movie conserva template e searchDetailParams dedicati.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add nine variant routes and the metadata contracts for clip/fep/movie, preserving all shared blocks.", "invariants": ["Variant routing is guard-based", "No query matching or take cardinality is silently changed."], "compile_and_oracles": ["Route coverage, metadata shape and pinned compiler are green; Draft-only tenant invariance required."]}
+      ],
+      "convergence": {"criterion": "Final Draft has five inputs/derived attributes, three reusable blocks, nine routes and source-equivalent metadata/templates; no Apply.", "universal_capabilities": ["authority clarification", "incremental block/route construction", "metadata/compiler/Draft oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.multiple_block_compleanno",
+      "case_dependent_capabilities": ["eleven named homepage blocks", "cluster context and themed fallback chains", "ciak/static variants", "many view-all and response limits"],
+      "turns": [
+        {"turn": 1, "user_message": "Voglio una homepage personalizzata con contenuti per il compleanno dell'utente.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog and bounded number of rows/results; do not infer personalization inputs.", "invariants": ["No cluster, seed or fallback is guessed."], "compile_and_oracles": ["Typed catalog/count clarification; no compile yet."]},
+        {"turn": 2, "user_message": "Catalogo video, usa paginazione snapshot, mostra le righe più utili per l'utente e scegli i contenuti dal suo seed.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create snapshot pagination, user/seed context and a minimal multi-row Draft.", "invariants": ["snapshot pagination", "User/seed context is read-only", "No Apply and no unexplained finite predicate."], "compile_and_oracles": ["Grounding is empty or reviewed-only; compiler validates params, snapshot pagination and initial block structure."]},
+        {"turn": 3, "user_message": "Aggiungi undici ruoli separati: film recenti, fallback cinema, film simili al cluster, intrattenimento recente, programmi TV, documentari, fiction/serie scelte, soap simili al cluster, kids, informazione recente e informazione/sport simili; riusa i blocchi con Vedi tutto, combina le alternative dove esiste un profilo simile e ordina ogni riga secondo il suo criterio.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the eleven source-equivalent named block roles and their 26 takes, existing alternative candidate paths, view-all uses and local ordering/response pipelines.", "invariants": ["Seed/user context and prior rows persist", "Rows stay distinct and no block is merged."], "compile_and_oracles": ["Block roster is duplicate-free; reviewed alternative sources remain scoped to their source rows; compiler validates all 26 nested takes/order/meta structures."]},
+        {"turn": 4, "user_message": "Quando una riga clusterizzata è vuota usa la riga più recente della stessa area; aggiungi i rami ciak e statico, con un limite finale distinto per ciascuno.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the explicit fallback chains, ciak/static variants and their final response caps.", "invariants": ["No fallback crosses thematic areas", "All previous rows, view-all and ordering remain unchanged."], "compile_and_oracles": ["Fallback targets/conditions and variant caps compile; output and grounding oracles pass; no tenant mutation."]}
+      ],
+      "convergence": {"criterion": "Draft contains snapshot pagination, user/seed context, eleven named blocks with their 26 source-equivalent takes, view-all, cluster fallbacks, ciak/static variants and source-equivalent response pipelines; no Apply.", "universal_capabilities": ["bounded clarification", "multi-block accumulation", "fallback/variant preservation"]}
+    },
+    {
+      "endpoint_qualified": "play.multiple_block_dem_titoli_momento",
+      "case_dependent_capabilities": ["persona-to-cluster input pipeline", "ten named and movable blocks", "cluster/default variants", "take 20 * 2 and film-clustering view-all", "fallback and similarity ordering"],
+      "turns": [
+        {"turn": 1, "user_message": "Crea una pagina con i titoli del momento.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog and total/page contract; do not decide whether this is cluster or default.", "invariants": ["No variant or block is selected from the title alone."], "compile_and_oracles": ["No compile before required authority/count decisions."]},
+        {"turn": 2, "user_message": "Catalogo video, 30 risultati totali per la pagina, con film e serie recenti.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create a basic recent-film/recent-series Draft with exact total=30.", "invariants": ["Total=30", "No pagination or fallback invented."], "compile_and_oracles": ["Output oracle records total mode; compiler validates basic recent rows."]},
+        {"turn": 3, "user_message": "Dividi la pagina in dieci ruoli: fallback cinema, film recenti, serie/fiction recenti, fiction e serie per te, originali, documentari più visti, programmi TV, soap e tre righe rese movibili; ciascuno deve avere Vedi tutto.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the ten named block roles, their 27 source-equivalent takes, movable instances and view-all references.", "invariants": ["30-result base intent remains", "Movable means instance metadata, not a changed filter."], "compile_and_oracles": ["Block/use roster and view-all targets are structurally validated; the ten roles and 27 takes remain distinct."]},
+        {"turn": 4, "user_message": "Aggiungi un ramo clusterizzato e uno default; passa prima dalla personalizzazione e poi dal clustering. Nel ramo clusterizzato usa una riga 20 per 2 e un fallback sulla riga più recente, mentre il risultato finale riordina per affinità al profilo.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the persona-to-cluster input pipeline, both guarded variants, `take 20 * 2`, explicit recent fallback and similarity ordering.", "invariants": ["All movable labels and view-all remain", "No fallback is added to the default unless explicitly requested.", "The pipeline order is persona then cluster."], "compile_and_oracles": ["Compiler accepts the ordered input pipeline, multiplied take and variant fallback; output oracle preserves total/page distinction and grounding has no invented value."]}
+      ],
+      "convergence": {"criterion": "Final Draft has the persona-to-cluster input pipeline, ten blocks with 27 source-equivalent takes, movable uses, two variants, 20 * 2 cardinality, view-all/fallback and similarity order equivalent to source; no Apply.", "universal_capabilities": ["catalog/count clarification", "block/use incremental delta", "variant/output oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.tvod_multiple_block",
+      "case_dependent_capabilities": ["TVOD parameter block with genre and pinned arguments", "watched/seed context", "expanded personalized row", "smart ordering and error fallback"],
+      "turns": [
+        {"turn": 1, "user_message": "Voglio una pagina TVOD con film consigliati.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for authorized catalog and whether the requested number is total or per page; do not infer a genre parameter.", "invariants": ["No user history or TVOD fallback is invented."], "compile_and_oracles": ["Typed catalog/cardinality clarification only."]},
+        {"turn": 2, "user_message": "Catalogo video, 30 risultati totali e sezioni per genere.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create a TVOD Draft with a shared parameterized genre block and one 30-result output.", "invariants": ["total=30", "Genre is a parameter, not a hard-coded new value."], "compile_and_oracles": ["Compiler validates parameter declaration/use and reviewed genre values only."]},
+        {"turn": 3, "user_message": "Istanzia il blocco per famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo; aggiungi una riga Perché hai visto con risposta expanded e usa alternative per selezionare i titoli migliori.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the ten genre instances, preserve the parameter block's five takes, add user watched/seed context, alternative candidate path and expanded personalized row.", "invariants": ["The shared block definition remains single", "Each instance keeps its own genre argument and label."], "compile_and_oracles": ["Parameter binding, five-take structure, alternative-source scope, expanded output and reviewed genre projection are checked; no duplicate instances."]},
+        {"turn": 4, "user_message": "Riordina le sezioni per affinità alla storia dell'utente e, in caso di errore, usa la pagina TVOD di errore; conserva i take interni, Vedi tutto e la paginazione snapshot.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add smart ordering and the explicit error fallback while preserving internal take/cardinality, view-all and snapshot pagination.", "invariants": ["Genre args and shared block remain unchanged", "Error fallback is not used for empty editorial rows."], "compile_and_oracles": ["Output oracle distinguishes error fallback from empty-row behavior; pinned compiler and grounding pass; tenant unchanged."]}
+      ],
+      "convergence": {"criterion": "Draft has the parameterized TVOD block with five takes, ten genre instances, user/seed expanded row, snapshot pagination, smart order and error fallback equivalent to source; no Apply.", "universal_capabilities": ["cardinality clarification", "parameter/instance separation", "output/compiler/Draft oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.multiple_block4_k",
+      "case_dependent_capabilities": ["snapshot pagination", "HDR/SDR capability guards", "parameterized genre block", "paired 20/50 takes", "explicit empty default variant", "4K view-all and branch order"],
+      "turns": [
+        {"turn": 1, "user_message": "Crea una pagina con film e serie disponibili in 4K.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog and whether the requested number is total or per page; capability is not assumed.", "invariants": ["No HDR/SDR branch or format literal is invented."], "compile_and_oracles": ["No compile before authority/cardinality clarification."]},
+        {"turn": 2, "user_message": "Catalogo video, usa paginazione snapshot e 20 risultati totali per riga; distingui HDR e SDR in base alla capacità del dispositivo.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create snapshot pagination, capability input and guarded HDR/SDR blocks with total=20.", "invariants": ["snapshot pagination", "20 is per-row total", "No default content when capability is missing."], "compile_and_oracles": ["Branch guard and exact format values must be reviewed; compiler validates params, snapshot pagination and empty-safe Draft."]},
+        {"turn": 3, "user_message": "Per ogni ramo aggiungi un secondo take di ampliamento a 50, usa Vedi tutto e ordina i film per anno di produzione; riusa un blocco parametrico per genere con righe per azione/thriller, commedie, drammatico e classici.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the six source-equivalent paired 20/50 take roles, the parameterized genre block and its four reviewed genre instances, view-all and branch-local year ordering.", "invariants": ["HDR and SDR remain separate", "The first take remains 20 and second remains 50", "Genre arguments stay instance-scoped and do not alter capability guards."], "compile_and_oracles": ["Output oracle checks branch-local cardinalities and view-all; six-take structure, parameter binding, reviewed genre values and compiler syntax are validated."]},
+        {"turn": 4, "user_message": "Se non c'è una capacità 4K lascia la variante vuota; conserva anche la riga di serie/documentari e riordina il risultato finale per affinità alla storia.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add explicit empty default, non-film row and final similarity ordering without changing HDR/SDR pairs.", "invariants": ["No fallback content is created for the empty default", "All previous counts/orders/view-all persist."], "compile_and_oracles": ["Compiler and branch/output oracle confirm empty default and exact paired takes; no grounding invention or tenant mutation."]}
+      ],
+      "convergence": {"criterion": "Final Draft contains snapshot pagination, capability input, six source-equivalent HDR/SDR takes, a parameterized genre block with four instances, view-all, empty default, non-film row and similarity order equivalent to source; no Apply.", "universal_capabilities": ["cardinality clarification", "branch-local refinement", "empty/default and compiler oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.inf_multiple_block_film_serie",
+      "case_dependent_capabilities": ["snapshot pagination", "four reusable parameterized genre blocks", "personalized versus anonymous variants", "six genre instances per variant", "view-all and fingerprint smart ordering"],
+      "turns": [
+        {"turn": 1, "user_message": "Crea una homepage con film e serie divisi per genere.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for catalog and row/result count; do not choose personalized versus anonymous behavior.", "invariants": ["No genre values or user history fields are guessed."], "compile_and_oracles": ["No Draft until catalog/cardinality authority is selected."]},
+        {"turn": 2, "user_message": "Catalogo video, usa paginazione snapshot e sei righe per la pagina; se l'utente ha storia usa la personalizzazione, altrimenti una pagina anonima.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create snapshot pagination, user-history context, fingerprint attribute and two guarded variant skeletons.", "invariants": ["snapshot pagination", "Six row budget", "Personalized/anonymous choice is guard-based, not name-based."], "compile_and_oracles": ["Compiler validates params, snapshot pagination, context/attribute and both empty-safe variant skeletons."]},
+        {"turn": 3, "user_message": "Riusa un blocco parametrico per film e uno per serie, con genere obbligatorio; istanziali in commedia, drammatico, azione, drama, comedy e crime per ciascun percorso.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add four source-equivalent parameterized block declarations and six explicit instances per variant.", "invariants": ["Shared declarations stay single and arguments stay instance-scoped", "No extra genre beyond the requested reviewed values."], "compile_and_oracles": ["Parameter signatures/bindings and `(catalog, field)` genre grounding are validated; duplicate instance IDs reject."]},
+        {"turn": 4, "user_message": "Ogni riga deve avere Vedi tutto; nella pagina personalizzata ordina le righe per affinità al fingerprint e lascia quella anonima in ordine fisso.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add view-all per declaration/instance and personalized smart order while retaining anonymous fixed ordering.", "invariants": ["All six instance arguments and block take/filter contracts persist", "No cross-variant smart ordering."], "compile_and_oracles": ["Output oracle confirms row order differs only by variant; pinned compiler, grounding and Draft-only checks pass."]}
+      ],
+      "convergence": {"criterion": "Final Draft has snapshot pagination, four parameterized blocks, two variants, six instances each, view-all and personalized smart order equivalent to source; no Apply.", "universal_capabilities": ["catalog/count clarification", "shared declaration/instance refinement", "grounding and variant-order oracle"]}
+    },
+    {
+      "endpoint_qualified": "play.similar_intrat_abtest",
+      "case_dependent_capabilities": ["four 50-item context candidate pools", "18M/14d time windows", "best-plus-near-full alternatives", "nested flat-item fallback append and final limit"],
+      "turns": [
+        {"turn": 1, "user_message": "Vorrei una riga di intrattenimento simile al contenuto visto.", "expected_brain_action": "clarify", "expected_delta_from_prior_draft": "Ask for authorized catalog and bounded total count; seed source is not inferred.", "invariants": ["No time window, candidate pool or fallback is invented."], "compile_and_oracles": ["Typed authority/count clarification; no compile yet."]},
+        {"turn": 2, "user_message": "Catalogo video, una riga da 24 risultati totali usando il contenuto visto come seed.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Create seed context and a 24-result consumer row with basic similarity.", "invariants": ["total=24", "Seed context remains read-only", "No unreviewed finite filter."], "compile_and_oracles": ["Compiler validates initial consumer Draft and grounding remains empty/reviewed-only."]},
+        {"turn": 3, "user_message": "Costruisci quattro pool candidati: episodi dello stesso programma, clip/extra, episodi di intrattenimento e clip di intrattenimento; usa finestre temporali e raggruppa per programma.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add the four source-equivalent 50-item context takes with 18M windows, group limits and candidate roles.", "invariants": ["The 24-result consumer row and seed persist", "Context pools are not rendered directly."], "compile_and_oracles": ["Context/candidate structural oracle checks four distinct 50-item pools and grouping; pinned compiler validates time expressions."]},
+        {"turn": 4, "user_message": "Nel consumer combina i pool con alternative best-plus-near-full, promuovi contenuti recenti, deduplica e limita a 24; se gli elementi piatti sono meno di uno aggiungi il fallback intrat_recent.", "expected_brain_action": "Draft", "expected_delta_from_prior_draft": "Add alternative sources, promotion/order, deduplicate/limit=24 and explicit append fallback.", "invariants": ["All four candidate pools and time windows remain", "Fallback is append-only and not a replacement."], "compile_and_oracles": ["Output oracle distinguishes append fallback; compiler, exact source/selection checks and Draft-only tenant invariance pass."]}
+      ],
+      "convergence": {"criterion": "Final Draft has seed, four grouped 50-item candidate pools, two consumer takes (4 and 24), time windows, alternatives, consumer=24, dedup/order and append fallback equivalent to source; no Apply.", "universal_capabilities": ["authority/count clarification", "context-versus-consumer refinement", "fallback/output/compiler oracle"]}
+    }
+  ]
+}

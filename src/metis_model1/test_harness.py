@@ -19,8 +19,8 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
+from metis_model1 import brain_toolchain_pin, grammar_stdlib_oracle, oracles
 from metis_model1 import catalog_maintenance_pin as catalog_pin
-from metis_model1 import grammar_stdlib_oracle, oracles
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -369,6 +369,23 @@ def run_tests(*, metis_root: Path, node_path: Path, pytest_args: Sequence[str]) 
     node_identity = _node_stat_identity(node)
     source_root = Path(metis_root).resolve(strict=True)
     try:
+        brain_receipt = brain_toolchain_pin.verify_metis_brain_toolchain_pin(
+            source_root,
+            node,
+            execute_probes=True,
+        )
+        if (
+            brain_receipt.get("evidence_in") != 29
+            or brain_receipt.get("evidence_out") != 29
+            or brain_receipt.get("evidence_distinct") != 29
+            or brain_receipt.get("evidence_gaps") != 0
+            or brain_receipt.get("probes_in") != 9
+            or brain_receipt.get("probes_out") != 9
+            or brain_receipt.get("probes_distinct") != 9
+            or brain_receipt.get("probes_gaps") != 0
+            or brain_receipt.get("probes_executed") is not True
+        ):
+            raise TestHarnessError("Metis Brain lossless authority is incomplete")
         with isolated_metis_test_authority(source_root) as isolated:
             oracles.validate_pinned_metis(isolated)
             grammar_stdlib_oracle.validate_grammar_stdlib_pin(metis_root=isolated)
@@ -411,7 +428,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             node_path=arguments.node,
             pytest_args=pytest_args,
         )
-    except (TestHarnessError, oracles.OracleError, grammar_stdlib_oracle.GrammarStdlibOracleError):
+    except (
+        TestHarnessError,
+        brain_toolchain_pin.BrainToolchainPinError,
+        oracles.OracleError,
+        grammar_stdlib_oracle.GrammarStdlibOracleError,
+    ):
         print("test authority validation failed", file=sys.stderr)
         return 2
 

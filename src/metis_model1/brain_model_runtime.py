@@ -44,7 +44,7 @@ class ModelCandidate:
 
     def __post_init__(self) -> None:
         bounded_source(self.source)
-        if self.generator not in {"model", "grounded_renderer"}:
+        if self.generator not in {"model", "grounded_renderer", "lossless_renderer"}:
             raise BrainError("MODEL_INVALID", 503, "candidate generator is invalid")
         legacy_allowed = {
             "worker_load_ms",

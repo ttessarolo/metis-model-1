@@ -26,6 +26,7 @@ from metis_model1.brain_intent_ir import (
     IntentCompileResult,
     IntentIR,
 )
+from metis_model1.brain_lossless_edit import render_lossless_existing
 from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, ModelRequest
 from metis_model1.brain_output_contract import OutputRequestSurface, parse_output_request
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
@@ -171,35 +172,48 @@ class BrainOrchestrator:
             if output_clarification is not None:
                 return output_clarification
 
-            model_request = ModelRequest(
-                instruction=request.instruction,
-                intent=request.intent,
-                target_path=request.target["relative_path"],
-                endpoint=request.target["endpoint"],
-                context=retrieved.context,
-                grounding=retrieved.grounding,
-                previous_source=previous,
-                cancellation=record.cancellation,
-            )
             inference_started = time.monotonic()
-            candidate = render_grounded_create(
-                request=request,
-                retrieved=retrieved,
-                model_revision=str(getattr(self._model, "model_revision", "unavailable")),
-                adapter_sha256=str(getattr(self._model, "adapter_sha256", "unavailable")),
+            record.emit(
+                "inference.started",
+                "inference_started",
+                "Preparazione locale del draft",
             )
-            if candidate is None:
-                record.emit("inference.started", "inference_started", "Model 1 in generazione")
-                with record.heartbeat_while(
-                    phase="inference_running", label="Model 1 sta preparando il draft"
-                ):
-                    candidate = self._generate(model_request)
-            else:
-                record.emit(
-                    "inference.started",
-                    "inference_started",
-                    "Sintesi locale dal grounding verificato",
+            with record.heartbeat_while(
+                phase="inference_running",
+                label="Verifica lossless del compilatore in corso",
+            ):
+                lossless = render_lossless_existing(
+                    compiler=self._compiler,
+                    lease=lease,
+                    request=request,
+                    grounding=retrieved.grounding,
+                    source=previous,
                 )
+            lossless_proof = lossless.proof if lossless is not None else None
+            if lossless is not None:
+                candidate = lossless.candidate
+            else:
+                model_request = ModelRequest(
+                    instruction=request.instruction,
+                    intent=request.intent,
+                    target_path=request.target["relative_path"],
+                    endpoint=request.target["endpoint"],
+                    context=retrieved.context,
+                    grounding=retrieved.grounding,
+                    previous_source=previous,
+                    cancellation=record.cancellation,
+                )
+                candidate = render_grounded_create(
+                    request=request,
+                    retrieved=retrieved,
+                    model_revision=str(getattr(self._model, "model_revision", "unavailable")),
+                    adapter_sha256=str(getattr(self._model, "adapter_sha256", "unavailable")),
+                )
+                if candidate is None:
+                    with record.heartbeat_while(
+                        phase="inference_running", label="Model 1 sta preparando il draft"
+                    ):
+                        candidate = self._generate(model_request)
             record.emit(
                 "inference.completed",
                 "inference_completed",
@@ -219,6 +233,12 @@ class BrainOrchestrator:
                     candidate.source, retrieved.grounding
                 )
                 if grounding_diagnostic is not None:
+                    if candidate.generator == "lossless_renderer":
+                        raise BrainError(
+                            "LOSSLESS_INVALID",
+                            503,
+                            "lossless candidate differs from reviewed grounding",
+                        )
                     if repairs_used >= self._max_repairs:
                         raise BrainError(
                             "CANDIDATE_GROUNDING_MISMATCH",
@@ -297,6 +317,12 @@ class BrainOrchestrator:
                     attempt=attempts,
                     duration_ms=max(0, int((time.monotonic() - compile_started) * 1000)),
                 )
+                if candidate.generator == "lossless_renderer":
+                    raise BrainError(
+                        "LOSSLESS_INVALID",
+                        503,
+                        "lossless candidate failed compiler validation",
+                    )
                 if repairs_used >= self._max_repairs:
                     break
                 repairs_used += 1
@@ -348,6 +374,7 @@ class BrainOrchestrator:
                 attempts=attempts,
                 previous=previous,
                 diagnostics=diagnostics,
+                lossless_proof=lossless_proof,
             )
             proposal = result.get("proposal")
             if request.server_clarification is not None and isinstance(proposal, Mapping):
@@ -1111,6 +1138,7 @@ class BrainOrchestrator:
         attempts: int,
         previous: str | None,
         diagnostics: list[dict[str, Any]],
+        lossless_proof: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         clean = receipt.get("compiler", receipt).get("status") == "ok"
         source_hash = bytes_sha256(candidate.source.encode("utf-8"))
@@ -1127,6 +1155,8 @@ class BrainOrchestrator:
             },
         }
         identity = self._identity(record, retrieved)
+        identity["model_revision"] = candidate.model_revision
+        identity["adapter_sha256"] = candidate.adapter_sha256
         identity["generation_strategy"] = candidate.generator
         if candidate.metrics:
             identity["generation_metrics"] = dict(candidate.metrics)
@@ -1144,6 +1174,22 @@ class BrainOrchestrator:
                 else None
             ),
         }
+        if lossless_proof is not None:
+            expected_lossless_fields = {
+                "contract",
+                "proof_mode",
+                "receipt_sha256",
+                "sha_before",
+                "sha_after",
+                "touched_count",
+            }
+            if set(lossless_proof) != expected_lossless_fields:
+                raise BrainError(
+                    "LOSSLESS_INVALID",
+                    503,
+                    "public lossless proof has an invalid field roster",
+                )
+            validation["lossless"] = dict(lossless_proof)
         grounding = self._grounding(retrieved)
         semantically_grounded = (
             grounding.get("status") in {None, "resolved"}

@@ -12,8 +12,10 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
@@ -21,6 +23,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from metis_model1 import catalog_maintenance_pin as _sandbox_support
 from metis_model1.oracles import _node_modules_sha256
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -30,12 +33,16 @@ MAX_CONTRACT_BYTES = 2 * 1024 * 1024
 MAX_NODE_BYTES = 512 * 1024 * 1024
 MAX_JSON_DEPTH = 16
 GIT_EXECUTABLE = Path("/usr/bin/git")
+SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
+MAX_PROBE_STDOUT_BYTES = 4 * 1024 * 1024
+MAX_PROBE_STDERR_BYTES = 128 * 1024
+PROBE_TIMEOUT_SECONDS = 120
 
 # Filled after the two immutable contract files are materialized.  Checking
 # both digests prevents a caller from silently substituting a different schema
 # or manifest while retaining the same public path.
-SCHEMA_FILE_SHA256 = "sha256:21bedff2489cb64be7dcf017730c226ca74eca6b0b0fbe6dff5dec517c99e03e"
-MANIFEST_FILE_SHA256 = "sha256:6005516b748e48f1ffb721f145a78979d44f224be7e760a719f70f5a96159562"
+SCHEMA_FILE_SHA256 = "sha256:83959b4d4ecff5194868363bbbbf7c0cddb4ac3ca7baff64d406ace6f1ea1d8c"
+MANIFEST_FILE_SHA256 = "sha256:19a4169dc5590dd8727844cea76736c8189d3171ac4d69b6a24a78bb3e4687b9"
 
 _OID_RE = r"^[0-9a-f]{40}$"
 _SHA256_RE = r"^sha256:[0-9a-f]{64}$"
@@ -56,6 +63,19 @@ _EXPECTED_EVIDENCE = {
     "r8_surface": "tooling/test/r8-semantic-surface.ts",
     "tooling_package": "tooling/package.json",
     "tooling_lock": "tooling/package-lock.json",
+    "lossless_types": "tooling/src/lossless/types.ts",
+    "lossless_inventory": "tooling/src/lossless/inventory.ts",
+    "lossless_plan": "tooling/src/lossless/plan.ts",
+    "lossless_apply": "tooling/src/lossless/apply.ts",
+    "lossless_toolchain": "tooling/src/lossless/toolchain.ts",
+    "lossless_cli": "tooling/src/cli/lossless.ts",
+    "lossless_spec": "docs/design/lossless-renderer/spec.md",
+    "lossless_api": "docs/design/lossless-renderer/api.md",
+    "lossless_gate_roundtrip": "tooling/test/lossless-roundtrip-corpus.ts",
+    "lossless_gate_adversarial": "tooling/test/lossless-adversarial.ts",
+    "lossless_gate_editplan": "tooling/test/lossless-editplan.ts",
+    "lossless_gate_minimal": "tooling/test/lossless-edit-minimal.ts",
+    "lossless_gate_compile": "tooling/test/lossless-compile-proof.ts",
 }
 _EXPECTED_PROBES = {
     "typecheck": (
@@ -68,12 +88,22 @@ _EXPECTED_PROBES = {
     "semantic_retrieval": ("node", "--import", "tsx", "test/catalog-semantic.ts"),
     "r8_description": ("node", "--import", "tsx", "test/r8-description-invariant.ts"),
     "r8_surface": ("node", "--import", "tsx", "test/r8-semantic-surface.ts"),
+    "lossless_roundtrip": ("node", "--import", "tsx", "test/lossless-roundtrip-corpus.ts"),
+    "lossless_adversarial": ("node", "--import", "tsx", "test/lossless-adversarial.ts"),
+    "lossless_editplan": ("node", "--import", "tsx", "test/lossless-editplan.ts"),
+    "lossless_minimal": ("node", "--import", "tsx", "test/lossless-edit-minimal.ts"),
+    "lossless_compile": ("node", "--import", "tsx", "test/lossless-compile-proof.ts"),
 }
 _EXPECTED_MARKERS = {
     "typecheck": None,
     "semantic_retrieval": "catalog semantic retrieval (schema 2): VERDE ✓",
     "r8_description": "R8 invariante (esteso a Catalog/Field/ValueItem/ListEntry): OK",
     "r8_surface": "superficie semantica: OK",
+    "lossless_roundtrip": "LOSSLESS_ROUNDTRIP_CORPUS: VERDE ✓",
+    "lossless_adversarial": "LOSSLESS_ADVERSARIAL: VERDE ✓",
+    "lossless_editplan": "LOSSLESS_EDITPLAN: VERDE ✓",
+    "lossless_minimal": "LOSSLESS_EDIT_MINIMAL: VERDE ✓",
+    "lossless_compile": "LOSSLESS_COMPILE_PROOF: VERDE ✓",
 }
 _EXPECTED_NONCLAIMS = (
     "no_tenant_payload",
@@ -254,12 +284,12 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         manifest["schema_version"] != 1
         or manifest["pin_id"] != "metis-brain-toolchain/2026-08-30-v1"
         or manifest["repository"] != "ares-matioska/metis"
-        or manifest["revision"] != "c9f410a9b9b28e61dd1505b661ebc996e388e6e0"
-        or manifest["tree"] != "40bb657e67cf3521ca94bcc8a636031bcb50815f"
+        or manifest["revision"] != "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
+        or manifest["tree"] != "ea29b935934fadd5f99711c0470566a2484b35f6"
         or manifest["remote_url"] != "git@github.com:ttessarolo/metis.git"
         or manifest["remote_ref"] != "refs/remotes/origin/main"
         or manifest["language_version"] != "0.43"
-        or manifest["tooling_version"] != "0.23.93"
+        or manifest["tooling_version"] != "0.23.97"
         or type(manifest["schema_version"]) is not int
         or not isinstance(manifest["revision"], str)
         or not isinstance(manifest["tree"], str)
@@ -278,8 +308,11 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         "node_modules_sha256": (
             "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
         ),
-        "package_sha256": "sha256:7024b45c9a8355be0032252387e590cbe6645d7c90af8e5a2123ffb0be5b357b",
-        "lock_sha256": "sha256:1297e5f3ca66fe569e1d36fdb655db9d5de761ff611bcf916c7cc518ec865b21",
+        "langium_version": "4.3.0",
+        "metis_language_version": "0.43",
+        "grammar_sha256": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01",
+        "package_sha256": "sha256:99584c57dff11fe4fe623fba3d3bcf96630e72f68aa0be8f4b67ad4f63b6b7af",
+        "lock_sha256": "sha256:4a362a20ad10a44adfa1e8c73bbfd7b536fb3a8f71bc12fd54220547adfbf9dd",
     }
     if not isinstance(runtime, Mapping) or dict(runtime) != expected_runtime:
         raise BrainToolchainPinError("Brain runtime identity drifted")
@@ -316,6 +349,9 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         oids.add(item["blob_oid"])
     if ids != set(_EXPECTED_EVIDENCE):
         raise BrainToolchainPinError("Brain evidence roster is incomplete")
+    grammar_evidence = next(item for item in manifest["evidence"] if item["id"] == "grammar")
+    if grammar_evidence["sha256"] != manifest["runtime"]["grammar_sha256"]:
+        raise BrainToolchainPinError("Brain grammar digest differs from runtime identity")
     probes = _exact_sequence(manifest["probes"], "probes")
     if len(probes) != len(_EXPECTED_PROBES):
         raise BrainToolchainPinError("Brain probe roster has an unexpected cardinality")
@@ -410,6 +446,9 @@ class BrainToolchainIdentity:
     node_sha256: str
     node_bytes: int
     node_modules_sha256: str
+    langium_version: str
+    metis_language_version: str
+    grammar_sha256: str
     package_sha256: str
     lock_sha256: str
     manifest_sha256: str
@@ -443,6 +482,9 @@ def brain_toolchain_identity_from_pin(pin: Mapping[str, Any]) -> BrainToolchainI
         node_sha256=runtime["node_sha256"],
         node_bytes=runtime["node_bytes"],
         node_modules_sha256=runtime["node_modules_sha256"],
+        langium_version=runtime["langium_version"],
+        metis_language_version=runtime["metis_language_version"],
+        grammar_sha256=runtime["grammar_sha256"],
         package_sha256=runtime["package_sha256"],
         lock_sha256=runtime["lock_sha256"],
         manifest_sha256=manifest_sha256(pin),
@@ -521,8 +563,6 @@ def verify_metis_brain_toolchain_pin(
     the same archive policy without changing this identity contract.
     """
 
-    if execute_probes:
-        raise BrainToolchainPinError("Brain probe execution is not enabled by this verifier")
     manifest = load_metis_brain_toolchain_pin()
     root = Path(metis_root).resolve(strict=True)
     if not root.is_dir():
@@ -568,15 +608,29 @@ def verify_metis_brain_toolchain_pin(
         package.get("version") != manifest["tooling_version"]
         or lock.get("version") != manifest["tooling_version"]
         or lock.get("packages", {}).get("", {}).get("version") != manifest["tooling_version"]
+        or lock.get("packages", {}).get("node_modules/langium", {}).get("version")
+        != manifest["runtime"]["langium_version"]
+        or manifest["runtime"]["metis_language_version"] != manifest["language_version"]
     ):
         raise BrainToolchainPinError("tooling package and lock versions differ from the Brain pin")
 
     runtime = manifest["runtime"]
     node_bytes = _verify_node(Path(node_path), runtime)
     modules = (root / "tooling/node_modules").resolve(strict=True)
-    if "sha256:" + _node_modules_sha256(modules) != runtime["node_modules_sha256"]:
+    modules_sha256 = "sha256:" + _node_modules_sha256(modules)
+    if modules_sha256 != runtime["node_modules_sha256"]:
         raise BrainToolchainPinError("tooling node_modules differs from the Brain pin")
+    probe_reports: list[dict[str, Any]] = []
+    if execute_probes:
+        probe_reports = _run_brain_archive_probes(
+            manifest,
+            root,
+            node_bytes,
+            remote_revision=remote_revision,
+            modules_sha256=modules_sha256,
+        )
     identity = brain_toolchain_identity_from_pin(manifest)
+    receipt_sha256 = manifest_sha256(probe_reports) if execute_probes else None
     return {
         "status": "VERIFIED",
         "identity": identity,
@@ -591,13 +645,132 @@ def verify_metis_brain_toolchain_pin(
         "evidence_distinct": len({item["id"] for item in verified}),
         "evidence_gaps": len(manifest["evidence"]) - len(verified),
         "probes_in": len(manifest["probes"]),
-        "probes_out": 0,
-        "probes_gaps": len(manifest["probes"]),
-        "probes_executed": False,
+        "probes_out": len(probe_reports),
+        "probes_distinct": len({item["id"] for item in probe_reports}),
+        "probes_gaps": len(manifest["probes"]) - len(probe_reports),
+        "probes_executed": execute_probes,
+        "probe_reports": probe_reports,
+        "probe_receipt_sha256": receipt_sha256,
         "node_bytes_verified": len(node_bytes),
         "manifest_sha256": identity.manifest_sha256,
         "nonclaims": manifest["nonclaims"],
     }
+
+
+def _run_brain_archive_probes(
+    manifest: Mapping[str, Any],
+    metis_root: Path,
+    node_bytes: bytes,
+    *,
+    remote_revision: str,
+    modules_sha256: str,
+) -> list[dict[str, Any]]:
+    """Run the exact probe roster against an immutable Git archive."""
+
+    revision = manifest["revision"]
+    probe_reports: list[dict[str, Any]] = []
+    try:
+        archive = _git(metis_root, "archive", "--format=tar", revision, text=False)
+        assert isinstance(archive, bytes)
+        archive_sha256 = "sha256:" + hashlib.sha256(archive).hexdigest()
+        with tempfile.TemporaryDirectory(prefix="metis-model1-brain-pin-") as temp:
+            snapshot = Path(temp).resolve()
+            _sandbox_support._safe_extract_archive(archive, snapshot)
+            tooling = snapshot / "tooling"
+            source_modules = (metis_root / "tooling/node_modules").resolve(strict=True)
+            snapshot_modules = tooling / "node_modules"
+            shutil.copytree(source_modules, snapshot_modules, symlinks=True)
+            if "sha256:" + _node_modules_sha256(snapshot_modules) != modules_sha256:
+                raise BrainToolchainPinError(
+                    "copied tooling node_modules differs from the Brain pin"
+                )
+            node = snapshot / "pinned-node"
+            node.write_bytes(node_bytes)
+            node.chmod(0o500)
+            scratch = (snapshot / "probe-scratch").resolve()
+            scratch.mkdir(mode=0o700)
+            home = Path.home().resolve(strict=True)
+            policy = " ".join(
+                (
+                    "(version 1)",
+                    "(allow default)",
+                    "(deny file-write*)",
+                    "(allow file-write* (subpath " + json.dumps(str(scratch)) + "))",
+                    "(deny network*)",
+                    f"(deny file-read* (subpath {json.dumps(str(home))}))",
+                    f"(allow file-read* (subpath {json.dumps(str(snapshot))}))",
+                )
+            )
+            _sandbox_support._assert_sandbox_boundaries(snapshot, policy)
+            probe_env = _sandbox_support._probe_process_environment()
+            probe_env.update({"TMPDIR": str(scratch), "TMP": str(scratch), "TEMP": str(scratch)})
+            version = subprocess.run(
+                [str(SANDBOX_EXEC), "-p", policy, str(node), "--version"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                env=probe_env,
+            ).stdout.strip()
+            if version != manifest["runtime"]["node_version"]:
+                raise BrainToolchainPinError("copied Node version differs from the Brain pin")
+            for probe in manifest["probes"]:
+                argv = [str(node), *probe["argv"][1:]]
+                completed = subprocess.run(
+                    [str(SANDBOX_EXEC), "-p", policy, *argv],
+                    cwd=tooling,
+                    check=False,
+                    capture_output=True,
+                    timeout=PROBE_TIMEOUT_SECONDS,
+                    env=probe_env,
+                )
+                if len(completed.stdout) > MAX_PROBE_STDOUT_BYTES:
+                    raise BrainToolchainPinError(f"probe stdout cap exceeded: {probe['id']}")
+                if len(completed.stderr) > MAX_PROBE_STDERR_BYTES:
+                    raise BrainToolchainPinError(f"probe stderr cap exceeded: {probe['id']}")
+                try:
+                    stdout = completed.stdout.decode("utf-8", errors="strict")
+                    stderr = completed.stderr.decode("utf-8", errors="strict")
+                except UnicodeDecodeError as error:
+                    raise BrainToolchainPinError(
+                        f"probe output is not UTF-8: {probe['id']}"
+                    ) from error
+                marker = probe["success_marker"]
+                if completed.returncode != 0 or (marker is not None and marker not in stdout):
+                    raise BrainToolchainPinError(
+                        f"Brain probe failed: {probe['id']} "
+                        f"(exit={completed.returncode}, stderr_sha256="
+                        f"sha256:{hashlib.sha256(stderr.encode('utf-8')).hexdigest()}, "
+                        f"stderr={stderr[:512]!r})"
+                    )
+                probe_reports.append(
+                    {
+                        "id": probe["id"],
+                        "exit_code": completed.returncode,
+                        "stdout_sha256": (
+                            "sha256:" + hashlib.sha256(stdout.encode("utf-8")).hexdigest()
+                        ),
+                        "stderr_sha256": (
+                            "sha256:" + hashlib.sha256(stderr.encode("utf-8")).hexdigest()
+                        ),
+                        "archive_sha256": archive_sha256,
+                    }
+                )
+            if "sha256:" + _node_modules_sha256(snapshot_modules) != modules_sha256:
+                raise BrainToolchainPinError("Brain probes changed copied node_modules")
+        if _git(metis_root, "rev-parse", revision) != revision:
+            raise BrainToolchainPinError("Metis revision changed during Brain probes")
+        if _git(metis_root, "rev-parse", f"{revision}^{{tree}}") != manifest["tree"]:
+            raise BrainToolchainPinError("Metis tree changed during Brain probes")
+        if str(_git(metis_root, "rev-parse", manifest["remote_ref"])) != remote_revision:
+            raise BrainToolchainPinError("Metis remote ref changed during Brain probes")
+        if "sha256:" + _node_modules_sha256(source_modules) != modules_sha256:
+            raise BrainToolchainPinError("source node_modules changed during Brain probes")
+        return probe_reports
+    except BrainToolchainPinError:
+        raise
+    except (OSError, UnicodeDecodeError, subprocess.SubprocessError) as error:
+        raise BrainToolchainPinError("Brain archive probe execution failed") from error
 
 
 # Short aliases keep the contract convenient at Brain call sites while the

@@ -31,6 +31,10 @@ def _pin() -> dict[str, Any]:
         "revision": "a" * 40,
         "tree": "b" * 40,
         "language_version": "0.43",
+        "tooling_version": "0.23.97",
+        "langium_version": "4.3.0",
+        "metis_language_version": "0.43",
+        "grammar_sha256": "sha256:" + "9" * 64,
         "node_modules_sha256": "sha256:" + "c" * 64,
         "overlay": None,
         "runner_sha256": brain_tools_module.RUNNER_SHA256,
@@ -470,6 +474,73 @@ def test_endpoint_mode_passes_endpoint_to_runner(
     assert receipt["candidate"]["execution_mode"] == "endpoint"
     assert receipt["candidate"]["endpoint"] == "catalog.search"
     assert toolchain_harness["runner"]["request"]["endpoint"] == "catalog.search"
+
+
+def test_lossless_inventory_and_apply_use_only_snapshot_override(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[dict[str, Any]] = []
+
+    def runner(**kwargs: Any) -> dict[str, Any]:
+        request = kwargs["request"]
+        observed.append(request)
+        return {"operation": request["operation"], "status": "test-receipt"}
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", runner)
+    compiler = toolchain_harness["compiler"]
+    lease = _lease()
+    source = "metis 0.43\ntenant replacement {}\n"
+    inventory = compiler.lossless_inventory(
+        lease=lease,
+        source=source,
+        filename="source-0.metis",
+        endpoint="demo.test",
+    )
+    plan = {
+        "contract": "metis-lossless-edit-plan/v1",
+        "baseSha256": bytes_sha256(source.encode()),
+        "operations": [],
+    }
+    applied = compiler.lossless_apply(
+        lease=lease,
+        source=source,
+        filename="source-0.metis",
+        endpoint="demo.test",
+        plan=plan,
+    )
+
+    assert inventory == {"operation": "lossless-inventory", "status": "test-receipt"}
+    assert applied == {"operation": "lossless-apply", "status": "test-receipt"}
+    assert [item["operation"] for item in observed] == [
+        "lossless-inventory",
+        "lossless-apply",
+    ]
+    assert "plan" not in observed[0]
+    assert observed[1]["plan"] == plan
+    assert compiler.lossless_toolchain_identity == {
+        "toolingVersion": "0.23.97",
+        "langiumVersion": "4.3.0",
+        "metisLanguageVersion": "0.43",
+        "grammarSha256": "sha256:" + "9" * 64,
+    }
+    assert [
+        item["kwargs"]["candidate_source"] for item in toolchain_harness["materializations"][-2:]
+    ] == [source, source]
+
+
+def test_lossless_target_must_already_exist_in_snapshot(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        toolchain_harness["compiler"].lossless_inventory(
+            lease=_lease(),
+            source="endpoint demo.test {}",
+            filename="absent.metis",
+            endpoint="demo.test",
+        )
+
+    assert raised.value.code == "STALE_CONTEXT"
+    assert "runner_calls" not in toolchain_harness
 
 
 def _projection_response() -> dict[str, Any]:

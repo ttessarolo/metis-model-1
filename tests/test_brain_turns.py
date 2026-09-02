@@ -7,13 +7,14 @@ import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from metis_model1.brain_context import TenantRegistry
 from metis_model1.brain_model_runtime import ModelCandidate, StaticModelRuntime
-from metis_model1.brain_protocol import CAPABILITIES, BrainError, canonical_sha256
+from metis_model1.brain_protocol import CAPABILITIES, BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult, semantic_revision
 from metis_model1.brain_server import BrainApplication, BrainRuntime, _ThreadingBrainHTTPServer
 from metis_model1.brain_sessions import ClientPolicy, SessionManager
@@ -527,6 +528,44 @@ def test_turn_request_v2_rejects_invalid_typed_answers(answer: dict[str, Any]) -
             }
         )
     assert raised.value.code == "INVALID_SCHEMA"
+
+
+def test_existing_target_workspace_base_is_bound_to_the_session_snapshot(
+    tmp_path: Path,
+) -> None:
+    tenant = _tenant(tmp_path / "tenant")
+    snapshot = TenantRegistry([("demo", "tenant-one", tenant)]).capture(
+        "demo",
+        toolchain_binding=FakeCompiler.toolchain_binding,
+    )
+    current = snapshot.source_map()["main.metis"]
+    payload = {
+        "schema_version": 2,
+        "request_id": str(uuid.uuid4()),
+        "expected_context_revision": snapshot.revision,
+        "expected_semantic_source_revision": snapshot.semantic_source_revision(),
+        "intent": "edit",
+        "instruction": "modifica l'endpoint esistente",
+        "target": {
+            "mode": "existing",
+            "relative_path": "main.metis",
+            "endpoint": "demo.existing",
+            "base_sha256": "sha256:" + "f" * 64,
+        },
+        "basis": None,
+        "clarification_response": None,
+    }
+    request = TurnRequest.parse(payload)
+
+    with pytest.raises(BrainError) as raised:
+        TurnStore._validate_target_snapshot(SimpleNamespace(snapshot=snapshot), request)
+    assert raised.value.code == "BASE_STALE"
+
+    payload["target"]["base_sha256"] = bytes_sha256(current.encode("utf-8"))
+    TurnStore._validate_target_snapshot(
+        SimpleNamespace(snapshot=snapshot),
+        TurnRequest.parse(payload),
+    )
 
 
 def test_turn_idempotency_compile_repair_and_terminal(tmp_path: Path) -> None:

@@ -1,9 +1,10 @@
-"""Strict host-validated Model 1 EditPlan.
+"""Strict host-validated Model 1 EditPlan v2.
 
 An EditPlan is a proposal over host-issued opaque references.  It is not source
 text, a path, a catalog/field/value identifier, or an apply command.  The
-pinned AST renderer (a later integration seam) resolves references only after
-this contract has passed validation.
+pinned lossless renderer resolves role-typed references only after this
+contract has passed validation.  Placement and delete mode remain server-owned
+capabilities encoded by a slot/delete reference; they are never model strings.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_json
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EDIT_PLAN_SCHEMA_PATH = PROJECT_ROOT / "schemas/metis-brain-edit-plan.schema.json"
-EDIT_PLAN_CONTRACT = "metis-brain-edit-plan/v1"
+EDIT_PLAN_CONTRACT = "metis-brain-edit-plan/v2"
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 HOST_REF_RE = re.compile(r"^hostref:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 MAX_OPERATIONS = 32
@@ -50,15 +51,17 @@ def _schema_errors(value: Any) -> list[str]:
 
 
 def _refs(value: Mapping[str, Any]) -> list[str]:
-    refs: list[str] = [value["target_ref"]]
-    if value.get("base_ref") is not None:
-        refs.append(value["base_ref"])
+    refs: list[str] = [value["target_ref"], value["base_ref"]]
+    if value.get("basis_ref") is not None:
+        refs.append(value["basis_ref"])
     for operation in value["operations"]:
-        refs.append(operation["target_ref"])
-        if operation.get("anchor_ref") is not None:
-            refs.append(operation["anchor_ref"])
-        if operation.get("payload_ref") is not None:
-            refs.append(operation["payload_ref"])
+        kind = operation["kind"]
+        if kind == "replace":
+            refs.extend((operation["node_ref"], operation["payload_ref"]))
+        elif kind == "insert":
+            refs.extend((operation["slot_ref"], operation["payload_ref"]))
+        else:
+            refs.append(operation["delete_ref"])
     return refs
 
 
@@ -67,7 +70,9 @@ def validate_edit_plan(
     *,
     issued_refs: Collection[str] | Mapping[str, Any],
     expected_context_revision: str,
-    expected_source_revision: str,
+    expected_workspace_base_revision: str,
+    expected_edit_source_revision: str,
+    expected_basis_ref: str | None,
 ) -> list[str]:
     """Return deterministic host-validation errors; never resolve a ref."""
 
@@ -78,12 +83,20 @@ def validate_edit_plan(
         return ["EditPlan must be an object"]
     if not HASH_RE.fullmatch(expected_context_revision):
         return ["expected context revision is invalid"]
-    if not HASH_RE.fullmatch(expected_source_revision):
-        return ["expected source revision is invalid"]
+    if not HASH_RE.fullmatch(expected_workspace_base_revision):
+        return ["expected workspace base revision is invalid"]
+    if not HASH_RE.fullmatch(expected_edit_source_revision):
+        return ["expected edit source revision is invalid"]
+    if expected_basis_ref is not None and not HOST_REF_RE.fullmatch(expected_basis_ref):
+        return ["expected basis reference is invalid"]
     if value["context_revision"] != expected_context_revision:
         return ["context revision differs from the admitted snapshot"]
-    if value["source_revision"] != expected_source_revision:
-        return ["source revision differs from the admitted source"]
+    if value["workspace_base_revision"] != expected_workspace_base_revision:
+        return ["workspace base revision differs from the admitted target"]
+    if value["edit_source_revision"] != expected_edit_source_revision:
+        return ["edit source revision differs from the admitted source"]
+    if value["basis_ref"] != expected_basis_ref:
+        return ["basis reference differs from the admitted proposal"]
     known = set(issued_refs)
     refs = _refs(value)
     if any(ref not in known for ref in refs):
@@ -95,16 +108,6 @@ def validate_edit_plan(
         return ["EditPlan exceeds its operation bound"]
     if [item["ordinal"] for item in operations] != list(range(len(operations))):
         return ["EditPlan operations must be ordered with contiguous ordinals"]
-    for operation in operations:
-        kind = operation["kind"]
-        anchor = operation.get("anchor_ref")
-        payload = operation.get("payload_ref")
-        if kind == "insert" and (anchor is None or payload is None):
-            return ["insert operations require anchor and payload references"]
-        if kind == "replace" and (anchor is not None or payload is None):
-            return ["replace operations require only a payload reference"]
-        if kind == "delete" and (anchor is not None or payload is not None):
-            return ["delete operations cannot carry anchor or payload references"]
     return []
 
 
@@ -113,13 +116,17 @@ def admit_edit_plan(
     *,
     issued_refs: Collection[str] | Mapping[str, Any],
     expected_context_revision: str,
-    expected_source_revision: str,
+    expected_workspace_base_revision: str,
+    expected_edit_source_revision: str,
+    expected_basis_ref: str | None,
 ) -> dict[str, Any]:
     errors = validate_edit_plan(
         value,
         issued_refs=issued_refs,
         expected_context_revision=expected_context_revision,
-        expected_source_revision=expected_source_revision,
+        expected_workspace_base_revision=expected_workspace_base_revision,
+        expected_edit_source_revision=expected_edit_source_revision,
+        expected_basis_ref=expected_basis_ref,
     )
     if errors:
         raise BrainError("EDIT_PLAN_INVALID", 502, errors[0])
