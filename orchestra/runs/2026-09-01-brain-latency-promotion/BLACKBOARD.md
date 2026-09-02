@@ -322,9 +322,14 @@ minimal-diff or no-Apply gates.
   suite `281 passed`, the subsequently added hard-prompt contract `4 passed`,
   changed-Python Ruff/format and `git diff --check` all GREEN. No secret,
   `.env`, credential, private key, raw tenant payload, dataset, model weight,
-  adapter or checkpoint payload is tracked. The three existing local commits
-  plus this dirty delivery remain intentionally unpushed until the installed
-  Draft proof closes.
+  adapter or checkpoint payload is tracked.
+- DONE — Durable restart checkpoint committed and pushed: implementation commit
+  `9098486ca60447317650eb4c8e2860ae66827521` contains the complete 25-path
+  lossless/latency/hard-prompt delivery and this restart procedure. Immediately
+  after push, local `main` and `origin/main` were aligned `0/0` at that commit
+  with an empty Model 1 worktree. The board-only post-push status commit follows
+  it on `origin/main`; after reboot, resume from the current clean
+  `origin/main`, never from the older `414edf0` baseline.
 - OPEN — Repeat the installed `@metis` create-Draft after the Mac is unlocked;
   inspect the Draft, never invoke Apply, and recheck tenant HEAD/status. A
   same-session refine may additionally verify volatile dialogue UX, but is not
@@ -344,6 +349,10 @@ unfinished wave.
   executable archive proof and full `make check` are closed by the evidence
   above. Do not repeat the 48-minute full gate unless a production source,
   runtime, schema, manifest or test changes after this checkpoint.
+- DONE — Model 1 delivery bytes are durably on remote `main`; the exact
+  implementation checkpoint is
+  `9098486ca60447317650eb4c8e2860ae66827521`. This active board may be one
+  documentation-only commit newer; `origin/main` is the resume authority.
 - DONE — The hard-prompt artifact is
   `examples/metis-brain-hard-prompts.play-prod-v1.json`: ten distinct real
   `play-prod` endpoints, ten inspectable edit prompts and ten four-turn
