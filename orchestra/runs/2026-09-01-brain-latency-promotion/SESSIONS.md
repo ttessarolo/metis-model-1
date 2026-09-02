@@ -2,7 +2,7 @@
 
 | Lane | Owner | Model / effort | Scope | Writable surface | Verification | Status |
 |---|---|---|---|---|---|---|
-| L0 | Root coordinator | frontier / maximum | architecture, semantics, implementation, live benchmark, VS Code proof, promotion and delivery | integrated Model 1 source/tests/docs/config/board | focused gates, frozen live roster, `make check`, post-push alignment | complete: VSIX 0.24.0 installed draft proof; Model 1 `2930 passed, 2 skipped`; commit/push alignment pending only |
+| L0 | Root coordinator | frontier / maximum | architecture, semantics, implementation, live benchmark, VS Code proof, promotion and delivery | integrated Model 1 source/tests/docs/config/board | focused gates, frozen live roster, `make check`, post-push alignment | complete: VSIX 0.24.0 installed draft proof; Model 1 `2930 passed, 2 skipped`; functional commits delivered and aligned |
 | L601 | MLX speculative census | delegated `gpt-5.6-luna` / medium | installed prompt-lookup/speculative API and compatibility | none; read-only | file/line evidence and fail-closed verdict | done: speculative STOP, prefix candidate only |
 | L602 | Benchmark census | delegated `gpt-5.6-luna` / medium | same-snapshot A/B receipt and timing seams | none; read-only | file/line evidence and minimal runner plan | done |
 | L603 | Isolation/progress census | delegated `gpt-5.6-luna` / medium | cache isolation, heartbeat/events and VS Code seam | none; read-only | P0/P1/P2 audit and test roster | done |

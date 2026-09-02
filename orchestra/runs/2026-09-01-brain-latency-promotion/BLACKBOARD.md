@@ -662,3 +662,10 @@ unfinished wave.
   in `1819.10 s`. This closes the earlier in-progress OPEN and the interrupted
   environment-invalid run; commit/push and origin alignment are the only
   remaining delivery mechanics.
+- DONE — Functional Model 1 delivery commit
+  `c984e67a6880e6d8b455ddbb2e67e9ffe6eb6ff2` was pushed to `origin/main`,
+  fetched back and verified aligned `0/0`. Together with the already delivered
+  Metis/Visix commit `e11dd1b65a0fa88a6366910a0cf02ba184749bd4`,
+  this closes the code, installed Draft proof and repository-gate surfaces.
+  The final report-only cleanup roster remains owner-decision material; no
+  cleanup action was performed.
