@@ -281,6 +281,83 @@ def test_turn_request_v2_parses_typed_clarification_and_stable_fingerprint() -> 
     assert answered.payload_hash != original.payload_hash
 
 
+def test_create_target_reference_is_first_class_and_legacy_payload_normalizes() -> None:
+    base = {
+        "schema_version": 2,
+        "request_id": str(uuid.uuid4()),
+        "expected_context_revision": "sha256:" + "a" * 64,
+        "expected_semantic_source_revision": "sha256:" + "b" * 64,
+        "intent": "create",
+        "instruction": "crea endpoint demo.example as brainExample",
+        "target": {
+            "mode": "create",
+            "relative_path": "candidate.metis",
+            "endpoint": "demo.example",
+            "base_sha256": None,
+        },
+        "basis": None,
+        "clarification_response": None,
+    }
+    legacy = TurnRequest.parse(base)
+    with_reference = TurnRequest.parse(
+        {
+            **base,
+            "request_id": str(uuid.uuid4()),
+            "target": {**base["target"], "reference": "brainExample"},
+        }
+    )
+
+    assert legacy.target["reference"] is None
+    assert with_reference.target["reference"] == "brainExample"
+    assert with_reference.request_fingerprint != legacy.request_fingerprint
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {
+            "mode": "create",
+            "relative_path": "candidate.metis",
+            "endpoint": "demo.example",
+            "base_sha256": None,
+            "reference": "bad-reference",
+        },
+        {
+            "mode": "create",
+            "relative_path": "candidate.metis",
+            "endpoint": None,
+            "base_sha256": None,
+            "reference": "brainExample",
+        },
+        {
+            "mode": "existing",
+            "relative_path": "candidate.metis",
+            "endpoint": "demo.example",
+            "base_sha256": "sha256:" + "c" * 64,
+            "reference": "brainExample",
+        },
+    ],
+)
+def test_target_reference_rejects_invalid_or_non_create_binding(
+    target: dict[str, Any],
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        TurnRequest.parse(
+            {
+                "schema_version": 2,
+                "request_id": str(uuid.uuid4()),
+                "expected_context_revision": "sha256:" + "a" * 64,
+                "expected_semantic_source_revision": "sha256:" + "b" * 64,
+                "intent": "create",
+                "instruction": "crea un endpoint",
+                "target": target,
+                "basis": None,
+                "clarification_response": None,
+            }
+        )
+    assert raised.value.code == "INVALID_SCHEMA"
+
+
 @pytest.mark.parametrize("schema_version", [True, False, 1.0, 2.0, "2"])
 def test_turn_request_rejects_non_integer_schema_versions(schema_version: Any) -> None:
     context = "sha256:" + "a" * 64

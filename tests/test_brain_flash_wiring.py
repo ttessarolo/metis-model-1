@@ -390,6 +390,24 @@ def test_flash_retry_does_not_change_raw_count_or_pagination_contract() -> None:
     assert before.contracts == after.contracts
 
 
+def test_flash_retry_preserves_explicit_metis_take_contract() -> None:
+    request = _request("crea film italiani con take 12 from @video")
+    before = parse_output_request(request.instruction)
+    flash = FakeFlash(StaticIntentCompiler(_intent_ir("film italiani")))
+    retriever = FakeRetriever([_result("unsupported"), _result("resolved")])
+    record = TurnRecord(_TURN, _SESSION, request, request.payload_hash)
+    retried_request, _ = _orchestrator(retriever, flash)._retry_with_flash(
+        lease=SimpleNamespace(),
+        request=request,
+        retrieved=retriever.results.pop(0),
+        record=record,
+    )
+    after = parse_output_request(retried_request.instruction)
+    assert before == after
+    assert after.contracts == (("count", 12),)
+    assert after.semantic_instruction == "crea film italiani con @video"
+
+
 @pytest.mark.parametrize("logic,polarity", [("mixed", "include"), ("all", "exclude")])
 def test_unsupported_flash_logic_or_negative_concept_fails_closed(
     logic: str, polarity: str

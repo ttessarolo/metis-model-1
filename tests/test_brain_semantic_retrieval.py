@@ -633,6 +633,7 @@ def test_refinement_reuses_reviewed_proposal_basis_inside_same_snapshot() -> Non
     [
         ("@video Film 24 risultati", (("count", 24),), False),
         ("@video 24 film", (("count", 24),), False),
+        ("take 12 from @video Film", (("count", 12),), False),
         ("@video Film paginati", (), True),
         ("@video Film 24 risultati per pagina", (("page", 24),), True),
         ("@video Film 24 per pagina", (("page", 24),), True),
@@ -653,7 +654,8 @@ def test_output_surface_is_removed_before_production_semantic_grounding(
     assert retrieved.output_request is not None
     assert retrieved.output_request.contracts == contracts
     assert retrieved.output_request.generic_pagination is generic_pagination
-    assert "24" not in retrieved.output_request.semantic_instruction
+    assert not any(item in retrieved.output_request.semantic_instruction for item in ("12", "24"))
+    assert "@video" in retrieved.output_request.semantic_instruction
     assert "pagin" not in retrieved.output_request.semantic_instruction.casefold()
 
 
@@ -702,6 +704,72 @@ def test_server_flash_intent_uses_exact_sources_not_advisory_queries() -> None:
     assert retrieved.output_request is not None
     assert retrieved.output_request.contracts == (("count", 24),)
     assert "24" not in retrieved.output_request.semantic_instruction
+
+
+def test_flash_retry_cannot_move_shared_literal_off_explicit_technical_field() -> None:
+    projection = _projection()
+    video_fields = projection["catalogs"][0]["fields"]
+    for offset, (field, means) in enumerate(
+        (
+            ("genere_mcm", "classificazione editoriale legacy"),
+            ("generepatemico", "meccanismo narrativo dominante"),
+        ),
+        start=60,
+    ):
+        video_fields.append(
+            _field(
+                field,
+                "catalogs/video.metis",
+                offset,
+                text=means,
+                domain={
+                    "kind": "inline",
+                    "size": 1,
+                    "values": [
+                        {
+                            "literal": "Azione",
+                            "semantic": _semantic(
+                                "reviewed",
+                                "catalogs/video.metis",
+                                offset + 20,
+                                text=f"Azione per {field}",
+                            ),
+                        }
+                    ],
+                },
+            )
+        )
+    instruction = "@video genere_mcm Azione"
+    request = SimpleNamespace(
+        instruction=instruction,
+        intent="create",
+        target={"mode": "create"},
+        server_flash_intent={
+            "schema_version": 1,
+            "intent_ir": {
+                "schema_version": 1,
+                "operation": "create",
+                "target_scope": "new",
+                "concept_logic": "all",
+                "concepts": [{"source": "Azione", "query": "azione", "polarity": "include"}],
+                "response_format": "unspecified",
+                "fallback": "unspecified",
+                "ambiguities": [],
+            },
+            "model_revision": "flash-test",
+            "schema_sha256": FLASH_INTENT_SCHEMA_SHA256,
+            "decoder": "llguidance-1.8.0",
+        },
+    )
+
+    retrieved = Schema2SnapshotRetriever(_bound_loader(lambda: projection)).retrieve(
+        lease=_lease(_snapshot()), request=request
+    )
+
+    assert retrieved.grounding["status"] == "resolved"
+    assert [(item["field"], item["literal"]) for item in retrieved.grounding["selections"]] == [
+        ("genere_mcm", "Azione")
+    ]
 
 
 @pytest.mark.parametrize(

@@ -220,6 +220,20 @@ def test_exact_total_emits_take_n_contract_without_pagination() -> None:
     assert contract["fallback"] == {"mode": "none"}
 
 
+def test_explicit_metis_take_surface_emits_count_without_clarification() -> None:
+    instruction = "crea Film con take 12 from @video"
+    parsed = parse_output_request(instruction)
+    assert parsed.contracts == (("count", 12),)
+    assert parsed.semantic_instruction == "crea Film con @video"
+
+    contract = _output_contract_for(instruction)
+    assert contract["take"] == {
+        "mode": "count",
+        "value": 12,
+        "source": "operator_confirmed",
+    }
+
+
 @pytest.mark.parametrize(
     "instruction",
     ["crea 24 film per pagina", "crea 24 contenuti per pagina", "crea 24 video per pagina"],
@@ -602,6 +616,49 @@ def test_single_quotes_and_code_spans_never_authorize_cardinality(
 @pytest.mark.parametrize(
     "instruction",
     [
+        "usa la stringa `take 12 from` su @video",
+        'usa la stringa "take 12 from" su @video',
+        "non usare take 12 from @video",
+    ],
+)
+def test_quoted_or_negated_metis_take_never_authorizes_cardinality(
+    instruction: str,
+) -> None:
+    parsed = parse_output_request(instruction)
+    assert parsed.contracts == ()
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "take 0 from @video",
+        "take 0001 from @video",
+        "take -5 from @video",
+        "take +5 from @video",
+        "take 0,5 from @video",
+        "take 10000 from @video",
+    ],
+)
+def test_invalid_metis_take_numeric_surface_fails_closed(instruction: str) -> None:
+    parsed = parse_output_request(instruction)
+    assert parsed.contracts == ()
+    assert parsed.invalid_numeric_output is True
+    with pytest.raises(BrainError) as raised:
+        _output_contract_for(instruction)
+    assert raised.value.code == "OUTPUT_CONTRACT_INVALID"
+
+
+def test_metis_take_above_global_bound_reaches_shared_range_guard() -> None:
+    parsed = parse_output_request("take 1001 from @video")
+    assert parsed.contracts == (("count", 1001),)
+    with pytest.raises(BrainError) as raised:
+        _output_contract_for("take 1001 from @video")
+    assert raised.value.code == "RESULT_COUNT_OUT_OF_RANGE"
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
         "crea Film senza paginazione",
         "crea Film non paginato",
         "crea Film, non 24 risultati",
@@ -943,6 +1000,7 @@ def test_reviewed_finite_create_skips_model_but_still_compiles() -> None:
             "relative_path": "brain-drafts/film_italiani.metis",
             "endpoint": "demo.film_italiani",
             "base_sha256": None,
+            "reference": "videoFilmItaliani",
         },
     )
     record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
@@ -995,6 +1053,9 @@ def test_reviewed_finite_create_skips_model_but_still_compiles() -> None:
     assert result["outcome"] == "proposed"
     assert result["identity"]["generation_strategy"] == "grounded_renderer"
     assert "take 24 from @play-demo.video" in result["proposal"]["source"]
+    assert 'endpoint demo.film_italiani as "videoFilmItaliani" {' in result["proposal"]["source"]
+    assert result["proposal"]["endpoint"] == "demo.film_italiani"
+    assert result["proposal"]["reference"] == "videoFilmItaliani"
     assert model.requests == []
     assert compiler.calls == 1
     completed = {
@@ -1044,6 +1105,64 @@ def test_grounding_repair_converges_before_compile() -> None:
     assert compiler.calls == 1
     assert len(model.requests) == 2
     assert model.requests[1].diagnostics[0]["code"] == "CANDIDATE_GROUNDING_MISMATCH"
+
+
+def test_create_reference_is_preserved_across_target_repair_and_proposal() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    target = {
+        "mode": "create",
+        "relative_path": "candidate.metis",
+        "endpoint": "demo.target",
+        "base_sha256": None,
+        "reference": "brainTarget",
+    }
+    request = _request(context, semantic, target=target)
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    sources = [
+        """endpoint demo.target as "wrongReference" {
+  take 24 from @play-demo.video {
+    include where { @paesiorigine in ["ITALIA", "italia"] }
+    return response.default
+  }
+}
+""",
+        """endpoint demo.target as "brainTarget" {
+  take 24 from @play-demo.video {
+    include where { @paesiorigine in ["ITALIA", "italia"] }
+    return response.default
+  }
+}
+""",
+    ]
+    model = _SequenceModel(sources)
+    compiler = _CountingCompiler()
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {}),
+        cancellation=threading.Event(),
+    )
+
+    result = BrainOrchestrator(
+        retriever=SimpleNamespace(
+            retrieve=lambda **_kwargs: _grounded_retrieval(context, semantic)
+        ),
+        model=model,
+        compiler=compiler,
+        max_repairs=1,
+    ).run(
+        manager=_FakeManager(lease),
+        session_id=_SESSION_ID,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert compiler.calls == 1
+    assert model.requests[0].reference == "brainTarget"
+    assert model.requests[1].reference == "brainTarget"
+    assert model.requests[1].diagnostics[0]["code"] == "CANDIDATE_TARGET_MISMATCH"
+    assert result["proposal"]["endpoint"] == "demo.target"
+    assert result["proposal"]["reference"] == "brainTarget"
 
 
 def test_terminal_grounding_mismatch_fails_closed_without_compile() -> None:

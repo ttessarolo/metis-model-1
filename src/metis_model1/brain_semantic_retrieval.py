@@ -758,6 +758,28 @@ def _choose_candidate(
     valid = [item for item in candidates if isinstance(item, Mapping)]
     if not valid:
         return None
+    candidate_catalogs = {
+        item.get("catalog") for item in valid if isinstance(item.get("catalog"), str)
+    }
+    explicit_fields = {
+        (item.get("catalog"), item.get("field"))
+        for item in index.get("entries", [])
+        if isinstance(item, Mapping)
+        and item.get("node_kind") == "field"
+        and item.get("state") == "reviewed"
+        and item.get("catalog") in candidate_catalogs
+        and isinstance(item.get("field"), str)
+        and _whole_surface(instruction, item["field"])
+    }
+    if explicit_fields:
+        # A technical field name written by the operator is authority.  A
+        # shared literal must never migrate to a semantically different field,
+        # including after a Flash segmentation retry.
+        valid = [
+            item for item in valid if (item.get("catalog"), item.get("field")) in explicit_fields
+        ]
+        if not valid:
+            return None
     scored = [(_candidate_score(index, instruction, item), item) for item in valid]
     best = max(score for score, _item in scored)
     winners = [item for score, item in scored if score == best]
@@ -810,7 +832,11 @@ def _selection_identity(item: Mapping[str, Any]) -> tuple[Any, ...]:
 
 
 def _resolve_clause(
-    index: Mapping[str, Any], clause: str, catalog: str
+    index: Mapping[str, Any],
+    clause: str,
+    catalog: str,
+    *,
+    disambiguation_instruction: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
     remaining = clause
     selected: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -824,7 +850,11 @@ def _resolve_clause(
             ]
         elif result.get("status") == "clarify":
             raw_candidates = result.get("candidates", [])
-            chosen = _choose_candidate(index, remaining, raw_candidates)
+            chosen = _choose_candidate(
+                index,
+                disambiguation_instruction or remaining,
+                raw_candidates,
+            )
             if chosen is None:
                 unresolved_candidates = [
                     _semantic_candidate(index, item, remaining)
@@ -861,7 +891,11 @@ def _resolve_clause(
 
 
 def _resolve_complete_grounding(
-    index: Mapping[str, Any], request: str, catalog: str
+    index: Mapping[str, Any],
+    request: str,
+    catalog: str,
+    *,
+    disambiguation_instruction: str | None = None,
 ) -> dict[str, Any]:
     scrubbed = request
     short = catalog.rsplit(".", 1)[-1]
@@ -894,7 +928,12 @@ def _resolve_complete_grounding(
     candidates: list[dict[str, Any]] = []
     unresolved: list[str] = []
     for clause in clauses:
-        clause_selections, clause_candidates, remainder = _resolve_clause(index, clause, catalog)
+        clause_selections, clause_candidates, remainder = _resolve_clause(
+            index,
+            clause,
+            catalog,
+            disambiguation_instruction=disambiguation_instruction,
+        )
         for item in clause_selections:
             selections[_selection_identity(item)] = item
         candidates.extend(clause_candidates)
@@ -1614,6 +1653,7 @@ class Schema2SnapshotRetriever:
             _fail("RETRIEVAL_INVALID", "request instruction is invalid", 400)
         output_request = parse_output_request(instruction)
         semantic_instruction = output_request.semantic_instruction
+        disambiguation_instruction: str | None = None
         flash_value = getattr(request, "server_flash_intent", None)
         if flash_value is not None:
             if (
@@ -1648,6 +1688,7 @@ class Schema2SnapshotRetriever:
                     409,
                     "session Flash intent cannot safely drive retrieval",
                 )
+            disambiguation_instruction = output_request.semantic_instruction
             semantic_instruction = normalized
         # Only the TurnStore may resolve a client answer. Raw clarification
         # fields are intentionally ignored here so the retrieval authority can
@@ -1743,7 +1784,10 @@ class Schema2SnapshotRetriever:
             )
         selected_catalog = true_candidates[0]["catalog"]
         grounding = _resolve_complete_grounding(
-            indexed.index, semantic_instruction, selected_catalog
+            indexed.index,
+            semantic_instruction,
+            selected_catalog,
+            disambiguation_instruction=disambiguation_instruction,
         )
         _merge_basis_grounding(
             indexed.index,

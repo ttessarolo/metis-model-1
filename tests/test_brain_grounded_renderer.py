@@ -116,6 +116,21 @@ endpoint demo.film_italiani {
     assert adjudicate_candidate(candidate.source, retrieved.grounding).ok
 
 
+def test_reviewed_create_renders_requested_endpoint_reference_losslessly() -> None:
+    request, retrieved = _fixture()
+    request.target["reference"] = "videoFilmItaliani"
+
+    candidate = render_grounded_create(
+        request=request,
+        retrieved=retrieved,
+        model_revision="model-revision",
+        adapter_sha256="sha256:" + "a" * 64,
+    )
+
+    assert candidate is not None
+    assert 'endpoint demo.film_italiani as "videoFilmItaliani" {' in candidate.source
+
+
 def test_fast_renderer_declines_unreviewed_open_edit_and_incomplete_surfaces() -> None:
     request, retrieved = _fixture()
     mutations = []

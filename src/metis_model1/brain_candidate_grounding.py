@@ -9,6 +9,7 @@ everything else through bounded repair before the pinned compiler can run.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ _UNSUPPORTED_FIELD_OPERATORS = (
     "within",
 )
 _FINITE_DOMAIN_KINDS = frozenset({"enum", "inline", "list"})
+_QUALIFIED_ENDPOINT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_ENDPOINT_REFERENCE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,95}$")
 _CONDITION_BOUNDARY_WORDS = frozenset(
     {
         "exclude",
@@ -422,6 +425,9 @@ def _endpoint_blocks(source: str) -> list[tuple[str, int, int]]:
         if source[index] == '"':
             _literal, index = _scan_string(source, index)
             continue
+        if source[index] == "{":
+            index = _block_end(source, index) + 1
+            continue
         if not _word_at(source, index, "endpoint"):
             index += 1
             continue
@@ -446,6 +452,47 @@ def _endpoint_blocks(source: str) -> list[tuple[str, int, int]]:
         else:
             raise _ScanFailure("endpoint declaration has no block")
     return endpoint_blocks
+
+
+def _endpoint_headers(source: str) -> list[tuple[str, str | None]]:
+    """Return exact endpoint identities and optional quoted references.
+
+    This scanner is deliberately stricter than the historical grounding
+    scanner: the target oracle accepts only the grammar surface
+    ``endpoint QualifiedName (as STRING)? {`` and skips the entire endpoint
+    body so strings, comments and nested endpoint references cannot act as
+    declaration decoys.
+    """
+
+    headers: list[tuple[str, str | None]] = []
+    index = 0
+    while index < len(source):
+        if source[index].isspace() or source.startswith(("//", "/*"), index):
+            index = _skip_trivia(source, index)
+            continue
+        if source[index] == '"':
+            _literal, index = _scan_string(source, index)
+            continue
+        if not _word_at(source, index, "endpoint"):
+            index += 1
+            continue
+        name, cursor = _word_after(source, index + len("endpoint"))
+        if name is None or _QUALIFIED_ENDPOINT_RE.fullmatch(name) is None:
+            raise _ScanFailure("endpoint declaration has an invalid name")
+        cursor = _skip_trivia(source, cursor)
+        reference: str | None = None
+        if _word_at(source, cursor, "as"):
+            cursor = _skip_trivia(source, cursor + len("as"))
+            reference, cursor = _scan_string(source, cursor)
+            if _ENDPOINT_REFERENCE_RE.fullmatch(reference) is None:
+                raise _ScanFailure("endpoint declaration has an invalid reference")
+            cursor = _skip_trivia(source, cursor)
+        if cursor >= len(source) or source[cursor] != "{":
+            raise _ScanFailure("endpoint declaration has an invalid header")
+        closing = _block_end(source, cursor)
+        headers.append((name, reference))
+        index = closing + 1
+    return headers
 
 
 def _take_directives(source: str, start: int, end: int) -> list[TakeContract]:
@@ -1106,3 +1153,57 @@ def candidate_grounding_diagnostic(
 
     result = adjudicate_candidate(source, grounding)
     return result.diagnostic
+
+
+def candidate_target_diagnostic(source: str, target: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Adjudicate the exact create endpoint name and optional reference.
+
+    Compiler-clean output is not sufficient here: a valid candidate could
+    silently omit or replace the operator's requested editorial reference.
+    Existing targets are intentionally outside this create-only oracle because
+    their endpoint header belongs to the immutable source preimage.
+    """
+
+    if not isinstance(target, Mapping) or target.get("mode") != "create":
+        return None
+    endpoint = target.get("endpoint")
+    reference = target.get("reference")
+    if endpoint is None and reference is None:
+        return None
+    if (
+        not isinstance(endpoint, str)
+        or _QUALIFIED_ENDPOINT_RE.fullmatch(endpoint) is None
+        or (
+            reference is not None
+            and (
+                not isinstance(reference, str)
+                or _ENDPOINT_REFERENCE_RE.fullmatch(reference) is None
+            )
+        )
+    ):
+        raise BrainError("GROUNDING_INVALID", 500, "target endpoint identity is invalid")
+
+    actual: list[tuple[str, str | None]] = []
+    parse_error: str | None = None
+    try:
+        if not isinstance(source, str) or len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
+            raise _ScanFailure("candidate source is invalid")
+        actual = _endpoint_headers(source)
+    except (UnicodeError, _ScanFailure) as error:
+        parse_error = str(error)
+
+    expected = [(endpoint, reference)]
+    if parse_error is None and actual == expected:
+        return None
+    diagnostic: dict[str, Any] = {
+        "code": "CANDIDATE_TARGET_MISMATCH",
+        "reason": "candidate endpoint header differs from requested target",
+        "expected": [{"endpoint": endpoint, "reference": reference}],
+        "actual": [
+            {"endpoint": actual_endpoint, "reference": actual_reference}
+            for actual_endpoint, actual_reference in actual[:2]
+        ],
+    }
+    if parse_error is not None:
+        diagnostic["parse_error"] = parse_error
+    return diagnostic

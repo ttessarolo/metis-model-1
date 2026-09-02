@@ -46,7 +46,14 @@ class RecordingModel:
             self.requests.append(request)
         self.entered.wait(timeout=5)
         assert self.release.wait(timeout=5)
-        return ModelCandidate("metis 0.43\ntenant candidate {}\n")
+        reference = f' as "{request.reference}"' if request.reference is not None else ""
+        return ModelCandidate(
+            f"metis 0.43\nendpoint {request.endpoint}{reference} {{\n"
+            "  take 1 from @video {\n"
+            "    return response.default\n"
+            "  }\n"
+            "}\n"
+        )
 
 
 class TenantMarkerRetriever:
@@ -221,7 +228,7 @@ def test_proposal_cannot_cross_session_or_revision(tmp_path: Path) -> None:
         time.sleep(0.01)
     assert record.terminal is not None
     proposal = record.terminal.get("proposal")
-    assert isinstance(proposal, dict)
+    assert isinstance(proposal, dict), record.terminal
     foreign_snapshot = manager._authenticate(  # noqa: SLF001
         session_id=foreign.session_id, token=foreign.token, capability="chat.read"
     ).snapshot

@@ -23,6 +23,7 @@ def _request(
     *,
     cancellation: threading.Event | None = None,
     take: dict[str, object] | None = None,
+    reference: str | None = None,
 ) -> ModelRequest:
     grounding: dict[str, object] = {
         "catalogs": ["play-demo.video"],
@@ -47,6 +48,7 @@ def _request(
             "endpoint_templates": [{"path": "private-template.metis", "source": "TEMPLATE_MARKER"}],
         },
         grounding=grounding,
+        reference=reference,
         previous_source=None,
         diagnostics=(),
         cancellation=cancellation,
@@ -204,6 +206,16 @@ def test_prompt_serialization_is_deterministic_and_complete() -> None:
     assert "TEMPLATE_MARKER" not in messages[2]["content"]
     assert "F-4 exact JSON contract" not in messages[0]["content"]
     assert len(messages[0]["content"].encode("utf-8")) < 16 * 1024
+
+
+def test_prompt_serialization_binds_exact_endpoint_reference() -> None:
+    messages = serialize_model_messages(_request(reference="brainEndpoint"))
+    dynamic = messages[2]["content"]
+    marker = "TENANT_CONTEXT_JSON (authorized immutable session data):\n"
+    details = json.loads(dynamic.split(marker, 1)[1])
+
+    assert details["reference"] == "brainEndpoint"
+    assert 'must include exactly `as "brainEndpoint"`' in dynamic
 
 
 def test_prompt_projection_keeps_fields_referenced_by_previous_source() -> None:

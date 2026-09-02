@@ -6,10 +6,55 @@ from metis_model1.brain_candidate_grounding import (
     TakeContract,
     adjudicate_candidate,
     adjudicate_candidate_shape,
+    candidate_target_diagnostic,
     source_endpoint_has_fallback,
     source_take_contract,
 )
 from metis_model1.brain_protocol import BrainError
+
+
+def test_create_target_oracle_accepts_exact_name_reference_and_ignores_decoys() -> None:
+    source = """metis 0.43
+
+// endpoint demo.comment as "commentReference" {}
+block helper {
+  use endpoint.demo.nested
+}
+endpoint demo.target as "brainTarget" {
+  take 12 from @play-demo.video {
+    include where { @tipologia is "endpoint demo.string as \\"stringReference\\"" }
+    return response.default
+  }
+}
+"""
+    target = {
+        "mode": "create",
+        "endpoint": "demo.target",
+        "reference": "brainTarget",
+    }
+
+    assert candidate_target_diagnostic(source, target) is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "endpoint demo.target { take 12 from @play-demo.video }",
+        'endpoint demo.target as "wrongReference" { take 12 from @play-demo.video }',
+        'endpoint demo.other as "brainTarget" { take 12 from @play-demo.video }',
+        """endpoint demo.target as "brainTarget" { take 12 from @play-demo.video }
+endpoint demo.other { take 1 from @play-demo.video }
+""",
+    ],
+)
+def test_create_target_oracle_rejects_missing_wrong_or_extra_header(source: str) -> None:
+    diagnostic = candidate_target_diagnostic(
+        source,
+        {"mode": "create", "endpoint": "demo.target", "reference": "brainTarget"},
+    )
+
+    assert diagnostic is not None
+    assert diagnostic["code"] == "CANDIDATE_TARGET_MISMATCH"
 
 
 def _selection(*values: str, multi: bool = False) -> dict[str, object]:

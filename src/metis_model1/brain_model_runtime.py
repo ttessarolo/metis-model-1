@@ -29,6 +29,7 @@ class ModelRequest:
     endpoint: str | None
     context: dict[str, Any]
     grounding: dict[str, Any]
+    reference: str | None = None
     previous_source: str | None = None
     diagnostics: tuple[dict[str, Any], ...] = ()
     cancellation: threading.Event | None = field(default=None, repr=False, compare=False)

@@ -19,6 +19,7 @@ from metis_model1.brain_candidate_grounding import take_contract
 from metis_model1.brain_model_runtime import ModelCandidate
 
 _QUALIFIED_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_ENDPOINT_REFERENCE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,95}$")
 _CATALOG_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$")
 _FIELD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _FINITE_DOMAIN_KINDS = frozenset({"inline", "enum"})
@@ -134,6 +135,11 @@ def render_grounded_create(
     endpoint = target.get("endpoint")
     if not isinstance(endpoint, str) or _QUALIFIED_NAME_RE.fullmatch(endpoint) is None:
         return None
+    reference = target.get("reference")
+    if reference is not None and (
+        not isinstance(reference, str) or _ENDPOINT_REFERENCE_RE.fullmatch(reference) is None
+    ):
+        return None
 
     context = getattr(retrieved, "context", None)
     grounding = getattr(retrieved, "grounding", None)
@@ -195,9 +201,10 @@ def render_grounded_create(
         take_surface = f"take page default {take.value}"
 
     condition_lines = "\n".join(f"      {item}" for item in predicates)
+    reference_surface = f" as {_quoted(reference)}" if reference is not None else ""
     source = (
         "metis 0.43\n\n"
-        f"endpoint {endpoint} {{\n"
+        f"endpoint {endpoint}{reference_surface} {{\n"
         f"  {take_surface} from @{catalog} {{\n"
         "    include where {\n"
         f"{condition_lines}\n"

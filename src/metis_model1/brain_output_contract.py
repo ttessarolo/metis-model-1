@@ -28,6 +28,10 @@ _COUNT_COMMAND_RE = re.compile(
     r"(?:a|su)\s+([1-9][0-9]{0,3})(?!\w)",
     re.IGNORECASE,
 )
+_DSL_COUNT_RE = re.compile(
+    r"(?<!\w)take\s+([1-9][0-9]{0,3})\s+from(?!\w)",
+    re.IGNORECASE,
+)
 _AMBIGUOUS_COUNT_RE = re.compile(
     r"(?<!\w)(?:alcuni|alcune|qualche|pochi|poche|molti|molte|tanti|tante)\s+"
     r"(?:risultat[io]|contenut[io]|element[io]|film|video)(?!\w)",
@@ -40,7 +44,8 @@ _PAGINATION_RE = re.compile(
 _SEMANTIC_COUNT_NOUN_RE = re.compile(r"(?<!\w)(film|video)(?!\w)", re.IGNORECASE)
 _NON_EXACT_PREFIX_RE = re.compile(
     r"(?:^|[^\w])(?:"
-    r"non\s+(?:voglio|avere|restituire|oltre|esattamente|pi[uù](?:\s+di)?|"
+    r"non\s+(?:voglio|avere|restituire|usare|usa|mettere|inserire|impostare|"
+    r"oltre|esattamente|pi[uù](?:\s+di)?|"
     r"superiore\s+a|inferiore\s+a)|"
     r"non|senza|al\s+massimo|massimo|minimo|fino\s+a|almeno|circa|"
     r"all['’]incirca|approssimativamente|indicativamente|orientativamente|"
@@ -98,6 +103,10 @@ _INVALID_NUMERIC_OUTPUT_RE = re.compile(
     r"(?<!\w)(?:porta|imposta|fissa)\s+(?:il\s+)?(?:numero|totale|limite)\s+"
     r"(?:di|dei|degli|delle)?\s*(?:risultat[io]|contenut[io]|element[io]|film|video)\s+"
     rf"(?:a|su)\s+{_INVALID_NUMERIC_TOKEN}(?!\w))",
+    re.IGNORECASE,
+)
+_INVALID_DSL_COUNT_RE = re.compile(
+    rf"(?<!\w)take\s+(?:0[0-9]*|[1-9][0-9]{{4,}}|{_INVALID_NUMERIC_TOKEN})\s+from(?!\w)",
     re.IGNORECASE,
 )
 _OUTPUT_AFTER_NUMBER_RE = re.compile(
@@ -312,7 +321,16 @@ def parse_output_request(instruction: str) -> OutputRequestSurface:
         if not _overlaps(*match.span(), quoted_spans)
         and not _is_non_exact(instruction, *match.span())
     ]
-    authoritative_spans = range_spans + [match.span() for match in page_matches + command_matches]
+    dsl_count_matches = [
+        match
+        for match in _DSL_COUNT_RE.finditer(instruction)
+        if not _overlaps(*match.span(), quoted_spans)
+        and not _is_non_exact(instruction, *match.span())
+        and not _has_non_integer_prefix(instruction, match.start(1))
+    ]
+    authoritative_spans = range_spans + [
+        match.span() for match in page_matches + command_matches + dsl_count_matches
+    ]
     mentions: list[OutputMention] = []
     for match in choice_range_matches:
         values = [int(value) for value in re.findall(r"[0-9]+", match.group(0))[:2]]
@@ -326,6 +344,9 @@ def parse_output_request(instruction: str) -> OutputRequestSurface:
     )
     mentions.extend(
         OutputMention("count", int(match.group(1)), *match.span()) for match in command_matches
+    )
+    mentions.extend(
+        OutputMention("count", int(match.group(1)), *match.span()) for match in dsl_count_matches
     )
     count_matches = [
         match
@@ -373,6 +394,11 @@ def parse_output_request(instruction: str) -> OutputRequestSurface:
         or any(
             not _overlaps(*match.span(), protected_numeric_spans)
             for match in _INVALID_NUMERIC_OUTPUT_RE.finditer(instruction)
+        )
+        or any(
+            not _overlaps(*match.span(), quoted_spans)
+            and not _is_non_exact(instruction, *match.span())
+            for match in _INVALID_DSL_COUNT_RE.finditer(instruction)
         )
     )
 

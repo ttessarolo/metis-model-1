@@ -64,6 +64,7 @@ _RUNTIME_REFERENCE_SECTIONS = (
 )
 _FIELD_REFERENCE_RE = re.compile(r"@([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)")
 _ENDPOINT_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_ENDPOINT_REFERENCE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,95}$")
 _CATALOG_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$")
 
 
@@ -220,6 +221,7 @@ def serialize_model_messages(request: ModelRequest) -> list[dict[str, str]]:
         "intent": request.intent,
         "target_path": request.target_path,
         "endpoint": request.endpoint,
+        "reference": request.reference,
         "context": _project_model_context(request),
         "grounding": request.grounding,
         "previous_source": request.previous_source,
@@ -254,6 +256,14 @@ def serialize_model_messages(request: ModelRequest) -> list[dict[str, str]]:
         binding_lines.append(
             f"The endpoint declaration name is exactly `{request.endpoint}`: the token after "
             "`endpoint` must be that name, never a catalog reference."
+        )
+    if request.reference is not None:
+        if request.endpoint is None or _ENDPOINT_REFERENCE_RE.fullmatch(request.reference) is None:
+            raise BrainError("MODEL_INPUT_INVALID", 400, "model endpoint reference is invalid")
+        rendered_reference = json.dumps(request.reference, ensure_ascii=False)
+        binding_lines.append(
+            "The endpoint declaration must include exactly "
+            f"`as {rendered_reference}` immediately after its name."
         )
     catalogs = request.grounding.get("catalogs")
     if isinstance(catalogs, list) and len(catalogs) == 1 and isinstance(catalogs[0], str):

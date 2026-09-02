@@ -1,6 +1,6 @@
 # Metis Brain latency promotion wave
 
-Status: **STOPPED — VS CODE HAS NO RESOLVABLE CHAT MODEL BEFORE `@metis` DISPATCH**
+Status: **COMPLETED — INSTALLED VISIX DRAFT PROOF AND MODEL 1 GATES GREEN**
 
 ## Mandate
 
@@ -258,6 +258,43 @@ minimal-diff or no-Apply gates.
   route. If the first retrieval was unsupported, Flash may have run before the
   lossless decision; public identity retains that processing route and no
   broader zero-model claim is made.
+
+## Installed local-provider and exact-target closure
+
+- FIX — The isolated Metis lane now contributes exactly one availability-only
+  `Metis Chat Bridge`. Direct provider invocation is denied; `@metis` remains
+  the sole owner of tenant/session/retrieval/compiler/apply orchestration. Brain
+  prewarm starts asynchronously and readiness remains a separate fail-closed
+  120-second contract.
+- FIX — A create prompt may bind one affirmative qualified endpoint plus one
+  bounded reference. The VSIX rejects invalid, partial, colliding, multiple or
+  negated targets; Italian apostrophes do not hide the declaration. Brain
+  carries `reference` through canonical request identity, Model 1/renderer,
+  bounded repair, candidate target adjudication, proposal and session-only
+  refinement, then renders the grammar surface `as "reference"`.
+- DONE — Independent exact-target red-team after repair: `P0=0 P1=0 P2=0`.
+  Reproductions for Italian/English negation, invalid-name truncation and the
+  Italian apostrophe all fail or resolve as required; focused Python, Brain
+  Chat, TypeScript and diff gates are GREEN.
+- DONE — VSIX `0.24.0` packaged and installed locally. Package-content digest
+  is `sha256:cc1d92b1e471f2b5a38ef2a6d4868cf4d04908ce1fe4394cf9d25e0538fa53ac`,
+  archive SHA-256 is
+  `1dff304e788f15d98285af13126c20748e7d4b5cb9eaa50a8f7359ccb490f3a5`,
+  and the packaged language server validates `170/170` tenant endpoints with
+  zero errors.
+- RISK — The first post-reboot `make check` stopped before the test denominator:
+  `/usr/bin/git` still reports Apple Git 2.50.1 but its signed system-shim bytes
+  differ from the pre-reboot fixed pin. This is host-authority drift, not a
+  GREEN code gate. A bounded pin requalification is under frontier review.
+- OPEN — The final installed VS Code draft-only replay is pending because macOS
+  relocked before UI control. No Apply has been or will be invoked; the tenant
+  invariant will be recomputed after the replay.
+- FACT — Read-only cleanup census, independently recomputed by L0: excluding
+  both `main` branches and the active provider lane, `30` merged local branches
+  are potential cleanup candidates (`29` Metis, `1` Model 1); `2` of the Metis
+  candidates still own clean physical worktrees. One additional detached
+  missing worktree record is prunable. No branch/worktree/prune mutation was
+  performed.
 - DONE — Independent final red-team verdict for the bounded lossless lane:
   GREEN, `P0=0 P1=0`. Plain and block-comment preservation attacks both stop
   with `EDIT_PRESERVATION_CONFLICT`; Model 1, lossless apply and ordinary
@@ -483,3 +520,145 @@ unfinished wave.
   and before/after tenant checks. Do not rerun the 48-minute Model 1 gate unless
   Model 1 production bytes change; a Visix-only patch instead needs its own
   extension contract/package gates plus this installed proof.
+
+## OWNER RESUME — 2026-09-02
+
+- DECISION — The owner explicitly authorized a new Metis/Visix integration
+  lane, including VSIX modification, packaging and local installation for the
+  Draft-only proof. The existing worktrees/branches are audit-only: no cleanup,
+  prune or deletion is authorized in this lane.
+- FACT — Metis `main` was fetched and verified clean/aligned at
+  `2ad60b3c804fb1c45e45883b0479a46f660d98f6`. L0 created the isolated worktree
+  `/Users/tommasotessarolo/Developer/ares-matioska/metis-local-chat-provider`
+  on branch `codex/metis-local-chat-provider-20260902`, tracking that exact
+  `origin/main`. The original Metis checkout remains on clean `main`.
+- OPEN — Implement the smallest first-party local provider, prove its safe
+  direct-use behavior and participant dispatch without Copilot, package/install
+  the successor VSIX, then repeat the exact no-Apply gate and tenant invariants.
+- OPEN — Deliver a separate read-only list of already-merged worktree/branch
+  cleanup candidates; do not act on it without a later owner decision.
+- DONE — L613 verified against the installed VS Code 1.135 implementation and
+  the pinned TypeScript API that `$invokeAgent` resolves `request.model` before
+  dispatching the participant. A contributed local model can satisfy an
+  explicitly selected model id; the host's automatic default remains reserved
+  to Copilot, so the installed gate must also prove one-time selection of the
+  Metis model in the native model picker. No private VS Code command or silent
+  mutation of user settings is authorized.
+- DECISION — The provider is an availability surface only. It exposes one fixed
+  local model identity and a bounded direct-use instruction; it does not inspect
+  or forward chat messages, launch Brain, resolve a tenant, hold a session,
+  compile or apply. The existing `@metis` participant remains the sole
+  tenant-aware orchestrator and continues to ignore `request.model`.
+- FACT — L612's first census found two clean registered Metis worktrees whose
+  branch tips are already ancestors of `main`, 27 additional merged local
+  branch candidates not checked out, four clean but unmerged worktrees, and one
+  missing detached worktree entry marked prunable. The new provider worktree is
+  active and is not a cleanup candidate. L0 will recompute the final roster;
+  no removal, branch deletion or prune was executed.
+
+## INSTALLED PROVIDER PROOF AND HOST-PIN REQUALIFICATION — 2026-09-02
+
+- DONE — The post-reboot Apple Git drift is requalified within the existing
+  `verified_local_cooperative` boundary. `/usr/bin/git` remains root-owned,
+  Apple-signed, designated-requirement valid, version
+  `git version 2.50.1 (Apple Git-155)` and `78` links; the current exact shim is
+  `118640` bytes with SHA-256
+  `b8763cf250e607a778bb4603cecb5b90338814d0a3dfcba0d57b1de242f610e9`.
+  Only those two fixed constants changed. Historical freeze artefacts remain
+  immutable. Direct executable verification and foundation `86/0` are GREEN.
+- RISK — The pin continues to bind the Apple `xcode_select` shim under the
+  repository's cooperative-host claim; it does not independently pin the
+  resolved Xcode Git payload. Independent audit found `P0=0 P1=1` for that
+  stronger unclaimed boundary. Adding target-resolution attestation is a
+  separate hardening wave, not a reason to weaken or relabel this gate.
+- FACT — After reload, installed VS Code displayed Metis `v0.24.0`, local serve
+  `0.3.45` and the selected `Metis Chat Bridge`. The restored `v0.23.99` Draft,
+  which lacked the new reference, was rejected as stale evidence before the
+  window reload.
+- DONE — A fresh installed Chat submitted the exact named-create request for
+  `demo.brain_lossless_smoke as brainLosslessSmoke`, `take 12`,
+  `tipologia=Film`, `genere_mcm=Azione`, standard response and explicit no
+  Apply. Cold elapsed time was `52 s`; both mappings were reported `reviewed`.
+  L0 clicked only **Apri bozza**. The exact virtual source is:
+
+  ```metis
+  metis 0.43
+
+  endpoint demo.brain_lossless_smoke as "brainLosslessSmoke" {
+    take 12 from @play-demo.video {
+      include where {
+        @tipologia is "Film"
+        @genere_mcm is "Azione"
+      }
+      return response.default
+    }
+  }
+  ```
+
+- DONE — Draft-only tenant invariant: `play-demo` remained clean and aligned
+  `0/0` at exact HEAD/origin
+  `bfd6cbe4c7b06cc00a2493eac34db02887bc997b`; physical target
+  `properties/demo/brain_lossless_smoke.metis` is absent. No Apply, tenant
+  write, VPN, OpenSearch, credential, remote fallback, model download or
+  training occurred.
+- DONE — Final provider gates after the live proof: Brain Chat contract and
+  TypeScript typecheck GREEN; parity state write/check GREEN; build/package
+  GREEN; packaged-language-server tenant validation `170/170`, zero errors;
+  deterministic package-content digest
+  `sha256:cc1d92b1e471f2b5a38ef2a6d4868cf4d04908ce1fe4394cf9d25e0538fa53ac`.
+- DONE — Independent cleanup census refresh: excluding both `main` branches and
+  the still-active provider worktree, potential merged cleanup candidates are
+  `30` branches (`29` Metis, `1` Model 1), including `2` clean physical Metis
+  worktrees. One additional detached missing-worktree record is prunable. Four
+  clean physical Metis worktrees are unmerged and must be preserved. No delete,
+  prune, branch mutation or worktree mutation was executed.
+- OPEN — Authoritative Model 1 `make check` rerun after the two-line host-pin
+  requalification is in progress. Final status, commit/push and origin/tree
+  alignment wait only on that gate and the inherited Metis full-suite verdict.
+- DONE — The Metis/Visix delivery was committed as
+  `e11dd1b65a0fa88a6366910a0cf02ba184749bd4`, fast-forwarded onto Metis
+  `main`, pushed, fetched back and verified clean/aligned `0/0`. No remote
+  feature branch was created.
+- FACT — The Metis default-Node full suite remains RED only at the three
+  pre-existing deep-parser assertions in `lossless-adversarial` on host Node
+  `v26.5.0`; the affected lossless source/test surface is unchanged from the
+  `2ad60b3c` base. The same adversarial gate is fully GREEN with the qualified
+  Node `v22.22.3`. Provider-focused tests, typecheck, parity, build, package and
+  installed proof are unaffected and GREEN.
+- FIX — The first post-format full Model 1 run exposed one stale isolation-test
+  fake that still returned a tenant shell rather than a requested endpoint.
+  The fixture now emits the exact request endpoint, optional reference and one
+  endpoint-level take. Both isolation cases and the complete Brain denominator
+  `793/793` are GREEN under the canonical isolated harness.
+- DONE — Independent post-fix fixture audit recomputed the Brain target/reference
+  surface and found no remaining regression: all endpoint-bearing fakes either
+  preserve the exact requested endpoint/reference or intentionally exercise a
+  legacy target whose endpoint is `None`. The full Brain denominator remains
+  `793/793`; no production source changed in this audit lane.
+- DONE — Final read-only cleanup census after Metis convergence supersedes the
+  earlier active-worktree count: excluding both `main` branches, `31` local
+  branches are already ancestors of `origin/main` (`30` Metis, `1` Model 1).
+  Of these, `3` are checked out in clean physical Metis worktrees. One separate
+  detached missing-worktree record is reported prunable. Four clean physical
+  Metis worktrees remain unmerged and are explicitly excluded. No worktree,
+  branch or administrative record was removed or changed.
+- FACT — The first authoritative post-reboot `make check` reached `85%` before
+  W3 materializer failures exposed missing `/private/var/tmp` test preimages,
+  not a Brain regression. The reboot had removed exactly the frozen three-wheel
+  root and both reproducible Stage-0 build leaves. The run was stopped before
+  accepting a partial verdict.
+- DONE — L0 restored only the public exact-three wheel preimages under the
+  already frozen URLs and paths: sizes `7912214/181043/48172`, SHA-256
+  `160ad728.../45d5e886.../b7274141...`, modes `0444`, `in=3 out=3 distinct=3
+  gaps=0`. Compiler, linker, SDK settings, libSystem, CommonDigest and Stage-0
+  source all remeasured at their frozen hashes; two never-executed arm64 builds
+  were recreated from the exact sterile recipe at `54232/ddd09fcf...`, equal
+  bytes and no `LC_UUID`. Focused W3 materializer replay is `59/59` GREEN.
+  No private data, credential, tenant, model payload, install or privileged
+  execution was involved.
+- DONE — The superseding authoritative repository gate completed with exit
+  code `0`: Foundation `86/0`, Pilot contracts valid, Ruff check/format GREEN,
+  and canonical isolated test denominator `2930 passed, 2 skipped, 0 failed`
+  in `1819.10 s`. This closes the earlier in-progress OPEN and the interrupted
+  environment-invalid run; commit/push and origin alignment are the only
+  remaining delivery mechanics.

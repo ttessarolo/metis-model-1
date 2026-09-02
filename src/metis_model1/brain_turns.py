@@ -28,6 +28,7 @@ from metis_model1.brain_sessions import OperationLease, SessionManager
 
 _TURN_RE = re.compile(r"^[A-Za-z0-9_-]{24,96}$")
 _REF_RE = re.compile(r"^[A-Za-z0-9_-]{1,96}$")
+_ENDPOINT_REFERENCE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,95}$")
 _PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 _INTENTS = frozenset({"create", "edit", "repair", "review", "migrate"})
 MAX_SESSION_TURNS = 64
@@ -60,6 +61,7 @@ def validate_target(value: Any) -> dict[str, Any]:
     exact_fields(
         value,
         required={"mode", "relative_path", "endpoint", "base_sha256"},
+        optional={"reference"},
         label="target",
     )
     mode = value["mode"]
@@ -75,6 +77,11 @@ def validate_target(value: Any) -> dict[str, Any]:
         not isinstance(endpoint, str) or not endpoint or len(endpoint) > 256
     ):
         raise BrainError("INVALID_SCHEMA", 400, "target endpoint is invalid")
+    reference = value.get("reference")
+    if reference is not None and (
+        not isinstance(reference, str) or _ENDPOINT_REFERENCE_RE.fullmatch(reference) is None
+    ):
+        raise BrainError("INVALID_SCHEMA", 400, "target reference is invalid")
     base = value["base_sha256"]
     if base is not None and (
         not isinstance(base, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", base)
@@ -84,7 +91,15 @@ def validate_target(value: Any) -> dict[str, Any]:
         raise BrainError("INVALID_SCHEMA", 400, "create target requires a null base hash")
     if mode == "existing" and base is None:
         raise BrainError("INVALID_SCHEMA", 400, "existing target requires a base hash")
-    return {"mode": mode, "relative_path": path, "endpoint": endpoint, "base_sha256": base}
+    if reference is not None and (mode != "create" or endpoint is None):
+        raise BrainError("INVALID_SCHEMA", 400, "target reference requires a named create endpoint")
+    return {
+        "mode": mode,
+        "relative_path": path,
+        "endpoint": endpoint,
+        "base_sha256": base,
+        "reference": reference,
+    }
 
 
 @dataclass(frozen=True)

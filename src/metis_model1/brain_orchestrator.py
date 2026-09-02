@@ -10,6 +10,7 @@ from typing import Any
 
 from metis_model1.brain_candidate_grounding import (
     candidate_grounding_diagnostic,
+    candidate_target_diagnostic,
     source_endpoint_has_fallback,
     source_take_contract,
     take_contract,
@@ -200,6 +201,7 @@ class BrainOrchestrator:
                     endpoint=request.target["endpoint"],
                     context=retrieved.context,
                     grounding=retrieved.grounding,
+                    reference=request.target.get("reference"),
                     previous_source=previous,
                     cancellation=record.cancellation,
                 )
@@ -229,9 +231,9 @@ class BrainOrchestrator:
             while True:
                 if record.cancellation.is_set() or lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
-                grounding_diagnostic = candidate_grounding_diagnostic(
-                    candidate.source, retrieved.grounding
-                )
+                grounding_diagnostic = candidate_target_diagnostic(
+                    candidate.source, request.target
+                ) or candidate_grounding_diagnostic(candidate.source, retrieved.grounding)
                 if grounding_diagnostic is not None:
                     if candidate.generator == "lossless_renderer":
                         raise BrainError(
@@ -240,10 +242,16 @@ class BrainOrchestrator:
                             "lossless candidate differs from reviewed grounding",
                         )
                     if repairs_used >= self._max_repairs:
-                        raise BrainError(
+                        diagnostic_code = grounding_diagnostic.get("code")
+                        if diagnostic_code not in {
                             "CANDIDATE_GROUNDING_MISMATCH",
+                            "CANDIDATE_TARGET_MISMATCH",
+                        }:
+                            diagnostic_code = "CANDIDATE_GROUNDING_MISMATCH"
+                        raise BrainError(
+                            diagnostic_code,
                             422,
-                            "candidate does not match reviewed finite grounding",
+                            "candidate does not match the requested target and reviewed grounding",
                         )
                     repairs_used += 1
                     record.emit(
@@ -259,6 +267,7 @@ class BrainOrchestrator:
                         endpoint=request.target["endpoint"],
                         context=retrieved.context,
                         grounding=retrieved.grounding,
+                        reference=request.target.get("reference"),
                         previous_source=candidate.source,
                         diagnostics=(grounding_diagnostic,),
                         cancellation=record.cancellation,
@@ -339,6 +348,7 @@ class BrainOrchestrator:
                     endpoint=request.target["endpoint"],
                     context=retrieved.context,
                     grounding=retrieved.grounding,
+                    reference=request.target.get("reference"),
                     previous_source=candidate.source,
                     diagnostics=tuple(diagnostics[:32]),
                     cancellation=record.cancellation,
@@ -1146,6 +1156,8 @@ class BrainOrchestrator:
             "proposal_ref": "proposal-" + secrets.token_urlsafe(24),
             "operation": "create" if request.target["mode"] == "create" else "replace",
             "relative_path": request.target["relative_path"],
+            "endpoint": request.target["endpoint"],
+            "reference": request.target.get("reference"),
             "base_sha256": request.target["base_sha256"],
             "source": candidate.source,
             "source_sha256": source_hash,
