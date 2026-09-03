@@ -98,6 +98,10 @@ CONTRACT_PAIRS = (
         "schemas/catalog-semantic-execution-policy.schema.json",
         "manifests/catalog-semantic-execution-play-demo-video-pg-v1.json",
     ),
+    (
+        "schemas/catalog-semantic-execution-policy-v2.schema.json",
+        "manifests/catalog-semantic-execution-play-demo-video-pg-v2.json",
+    ),
 )
 
 STANDALONE_SCHEMAS = (
@@ -369,6 +373,8 @@ REQUIRED_FOUNDATION_PATHS = (
     "orchestra/runs/2026-08-29-catalog-semantic-closure/SESSIONS.md",
     "schemas/catalog-semantic-execution-policy.schema.json",
     "manifests/catalog-semantic-execution-play-demo-video-pg-v1.json",
+    "schemas/catalog-semantic-execution-policy-v2.schema.json",
+    "manifests/catalog-semantic-execution-play-demo-video-pg-v2.json",
     "schemas/accuracy-target.schema.json",
     "schemas/artifact-store-policy.schema.json",
     "schemas/dataset-example.schema.json",

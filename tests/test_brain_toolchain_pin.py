@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -14,9 +15,9 @@ def test_brain_pin_contract_is_exact_and_deterministic() -> None:
     manifest = pin.load_metis_brain_toolchain_pin()
 
     assert pin.validate_metis_brain_toolchain_pin_contract() == []
-    assert manifest["revision"] == "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
-    assert manifest["tree"] == "ea29b935934fadd5f99711c0470566a2484b35f6"
-    assert manifest["tooling_version"] == "0.23.97"
+    assert manifest["revision"] == "3fde0820c04244b011a2f7a9604c425891424b34"
+    assert manifest["tree"] == "432bd3babd9f4c2dfe6349288b12eba917d4fe73"
+    assert manifest["tooling_version"] == "0.24.1"
     assert manifest["runtime"]["node_version"] == "v22.22.3"
     assert manifest["runtime"]["langium_version"] == "4.3.0"
     assert manifest["runtime"]["metis_language_version"] == "0.43"
@@ -32,10 +33,10 @@ def test_brain_identity_is_typed_immutable_and_binding_stable() -> None:
     identity = pin.load_metis_brain_toolchain_identity()
 
     assert isinstance(identity, pin.BrainToolchainIdentity)
-    assert identity.revision == "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
-    assert identity.tree == "ea29b935934fadd5f99711c0470566a2484b35f6"
+    assert identity.revision == "3fde0820c04244b011a2f7a9604c425891424b34"
+    assert identity.tree == "432bd3babd9f4c2dfe6349288b12eba917d4fe73"
     assert identity.toolchain_binding == identity.manifest_sha256
-    assert identity.as_dict()["tooling_version"] == "0.23.97"
+    assert identity.as_dict()["tooling_version"] == "0.24.1"
     assert identity.langium_version == "4.3.0"
     assert identity.metis_language_version == "0.43"
     assert identity.grammar_sha256 == manifest_grammar_hash()
@@ -45,6 +46,15 @@ def test_brain_identity_is_typed_immutable_and_binding_stable() -> None:
 
 def manifest_grammar_hash() -> str:
     return "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"
+
+
+def test_legacy_v1_contract_files_remain_byte_identical() -> None:
+    assert "sha256:" + hashlib.sha256(pin.LEGACY_SCHEMA_PATH.read_bytes()).hexdigest() == (
+        pin.LEGACY_SCHEMA_FILE_SHA256
+    )
+    assert "sha256:" + hashlib.sha256(pin.LEGACY_MANIFEST_PATH.read_bytes()).hexdigest() == (
+        pin.LEGACY_MANIFEST_FILE_SHA256
+    )
 
 
 @pytest.mark.parametrize(

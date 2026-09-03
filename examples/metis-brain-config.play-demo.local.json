@@ -49,6 +49,20 @@
         "session.close",
         "session.read"
       ]
+    },
+    {
+      "client_id": "metis-fast",
+      "tenant_aliases": ["play-demo"],
+      "capabilities": [
+        "chat.apply-preflight",
+        "chat.cancel",
+        "chat.read",
+        "chat.turn",
+        "compile",
+        "context.read",
+        "session.close",
+        "session.read"
+      ]
     }
   ],
   "limits": {

@@ -1,0 +1,86 @@
+{
+  "execution_catalog": "play-demo.video_pg",
+  "execution_receipt": {
+    "counts": {
+      "catalogs_in": 1,
+      "catalogs_out": 1,
+      "domain_dispositions": 0,
+      "execution_values_responses": 18,
+      "fields_distinct": 40,
+      "fields_in": 40,
+      "fields_out": 40,
+      "gaps": 0,
+      "materialized_finite_fields": 9,
+      "modifier_exceptions": 1,
+      "source_fields_available": 113,
+      "values_draft": 7,
+      "values_in": 521,
+      "values_out": 521,
+      "values_reviewed": 514
+    },
+    "domain_dispositions_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "execution_describe_sha256": "sha256:adc5cb7b6028058f078c597e5ec886e0d6c5c8e6e573cb06818d424a38f7ecea",
+    "execution_ref": "sha256:adf8d29efadaae0bcf12f6102d08ace56a962e8369999c2aa10ebc24c7ab474f",
+    "execution_values_projection_sha256": [
+      "sha256:0b1cf1cf1fd96ce4bba18f49b5d22a204685a4f15ca87d26e54aa21a88d10616",
+      "sha256:0b1eed557ffa95fd0edc8d40f30fa398fcd697c51003b2459c976d37d67968bd",
+      "sha256:114c01726a6ddcfe0ba84f761d9b4c881567b7bb9326eb6c4759c2e070d37b64",
+      "sha256:18b5f02276c6285c571e4cbff1970910e03e68860fd101d266a32427021a59b8",
+      "sha256:1d8e6dcfe6ee360f8b79450a1fad4faf56c21f0198eb8e5d1c2f749acab27c5d",
+      "sha256:1d90c65086ebe00abe206b9249554e9dabce22ee760c32c0c9cd16b12c3f93a0",
+      "sha256:2b341512e365988f288e0f53fb1bc3cbe95374b2a641f83265ddbe261d1cfc5c",
+      "sha256:2cbff4826cc873054db0b704edbec9c8e6bdd4b9ea0ec1d8624968dfaa85c207",
+      "sha256:826f63a7bd4164191f44385854736986e78e3f97edbc698a42d2bcca0b301d90",
+      "sha256:86f5523a44a881a3af42bc46d0f8a094d6f88db6f7a7b4410792baf65428ecec",
+      "sha256:947094f5658486cb79cd3dc3de19491342876478b4c68e06587d9b2f0ffcf735",
+      "sha256:a39983c4675012f7c0490c345e6fe1178ca5440d7a3ecd24313643d00878688a",
+      "sha256:b576b0a325dfcfd558cf6dfd84c84599f0bfea23a227d67c6c5d683d94cc1d9f",
+      "sha256:bac488b0c45b5edc12e5983e2d9156c6c44f0640ae89db9ff0f1a191f75437bd",
+      "sha256:bb5c78aa5b8ac7249d3ebbd0d74226ba42f56064ebe3a7998200fdc1fa2670c9",
+      "sha256:d7a1180c258e38a95a06e7bd7926745e759b33f7db3de917d44a369a3baded57",
+      "sha256:de7611f3c27b1d01c7045b307e73cb490baa9c04610bea08141972c4edfda1ed",
+      "sha256:e12d89e958102b090b2860bda3a26da7dc86a367b51d1f8786b1bff3f9489778"
+    ],
+    "modifier_allowlist_sha256": "sha256:f2d6ab0961585c03190cc1f716c36d12564ecdde97b090bd37c551ee300a8e6f",
+    "payload_redacted": true,
+    "projection_sha256": "sha256:1de9b576c088352ab5baabea7213b4a4232a104f3d08565d524bae921576f9ef",
+    "receipt_id": "metis-model1/catalog-semantic-execution-receipt-v2",
+    "receipt_sha256": "sha256:15f4bfad611fc6bfba4fc5d0a698076d0fa510bf55af08f29873a753c45dc05e",
+    "schema_version": 1,
+    "semantic_ref": "sha256:59e8e316aaf34be9bc19c7c0ee875ceca3bad1cbb1d448c51b78180161840eb0",
+    "source_projection_sha256": "sha256:d71422d4d33c0db38c27cbdd90c18e8a55504ba70b75b9d520726e859b700754"
+  },
+  "expected": {
+    "execution_fields": 40,
+    "execution_values_responses": 18,
+    "finite_fields_projected": 18,
+    "gaps": 0,
+    "materialized_finite_fields": 9,
+    "source_fields_available": 113,
+    "values_draft": 7,
+    "values_projected": 521,
+    "values_reviewed": 514
+  },
+  "manifest_id": "catalog-semantics/play-demo-video-pg-v2",
+  "mapping": {
+    "draft_policy": "retain-for-audit-but-never-resolve",
+    "field_identity": "exact-same-name-subset",
+    "finite_to_none_fields": [],
+    "materialized_domain_policy": "exact-order-size-nature-and-valueitem-provenance",
+    "modifier_allowlist": {
+      "genere_mcm": {
+        "execution": ["multi"],
+        "source": []
+      }
+    },
+    "values_owner": "semantic_catalog"
+  },
+  "node_version": "v22.22.3",
+  "schema_version": 2,
+  "semantic_catalog": "play-demo.video",
+  "standard_receipt_sha256": "sha256:28a6e508aabe1386edb71952f3b2af3a3fc319a54db03799b645349c5b001609",
+  "tenant_revision": "27e4b118ce9b7592b65d22037a7665b3b286b096",
+  "tenant_tree": "97989aed4e992d3bc44da3414cb81cbf5a93a011",
+  "toolchain_revision": "bc2ce746c40e147cbacaa3fd662da2e070e80f00",
+  "toolchain_tree": "bcd60fc08188cf2168e9c7beec7ab2a904082465"
+}

@@ -99,6 +99,10 @@ def test_video_semantics_contracts_are_registered_and_semantically_valid() -> No
         "manifests/video-semantics-sources-v1.json",
     ) in contracts.CONTRACT_PAIRS
     assert (
+        "schemas/catalog-semantic-execution-policy-v2.schema.json",
+        "manifests/catalog-semantic-execution-play-demo-video-pg-v2.json",
+    ) in contracts.CONTRACT_PAIRS
+    assert (
         len([path for path in contracts.STANDALONE_SCHEMAS if path.startswith("schemas/video-")])
         == 10
     )
@@ -148,6 +152,7 @@ def test_makefile_uses_the_registered_nvm_node_not_the_vanished_runtime() -> Non
     assert "$(HOME)/.nvm/versions/node/v22.22.3/bin/node" in makefile
     assert "python -m metis_model1.test_harness" in makefile
     assert '--metis-root "$(PINNED_METIS_ROOT)"' in makefile
+    assert '--oracle-node-modules "$(PINNED_ORACLE_NODE_MODULES)"' in makefile
     assert '--node "$(PINNED_NODE)"' in makefile
 
 

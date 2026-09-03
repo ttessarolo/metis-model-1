@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from types import ModuleType
@@ -21,6 +22,10 @@ def _load_tool() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _metis_authority(module: ModuleType) -> Path:
+    return Path(os.environ.get("METIS_MODEL1_METIS_ROOT", str(module.DEFAULT_METIS_ROOT)))
 
 
 def _canonical(value: object) -> bytes:
@@ -154,20 +159,22 @@ def test_l66_native_evidence_emissions_are_byte_identical_and_independently_veri
     tmp_path: Path,
 ) -> None:
     module = _load_tool()
+    metis_root = _metis_authority(module)
     first = tmp_path / "first.json"
     second = tmp_path / "second.json"
-    module.emit_evidence(first)
-    module.emit_evidence(second)
+    module.emit_evidence(first, metis_root=metis_root)
+    module.emit_evidence(second, metis_root=metis_root)
     assert first.read_bytes() == second.read_bytes()
     registered = PROJECT_ROOT / "manifests/w3-native-loader-evidence.json"
     assert first.read_bytes() == registered.read_bytes()
-    module.verify_evidence(first)
+    module.verify_evidence(first, metis_root=metis_root)
 
 
 def test_l67_blocked_emit_and_verify_never_execute_node_tsx_runner_or_canary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = _load_tool()
+    metis_root = _metis_authority(module)
     observed: list[tuple[str, ...]] = []
     original_run = module._run
 
@@ -184,8 +191,8 @@ def test_l67_blocked_emit_and_verify_never_execute_node_tsx_runner_or_canary(
     monkeypatch.setattr(module, "_run", git_only)
     monkeypatch.setattr(module, "_capture_parity", forbidden_capture)
     emitted = tmp_path / "blocked.json"
-    module.emit_evidence(emitted)
-    module.verify_evidence(emitted)
+    module.emit_evidence(emitted, metis_root=metis_root)
+    module.verify_evidence(emitted, metis_root=metis_root)
     assert observed
     assert all(command[0] == "git" for command in observed)
 

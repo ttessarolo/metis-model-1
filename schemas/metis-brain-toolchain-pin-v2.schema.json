@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/metis-brain-toolchain-pin-v2.schema.json",
+  "title": "Metis Brain immutable toolchain pin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "pin_id",
+    "repository",
+    "revision",
+    "tree",
+    "remote_url",
+    "remote_ref",
+    "language_version",
+    "tooling_version",
+    "runtime",
+    "evidence",
+    "probes",
+    "policy",
+    "nonclaims"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "pin_id": {"const": "metis-brain-toolchain/2026-09-04-v2"},
+    "repository": {"const": "ares-matioska/metis"},
+    "revision": {"const": "3fde0820c04244b011a2f7a9604c425891424b34"},
+    "tree": {"const": "432bd3babd9f4c2dfe6349288b12eba917d4fe73"},
+    "remote_url": {"const": "git@github.com:ttessarolo/metis.git"},
+    "remote_ref": {"const": "refs/remotes/origin/main"},
+    "language_version": {"const": "0.43"},
+    "tooling_version": {"const": "0.24.1"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_version",
+        "node_sha256",
+        "node_bytes",
+        "node_modules_sha256",
+        "langium_version",
+        "metis_language_version",
+        "grammar_sha256",
+        "package_sha256",
+        "lock_sha256"
+      ],
+      "properties": {
+        "node_version": {"const": "v22.22.3"},
+        "node_sha256": {"const": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"},
+        "node_bytes": {"const": 112915776},
+        "node_modules_sha256": {"const": "sha256:5ba3b1ef8e399260fa40c840fdeffd255931b37c01d284b4d445c0311533e7e5"},
+        "langium_version": {"const": "4.3.0"},
+        "metis_language_version": {"const": "0.43"},
+        "grammar_sha256": {"const": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01"},
+        "package_sha256": {"const": "sha256:2f8f19f2f1243a9ae935ff0dd0198cbd922899ea3cb4d9b46dc0884addcd38cd"},
+        "lock_sha256": {"const": "sha256:f4cdd6f88854ad0ce9df9bfb9edb8174a584dfa7e6beb17099dd6b500a5d3b89"}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 29,
+      "maxItems": 29,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "probes": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {"$ref": "#/$defs/probe"}
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git_objects_only",
+        "remote_ref_contains_revision_required",
+        "tracked_worktree_excluded",
+        "untracked_worktree_excluded",
+        "archive_execution",
+        "network_denied",
+        "external_repository_writes_denied"
+      ],
+      "properties": {
+        "git_objects_only": {"const": true},
+        "remote_ref_contains_revision_required": {"const": true},
+        "tracked_worktree_excluded": {"const": true},
+        "untracked_worktree_excluded": {"const": true},
+        "archive_execution": {"const": true},
+        "network_denied": {"const": true},
+        "external_repository_writes_denied": {"const": true}
+      }
+    },
+    "nonclaims": {
+      "const": [
+        "no_tenant_payload",
+        "no_model_output",
+        "no_training_authority",
+        "no_accuracy_claim",
+        "no_autonomous_writes",
+        "nonpromotable"
+      ]
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "blob_oid", "sha256"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "path": {
+          "type": "string",
+          "pattern": "^(docs|tooling)/[A-Za-z0-9_.@+/-]+$"
+        },
+        "blob_oid": {"$ref": "#/$defs/oid"},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "cwd", "argv", "success_marker"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "cwd": {"const": "tooling"},
+        "argv": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "success_marker": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

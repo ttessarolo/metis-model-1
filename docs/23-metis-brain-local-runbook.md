@@ -1,8 +1,10 @@
 # Metis Brain: runbook locale Mac
 
-Stato: **SERVER LOCALE, MODEL 1 E RETRIEVAL COLLEGATI; IL PARTICIPANT VSIX È
-IMPLEMENTATO MA IL GATE NATIVO È BLOCCATO SE VS CODE NON HA UN LANGUAGE MODEL
-RISOLVIBILE; NON È ANCORA L'APP MAC DISTRIBUIBILE**.
+Stato: **SERVER LOCALE, MODEL 1 E RETRIEVAL COLLEGATI; LA VSIX `0.24.1` CON
+PARTICIPANT, PROVIDER LOCALE E APPLY ESPLICITO È INSTALLATA; IL CONTRATTO
+APPLY/ROLLBACK/UNDO È VERIFICATO SU FIXTURE ISOLATO, MENTRE L'APPLY NATIVO SUL
+TENANT REALE RICHIEDE ANCORA IL CONSENSO DELL'OPERATORE; NON È ANCORA L'APP MAC
+DISTRIBUIBILE**.
 
 ## 1. Cosa avvia
 
@@ -21,7 +23,7 @@ tenant: genera e compila una proposta che il client apre come Draft o diff.
 ## 2. Configurazione demo
 
 [`examples/metis-brain-config.play-demo.local.json`](../examples/metis-brain-config.play-demo.local.json)
-è la configurazione non-secret riproducibile della demo VS Code su questo Mac.
+è la configurazione non-secret riproducibile delle demo VS Code e Metis Fast su questo Mac.
 La variante [`examples/metis-brain-config.local.json`](../examples/metis-brain-config.local.json)
 resta il fixture compiler-only. La configurazione demo contiene soltanto:
 
@@ -35,7 +37,7 @@ resta il fixture compiler-only. La configurazione demo contiene soltanto:
 - path locali qualificati di checkpoint, adapter e Flash, mai i pesi dentro
   Git;
 - retrieval semantico schema 2;
-- grant/capability per il client `visix`;
+- grant/capability distinti ma equivalenti per i client `visix` e `metis-fast`;
 - limiti di sessione e compiler.
 
 Non inserire token, password, `.env`, credenziali AWS o path di tenant non
@@ -68,15 +70,13 @@ anche se momentaneamente allineata renderebbe la base del Draft silenziosamente
 stale.
 
 Il pannello Chat nativo di VS Code risolve il modello selezionato **prima** di
-invocare il callback di un Chat Participant. Di conseguenza, con
-`copilot/auto` non disponibile, il messaggio `@metis` termina con
-`Language model unavailable` prima che la VSIX possa avviare Brain: i tre
-setting sopra non vengono ancora raggiunti. Un abbonamento Copilot può rendere
-esercitabile il percorso, ma non è accettato come requisito del prodotto
-locale. La chiusura corretta è una successiva VSIX che registri un provider
-locale Metis tramite il contratto stabile Language Model Chat Provider; fino ad
-allora il gate installato resta STOP, nonostante server e handler siano
-qualificati separatamente.
+invocare il callback di un Chat Participant. La VSIX `0.24.1` risolve questo
+prerequisito registrando il provider locale di sola disponibilità **Metis Chat
+Bridge** tramite il contratto stabile Language Model Chat Provider. Il bridge
+non è Model 1, non legge né inoltra la conversazione e, se invocato
+direttamente, fallisce chiuso invitando a usare `@metis`. In questo modo il
+participant può avviare Brain senza Copilot; readiness e identità di Model 1
+restano verificate separatamente dal server.
 
 La prima riga stdout è un JSON redatto con host, porta effettiva e path del file
 bootstrap. Non contiene il token. Il processo chiamante (in futuro l'app Mac)
@@ -171,7 +171,7 @@ place. Le modifiche tracked/untracked di altri team non entrano nello snapshot.
 | `FLASH_INTENT_UNSUPPORTED` | logica non rappresentabile in sicurezza dal retrieval corrente | chiedi un refine o lascia il caso unsupported; non trasformare OR/negazioni in AND |
 | `OUTPUT_CONTRACT_INVALID` | limite, intervallo qualificato o cardinalità non esatta | chiedi/conferma un totale esatto oppure una dimensione pagina esatta |
 | `OUTPUT_CONTRACT_UNAVAILABLE` | il `take`, la sorgente o un fallback esistente non è preservabile senza ambiguità | correggi esplicitamente il contratto; Brain non lo sostituisce in silenzio |
-| `Language model unavailable` prima di qualunque progresso Metis | VS Code non riesce a risolvere il modello Chat selezionato e non invoca ancora `@metis` | non modificare Brain o il tenant; rendere disponibile il provider locale della VSIX, poi ripetere la prova Draft-only |
+| `Language model unavailable` prima di qualunque progresso Metis | la VSIX attiva non espone il provider locale atteso o la finestra non è stata ricaricata dopo l'installazione | verificare VSIX `0.24.1`, selezionare **Metis Chat Bridge**, ricaricare la finestra e ripetere; non modificare Brain o il tenant |
 
 Le risposte di errore generate dall'API sono JSON e non includono header, token,
 sorgenti, root, environment o diagnostica interna. Un overload di trasporto o
@@ -184,8 +184,9 @@ una risposta applicativa.
 - host cooperativo per stesso UID; Keychain/code-signing nella wave app;
 - massimo 64 sorgenti workspace e 512 KiB per sorgente nel compiler pinnato;
 - nessuna memoria persistente o cross-session;
-- VSIX collegato in sviluppo, ma la sua indipendenza da Copilot richiede ancora
-  il provider locale Metis; Metis Fast resta in coda;
+- VSIX collegata in sviluppo e indipendente da Copilot tramite il provider
+  locale Metis; Apply/recompile è installato e verificato su fixture, mentre il
+  gesto nativo dell'operatore e Metis Fast restano gate distinti;
 - nessun packaging app Mac, firma, notarizzazione, updater o fallback remoto.
 
 La prossima wave prodotto trasforma questo server di sviluppo nel bundle

@@ -32,7 +32,8 @@ from metis_model1.video_semantic_index import _catalogs, _walk_catalog
 # by the semantic index.  The execution join has its own receipt identity; a
 # private projection contract would make the result impossible to serve.
 PROJECTION_CONTRACT = NORMALIZED_PROJECTION_CONTRACT
-RECEIPT_ID = "metis-model1/catalog-semantic-execution-receipt-v1"
+LEGACY_RECEIPT_ID = "metis-model1/catalog-semantic-execution-receipt-v1"
+RECEIPT_ID = "metis-model1/catalog-semantic-execution-receipt-v2"
 FINITE_KINDS = frozenset({"inline", "enum", "list"})
 
 
@@ -68,6 +69,30 @@ def _adapt_execution_describe(value: Mapping[str, Any]) -> dict[str, Any]:
     except (CatalogSemanticRetrievalError, TypeError, ValueError) as error:
         raise CatalogSemanticProjectionError(
             f"execution describe is not schema-2: {error}"
+        ) from None
+
+
+def _adapt_execution_values(
+    value: Mapping[str, Any], *, catalog: str, field: str
+) -> dict[str, Any]:
+    """Parse one execution ``catalog:values`` response through schema 2.
+
+    Describe deliberately has only a skeleton for enum/list fields and embeds
+    inline literals without their ValueItem semantics.  A first-class semantic
+    source must therefore be attested by the progressive values response, not
+    inferred from an inherited marker or from equal field names.
+    """
+
+    if not isinstance(value, Mapping):
+        raise CatalogSemanticProjectionError("execution values must be an object")
+    try:
+        raw = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        return adapt_catalog_semantic_response(
+            "values", raw, catalog=catalog, field=field
+        ).projection
+    except (CatalogSemanticRetrievalError, TypeError, ValueError) as error:
+        raise CatalogSemanticProjectionError(
+            f"execution values for {field} are not schema-2: {error}"
         ) from None
 
 
@@ -261,15 +286,159 @@ def _check_domain_compatibility(
         raise CatalogSemanticProjectionError(
             f"finite field {path} has incompatible execution domain {execution_kind}"
         )
-    if execution.get("size") != source.get("size"):
-        raise CatalogSemanticProjectionError(f"finite domain size differs for {path}")
+    if source_kind != execution_kind or execution.get("size") != source.get("size"):
+        raise CatalogSemanticProjectionError(f"finite domain kind or size differs for {path}")
     if "nature" in execution and "nature" in source and execution["nature"] != source["nature"]:
         raise CatalogSemanticProjectionError(f"finite domain nature differs for {path}")
-    if "values" in execution:
-        raise CatalogSemanticProjectionError(f"execution describe materializes values for {path}")
     if path in dispositions:
         raise CatalogSemanticProjectionError(
             f"domain disposition is only valid for finite-to-none field {path}"
+        )
+
+
+def _domain_material(value: Mapping[str, Any], *, label: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise CatalogSemanticProjectionError(f"{label} domain is invalid")
+    return {key: value[key] for key in ("kind", "size", "nature") if key in value}
+
+
+def _source_value_items(source: Mapping[str, Any], *, path: str) -> list[dict[str, Any]]:
+    values = source.get("values")
+    if not isinstance(values, list):
+        raise CatalogSemanticProjectionError(f"source finite field {path} has no ValueItem roster")
+    result: list[dict[str, Any]] = []
+    for index, item in enumerate(values):
+        if not isinstance(item, Mapping) or not isinstance(item.get("literal"), str):
+            raise CatalogSemanticProjectionError(
+                f"source field {path} ValueItem {index} is invalid"
+            )
+        semantic = item.get("semantic")
+        _disposed_value(semantic, f"source field {path} value {index}.semantic")
+        result.append({"literal": item["literal"], "semantic": dict(semantic)})
+    if len(result) != source.get("size"):
+        raise CatalogSemanticProjectionError(f"source finite field {path} has an incomplete roster")
+    return result
+
+
+def _execution_value_roster(
+    value: Sequence[Mapping[str, Any]] | None,
+    *,
+    execution_fields: Mapping[str, Mapping[str, Any]],
+    execution_catalog: Mapping[str, Any],
+    execution_tenant: str,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Validate the complete progressive execution roster when supplied.
+
+    Supplying this roster is mandatory for a materialized execution domain.
+    When a caller supplies it at all, it must cover *every* finite execution
+    field: accepting a partial roster would make a materialized mirror appear
+    checked while silently omitting a sibling domain.
+    """
+
+    if value is None:
+        return {}, []
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise CatalogSemanticProjectionError("execution values projections must be an array")
+    catalog = execution_catalog.get("name")
+    if not isinstance(catalog, str):
+        raise CatalogSemanticProjectionError("execution catalog name is invalid")
+    finite = {
+        path
+        for path, field in execution_fields.items()
+        if field.get("domain", {}).get("kind") in FINITE_KINDS
+        and field.get("domain", {}).get("size", 0) > 0
+    }
+    result: dict[str, dict[str, Any]] = {}
+    hashes: list[str] = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, Mapping):
+            raise CatalogSemanticProjectionError(f"execution values projection {index} is invalid")
+        field = raw.get("field")
+        raw_catalog = raw.get("catalog")
+        if not isinstance(field, str) or not isinstance(raw_catalog, str):
+            raise CatalogSemanticProjectionError("execution values projection identity is missing")
+        if raw_catalog != catalog or field not in finite:
+            raise CatalogSemanticProjectionError(
+                "execution values projection targets an unknown field"
+            )
+        if field in result:
+            raise CatalogSemanticProjectionError(
+                f"duplicate execution values projection for {field}"
+            )
+        parsed = _adapt_execution_values(raw, catalog=catalog, field=field)
+        if parsed.get("tenant") != execution_tenant:
+            raise CatalogSemanticProjectionError(
+                "execution values tenant differs from describe tenant"
+            )
+        result[field] = parsed
+        hashes.append(_canonical_hash(parsed))
+    if set(result) != finite:
+        missing = sorted(finite - set(result))
+        extra = sorted(set(result) - finite)
+        raise CatalogSemanticProjectionError(
+            f"execution values roster is incomplete: missing={missing} extra={extra}"
+        )
+    # The semantic comparison itself happens in source order below.  This
+    # first pass makes every response hash part of the v2 receipt.
+    return result, sorted(hashes)
+
+
+def _verify_materialized_execution_domain(
+    path: str,
+    source: Mapping[str, Any],
+    execution: Mapping[str, Any],
+    execution_semantic: Mapping[str, Any],
+    values: Mapping[str, Any] | None,
+) -> None:
+    """Require byte-level semantic provenance for materialized mirror values."""
+
+    source_items = _source_value_items(source, path=path)
+    source_literals = [item["literal"] for item in source_items]
+    execution_literals = execution.get("values")
+    materialized = execution_literals is not None
+    if materialized:
+        if _domain_material(source, label=f"source {path}") != _domain_material(
+            execution, label=f"materialized execution {path}"
+        ):
+            raise CatalogSemanticProjectionError(
+                "materialized execution domain kind, size, or nature differs "
+                f"from canonical source for {path}"
+            )
+        if not isinstance(execution_literals, list) or execution_literals != source_literals:
+            raise CatalogSemanticProjectionError(
+                f"materialized execution literals differ from canonical source for {path}"
+            )
+    if values is None:
+        if materialized:
+            raise CatalogSemanticProjectionError(
+                f"materialized execution domain {path} has no provenance values response"
+            )
+        return
+    if _domain_material(values, label=f"execution values {path}") != _domain_material(
+        execution, label=f"execution describe {path}"
+    ):
+        raise CatalogSemanticProjectionError(
+            f"execution values domain differs from describe for {path}"
+        )
+    literals = values.get("values")
+    semantic = values.get("semantic")
+    if not isinstance(literals, list) or not isinstance(semantic, Mapping):
+        raise CatalogSemanticProjectionError(f"execution values for {path} are not materialized")
+    items = semantic.get("values")
+    if not isinstance(items, list) or len(items) != len(literals):
+        raise CatalogSemanticProjectionError(f"execution value semantics are misaligned for {path}")
+    if literals != source_literals:
+        raise CatalogSemanticProjectionError(
+            f"execution values literals differ from canonical source for {path}"
+        )
+    if execution_semantic != semantic.get("field"):
+        raise CatalogSemanticProjectionError(
+            f"execution values field semantics differ from describe for {path}"
+        )
+    expected_items = [{"literal": item["literal"], **item["semantic"]} for item in source_items]
+    if items != expected_items:
+        raise CatalogSemanticProjectionError(
+            f"execution ValueItem semantic provenance differs from canonical source for {path}"
         )
 
 
@@ -341,6 +510,7 @@ def build_catalog_semantic_projection(
     execution_ref: str,
     modifier_allowlist: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
     domain_dispositions: Mapping[str, str] | None = None,
+    execution_values_projections: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Join one canonical normalized projection to one execution describe.
 
@@ -349,6 +519,9 @@ def build_catalog_semantic_projection(
     domain, including its ordered ``ValueItem`` objects, comes from the
     canonical source.  A finite execution domain may be a marker-only domain,
     or it may be ``none`` only with an explicit human-readable disposition.
+    If an execution describe materializes literals, the complete progressive
+    execution values roster is required and must prove exact ordered literal
+    identity and ValueItem semantic provenance to the canonical source.
     """
 
     semantic_ref = _ref(semantic_ref, "semantic_ref")
@@ -391,6 +564,13 @@ def build_catalog_semantic_projection(
     )
     allowlist = _allowlist(modifier_allowlist, source_fields, execution_fields)
     dispositions = _domain_dispositions(domain_dispositions, source_fields, execution_fields)
+    execution_values, execution_value_hashes = _execution_value_roster(
+        execution_values_projections,
+        execution_fields=execution_fields,
+        execution_catalog=execution_catalog,
+        execution_tenant=execution_projection["tenant"],
+    )
+    materialized_finite_fields = 0
     for path in sorted(execution_names):
         source_field = source_fields[path]
         execution_field = execution_fields[path]
@@ -416,6 +596,16 @@ def build_catalog_semantic_projection(
             execution_field["domain"],
             dispositions,
         )
+        if execution_field["domain"].get("kind") in FINITE_KINDS:
+            if "values" in execution_field["domain"]:
+                materialized_finite_fields += 1
+            _verify_materialized_execution_domain(
+                path,
+                source_field["domain"],
+                execution_field["domain"],
+                execution_field["semantic"],
+                execution_values.get(path),
+            )
 
     output_catalog = deepcopy(execution_catalog)
     _replace_domains(output_catalog["fields"], source_fields)
@@ -426,7 +616,8 @@ def build_catalog_semantic_projection(
         "thresholds": deepcopy(execution_projection["thresholds"]),
         "catalogs": [output_catalog],
     }
-    counts = {
+    receipt_id = RECEIPT_ID if execution_values_projections is not None else LEGACY_RECEIPT_ID
+    counts: dict[str, int] = {
         "catalogs_in": 1,
         "catalogs_out": 1,
         "source_fields_available": len(source_fields),
@@ -441,9 +632,12 @@ def build_catalog_semantic_projection(
         "domain_dispositions": len(dispositions),
         "gaps": 0,
     }
+    if receipt_id == RECEIPT_ID:
+        counts["execution_values_responses"] = len(execution_values)
+        counts["materialized_finite_fields"] = materialized_finite_fields
     execution_receipt: dict[str, Any] = {
         "schema_version": 1,
-        "receipt_id": RECEIPT_ID,
+        "receipt_id": receipt_id,
         "semantic_ref": semantic_ref,
         "execution_ref": execution_ref,
         "source_projection_sha256": _canonical_hash(semantic_source),
@@ -454,6 +648,8 @@ def build_catalog_semantic_projection(
         "counts": counts,
         "payload_redacted": True,
     }
+    if receipt_id == RECEIPT_ID:
+        execution_receipt["execution_values_projection_sha256"] = execution_value_hashes
     execution_receipt["receipt_sha256"] = _receipt_hash(execution_receipt)
     return {
         "projection": projection,
@@ -463,12 +659,12 @@ def build_catalog_semantic_projection(
 
 
 def validate_catalog_semantic_projection_receipt(receipt: Any) -> list[str]:
-    """Validate the payload-free, self-hashed receipt."""
+    """Validate a payload-free, self-hashed v1/v2 execution receipt."""
 
     errors: list[str] = []
     if not isinstance(receipt, Mapping):
         return ["receipt must be an object"]
-    required = {
+    legacy_required = {
         "schema_version",
         "receipt_id",
         "semantic_ref",
@@ -482,9 +678,20 @@ def validate_catalog_semantic_projection_receipt(receipt: Any) -> list[str]:
         "payload_redacted",
         "receipt_sha256",
     }
+    v2_required = {
+        *legacy_required,
+        "execution_values_projection_sha256",
+    }
+    receipt_id = receipt.get("receipt_id")
+    if receipt_id == LEGACY_RECEIPT_ID:
+        required = legacy_required
+    elif receipt_id == RECEIPT_ID:
+        required = v2_required
+    else:
+        required = set()
     if set(receipt) != required:
         errors.append("receipt fields are not the closed contract")
-    if receipt.get("schema_version") != 1 or receipt.get("receipt_id") != RECEIPT_ID:
+    if receipt.get("schema_version") != 1 or receipt_id not in {LEGACY_RECEIPT_ID, RECEIPT_ID}:
         errors.append("receipt identity is invalid")
     for key in (
         "semantic_ref",
@@ -513,6 +720,11 @@ def validate_catalog_semantic_projection_receipt(receipt: Any) -> list[str]:
         "modifier_exceptions",
         "domain_dispositions",
         "gaps",
+        *(
+            {"execution_values_responses", "materialized_finite_fields"}
+            if receipt_id == RECEIPT_ID
+            else set()
+        ),
     }:
         errors.append("receipt counts are invalid")
     elif any(type(value) is not int or value < 0 for value in counts.values()):
@@ -528,6 +740,25 @@ def validate_catalog_semantic_projection_receipt(receipt: Any) -> list[str]:
         or counts["gaps"] != 0
     ):
         errors.append("receipt counts are incoherent")
+    elif receipt_id == RECEIPT_ID and (
+        counts["execution_values_responses"] > counts["fields_in"]
+        or counts["materialized_finite_fields"] > counts["execution_values_responses"]
+        or (counts["materialized_finite_fields"] > 0 and counts["execution_values_responses"] == 0)
+    ):
+        errors.append("receipt execution-value counts are incoherent")
+    if receipt_id == RECEIPT_ID:
+        value_hashes = receipt.get("execution_values_projection_sha256")
+        if (
+            not isinstance(value_hashes, list)
+            or any(not _is_hash(item) for item in value_hashes)
+            or value_hashes != sorted(value_hashes)
+            or len(value_hashes) != len(set(value_hashes))
+            or (
+                isinstance(counts, Mapping)
+                and len(value_hashes) != counts.get("execution_values_responses")
+            )
+        ):
+            errors.append("receipt execution values hashes are invalid")
     if receipt.get("payload_redacted") is not True:
         errors.append("receipt redaction marker is invalid")
     forbidden = {"literal", "text", "means", "aka", "label", "values", "tenant", "catalog", "field"}
@@ -557,6 +788,7 @@ def validate_catalog_semantic_projection_binding(
     execution_ref: str,
     modifier_allowlist: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
     domain_dispositions: Mapping[str, str] | None = None,
+    execution_values_projections: Sequence[Mapping[str, Any]] | None = None,
 ) -> list[str]:
     """Bind both receipts to the externally supplied inputs and policies.
 
@@ -597,6 +829,8 @@ def validate_catalog_semantic_projection_binding(
         return [*errors, f"binding inputs are invalid: {error}"]
     if not isinstance(standard_receipt, Mapping) or not isinstance(execution_receipt, Mapping):
         return errors
+    if execution_receipt.get("receipt_id") == RECEIPT_ID and execution_values_projections is None:
+        errors.append("execution values projections are required to bind a v2 receipt")
     expected = {
         "semantic_ref": semantic_ref,
         "execution_ref": execution_ref,
@@ -613,6 +847,26 @@ def validate_catalog_semantic_projection_binding(
         errors.append("standard receipt projection differs from bundle content")
     if standard_receipt.get("describe_sha256") != expected["execution_describe_sha256"]:
         errors.append("standard receipt describe differs from execution authority")
+    if execution_values_projections is not None:
+        # A v2 receipt commits to every progressive values response.  Rebuild
+        # from the caller's authority rather than merely trusting the hashes
+        # embedded in an otherwise self-consistent receipt.
+        try:
+            expected_bundle = build_catalog_semantic_projection(
+                semantic_source,
+                execution_describe,
+                semantic_ref=semantic_ref,
+                execution_ref=execution_ref,
+                modifier_allowlist=modifier_allowlist,
+                domain_dispositions=domain_dispositions,
+                execution_values_projections=execution_values_projections,
+            )
+        except CatalogSemanticProjectionError as error:
+            errors.append(f"execution values binding inputs are invalid: {error}")
+        else:
+            for key in ("projection", "receipt", "execution_receipt"):
+                if result.get(key) != expected_bundle[key]:
+                    errors.append(f"{key} differs from execution-values binding authority")
     return errors
 
 

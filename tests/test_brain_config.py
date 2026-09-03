@@ -232,3 +232,7 @@ def test_play_demo_fixture_binds_the_workspace_tenant_identity() -> None:
     ]
     assert value["model"]["warmup"] == "on_start"
     assert value["retrieval"] == {"schema2": True, "warmup": "on_start"}
+    assert [client["client_id"] for client in value["clients"]] == ["visix", "metis-fast"]
+    assert value["clients"][0]["tenant_aliases"] == ["play-demo"]
+    assert value["clients"][1]["tenant_aliases"] == ["play-demo"]
+    assert set(value["clients"][0]["capabilities"]) == set(value["clients"][1]["capabilities"])

@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/catalog-semantic-execution-policy-v2.schema.json",
+  "title": "Current catalog semantic-to-execution projection policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "tenant_revision",
+    "tenant_tree",
+    "toolchain_revision",
+    "toolchain_tree",
+    "node_version",
+    "semantic_catalog",
+    "execution_catalog",
+    "mapping",
+    "expected",
+    "execution_receipt",
+    "standard_receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "manifest_id": {"const": "catalog-semantics/play-demo-video-pg-v2"},
+    "tenant_revision": {"const": "27e4b118ce9b7592b65d22037a7665b3b286b096"},
+    "tenant_tree": {"const": "97989aed4e992d3bc44da3414cb81cbf5a93a011"},
+    "toolchain_revision": {"const": "bc2ce746c40e147cbacaa3fd662da2e070e80f00"},
+    "toolchain_tree": {"const": "bcd60fc08188cf2168e9c7beec7ab2a904082465"},
+    "node_version": {"const": "v22.22.3"},
+    "semantic_catalog": {"const": "play-demo.video"},
+    "execution_catalog": {"const": "play-demo.video_pg"},
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field_identity",
+        "values_owner",
+        "draft_policy",
+        "materialized_domain_policy",
+        "modifier_allowlist",
+        "finite_to_none_fields"
+      ],
+      "properties": {
+        "field_identity": {"const": "exact-same-name-subset"},
+        "values_owner": {"const": "semantic_catalog"},
+        "draft_policy": {"const": "retain-for-audit-but-never-resolve"},
+        "materialized_domain_policy": {
+          "const": "exact-order-size-nature-and-valueitem-provenance"
+        },
+        "modifier_allowlist": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["genere_mcm"],
+          "properties": {
+            "genere_mcm": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "execution"],
+              "properties": {
+                "source": {"const": []},
+                "execution": {"const": ["multi"]}
+              }
+            }
+          }
+        },
+        "finite_to_none_fields": {"const": []}
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_fields_available",
+        "execution_fields",
+        "finite_fields_projected",
+        "values_projected",
+        "values_reviewed",
+        "values_draft",
+        "execution_values_responses",
+        "materialized_finite_fields",
+        "gaps"
+      ],
+      "properties": {
+        "source_fields_available": {"const": 113},
+        "execution_fields": {"const": 40},
+        "finite_fields_projected": {"const": 18},
+        "values_projected": {"const": 521},
+        "values_reviewed": {"const": 514},
+        "values_draft": {"const": 7},
+        "execution_values_responses": {"const": 18},
+        "materialized_finite_fields": {"const": 9},
+        "gaps": {"const": 0}
+      }
+    },
+    "execution_receipt": {"$ref": "#/$defs/receipt"},
+    "standard_receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "receipt_id",
+        "semantic_ref",
+        "execution_ref",
+        "source_projection_sha256",
+        "execution_describe_sha256",
+        "execution_values_projection_sha256",
+        "modifier_allowlist_sha256",
+        "domain_dispositions_sha256",
+        "projection_sha256",
+        "counts",
+        "payload_redacted",
+        "receipt_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "receipt_id": {"const": "metis-model1/catalog-semantic-execution-receipt-v2"},
+        "semantic_ref": {"$ref": "#/$defs/hash"},
+        "execution_ref": {"$ref": "#/$defs/hash"},
+        "source_projection_sha256": {"$ref": "#/$defs/hash"},
+        "execution_describe_sha256": {"$ref": "#/$defs/hash"},
+        "execution_values_projection_sha256": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/hash"}
+        },
+        "modifier_allowlist_sha256": {"$ref": "#/$defs/hash"},
+        "domain_dispositions_sha256": {"$ref": "#/$defs/hash"},
+        "projection_sha256": {"$ref": "#/$defs/hash"},
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "catalogs_in",
+            "catalogs_out",
+            "source_fields_available",
+            "fields_in",
+            "fields_out",
+            "fields_distinct",
+            "values_in",
+            "values_out",
+            "values_reviewed",
+            "values_draft",
+            "modifier_exceptions",
+            "domain_dispositions",
+            "execution_values_responses",
+            "materialized_finite_fields",
+            "gaps"
+          ],
+          "properties": {
+            "catalogs_in": {"const": 1},
+            "catalogs_out": {"const": 1},
+            "source_fields_available": {"const": 113},
+            "fields_in": {"const": 40},
+            "fields_out": {"const": 40},
+            "fields_distinct": {"const": 40},
+            "values_in": {"const": 521},
+            "values_out": {"const": 521},
+            "values_reviewed": {"const": 514},
+            "values_draft": {"const": 7},
+            "modifier_exceptions": {"const": 1},
+            "domain_dispositions": {"const": 0},
+            "execution_values_responses": {"const": 18},
+            "materialized_finite_fields": {"const": 9},
+            "gaps": {"const": 0}
+          }
+        },
+        "payload_redacted": {"const": true},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

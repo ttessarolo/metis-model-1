@@ -162,10 +162,11 @@ def _authority_identity(
     revision: str,
     tree: str,
     modules_sha256: str,
+    runtime_modules: Path | None = None,
 ) -> tuple[str, str, str]:
     observed_revision = _git_text(root, "rev-parse", revision)
     observed_tree = _git_text(root, "rev-parse", f"{revision}^{{tree}}")
-    modules = (root / "tooling/node_modules").resolve(strict=True)
+    modules = Path(runtime_modules or root / "tooling/node_modules").resolve(strict=True)
     observed_modules = catalog_pin._node_modules_sha256(modules)
     if observed_revision != revision or observed_tree != tree or observed_modules != modules_sha256:
         raise TestHarnessError("source Git/runtime authority differs from the test pin")
@@ -233,6 +234,7 @@ def isolated_metis_test_authority(
     revision: str = oracles.PINNED_METIS_REVISION,
     tree: str = oracles.PINNED_METIS_TREE,
     modules_sha256: str = oracles.PINNED_NODE_MODULES_SHA256,
+    runtime_modules: Path | None = None,
 ) -> Iterator[Path]:
     """Materialize a clean detached authority without writing the source repo."""
 
@@ -245,6 +247,7 @@ def isolated_metis_test_authority(
             revision=revision,
             tree=tree,
             modules_sha256=modules_sha256,
+            runtime_modules=runtime_modules,
         )
         worktree_before = _source_worktree_fingerprint(root)
         archive = catalog_pin._run_git(
@@ -257,7 +260,7 @@ def isolated_metis_test_authority(
         if not isinstance(archive, bytes):
             raise TestHarnessError("pinned Git archive is unavailable")
         objects = _common_objects_directory(root)
-        source_modules = (root / "tooling/node_modules").resolve(strict=True)
+        source_modules = Path(runtime_modules or root / "tooling/node_modules").resolve(strict=True)
 
         try:
             with tempfile.TemporaryDirectory(prefix="metis-model1-test-authority-") as temporary:
@@ -306,6 +309,7 @@ def isolated_metis_test_authority(
                     revision=revision,
                     tree=tree,
                     modules_sha256=modules_sha256,
+                    runtime_modules=runtime_modules,
                 )
             except TestHarnessError as error:
                 raise TestHarnessError(
@@ -364,7 +368,13 @@ def _node_stat_identity(node: Path) -> tuple[int, int, int, int, int, int, int]:
     )
 
 
-def run_tests(*, metis_root: Path, node_path: Path, pytest_args: Sequence[str]) -> int:
+def run_tests(
+    *,
+    metis_root: Path,
+    oracle_node_modules: Path | None,
+    node_path: Path,
+    pytest_args: Sequence[str],
+) -> int:
     node, digest = oracles._validate_node_binary(node_path)
     node_identity = _node_stat_identity(node)
     source_root = Path(metis_root).resolve(strict=True)
@@ -386,7 +396,10 @@ def run_tests(*, metis_root: Path, node_path: Path, pytest_args: Sequence[str]) 
             or brain_receipt.get("probes_executed") is not True
         ):
             raise TestHarnessError("Metis Brain lossless authority is incomplete")
-        with isolated_metis_test_authority(source_root) as isolated:
+        with isolated_metis_test_authority(
+            source_root,
+            runtime_modules=oracle_node_modules,
+        ) as isolated:
             oracles.validate_pinned_metis(isolated)
             grammar_stdlib_oracle.validate_grammar_stdlib_pin(metis_root=isolated)
             completed = subprocess.run(
@@ -412,6 +425,7 @@ def run_tests(*, metis_root: Path, node_path: Path, pytest_args: Sequence[str]) 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run tests against a clean pinned Metis authority")
     parser.add_argument("--metis-root", required=True, type=Path)
+    parser.add_argument("--oracle-node-modules", type=Path)
     parser.add_argument("--node", required=True, type=Path)
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
     return parser
@@ -425,6 +439,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return run_tests(
             metis_root=arguments.metis_root,
+            oracle_node_modules=arguments.oracle_node_modules,
             node_path=arguments.node,
             pytest_args=pytest_args,
         )

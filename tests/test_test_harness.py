@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -166,6 +168,151 @@ def test_pytest_environment_removes_external_overrides(
     assert environment["METIS_MODEL1_METIS_ROOT"] == str(isolated)
     assert environment["METIS_MODEL1_NODE"] == str(node)
     assert environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+
+
+def test_isolated_authority_can_use_a_separate_pinned_runtime(tmp_path: Path) -> None:
+    source, revision, tree, _source_modules_sha256 = _source_authority(tmp_path)
+    runtime_modules = tmp_path / "runtime/node_modules"
+    runtime_package = runtime_modules / "pkg/index.js"
+    runtime_package.parent.mkdir(parents=True)
+    runtime_package.write_text("export default 'historical';\n", encoding="utf-8")
+    runtime_sha256 = catalog_pin._node_modules_sha256(runtime_modules)
+
+    with test_harness.isolated_metis_test_authority(
+        source,
+        revision=revision,
+        tree=tree,
+        modules_sha256=runtime_sha256,
+        runtime_modules=runtime_modules,
+    ) as isolated:
+        assert (isolated / "tooling/node_modules/pkg/index.js").read_text(
+            encoding="utf-8"
+        ) == "export default 'historical';\n"
+        assert _git(isolated, "rev-parse", "HEAD") == revision
+
+
+def test_isolated_authority_rejects_the_wrong_external_runtime(tmp_path: Path) -> None:
+    source, revision, tree, _source_modules_sha256 = _source_authority(tmp_path)
+    runtime_modules = tmp_path / "runtime/node_modules"
+    runtime_package = runtime_modules / "pkg/index.js"
+    runtime_package.parent.mkdir(parents=True)
+    runtime_package.write_text("export default 'wrong';\n", encoding="utf-8")
+
+    with (
+        pytest.raises(test_harness.TestHarnessError, match="differs from the test pin"),
+        test_harness.isolated_metis_test_authority(
+            source,
+            revision=revision,
+            tree=tree,
+            modules_sha256="0" * 64,
+            runtime_modules=runtime_modules,
+        ),
+    ):
+        pytest.fail("wrong external runtime must fail before isolation")
+
+
+def test_isolated_authority_detects_external_runtime_change_during_use(
+    tmp_path: Path,
+) -> None:
+    source, revision, tree, _source_modules_sha256 = _source_authority(tmp_path)
+    runtime_modules = tmp_path / "runtime/node_modules"
+    runtime_package = runtime_modules / "pkg/index.js"
+    runtime_package.parent.mkdir(parents=True)
+    runtime_package.write_text("export default 'historical';\n", encoding="utf-8")
+    runtime_sha256 = catalog_pin._node_modules_sha256(runtime_modules)
+
+    with (
+        pytest.raises(test_harness.TestHarnessError, match="changed during tests"),
+        test_harness.isolated_metis_test_authority(
+            source,
+            revision=revision,
+            tree=tree,
+            modules_sha256=runtime_sha256,
+            runtime_modules=runtime_modules,
+        ),
+    ):
+        runtime_package.write_text("export default 'mutated';\n", encoding="utf-8")
+
+
+def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    brain_root = tmp_path / "brain-metis"
+    oracle_node_modules = tmp_path / "oracle-node-modules"
+    isolated_root = tmp_path / "isolated-metis"
+    node = tmp_path / "bin/node"
+    for path in (brain_root, oracle_node_modules, isolated_root, node.parent):
+        path.mkdir(parents=True)
+    node.write_bytes(b"node")
+    seen: dict[str, Path] = {}
+
+    monkeypatch.setattr(
+        test_harness.oracles,
+        "_validate_node_binary",
+        lambda path: (Path(path), "digest"),
+    )
+    monkeypatch.setattr(
+        test_harness.brain_toolchain_pin,
+        "verify_metis_brain_toolchain_pin",
+        lambda root, _node, execute_probes: {
+            **{
+                f"evidence_{key}": value
+                for key, value in {
+                    "in": 29,
+                    "out": 29,
+                    "distinct": 29,
+                    "gaps": 0,
+                }.items()
+            },
+            **{
+                f"probes_{key}": value
+                for key, value in {
+                    "in": 9,
+                    "out": 9,
+                    "distinct": 9,
+                    "gaps": 0,
+                }.items()
+            },
+            "probes_executed": execute_probes,
+            "brain_root": seen.setdefault("brain", Path(root)),
+        },
+    )
+
+    @contextmanager
+    def isolated(root: Path, *, runtime_modules: Path | None = None):
+        seen["oracle_source"] = Path(root)
+        if runtime_modules is not None:
+            seen["oracle_runtime"] = Path(runtime_modules)
+        yield isolated_root
+
+    monkeypatch.setattr(test_harness, "isolated_metis_test_authority", isolated)
+    monkeypatch.setattr(test_harness.oracles, "validate_pinned_metis", lambda root: None)
+    monkeypatch.setattr(
+        test_harness.grammar_stdlib_oracle,
+        "validate_grammar_stdlib_pin",
+        lambda *, metis_root: None,
+    )
+    monkeypatch.setattr(
+        test_harness.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0),
+    )
+
+    assert (
+        test_harness.run_tests(
+            metis_root=brain_root,
+            oracle_node_modules=oracle_node_modules,
+            node_path=node,
+            pytest_args=("-q",),
+        )
+        == 0
+    )
+    assert seen == {
+        "brain": brain_root,
+        "oracle_source": brain_root,
+        "oracle_runtime": oracle_node_modules,
+    }
 
 
 def test_source_worktree_fingerprint_detects_dirty_file_change(tmp_path: Path) -> None:

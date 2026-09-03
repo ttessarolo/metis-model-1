@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -142,6 +144,39 @@ def _result(*, finite_marker: bool = False, dispositions: dict[str, str] | None 
     )
 
 
+def _materialized_execution_inputs() -> tuple[dict, dict, list[dict]]:
+    """One finite inline mirror and its complete progressive values proof."""
+
+    source = _source()
+    source_genre = source["catalogs"][0]["fields"][0]
+    source_genre["domain"]["kind"] = "inline"
+    source_genre["domain"].pop("nature")
+    execution = _describe(execution=True)
+    execution_genre = execution["catalogs"][0]["fields"][0]
+    execution_genre["domain"] = {
+        "kind": "inline",
+        "size": 2,
+        "values": ["Drama", "Comedy"],
+    }
+    values = {
+        "schema": 2,
+        "tenant": "synthetic-tenant",
+        "catalog": "execution.video_pg",
+        "field": "genre",
+        "kind": "inline",
+        "size": 2,
+        "values": ["Drama", "Comedy"],
+        "semantic": {
+            "field": deepcopy(execution_genre["semantic"]),
+            "values": [
+                {"literal": item["literal"], **deepcopy(item["semantic"])}
+                for item in source_genre["domain"]["values"]
+            ],
+        },
+    }
+    return source, execution, [values]
+
+
 def test_projection_uses_execution_identity_and_source_value_items() -> None:
     result = _result(dispositions={"genre": "execution schema omits the shared value-set"})
     projection = result["projection"]
@@ -237,7 +272,7 @@ def test_draft_source_value_is_carried_but_counted_for_quarantine() -> None:
         ("semantic", "must be reviewed"),
         ("domain", "without an explicit disposition"),
         ("modifier", "field modifiers differ"),
-        ("values", "materializ"),
+        ("values", "schema-2"),
     ],
 )
 def test_projection_is_fail_closed(mutation: str, message: str) -> None:
@@ -290,6 +325,97 @@ def test_projection_is_fail_closed(mutation: str, message: str) -> None:
         )
 
 
+def test_materialized_inline_execution_domain_needs_exact_provenance() -> None:
+    source, execution, values = _materialized_execution_inputs()
+    result = build_catalog_semantic_projection(
+        source,
+        execution,
+        semantic_ref=HASH_A,
+        execution_ref=HASH_B,
+        modifier_allowlist={"genre": {"source": [], "execution": ["multi"]}},
+        execution_values_projections=values,
+    )
+
+    receipt = result["execution_receipt"]
+    assert receipt["receipt_id"].endswith("-v2")
+    assert receipt["counts"]["execution_values_responses"] == 1
+    assert receipt["counts"]["materialized_finite_fields"] == 1
+    assert validate_catalog_semantic_projection_receipt(receipt) == []
+    assert (
+        validate_catalog_semantic_projection_binding(
+            result,
+            source,
+            execution,
+            semantic_ref=HASH_A,
+            execution_ref=HASH_B,
+            modifier_allowlist={"genre": {"source": [], "execution": ["multi"]}},
+            execution_values_projections=values,
+        )
+        == []
+    )
+    assert validate_catalog_semantic_projection_binding(
+        result,
+        source,
+        execution,
+        semantic_ref=HASH_A,
+        execution_ref=HASH_B,
+        modifier_allowlist={"genre": {"source": [], "execution": ["multi"]}},
+    ) == ["execution values projections are required to bind a v2 receipt"]
+
+
+@pytest.mark.parametrize(
+    ("target", "mutation", "message"),
+    [
+        ("describe", "reorder", "materialized execution literals differ"),
+        ("describe", "missing", "finite domain kind or size differs"),
+        ("describe", "extra", "finite domain kind or size differs"),
+        ("values", "reorder", "execution values literals differ"),
+        ("values", "missing", "execution values domain differs"),
+        ("values", "extra", "execution values domain differs"),
+        ("values", "semantic", "ValueItem semantic provenance differs"),
+    ],
+)
+def test_materialized_execution_domain_rejects_nonidentical_roster(
+    target: str, mutation: str, message: str
+) -> None:
+    source, execution, values = _materialized_execution_inputs()
+    if target == "describe":
+        roster = execution["catalogs"][0]["fields"][0]["domain"]["values"]
+    else:
+        roster = values[0]["values"]
+    if mutation == "reorder":
+        roster[:] = list(reversed(roster))
+        if target == "values":
+            values[0]["semantic"]["values"][:] = list(reversed(values[0]["semantic"]["values"]))
+    elif mutation == "missing":
+        del roster[-1]
+        if target == "values":
+            del values[0]["semantic"]["values"][-1]
+            values[0]["size"] = len(roster)
+        else:
+            execution["catalogs"][0]["fields"][0]["domain"]["size"] = len(roster)
+    elif mutation == "extra":
+        roster.append("Other")
+        if target == "values":
+            values[0]["semantic"]["values"].append(
+                {"literal": "Other", **_semantic(99, "valore estraneo")}
+            )
+            values[0]["size"] = len(roster)
+        else:
+            execution["catalogs"][0]["fields"][0]["domain"]["size"] = len(roster)
+    else:
+        values[0]["semantic"]["values"][0]["means"]["text"] = "tampered"
+    with pytest.raises(CatalogSemanticProjectionError, match=message):
+        build_catalog_semantic_projection(
+            source,
+            execution,
+            semantic_ref=HASH_A,
+            execution_ref=HASH_B,
+            modifier_allowlist={"genre": {"source": [], "execution": ["multi"]}},
+            execution_values_projections=values,
+        )
+
+
 def test_receipt_detects_tamper_and_redacts_all_payload_text() -> None:
     result = _result(dispositions={"genre": "explicitly omitted from execution skeleton"})
     receipt = result["execution_receipt"]
@@ -297,6 +423,21 @@ def test_receipt_detects_tamper_and_redacts_all_payload_text() -> None:
     tampered["counts"]["gaps"] = 1
     assert validate_catalog_semantic_projection_receipt(tampered)
     assert not any(key in receipt for key in {"literal", "text", "means", "aka", "values"})
+
+
+def test_current_video_pg_v2_receipt_is_redacted_and_internally_valid() -> None:
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (root / "manifests/catalog-semantic-execution-play-demo-video-pg-v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    receipt = manifest["execution_receipt"]
+    assert manifest["mapping"]["finite_to_none_fields"] == []
+    assert receipt["counts"]["execution_values_responses"] == 18
+    assert receipt["counts"]["materialized_finite_fields"] == 9
+    assert validate_catalog_semantic_projection_receipt(receipt) == []
+    assert "Drama" not in json.dumps(manifest, ensure_ascii=False)
 
 
 def test_rehashed_receipt_tamper_fails_external_binding() -> None:

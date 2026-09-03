@@ -84,6 +84,9 @@ sempre quattro livelli epistemici:
 29. [`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md)
     — modello Flash MLX sempre caldo, Intent IR vincolato, confini di autorità,
     qualifica locale ed E2E complesso no-Apply.
+30. [`29-metis-fast-trusted-runtime.md`](29-metis-fast-trusted-runtime.md) —
+    gateway client attendibile, snapshot tenant volatile, preview e palinsesto
+    temporaneo senza autorità di scrittura per Brain o per il browser.
 
 ## Tesi operativa
 

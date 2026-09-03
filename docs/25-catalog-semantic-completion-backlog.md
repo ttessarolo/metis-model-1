@@ -94,12 +94,43 @@ Il replay storico precedente al costrutto first-class è implementato in
 L'hash
 `adde34cb70dee35008604ca8733151a3a75488ae0407fe78e92ccd4931f9d622`
 appartiene esclusivamente al replay storico sul tenant `6d6ce2c…`: non è una
-receipt della revisione corrente. Il generic join corrente rifiuta correttamente
-il `describe` execution che materializza valori inline; di conseguenza la
-projection receipt current è **`UNVERIFIED`**. Non è corretto aggiornare alla
-cieca il manifest v1. La chiusura richiede una policy v2 esplicita per i domini
-già materializzati, `finite_to_none_fields=[]`, implementazione del join e nuova
-receipt riproducibile.
+receipt della revisione corrente. Non è stato aggiornato alla cieca il manifest
+v1: esso resta un'evidenza storica della superficie precedente.
+
+La chiusura corrente è la policy e receipt v2 in
+`schemas/catalog-semantic-execution-policy-v2.schema.json` e
+`manifests/catalog-semantic-execution-play-demo-video-pg-v2.json`. Sono state
+prodotte dal tenant read-only `27e4b118…` (tree `97989aed…`) e dal tooling Metis
+`bc2ce746…` (tree `bcd60fc…`, Node `v22.22.3` da
+`artifacts/metis-brain-runtime/node-v22.22.3/bin/node`). La receipt è redatta: contiene
+solo revisioni e hash, mai literal o testo editoriale.
+
+La v2 non considera il marker `semantics from @video` una prova sufficiente.
+Per ogni dominio finito execution richiede il corrispondente `values --semantic`
+schema 2 e verifica, in ordine:
+
+1. stessa natura di dominio, tipo, taglia e, se presente, natura editoriale;
+2. stessa sequenza di literal nel `describe` materializzato;
+3. stessa sequenza nel `values` progressivo;
+4. identica semantica del campo execution e identica provenienza `ValueItem`
+   dal solo `@video` canonico.
+
+Un riordino, una mancanza, un literal aggiunto o una nota `means` alterata fa
+fallire il join. I 18 domini finiti sono tutti attestati da 18 risposte
+progressive; 9 sono materializzati inline nel `describe`; non rimane alcun
+`finite_to_none_fields`. Il solo scarto tecnico consentito resta
+`genere_mcm` (`[]` -> `[multi]`). Il risultato corrente è quindi
+**`CURRENT_RECEIPT_VERIFIED`**, non un'autorizzazione a duplicare i valori in
+`@video_pg`.
+
+La rigenerazione richiede esclusivamente un checkout esatto di tenant e
+toolchain indicati nel manifest: `describe --semantic` per `play-demo.video` e
+`play-demo.video_pg`, poi `values --semantic` per ciascun dominio finito. Il
+builder `build_catalog_semantic_projection(...,
+execution_values_projections=...)` e
+`validate_catalog_semantic_projection_binding(...)` devono entrambi essere
+verdi contro gli input appena acquisiti prima di sostituire una receipt. Un
+hash auto-consistente da solo non promuove nulla.
 
 Prove storiche di grounding sul catalogo execution, da ripetere nel gate v2:
 
@@ -153,8 +184,8 @@ Sul tenant fissato:
 - semantic surface, describe/values schema 2, sync rewrite/merge, object fields,
   KV, driver PostgreSQL `19/19` e formatter idempotente: verdi;
 - test Model 1 storici della proiezione, quarantena draft, nested path, tamper e
-  grounding downstream: verdi; non sostituiscono la receipt current v2 ancora
-  aperta;
+  grounding downstream: verdi; la receipt current v2 è ora verificata anche
+  contro tutte le risposte `values` esterne richieste dal binding;
 - gate storico alla chiusura della sola coda semantica: `make check` con
   `2188 passed, 2 skipped`, exit code zero; gli skip sono quelli già previsti
   dalla suite e non riguardano la coda semantica. I gate di integrazione Brain
@@ -171,7 +202,6 @@ corretti.
 
 Restano fuori da `SEMANTIC_CATALOG_READY`:
 
-- receipt current v2 dell'ereditarietà `@video` -> `@video_pg`;
 - chiusura del wiring Brain già implementato con guardia candidate, compilazione
   e prova end-to-end Visix senza Apply;
 - prova end-to-end Metis Fast e fallback remoto;

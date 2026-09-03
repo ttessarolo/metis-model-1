@@ -490,3 +490,19 @@ A deliberately killed Brain child had separately shown that the current VSIX
 keeps its dead client until the extension host reloads. Automatic child restart
 remains a Visix integration backlog item, distinct from both the provider STOP,
 the latency measurements and Brain's tenant-write boundary.
+
+## Addendum 2026-09-04: toolchain corrente 0.24.1
+
+Le misure e i receipt storici sopra restano legati al pin immutabile v1 e a
+Metis `0.23.97`. La promozione di Apply, limite lossless deterministico e VSIX
+`0.24.1` richiede un'identità runtime coerente: il pin Brain corrente è quindi
+`metis-brain-toolchain/2026-09-04-v2`, Metis
+`3fde0820c04244b011a2f7a9604c425891424b34`, tree
+`432bd3babd9f4c2dfe6349288b12eba917d4fe73`, tooling `0.24.1`.
+
+Manifest e schema v1 non sono stati riscritti e conservano i digest originari.
+Il v2 ripete lo stesso roster chiuso di 29 evidence e 9 probe sull'intero tree
+Git pinnato, con package, lock, dipendenze e i tre file lossless effettivamente
+cambiati ricalcolati. Brain fallisce chiuso se il checkout, `node_modules`, Node
+o uno degli oggetti Git non coincide; un checkout legacy v1 resta soltanto una
+fixture di rollback e non può essere mescolato con VSIX/Fast `0.24.1`.

@@ -27,8 +27,10 @@ from metis_model1 import catalog_maintenance_pin as _sandbox_support
 from metis_model1.oracles import _node_modules_sha256
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = PROJECT_ROOT / "schemas/metis-brain-toolchain-pin.schema.json"
-MANIFEST_PATH = PROJECT_ROOT / "manifests/metis-brain-toolchain-pin-v1.json"
+SCHEMA_PATH = PROJECT_ROOT / "schemas/metis-brain-toolchain-pin-v2.schema.json"
+MANIFEST_PATH = PROJECT_ROOT / "manifests/metis-brain-toolchain-pin-v2.json"
+LEGACY_SCHEMA_PATH = PROJECT_ROOT / "schemas/metis-brain-toolchain-pin.schema.json"
+LEGACY_MANIFEST_PATH = PROJECT_ROOT / "manifests/metis-brain-toolchain-pin-v1.json"
 MAX_CONTRACT_BYTES = 2 * 1024 * 1024
 MAX_NODE_BYTES = 512 * 1024 * 1024
 MAX_JSON_DEPTH = 16
@@ -41,8 +43,14 @@ PROBE_TIMEOUT_SECONDS = 120
 # Filled after the two immutable contract files are materialized.  Checking
 # both digests prevents a caller from silently substituting a different schema
 # or manifest while retaining the same public path.
-SCHEMA_FILE_SHA256 = "sha256:83959b4d4ecff5194868363bbbbf7c0cddb4ac3ca7baff64d406ace6f1ea1d8c"
-MANIFEST_FILE_SHA256 = "sha256:19a4169dc5590dd8727844cea76736c8189d3171ac4d69b6a24a78bb3e4687b9"
+SCHEMA_FILE_SHA256 = "sha256:7a535af0df9a7a633186d70720550d76e857645c8e1920e23a4a9fc76130b15b"
+MANIFEST_FILE_SHA256 = "sha256:33a76d8f9e772eb193ff4985832d59466a9d179e3f62dbb9e4ad38dc822737c4"
+LEGACY_SCHEMA_FILE_SHA256 = (
+    "sha256:83959b4d4ecff5194868363bbbbf7c0cddb4ac3ca7baff64d406ace6f1ea1d8c"
+)
+LEGACY_MANIFEST_FILE_SHA256 = (
+    "sha256:19a4169dc5590dd8727844cea76736c8189d3171ac4d69b6a24a78bb3e4687b9"
+)
 
 _OID_RE = r"^[0-9a-f]{40}$"
 _SHA256_RE = r"^sha256:[0-9a-f]{64}$"
@@ -282,14 +290,14 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         raise BrainToolchainPinError("Brain toolchain pin field roster drifted")
     if (
         manifest["schema_version"] != 1
-        or manifest["pin_id"] != "metis-brain-toolchain/2026-08-30-v1"
+        or manifest["pin_id"] != "metis-brain-toolchain/2026-09-04-v2"
         or manifest["repository"] != "ares-matioska/metis"
-        or manifest["revision"] != "2ad60b3c804fb1c45e45883b0479a46f660d98f6"
-        or manifest["tree"] != "ea29b935934fadd5f99711c0470566a2484b35f6"
+        or manifest["revision"] != "3fde0820c04244b011a2f7a9604c425891424b34"
+        or manifest["tree"] != "432bd3babd9f4c2dfe6349288b12eba917d4fe73"
         or manifest["remote_url"] != "git@github.com:ttessarolo/metis.git"
         or manifest["remote_ref"] != "refs/remotes/origin/main"
         or manifest["language_version"] != "0.43"
-        or manifest["tooling_version"] != "0.23.97"
+        or manifest["tooling_version"] != "0.24.1"
         or type(manifest["schema_version"]) is not int
         or not isinstance(manifest["revision"], str)
         or not isinstance(manifest["tree"], str)
@@ -306,13 +314,13 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         "node_sha256": "sha256:5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
         "node_bytes": 112915776,
         "node_modules_sha256": (
-            "sha256:1cea5f2f0371d3c57b9ef9787707bc1079f88dc697c7be2c6c247e4018f6e463"
+            "sha256:5ba3b1ef8e399260fa40c840fdeffd255931b37c01d284b4d445c0311533e7e5"
         ),
         "langium_version": "4.3.0",
         "metis_language_version": "0.43",
         "grammar_sha256": "sha256:dbbb2cf98f870d854af9082cb8ee33595054e993d7831d662170aeea0db8db01",
-        "package_sha256": "sha256:99584c57dff11fe4fe623fba3d3bcf96630e72f68aa0be8f4b67ad4f63b6b7af",
-        "lock_sha256": "sha256:4a362a20ad10a44adfa1e8c73bbfd7b536fb3a8f71bc12fd54220547adfbf9dd",
+        "package_sha256": "sha256:2f8f19f2f1243a9ae935ff0dd0198cbd922899ea3cb4d9b46dc0884addcd38cd",
+        "lock_sha256": "sha256:f4cdd6f88854ad0ce9df9bfb9edb8174a584dfa7e6beb17099dd6b500a5d3b89",
     }
     if not isinstance(runtime, Mapping) or dict(runtime) != expected_runtime:
         raise BrainToolchainPinError("Brain runtime identity drifted")
@@ -784,6 +792,8 @@ verify_brain_toolchain_pin = verify_metis_brain_toolchain_pin
 __all__ = [
     "BrainToolchainIdentity",
     "BrainToolchainPinError",
+    "LEGACY_MANIFEST_PATH",
+    "LEGACY_SCHEMA_PATH",
     "MANIFEST_PATH",
     "MetisBrainToolchainIdentity",
     "SCHEMA_PATH",
