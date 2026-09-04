@@ -31,6 +31,8 @@ from metis_model1.brain_intent_ir import (
     IntentCompileRequest,
     IntentCompileResult,
     IntentIR,
+    validate_intent_ir_schema,
+    validate_intent_metrics,
 )
 from metis_model1.brain_mlx_runtime import (
     _canonical_directory,
@@ -301,6 +303,19 @@ class MlxFlashIntentRuntime:
             except BrainError as error:
                 if error.code == "FLASH_COMPILATION_CANCELLED":
                     self._reset_cancelled(process)
+                elif (
+                    error.code == "FLASH_INTENT_REJECTED"
+                    and process.poll() is None
+                    and not self._stderr_overflow
+                ):
+                    # The exact JSONL envelope has been consumed and the
+                    # qualified worker is still synchronized. A host-side
+                    # semantic rejection is request-local: discard it, count
+                    # it against the recycle bound and keep the warm worker.
+                    # Protocol, identity, telemetry and transport failures
+                    # still take the fatal branch below.
+                    self._process_requests += 1
+                    self._warmup_status = "ready"
                 else:
                     self._mark_broken(process)
                 raise
@@ -597,7 +612,19 @@ class MlxFlashIntentRuntime:
                 "FLASH_RESPONSE_INVALID", 502, "local Flash response schema is invalid"
             )
         try:
+            validate_intent_ir_schema(value["intent_ir"])
+            validate_intent_metrics(value["metrics"])
+        except BrainError as error:
+            raise _runtime_error(
+                "FLASH_RESPONSE_INVALID", 502, "local Flash response is invalid"
+            ) from error
+        try:
             intent_ir = IntentIR.parse(value["intent_ir"], request=request)
+        except BrainError as error:
+            raise _runtime_error(
+                "FLASH_INTENT_REJECTED", 502, "local Flash intent was rejected"
+            ) from error
+        try:
             return IntentCompileResult(
                 intent_ir=intent_ir,
                 model_revision=value["model_revision"],

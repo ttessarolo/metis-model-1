@@ -119,6 +119,12 @@ class FakeFlash:
         self.closed.append("flash")
 
 
+class RejectingFlash(FakeFlash):
+    def compile(self, request: IntentCompileRequest) -> object:
+        self.calls.append(request)
+        raise BrainError("FLASH_INTENT_REJECTED", 502, "rejected")
+
+
 class FakeLeaseManager:
     @contextmanager
     def operation(self, **_kwargs: Any):
@@ -442,6 +448,28 @@ def test_invalid_flash_result_fails_closed_and_events_do_not_leak_prompt() -> No
             retrieved=_result("unsupported"),
             record=record,
         )
+    rendered = json.dumps(record.events)
+    assert instruction not in rendered
+    assert "film italiani" not in rendered
+
+
+def test_rejected_optional_flash_intent_preserves_original_unsupported_result() -> None:
+    instruction = "crea un endpoint per film italiani con 24 risultati"
+    request = _request(instruction)
+    flash = RejectingFlash(object())
+    retrieved = _result("unsupported", instruction=instruction)
+    record = TurnRecord(_TURN, _SESSION, request, request.payload_hash)
+    returned_request, returned = _orchestrator(FakeRetriever([retrieved]), flash)._retry_with_flash(
+        lease=SimpleNamespace(),
+        request=request,
+        retrieved=retrieved,
+        record=record,
+    )
+    assert returned_request == request
+    assert returned == retrieved
+    assert len(flash.calls) == 1
+    assert record.events[-1]["event"] == "intent.completed"
+    assert record.events[-1]["data"]["count"] == 0
     rendered = json.dumps(record.events)
     assert instruction not in rendered
     assert "film italiani" not in rendered

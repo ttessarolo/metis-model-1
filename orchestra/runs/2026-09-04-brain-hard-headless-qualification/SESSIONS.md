@@ -12,6 +12,11 @@
 | L907 | Pin/security review | delegated `gpt-5.6-terra` / high; QWEN: no | exact corpus/config/tenant/Metis/model/Flash/runner pins and no-Apply boundary | none; read-only | hashes and revision/tree guards already recorded on active board and tracked config | done |
 | L908 | IR feasibility review | delegated `gpt-5.6-luna` / high; QWEN: no (native Luna lane) | structural IR facts plus final normalized IR equivalence needed to prevent P0 false-green | none; read-only | private oracle evidence recorded; live run receipt still required | done |
 | L909 | Harness concurrency security review | delegated `gpt-5.6-terra` / high; QWEN: no | allow clean source HEAD advancement while binding pinned archive/runtime and rejecting dirty source drift | none; read-only | focused regression plus P0/P1/P2 verdict | done |
+| L910 | Flash invalid-response forensics | delegated `gpt-5.6-luna` / high; QWEN: no | distinguish protocol corruption from rejected optional Intent IR and define worker recovery | none; read-only | exact error chain plus adversarial runtime/orchestrator tests | done |
+| L911 | Semantic preflight forensics | delegated `gpt-5.6-luna` / high; QWEN: no | explain catalog-option explosion on pinned play-prod and identify the safe authority boundary | none; read-only | retrieval/orchestrator source evidence and product-vs-readiness verdict | done |
+| L912 | Qualification receipt forensics | delegated `gpt-5.6-luna` / high; QWEN: no | preserve completed measurement evidence across a terminal post-suite gate failure | none; read-only | receipt/exit taxonomy plus adversarial tests | done |
+| L913 | Flash recovery adversarial re-review | delegated `gpt-5.6-terra` / high; QWEN: no | prove request-local rejection cannot weaken fatal protocol or telemetry handling | none; read-only | P0/P1/P2 verdict plus focused tests, Ruff and diff-check | done |
+| L914 | Receipt semantics adversarial re-review | delegated `gpt-5.6-terra` / high; QWEN: no | prove complete/partial evidence, terminal precedence, persistence and CLI exit semantics | none; read-only | P0/P1/P2 verdict plus focused tests, Ruff and diff-check | done |
 
 ## Global exclusions
 

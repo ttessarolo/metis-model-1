@@ -458,6 +458,25 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 1
+        if receipt["status"] == "INCOMPLETE":
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation": "brain-hard-qualification",
+                        "status": receipt["status"],
+                        "measurement_status": receipt["measurement_status"],
+                        "denominator": receipt["denominator"],
+                        "completed": receipt["completed"],
+                        "terminal_gate": receipt["terminal_gate"],
+                        "qualification_green": False,
+                        "receipt_sha256": receipt["receipt_sha256"],
+                        "receipt_path": receipt["receipt_path"],
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 1
         qualification_green = receipt["qualification_green"]
         print(
             json.dumps(
@@ -469,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
                     "aggregate": receipt["aggregate"],
                     "qualification_green": qualification_green,
                     "receipt_sha256": receipt["receipt_sha256"],
-                    "receipt_path": str(args.output),
+                    "receipt_path": receipt.get("receipt_path", str(args.output)),
                 },
                 sort_keys=True,
             )

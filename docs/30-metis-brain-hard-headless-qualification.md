@@ -87,6 +87,16 @@ Safe failure is product safety evidence but not accuracy success. Aggregate
 accuracy reports `PASS_DRAFT` and expected clarification separately from
 fail-closed coverage; compile-clean alone cannot promote a Draft.
 
+Receipt completeness and promotion are independent dimensions. A run that
+records all 10 edits, all 10 journeys and all 40 logical create turns writes
+`status=MEASURED` and `measurement_status=COMPLETE` even when its terminal
+health, cleanup or invariance gate fails. In that case `terminal_gate` records
+only a bounded phase/code, `qualification_green` is unconditionally false and
+the CLI exits 2. A run interrupted before the closed denominator writes a
+create-only `*.incomplete-<uuid>.json` receipt with
+`measurement_status=PARTIAL`, preserves the completed per-case evidence and
+exits 1. No terminal failure can be converted into a promotion success.
+
 ## Evidence policy
 
 The detailed local transcript is stored under ignored
@@ -124,5 +134,7 @@ The CLI prints only bounded progress and the final denominator/scorecard. The
 output is create-only and self-hashed. Reusing a completed filename fails
 closed. A measured but non-green qualification still writes its receipt and
 returns exit code 2, so automation cannot confuse measurement completion with
-promotion success. Any retry remains an explicitly authorized local-model
-invocation and should use a distinct output name when preserving prior evidence.
+promotion success. An interrupted measurement writes a distinct incomplete
+receipt and leaves the requested final path unused. Any retry remains an
+explicitly authorized local-model invocation and should use a distinct output
+name when preserving prior complete evidence.

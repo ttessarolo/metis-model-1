@@ -2254,6 +2254,39 @@ def _write_receipt(path: Path, receipt: Mapping[str, Any]) -> None:
         os.close(parent_fd)
 
 
+def _terminal_failure(
+    *,
+    tenant_before: Mapping[str, Any],
+    tenant_after: Mapping[str, Any] | None,
+    model1_before: Mapping[str, Any],
+    model1_after: Mapping[str, Any] | None,
+    guard_error: BaseException | None,
+    guard_error_phase: str | None,
+    suite_error: BaseException | None,
+    suite_error_phase: str,
+    close_error: BaseException | None,
+) -> tuple[BaseException | None, str]:
+    """Choose one deterministic terminal gate without hiding stronger drift."""
+
+    if tenant_after is not None and tenant_before != tenant_after:
+        return (
+            BrainError("HARD_QUALIFICATION_DRIFT", 409, "tenant changed during suite"),
+            "tenant_guard",
+        )
+    if model1_after is not None and model1_before != model1_after:
+        return (
+            BrainError("HARD_QUALIFICATION_DRIFT", 409, "Model 1 tree changed during suite"),
+            "model_guard",
+        )
+    if guard_error is not None:
+        return guard_error, guard_error_phase or "guard"
+    if suite_error is not None:
+        return suite_error, suite_error_phase
+    if close_error is not None:
+        return close_error, "close"
+    return None, "complete"
+
+
 def run_hard_qualification(
     *,
     config_path: Path,
@@ -2303,6 +2336,7 @@ def run_hard_qualification(
     health_after: dict[str, Any] = {}
     health_identity: dict[str, Any] = {}
     suite_error: BaseException | None = None
+    suite_error_phase = "startup"
     close_error: BaseException | None = None
     try:
         service = MetisBrainService(config)
@@ -2312,6 +2346,7 @@ def run_hard_qualification(
             service.address[1],
             bootstrap_token=_bootstrap_token(service),
         )
+        suite_error_phase = "health_before"
         health = client.health()
         compiler_pin = getattr(service.app.compiler, "pin_identity", None)
         if not isinstance(compiler_pin, Mapping):
@@ -2327,6 +2362,7 @@ def run_hard_qualification(
             zip(spec.corpus["endpoints"], spec.plan["edit_oracles"], strict=True),
             start=1,
         ):
+            suite_error_phase = "edit"
             result = _run_edit(client=client, spec=spec, case=case, oracle=oracle)
             edits.append(result)
             if progress is not None:
@@ -2349,6 +2385,7 @@ def run_hard_qualification(
             ),
             start=1,
         ):
+            suite_error_phase = "create_journey"
             result = _run_journey(
                 service=service,
                 client=client,
@@ -2369,6 +2406,7 @@ def run_hard_qualification(
                         "elapsed_ms": int((time.monotonic() - started) * 1000),
                     }
                 )
+        suite_error_phase = "health_after"
         health_after = client.health()
         health_identity_after = _validate_qualified_health(
             health_after,
@@ -2388,6 +2426,7 @@ def run_hard_qualification(
     tenant_after: dict[str, Any] | None = None
     model1_after: dict[str, Any] | None = None
     guard_error: BaseException | None = None
+    guard_error_phase: str | None = None
     try:
         tenant_after = capture_tenant_guard(
             root=spec.tenant_root,
@@ -2397,66 +2436,60 @@ def run_hard_qualification(
         )
     except BaseException as error:
         guard_error = error
+        guard_error_phase = "tenant_guard"
     try:
         model1_after = capture_model1_guard()
     except BaseException as error:
         if guard_error is None:
             guard_error = error
-    terminal_error: BaseException | None = None
-    if tenant_after is not None and tenant_before != tenant_after:
-        terminal_error = BrainError("HARD_QUALIFICATION_DRIFT", 409, "tenant changed during suite")
-    elif model1_after is not None and model1_before != model1_after:
-        terminal_error = BrainError(
-            "HARD_QUALIFICATION_DRIFT", 409, "Model 1 tree changed during suite"
-        )
-    elif guard_error is not None:
-        terminal_error = guard_error
-    elif suite_error is not None:
-        terminal_error = suite_error
-    elif close_error is not None:
-        terminal_error = close_error
-    if terminal_error is not None:
-        error_code = (
+            guard_error_phase = "model_guard"
+    terminal_error, terminal_phase = _terminal_failure(
+        tenant_before=tenant_before,
+        tenant_after=tenant_after,
+        model1_before=model1_before,
+        model1_after=model1_after,
+        guard_error=guard_error,
+        guard_error_phase=guard_error_phase,
+        suite_error=suite_error,
+        suite_error_phase=suite_error_phase,
+        close_error=close_error,
+    )
+    terminal_code = (
+        (
             terminal_error.code
             if isinstance(terminal_error, BrainError)
             else type(terminal_error).__name__
         )
-        incomplete_body = {
-            "schema_version": 1,
-            "qualification_id": spec.plan["qualification_id"],
-            "status": "INCOMPLETE",
-            "started_at": started_at,
-            "duration_ms": int((time.monotonic() - started) * 1000),
-            "identity": {
-                "corpus_sha256": spec.corpus_sha256,
-                "plan_sha256": spec.plan_sha256,
-                "config_sha256": spec.config_sha256,
-                "model1_before_sha256": canonical_sha256(model1_before),
-                "tenant_before_sha256": canonical_sha256(tenant_before),
-                "runtime_identity": health_identity or None,
-            },
-            "completed": {"edits": len(edits), "create_journeys": len(journeys)},
-            "error_code": error_code,
-        }
-        incomplete = {
-            **incomplete_body,
-            "receipt_sha256": canonical_sha256(incomplete_body),
-        }
-        incomplete_path = output.with_name(f"{output.stem}.incomplete-{uuid.uuid4().hex}.json")
-        with suppress(BaseException):
-            _write_receipt(incomplete_path, incomplete)
-        raise terminal_error
-    assert tenant_after is not None and model1_after is not None
+        if terminal_error is not None
+        else None
+    )
+    logical_turns = sum(
+        len(item.get("turns", [])) for item in journeys if isinstance(item.get("turns"), list)
+    )
+    measurement_complete = (
+        len(edits) == EXPECTED_DENOMINATOR["edit_cases"]
+        and len(journeys) == EXPECTED_DENOMINATOR["create_journeys"]
+        and logical_turns == EXPECTED_DENOMINATOR["logical_create_turns"]
+    )
     aggregate = _aggregate(edits, journeys)
     qualification_green = (
-        aggregate["edits"]["pass_draft"] == aggregate["edits"]["total"]
+        terminal_error is None
+        and measurement_complete
+        and aggregate["edits"]["pass_draft"] == aggregate["edits"]["total"]
         and aggregate["create_journeys"]["converged_structural_oracle"]
         == aggregate["create_journeys"]["total"]
+    )
+    receipt_target = (
+        output
+        if measurement_complete
+        else output.with_name(f"{output.stem}.incomplete-{uuid.uuid4().hex}.json")
     )
     body = {
         "schema_version": 1,
         "qualification_id": spec.plan["qualification_id"],
-        "status": "MEASURED",
+        "status": "MEASURED" if measurement_complete else "INCOMPLETE",
+        "measurement_status": "COMPLETE" if measurement_complete else "PARTIAL",
+        "receipt_path": str(receipt_target),
         "started_at": started_at,
         "duration_ms": int((time.monotonic() - started) * 1000),
         "identity": {
@@ -2465,9 +2498,15 @@ def run_hard_qualification(
             "config_sha256": _sha256(config_raw),
             "model1": model1_before,
             "tenant": tenant_before,
-            "health_before_sha256": canonical_sha256(health),
-            "health_after_sha256": canonical_sha256(health_after),
-            "runtime_identity": health_identity,
+            "health_before_sha256": canonical_sha256(health) if health else None,
+            "health_after_sha256": canonical_sha256(health_after) if health_after else None,
+            "runtime_identity": health_identity or None,
+            "model1_after_sha256": (
+                canonical_sha256(model1_after) if model1_after is not None else None
+            ),
+            "tenant_after_sha256": (
+                canonical_sha256(tenant_after) if tenant_after is not None else None
+            ),
         },
         "boundary": {
             "transport": "numeric_loopback_http",
@@ -2475,16 +2514,31 @@ def run_hard_qualification(
             "external_network": False,
             "apply_capability": False,
             "apply_called": False,
-            "tenant_modified": False,
+            "tenant_modified": (
+                tenant_before != tenant_after if tenant_after is not None else None
+            ),
+            "model1_modified": (
+                model1_before != model1_after if model1_after is not None else None
+            ),
         },
         "denominator": dict(EXPECTED_DENOMINATOR),
+        "completed": {
+            "edits": len(edits),
+            "create_journeys": len(journeys),
+            "logical_create_turns": logical_turns,
+        },
         "aggregate": aggregate,
+        "terminal_gate": {
+            "status": "FAILED" if terminal_error is not None else "PASSED",
+            "phase": terminal_phase,
+            "code": terminal_code,
+        },
         "qualification_green": qualification_green,
         "edits": edits,
         "create_journeys": journeys,
     }
     receipt = {**body, "receipt_sha256": canonical_sha256(body)}
-    _write_receipt(output, receipt)
+    _write_receipt(receipt_target, receipt)
     return receipt
 
 

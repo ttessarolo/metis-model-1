@@ -426,8 +426,18 @@ class BrainOrchestrator:
                     phase="intent_running", label="Interpretazione locale in corso"
                 ):
                     compiled = self._intent_compiler.compile(compile_request)
-            except BrainError:
-                raise
+            except BrainError as error:
+                if error.code != "FLASH_INTENT_REJECTED":
+                    raise
+                record.emit(
+                    "intent.completed",
+                    "intent_completed",
+                    "Interpretazione non applicabile in sicurezza",
+                    count=0,
+                    duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+                    replayed=False,
+                )
+                return request, retrieved
             except Exception as error:
                 raise BrainError(
                     "FLASH_COMPILER_FAILED", 503, "local Flash intent compilation failed"

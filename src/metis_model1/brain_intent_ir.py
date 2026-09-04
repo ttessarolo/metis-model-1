@@ -168,6 +168,56 @@ def _invalid(message: str = "Flash Intent IR is invalid") -> BrainError:
     return BrainError("FLASH_INTENT_INVALID", 502, message)
 
 
+def validate_intent_ir_schema(value: Any) -> None:
+    """Validate only the closed JSON shape, before request-bound semantics."""
+
+    if not isinstance(value, dict):
+        raise _invalid()
+    errors = sorted(_FLASH_VALIDATOR.iter_errors(value), key=lambda item: list(item.path))
+    if errors:
+        raise _invalid()
+
+
+def validate_intent_metrics(metrics: Any) -> None:
+    """Validate the complete worker telemetry envelope independently of IR semantics."""
+
+    required = {
+        "worker_load_ms",
+        "generation_ms",
+        "prompt_tokens",
+        "generation_tokens",
+        "prompt_tps",
+        "generation_tps",
+        "finish_reason",
+        "peak_metal_gb",
+    }
+    if not isinstance(metrics, dict) or set(metrics) != required:
+        raise _invalid("Flash telemetry is invalid")
+    for key in ("worker_load_ms", "generation_ms", "prompt_tokens", "generation_tokens"):
+        item = metrics[key]
+        if type(item) is not int or not 0 <= item <= MAX_FLASH_METRIC_COUNT:
+            raise _invalid("Flash telemetry is invalid")
+    if not 1 <= metrics["generation_tokens"] <= MAX_FLASH_GENERATION_TOKENS:
+        raise _invalid("Flash generation length is invalid")
+    for key in ("prompt_tps", "generation_tps"):
+        item = metrics[key]
+        if (
+            type(item) not in (int, float)
+            or not math.isfinite(float(item))
+            or not 0 <= float(item) <= MAX_FLASH_METRIC_RATE
+        ):
+            raise _invalid("Flash telemetry is invalid")
+    peak = metrics["peak_metal_gb"]
+    if (
+        type(peak) not in (int, float)
+        or not math.isfinite(float(peak))
+        or not 0 <= float(peak) <= MAX_FLASH_PEAK_METAL_GB
+    ):
+        raise _invalid("Flash telemetry is invalid")
+    if metrics["finish_reason"] != "stop":
+        raise _invalid("Flash generation did not complete its constrained object")
+
+
 def _admissible_operator_span(value: str) -> bool:
     """Reject control prose before an exact span can influence retrieval.
 
@@ -259,11 +309,8 @@ class IntentIR:
 
     @classmethod
     def parse(cls, value: Any, *, request: IntentCompileRequest) -> IntentIR:
-        if not isinstance(value, dict):
-            raise _invalid()
-        errors = sorted(_FLASH_VALIDATOR.iter_errors(value), key=lambda item: list(item.path))
-        if errors:
-            raise _invalid()
+        validate_intent_ir_schema(value)
+        assert isinstance(value, dict)
         if value["operation"] != request.intent:
             raise _invalid("Flash operation differs from the admitted request")
         expected_scope = _TARGET_SCOPE[request.target_mode]
@@ -334,41 +381,7 @@ class IntentCompileResult:
             raise _invalid("Flash schema identity differs")
         if self.decoder != "llguidance-1.8.0":
             raise _invalid("Flash constrained decoder is invalid")
-        required = {
-            "worker_load_ms",
-            "generation_ms",
-            "prompt_tokens",
-            "generation_tokens",
-            "prompt_tps",
-            "generation_tps",
-            "finish_reason",
-            "peak_metal_gb",
-        }
-        if set(self.metrics) != required:
-            raise _invalid("Flash telemetry is invalid")
-        for key in ("worker_load_ms", "generation_ms", "prompt_tokens", "generation_tokens"):
-            item = self.metrics[key]
-            if type(item) is not int or not 0 <= item <= MAX_FLASH_METRIC_COUNT:
-                raise _invalid("Flash telemetry is invalid")
-        if not 1 <= self.metrics["generation_tokens"] <= MAX_FLASH_GENERATION_TOKENS:
-            raise _invalid("Flash generation length is invalid")
-        for key in ("prompt_tps", "generation_tps"):
-            item = self.metrics[key]
-            if (
-                type(item) not in (int, float)
-                or not math.isfinite(float(item))
-                or not 0 <= float(item) <= MAX_FLASH_METRIC_RATE
-            ):
-                raise _invalid("Flash telemetry is invalid")
-        peak = self.metrics["peak_metal_gb"]
-        if (
-            type(peak) not in (int, float)
-            or not math.isfinite(float(peak))
-            or not 0 <= float(peak) <= MAX_FLASH_PEAK_METAL_GB
-        ):
-            raise _invalid("Flash telemetry is invalid")
-        if self.metrics["finish_reason"] != "stop":
-            raise _invalid("Flash generation did not complete its constrained object")
+        validate_intent_metrics(self.metrics)
 
 
 class BrainIntentCompiler(Protocol):
@@ -428,4 +441,6 @@ __all__ = [
     "MAX_FLASH_GENERATION_TOKENS",
     "StaticIntentCompiler",
     "strict_json_object",
+    "validate_intent_ir_schema",
+    "validate_intent_metrics",
 ]

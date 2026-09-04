@@ -124,6 +124,20 @@ def _compile_response(request_id: str, *, mode: str = "ok") -> bytes:
                 }
             ],
         }
+    elif mode == "bad_ir_shape":
+        value["intent_ir"] = {}
+    elif mode == "bad_ir_bad_metrics":
+        value["intent_ir"] = {
+            **_valid_ir(),
+            "concepts": [
+                {
+                    "source": "non presente",
+                    "query": "film",
+                    "polarity": "include",
+                }
+            ],
+        }
+        value["metrics"] = {**_metrics(), "generation_tokens": 0}
     elif mode == "bad_extra":
         value["catalog"] = "video"
     elif mode == "bad_metrics":
@@ -263,6 +277,10 @@ for line in sys.stdin:
     elif MODE == "bad_schema_identity": value["schema_sha256"] = "sha256:" + "0" * 64
     elif MODE == "bad_decoder": value["decoder"] = "unconstrained"
     elif MODE == "bad_ir": value["intent_ir"]["concepts"][0]["source"] = "non presente"
+    elif MODE == "bad_ir_shape": value["intent_ir"] = {}
+    elif MODE == "bad_ir_bad_metrics":
+        value["intent_ir"]["concepts"][0]["source"] = "non presente"
+        value["metrics"]["generation_tokens"] = 0
     elif MODE == "bad_extra": value["catalog"] = "video"
     elif MODE == "bad_metrics": value["metrics"]["generation_tokens"] = 0
     elif MODE == "bad_finish": value["metrics"]["finish_reason"] = "length"
@@ -398,7 +416,8 @@ def test_warmup_response_is_strict_and_fail_closed(runtime_factory, mode: str) -
         "bad_model",
         "bad_schema_identity",
         "bad_decoder",
-        "bad_ir",
+        "bad_ir_shape",
+        "bad_ir_bad_metrics",
         "bad_extra",
         "bad_metrics",
         "bad_finish",
@@ -415,6 +434,43 @@ def test_compile_response_identity_ir_and_telemetry_are_strict(runtime_factory, 
     with pytest.raises(BrainError) as second:
         runtime.compile(_request())
     assert second.value.code == "FLASH_RUNTIME_BROKEN"
+    runtime.close()
+
+
+def test_semantically_rejected_intent_is_request_local_and_worker_stays_warm(
+    runtime_factory,
+) -> None:
+    build, _paths = runtime_factory
+    runtime = build("bad_ir")
+    with pytest.raises(BrainError) as first:
+        runtime.compile(_request())
+    assert first.value.code == "FLASH_INTENT_REJECTED"
+    process = _wait_for_process(runtime)
+    assert runtime.model_loaded
+    assert runtime.warmup_status == "ready"
+    with pytest.raises(BrainError) as second:
+        runtime.compile(_request())
+    assert second.value.code == "FLASH_INTENT_REJECTED"
+    assert runtime._process is not None  # noqa: SLF001
+    assert runtime._process.pid == process.pid  # noqa: SLF001
+    runtime.close()
+
+
+def test_semantic_rejection_counts_toward_worker_recycle_bound(
+    runtime_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build, _paths = runtime_factory
+    monkeypatch.setattr(flash_runtime, "MAX_REQUESTS_PER_PROCESS", 1)
+    runtime = build("bad_ir")
+    with pytest.raises(BrainError, match="rejected"):
+        runtime.compile(_request())
+    first = _wait_for_process(runtime)
+    with pytest.raises(BrainError, match="rejected"):
+        runtime.compile(_request())
+    assert runtime._process is not None  # noqa: SLF001
+    assert runtime._process.pid != first.pid  # noqa: SLF001
+    assert runtime.model_loaded
     runtime.close()
 
 

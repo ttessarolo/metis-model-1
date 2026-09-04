@@ -214,3 +214,86 @@ accepted measurement outcome; it is never relabelled as a successful Draft.
 - OPEN — Commit and push the verified headless foundation, then execute the
   one authorized live local-MLX qualification and inspect its receipt. No live
   Draft, semantic-pass or accuracy claim exists before that receipt.
+- DONE — The verified headless foundation was committed and pushed on clean,
+  aligned `main` as `90147b1d6b00a7eebcd932e5ce7984e73858b6f9`.
+- FACT — The first real local run reached qualified `ready` in `70.615s`, then
+  attempted edits `in=10 out=10 distinct=10 gaps=0` and create journeys
+  `in=10 out=10 distinct=10 gaps=0`. All edits returned
+  `SAFE_FAIL_CLOSED`; all create journeys were `NOT_CONVERGED`. No Apply was
+  available and Model 1 produced no Draft.
+- RISK — The complete 10+10 measurement ended with
+  `HARD_QUALIFICATION_RUNTIME` because final health was no longer qualified.
+  The create-only incomplete receipt is
+  `play-prod-v1.incomplete-fb41114f708e4f6eaa5d06a6f240113a.json`, status
+  `INCOMPLETE`, duration `85.737s`, self-hash
+  `sha256:c2848316ae89254ca3d47a8e6420909c9443f4a6f6f4e63da41d39e7e794db73`.
+  Repository and tenant remained clean; the evidence is not promoted.
+- FACT — Bounded live diagnosis identified both causal surfaces. Cases 1-6
+  terminate with `CLARIFICATION_TOO_MANY_OPTIONS` while Model 1, Flash and
+  retrieval health remain qualified. Case 7 (`play.tvod_multiple_block`)
+  terminates with `FLASH_RESPONSE_INVALID`, after which Flash alone reports
+  `model_loaded=false` / warmup `failed`; Model 1 remains loaded and ready.
+- FACT — A direct Flash-only reproduction of case 7 proved the valid JSONL
+  envelope was rejected by the parent semantic guard with cause
+  `FLASH_INTENT_INVALID: Flash concept contains an authority-bearing surface`.
+  The optional model copied the technical surface `genere_mcm="Azione"` from
+  the operator prompt; the guard correctly refused to make it executable.
+- FIX — L912 found that a post-suite health failure currently discards the
+  already completed per-case evidence and contradicts the documented exit-2
+  measured-non-green contract. Complete measurement and terminal promotion
+  gate must become independent receipt dimensions; runtime drift remains
+  non-promotable and cannot become GREEN.
+- OPEN — Make rejected optional Intent IR request-local without reusing it or
+  poisoning the synchronized Flash worker; preserve the original unsupported
+  retrieval result; fix complete-versus-partial receipt semantics; then rerun
+  deterministic gates before deciding whether another live measurement is
+  warranted.
+- DONE — L910/L0 separated a schema-valid but semantically rejected Intent IR
+  from protocol corruption. `FLASH_INTENT_REJECTED` is discarded, counted
+  against the worker recycle bound and cannot enter retrieval; the original
+  unsupported result is retained. The already synchronized worker stays warm.
+  Envelope, identity, telemetry, stderr, timeout and transport failures remain
+  fatal and still destroy the worker.
+- FACT — A post-fix real Flash-only replay of case 7 returned
+  `FLASH_INTENT_REJECTED`, kept `model_loaded=true` / warmup `ready`, reused the
+  same worker for a subsequent valid request and produced a host-validated
+  exact semantic instruction. No rejected IR was reused or made executable.
+- DONE — L912 receipt semantics now preserve complete and partial evidence.
+  A closed 10+10+40 denominator is `MEASURED/COMPLETE` even if a terminal gate
+  fails, but is forced non-green with a bounded phase/code and CLI exit 2. An
+  interrupted denominator is `INCOMPLETE/PARTIAL`, retains completed case
+  results in a distinct receipt and exits 1.
+- FACT — Focused post-fix regression is GREEN: `280` tests pass across Flash
+  runtime/wiring, hard qualification, orchestrator and Brain server; targeted
+  Ruff and format checks pass.
+- FACT — L911 proved the catalog explosion is semantic-readiness, not Model 1
+  accuracy: pinned play-prod declares `8` owner catalogs and no reviewed
+  catalog/field evidence. Schema-2 therefore returns all owners; the public
+  clarification contract safely refuses more than `5` options. Truncating,
+  positionally choosing `video`, raising the bound or importing play-demo
+  semantics would violate authority.
+- OPEN — The accurate product prerequisite is reviewed canonical play-prod
+  semantics (or an explicitly pinned first-class semantic source adopted by
+  that tenant). This repository cannot silently manufacture it. After the
+  authoritative full gate and clean commit, rerun once to produce the complete
+  measured non-green receipt for the current tenant state.
+- DONE — L913 independently re-reviewed Flash recovery after the final ordering
+  fix: `VERDICT: GREEN`, `P0=0 P1=0 P2=0`. Closed JSON shape and complete
+  telemetry are validated before request-bound semantics; protocol, identity,
+  telemetry, stderr and transport failures still break the worker, while only
+  a structurally valid rejected IR is discarded request-locally and counted
+  against the existing recycle bound.
+- DONE — L914 independently re-reviewed receipt semantics after the final
+  persistence and precedence fixes: `VERDICT: GREEN`, `P0=0 P1=0 P2=0`.
+  Partial receipts are create-only, self-hashed, returned and printed with
+  their actual path; write errors propagate; terminal precedence is tested as
+  tenant drift, Model 1 drift, guard, suite, close; a terminal failure can
+  never produce `qualification_green=true`.
+- FACT — The coordinator's final pre-gate regression passed `473` focused
+  tests covering Intent IR, Flash runtime/wiring, hard qualification,
+  orchestrator, server, compiler tools, harness and semantic retrieval; targeted
+  Ruff and `git diff --check` were green.
+- DONE — The authoritative post-fix repository gate is GREEN: `make check`
+  completed `2990 passed, 2 skipped, 0 failed` in `1859.44s` (`30m59s`).
+  Foundation, pilot, closure, assets, dataset, evaluation, Ruff, format and the
+  pinned Metis test harness all passed on the reviewed diff.

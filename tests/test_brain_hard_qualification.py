@@ -272,6 +272,227 @@ def test_receipt_writer_is_create_only_and_self_hash_is_stable(tmp_path: Path) -
     assert not list(tmp_path.glob("*.pending"))
 
 
+def _mock_live_qualification_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> tuple[hard.HardQualificationSpec, Path]:
+    spec = hard.load_hard_qualification(CORPUS, PLAN)
+    output_root = (tmp_path / "receipts").resolve()
+    monkeypatch.setattr(hard, "OUTPUT_ROOT", output_root)
+    monkeypatch.setattr(hard, "validate_hard_config", lambda _config, _spec: None)
+    model_guard = {"commit": "model-commit", "tree": "model-tree", "status": []}
+    tenant_guard = {
+        "commit": spec.tenant_head,
+        "tree": spec.tenant_tree,
+        "status": [],
+        "target": "sha256:" + "a" * 64,
+    }
+    monkeypatch.setattr(hard, "capture_model1_guard", lambda: dict(model_guard))
+    monkeypatch.setattr(
+        hard,
+        "capture_tenant_guard",
+        lambda **_kwargs: dict(tenant_guard),
+    )
+
+    class FakeService:
+        address = ("127.0.0.1", 43123)
+        app = SimpleNamespace(
+            compiler=SimpleNamespace(pin_identity=spec.runtime_identity["toolchain"])
+        )
+
+        def __init__(self, _config: Any) -> None:
+            self.closed = False
+
+        def start_background(self) -> None:
+            return None
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeClient:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def health(self) -> dict[str, Any]:
+            return {"status": "ready"}
+
+    monkeypatch.setattr(hard, "MetisBrainService", FakeService)
+    monkeypatch.setattr(hard, "HeadlessBrainClient", FakeClient)
+    monkeypatch.setattr(hard, "_bootstrap_token", lambda _service: "bootstrap")
+    return spec, output_root / "receipt.json"
+
+
+def test_completed_measurement_survives_failed_post_suite_health_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec, output = _mock_live_qualification_runtime(monkeypatch, tmp_path)
+    validations = 0
+
+    def validate_health(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        nonlocal validations
+        validations += 1
+        if validations == 2:
+            raise BrainError("HARD_QUALIFICATION_RUNTIME", 503, "not qualified")
+        return dict(spec.runtime_identity)
+
+    monkeypatch.setattr(hard, "_validate_qualified_health", validate_health)
+    monkeypatch.setattr(
+        hard,
+        "_run_edit",
+        lambda **kwargs: {
+            "endpoint": kwargs["case"]["endpoint_identity"]["qualified"],
+            "verdict": "SAFE_FAIL_CLOSED",
+        },
+    )
+    monkeypatch.setattr(
+        hard,
+        "_run_journey",
+        lambda **kwargs: {
+            "source_endpoint": kwargs["journey"]["endpoint_qualified"],
+            "verdict": "NOT_CONVERGED",
+            "turns": [{"verdict": "SAFE_FAIL_CLOSED"} for _ in range(4)],
+        },
+    )
+
+    receipt = hard.run_hard_qualification(
+        config_path=CONFIG,
+        corpus_path=CORPUS,
+        plan_path=PLAN,
+        output_path=output,
+        authorize_local_model_execution=True,
+    )
+
+    assert receipt["status"] == "MEASURED"
+    assert receipt["measurement_status"] == "COMPLETE"
+    assert receipt["completed"] == {
+        "edits": 10,
+        "create_journeys": 10,
+        "logical_create_turns": 40,
+    }
+    assert receipt["terminal_gate"] == {
+        "status": "FAILED",
+        "phase": "health_after",
+        "code": "HARD_QUALIFICATION_RUNTIME",
+    }
+    assert receipt["qualification_green"] is False
+    assert receipt["boundary"]["tenant_modified"] is False
+    stored = json.loads(output.read_text(encoding="utf-8"))
+    digest = stored.pop("receipt_sha256")
+    assert digest == canonical_sha256(stored)
+
+
+def test_partial_measurement_preserves_completed_results_in_incomplete_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec, output = _mock_live_qualification_runtime(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        hard,
+        "_validate_qualified_health",
+        lambda *_args, **_kwargs: dict(spec.runtime_identity),
+    )
+    calls = 0
+
+    def edit(**kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 4:
+            raise BrainError("HARD_QUALIFICATION_HTTP", 502, "failed")
+        return {
+            "endpoint": kwargs["case"]["endpoint_identity"]["qualified"],
+            "verdict": "SAFE_FAIL_CLOSED",
+        }
+
+    monkeypatch.setattr(hard, "_run_edit", edit)
+
+    returned = hard.run_hard_qualification(
+        config_path=CONFIG,
+        corpus_path=CORPUS,
+        plan_path=PLAN,
+        output_path=output,
+        authorize_local_model_execution=True,
+    )
+    assert not output.exists()
+    incomplete_path = Path(returned["receipt_path"])
+    assert incomplete_path.parent == output.parent
+    assert incomplete_path.match("receipt.incomplete-*.json")
+    receipt = json.loads(incomplete_path.read_text(encoding="utf-8"))
+    assert receipt == returned
+    assert receipt["status"] == "INCOMPLETE"
+    assert receipt["measurement_status"] == "PARTIAL"
+    assert receipt["completed"] == {
+        "edits": 3,
+        "create_journeys": 0,
+        "logical_create_turns": 0,
+    }
+    assert len(receipt["edits"]) == 3
+    assert receipt["terminal_gate"] == {
+        "status": "FAILED",
+        "phase": "edit",
+        "code": "HARD_QUALIFICATION_HTTP",
+    }
+    digest = receipt.pop("receipt_sha256")
+    assert digest == canonical_sha256(receipt)
+
+
+def test_terminal_gate_precedence_is_deterministic_and_drift_first() -> None:
+    tenant = {"commit": "tenant"}
+    model = {"commit": "model"}
+    guard = BrainError("GUARD", 409, "guard")
+    suite = BrainError("SUITE", 503, "suite")
+    close = BrainError("CLOSE", 503, "close")
+
+    error, phase = hard._terminal_failure(
+        tenant_before=tenant,
+        tenant_after={"commit": "changed"},
+        model1_before=model,
+        model1_after={"commit": "changed"},
+        guard_error=guard,
+        guard_error_phase="tenant_guard",
+        suite_error=suite,
+        suite_error_phase="health_after",
+        close_error=close,
+    )
+    assert isinstance(error, BrainError) and error.code == "HARD_QUALIFICATION_DRIFT"
+    assert phase == "tenant_guard"
+
+    error, phase = hard._terminal_failure(
+        tenant_before=tenant,
+        tenant_after=tenant,
+        model1_before=model,
+        model1_after={"commit": "changed"},
+        guard_error=guard,
+        guard_error_phase="model_guard",
+        suite_error=suite,
+        suite_error_phase="health_after",
+        close_error=close,
+    )
+    assert isinstance(error, BrainError) and error.code == "HARD_QUALIFICATION_DRIFT"
+    assert phase == "model_guard"
+
+    for expected, expected_phase, values in (
+        (guard, "model_guard", (guard, "model_guard", suite, close)),
+        (suite, "health_after", (None, None, suite, close)),
+        (close, "close", (None, None, None, close)),
+        (None, "complete", (None, None, None, None)),
+    ):
+        guard_error, guard_phase, suite_error, close_error = values
+        error, phase = hard._terminal_failure(
+            tenant_before=tenant,
+            tenant_after=tenant,
+            model1_before=model,
+            model1_after=model,
+            guard_error=guard_error,
+            guard_error_phase=guard_phase,
+            suite_error=suite_error,
+            suite_error_phase="health_after",
+            close_error=close_error,
+        )
+        assert error is expected
+        assert phase == expected_phase
+
+
 def test_plan_and_config_identity_pins_are_sealed() -> None:
     """The live lane must never run against a self-selected plan or config."""
 
@@ -769,3 +990,48 @@ def test_hard_qualification_cli_exit_reflects_promotion_gate(
     )
 
     assert result == expected_exit
+
+
+def test_hard_qualification_cli_reports_partial_receipt_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    receipt_path = tmp_path / "receipt.incomplete-1234.json"
+    receipt = {
+        "status": "INCOMPLETE",
+        "measurement_status": "PARTIAL",
+        "denominator": dict(hard.EXPECTED_DENOMINATOR),
+        "completed": {"edits": 3, "create_journeys": 0, "logical_create_turns": 0},
+        "terminal_gate": {
+            "status": "FAILED",
+            "phase": "edit",
+            "code": "HARD_QUALIFICATION_HTTP",
+        },
+        "qualification_green": False,
+        "receipt_sha256": "sha256:" + "a" * 64,
+        "receipt_path": str(receipt_path),
+    }
+    monkeypatch.setattr(cli, "run_hard_qualification", lambda **_kwargs: receipt)
+
+    result = cli.main(
+        [
+            "brain-hard-qualification",
+            "--config",
+            str(CONFIG),
+            "--corpus",
+            str(CORPUS),
+            "--plan",
+            str(PLAN),
+            "--output",
+            str(tmp_path / "receipt.json"),
+            "--authorize-local-model-execution",
+        ]
+    )
+
+    assert result == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "INCOMPLETE"
+    assert payload["measurement_status"] == "PARTIAL"
+    assert payload["receipt_path"] == str(receipt_path)
+    assert payload["terminal_gate"]["code"] == "HARD_QUALIFICATION_HTTP"
