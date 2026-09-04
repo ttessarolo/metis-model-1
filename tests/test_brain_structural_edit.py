@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -284,6 +284,7 @@ def _lease(workspace_source: str = SOURCE) -> Any:
     return SimpleNamespace(
         snapshot=SimpleNamespace(
             revision=_sha("snapshot"),
+            toolchain_binding=_sha("toolchain"),
             source_map=lambda: {"demo.metis": workspace_source},
         )
     )
@@ -296,6 +297,7 @@ def _record(*, basis_source: str | None = None) -> Any:
 def _reviewed_grounding(catalog: str, field: str, literal: str) -> dict[str, Any]:
     return {
         "semantic_source_revision": _sha("semantic-source"),
+        "catalogs": [catalog],
         "selections": [
             {
                 "catalog": catalog,
@@ -312,6 +314,42 @@ def _reviewed_grounding(catalog: str, field: str, literal: str) -> dict[str, Any
             }
         ],
     }
+
+
+def _exact_resolver_from_grounding(grounding: Mapping[str, Any]) -> Any:
+    def resolve(*, lease: Any, identities: tuple[tuple[str, str, str], ...]) -> dict[str, Any]:
+        selections = tuple(
+            dict(item)
+            for item in grounding.get("selections", [])
+            if isinstance(item, Mapping)
+            and (item.get("catalog"), item.get("field"), item.get("literal")) in identities
+        )
+        resolutions = tuple(
+            dict(item)
+            for item in grounding.get("resolutions", [])
+            if isinstance(item, Mapping)
+            and (item.get("catalog"), item.get("field"), item.get("literal")) in identities
+        )
+        return {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": lease.snapshot.revision,
+            "semantic_source_revision": grounding.get("semantic_source_revision"),
+            "toolchain_binding": lease.snapshot.toolchain_binding,
+            "index_revision": _sha("test-index"),
+            "outcomes": tuple(
+                {
+                    "catalog": catalog,
+                    "field": field,
+                    "literal": literal,
+                    "status": "reviewed_exact",
+                }
+                for catalog, field, literal in identities
+            ),
+            "selections": selections,
+            "resolutions": resolutions,
+        }
+
+    return resolve
 
 
 def _compiler(specs: list[dict[str, Any]], source: str = SOURCE, **kwargs: Any) -> FakeCompiler:
@@ -608,6 +646,7 @@ def test_block_argument_addition_requires_reviewed_literal() -> None:
         ],
         source,
     )
+    grounding = _reviewed_grounding("catalog.video", "genres", "Documentario")
     result = render_structural_existing(
         compiler=compiler,
         lease=_lease(source),
@@ -616,8 +655,9 @@ def test_block_argument_addition_requires_reviewed_literal() -> None:
             source,
         ),
         record=_record(),
-        grounding=_reviewed_grounding("catalog.video", "genres", "Documentario"),
+        grounding=grounding,
         source=source,
+        reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
     )
     assert result is not None
     assert result.candidate.source == source.replace("Film,Serie", "Film,Serie,Documentario")
@@ -637,6 +677,7 @@ def test_block_argument_add_action_is_bound_to_exact_delimited_transition() -> N
         ],
         source,
     )
+    grounding = _reviewed_grounding("catalog.video", "genres", "Documentario")
     result = render_structural_existing(
         compiler=compiler,
         lease=_lease(source),
@@ -645,8 +686,9 @@ def test_block_argument_add_action_is_bound_to_exact_delimited_transition() -> N
             source,
         ),
         record=_record(),
-        grounding=_reviewed_grounding("catalog.video", "genres", "Documentario"),
+        grounding=grounding,
         source=source,
+        reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
     )
 
     assert result is not None
@@ -709,6 +751,7 @@ def test_block_argument_authority_must_cover_every_compiler_binding() -> None:
         ],
         source,
     )
+    grounding = _reviewed_grounding("catalog.video", "genre_a", "Documentario")
     with pytest.raises(BrainError) as error:
         render_structural_existing(
             compiler=compiler,
@@ -718,17 +761,9 @@ def test_block_argument_authority_must_cover_every_compiler_binding() -> None:
                 source,
             ),
             record=_record(),
-            grounding={
-                "resolutions": [
-                    {
-                        "review_state": "reviewed",
-                        "catalog": "catalog.video",
-                        "field": "genre_a",
-                        "literal": "Documentario",
-                    }
-                ]
-            },
+            grounding=grounding,
             source=source,
+            reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
         )
     assert error.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
     assert compiler.lossless_apply_calls == 0
@@ -768,6 +803,7 @@ def test_block_argument_review_roster_fails_before_apply(mutation: str) -> None:
             record=_record(),
             grounding=grounding,
             source=source,
+            reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
         )
     assert error.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
     assert compiler.lossless_apply_calls == 0
@@ -796,6 +832,7 @@ def test_block_argument_requires_and_retains_every_reviewed_compiler_binding() -
     second = _reviewed_grounding("catalog.video", "genre_secondary", "Documentario")
     grounding = {
         "semantic_source_revision": first["semantic_source_revision"],
+        "catalogs": ["catalog.video"],
         "selections": first["selections"] + second["selections"],
         "resolutions": first["resolutions"] + second["resolutions"],
     }
@@ -810,6 +847,7 @@ def test_block_argument_requires_and_retains_every_reviewed_compiler_binding() -
         record=_record(),
         grounding=grounding,
         source=source,
+        reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
     )
 
     assert result is not None
@@ -842,6 +880,7 @@ def test_string_object_cue_prevents_label_and_argument_collision() -> None:
         ],
         source,
     )
+    grounding = _reviewed_grounding("catalog.video", "genre", "Avventura")
     result = render_structural_existing(
         compiler=compiler,
         lease=_lease(source),
@@ -850,12 +889,211 @@ def test_string_object_cue_prevents_label_and_argument_collision() -> None:
             source,
         ),
         record=_record(),
-        grounding=_reviewed_grounding("catalog.video", "genre", "Avventura"),
+        grounding=grounding,
         source=source,
+        reviewed_value_resolver=_exact_resolver_from_grounding(grounding),
     )
     assert result is not None
     assert 'title "Azione"' in result.candidate.source
     assert 'args "Azione,Avventura"' in result.candidate.source
+
+
+def test_block_argument_uses_compiler_derived_exact_reviewed_resolver_before_apply() -> None:
+    source = 'endpoint demo {\n  args "Azione";\n}\n'
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione"',
+                "old_value": {"type": "string", "argument": "genre", "value": "Azione"},
+                "name": "args",
+                "scope_kind": "use_instance",
+                "authority": {"bindings": [{"catalog": "catalog.video", "field": "genre"}]},
+            }
+        ],
+        source,
+    )
+    grounding = {
+        "semantic_source_revision": _sha("semantic-source"),
+        "catalogs": ["catalog.video"],
+        "selections": [],
+        "resolutions": [],
+    }
+    observed: list[tuple[tuple[str, str, str], ...]] = []
+
+    def resolve(*, lease: Any, identities: tuple[tuple[str, str, str], ...]) -> dict[str, Any]:
+        observed.append(identities)
+        assert lease.snapshot.revision == _sha("snapshot")
+        return {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": lease.snapshot.revision,
+            "semantic_source_revision": _sha("semantic-source"),
+            "toolchain_binding": lease.snapshot.toolchain_binding,
+            "index_revision": _sha("index"),
+            "outcomes": (
+                {
+                    "catalog": "catalog.video",
+                    "field": "genre",
+                    "literal": "Avventura",
+                    "status": "reviewed_exact",
+                },
+            ),
+            "selections": (
+                {
+                    "catalog": "catalog.video",
+                    "field": "genre",
+                    "literal": "Avventura",
+                    "type": "keyword",
+                    "modifiers": [],
+                },
+            ),
+            "resolutions": (
+                {
+                    "concept": "Avventura",
+                    "catalog": "catalog.video",
+                    "field": "genre",
+                    "literal": "Avventura",
+                    "review_state": "reviewed",
+                },
+            ),
+        }
+
+    result = render_structural_existing(
+        compiler=compiler,
+        lease=_lease(source),
+        request=_request(
+            "per la lista genere sostituisci `Azione` con `Azione,Avventura` nell'istanza args.",
+            source,
+        ),
+        record=_record(),
+        grounding=grounding,
+        source=source,
+        reviewed_value_resolver=resolve,
+    )
+
+    assert result is not None
+    assert observed == [(("catalog.video", "genre", "Avventura"),)]
+    assert result.semantic_delta is not None
+    assert result.semantic_delta["compiler_binding_identities"] == (
+        ("catalog.video", "genre", "Avventura"),
+    )
+    assert result.semantic_delta["reviewed_selection_identities"] == (
+        ("catalog.video", "genre", "Avventura"),
+    )
+    assert result.semantic_delta["exact_authority"]["index_revision"] == _sha("index")
+    assert compiler.lossless_apply_calls == 1
+    assert grounding["selections"] == []
+
+
+def test_block_argument_rejects_raw_reviewed_grounding_without_exact_resolver() -> None:
+    source = 'endpoint demo {\n  args "Azione";\n}\n'
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione"',
+                "old_value": {"type": "string", "argument": "genre", "value": "Azione"},
+                "name": "args",
+                "scope_kind": "use_instance",
+                "authority": {"bindings": [{"catalog": "catalog.video", "field": "genre"}]},
+            }
+        ],
+        source,
+    )
+
+    with pytest.raises(BrainError) as raised:
+        render_structural_existing(
+            compiler=compiler,
+            lease=_lease(source),
+            request=_request(
+                "per la lista genere sostituisci `Azione` con "
+                "`Azione,Avventura` nell'istanza args.",
+                source,
+            ),
+            record=_record(),
+            grounding=_reviewed_grounding("catalog.video", "genre", "Avventura"),
+            source=source,
+        )
+
+    assert raised.value.code == "STRUCTURAL_EDIT_AUTHORITY_UNAVAILABLE"
+    assert compiler.lossless_apply_calls == 0
+
+
+def test_exact_reviewed_resolver_failure_happens_before_permit_and_apply() -> None:
+    source = 'endpoint demo {\n  args "Azione";\n}\n'
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione"',
+                "old_value": {"type": "string", "argument": "genre", "value": "Azione"},
+                "name": "args",
+                "scope_kind": "use_instance",
+                "authority": {"bindings": [{"catalog": "catalog.video", "field": "genre"}]},
+            }
+        ],
+        source,
+    )
+
+    def missing(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": _sha("snapshot"),
+            "semantic_source_revision": _sha("semantic-source"),
+            "toolchain_binding": _sha("toolchain"),
+            "index_revision": _sha("index"),
+            "outcomes": (
+                {
+                    "catalog": "catalog.video",
+                    "field": "genre",
+                    "literal": "Avventura",
+                    "status": "reviewed_exact",
+                },
+            ),
+            "selections": (),
+            "resolutions": (),
+        }
+
+    with pytest.raises(BrainError) as raised:
+        render_structural_existing(
+            compiler=compiler,
+            lease=_lease(source),
+            request=_request(
+                "per la lista genere sostituisci `Azione` con "
+                "`Azione,Avventura` nell'istanza args.",
+                source,
+            ),
+            record=_record(),
+            grounding={
+                "semantic_source_revision": _sha("semantic-source"),
+                "catalogs": ["catalog.video"],
+                "selections": [],
+                "resolutions": [],
+            },
+            source=source,
+            reviewed_value_resolver=missing,
+        )
+    assert raised.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
+    assert compiler.lossless_apply_calls == 0
+
+
+def test_nonsemantic_structural_edit_never_calls_exact_value_resolver() -> None:
+    compiler = _compiler(_takes_and_limit_specs()[:1])
+
+    def unexpected(**_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("numeric edit must not resolve a catalog value")
+
+    result = render_structural_existing(
+        compiler=compiler,
+        lease=_lease(),
+        request=_request("porta la take da 10 a 20."),
+        record=_record(),
+        grounding={},
+        source=SOURCE,
+        reviewed_value_resolver=unexpected,
+    )
+    assert result is not None
+    assert compiler.lossless_apply_calls == 1
 
 
 def test_stale_base_hash_fails_closed() -> None:
@@ -2261,6 +2499,199 @@ def test_block_argument_source_witness_cannot_replace_reviewed_authority() -> No
             source=source,
         )
     assert error.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
+    assert compiler.lossless_apply_calls == 0
+
+
+def test_block_argument_source_witness_covers_only_reviewed_none_domain_binding() -> None:
+    source = 'endpoint demo {\n  target "Azione";\n  witness "Azione,Avventura";\n}\n'
+    bindings = [
+        {"catalog": "catalog.video", "field": "genre"},
+        {"catalog": "catalog.video", "field": "primary_genre"},
+    ]
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione"',
+                "old_value": {"type": "string", "argument": "genre", "value": "Azione"},
+                "name": "target",
+                "authority": {"bindings": bindings},
+            },
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione,Avventura"',
+                "old_value": {
+                    "type": "string",
+                    "argument": "genre",
+                    "value": "Azione,Avventura",
+                },
+                "name": "witness",
+                "authority": {"bindings": bindings},
+            },
+        ],
+        source,
+    )
+
+    def resolve(*, lease: Any, identities: tuple[tuple[str, str, str], ...]) -> dict[str, Any]:
+        assert identities == (
+            ("catalog.video", "genre", "Avventura"),
+            ("catalog.video", "primary_genre", "Avventura"),
+        )
+        reviewed = {
+            "catalog": "catalog.video",
+            "field": "genre",
+            "literal": "Avventura",
+        }
+        return {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": lease.snapshot.revision,
+            "semantic_source_revision": _sha("semantic-source"),
+            "toolchain_binding": lease.snapshot.toolchain_binding,
+            "index_revision": _sha("index"),
+            "outcomes": (
+                {**reviewed, "status": "reviewed_exact"},
+                {
+                    "catalog": "catalog.video",
+                    "field": "primary_genre",
+                    "literal": "Avventura",
+                    "status": "witness_eligible_absent",
+                },
+            ),
+            "selections": ({**reviewed, "type": "keyword", "modifiers": []},),
+            "resolutions": ({**reviewed, "review_state": "reviewed"},),
+        }
+
+    result = render_structural_existing(
+        compiler=compiler,
+        lease=_lease(source),
+        request=_request(
+            "per la lista target sostituisci `Azione` con `Azione,Avventura`.",
+            source,
+        ),
+        record=_record(),
+        grounding={
+            "semantic_source_revision": _sha("semantic-source"),
+            "catalogs": ["catalog.video"],
+            "selections": [],
+            "resolutions": [],
+        },
+        source=source,
+        reviewed_value_resolver=resolve,
+    )
+
+    assert result is not None
+    assert 'target "Azione,Avventura"' in result.candidate.source
+    assert result.semantic_delta is not None
+    assert result.semantic_delta["compiler_binding_identities"] == (
+        ("catalog.video", "genre", "Avventura"),
+        ("catalog.video", "primary_genre", "Avventura"),
+    )
+    assert result.semantic_delta["reviewed_selection_identities"] == (
+        ("catalog.video", "genre", "Avventura"),
+    )
+    assert compiler.lossless_apply_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("different_argument", "STRUCTURAL_EDIT_AUTHORITY_MISSING"),
+        ("partial_roster", "STRUCTURAL_EDIT_AUTHORITY_MISSING"),
+        ("reordered_roster", "EDIT_SURFACE_INVALID"),
+        ("literal_substring", "STRUCTURAL_EDIT_AUTHORITY_MISSING"),
+    ],
+)
+def test_block_argument_source_witness_requires_exact_contract(
+    mutation: str,
+    expected_code: str,
+) -> None:
+    witness_value = "Azione,Avventurale" if mutation == "literal_substring" else "Azione,Avventura"
+    source = f'endpoint demo {{\n  target "Azione";\n  witness "{witness_value}";\n}}\n'
+    bindings = [
+        {"catalog": "catalog.video", "field": "genre"},
+        {"catalog": "catalog.video", "field": "primary_genre"},
+    ]
+    witness_bindings = (
+        bindings[:1]
+        if mutation == "partial_roster"
+        else list(reversed(bindings))
+        if mutation == "reordered_roster"
+        else bindings
+    )
+    witness_argument = "other_genre" if mutation == "different_argument" else "genre"
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Azione"',
+                "old_value": {"type": "string", "argument": "genre", "value": "Azione"},
+                "name": "target",
+                "authority": {"bindings": bindings},
+            },
+            {
+                "primitive": "block_argument_list",
+                "token": f'"{witness_value}"',
+                "old_value": {
+                    "type": "string",
+                    "argument": witness_argument,
+                    "value": witness_value,
+                },
+                "name": "witness",
+                "authority": {"bindings": witness_bindings},
+            },
+        ],
+        source,
+    )
+
+    def resolve(*, lease: Any, identities: tuple[tuple[str, str, str], ...]) -> dict[str, Any]:
+        assert identities == (
+            ("catalog.video", "genre", "Avventura"),
+            ("catalog.video", "primary_genre", "Avventura"),
+        )
+        reviewed = {
+            "catalog": "catalog.video",
+            "field": "genre",
+            "literal": "Avventura",
+        }
+        return {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": lease.snapshot.revision,
+            "semantic_source_revision": _sha("semantic-source"),
+            "toolchain_binding": lease.snapshot.toolchain_binding,
+            "index_revision": _sha("index"),
+            "outcomes": (
+                {**reviewed, "status": "reviewed_exact"},
+                {
+                    "catalog": "catalog.video",
+                    "field": "primary_genre",
+                    "literal": "Avventura",
+                    "status": "witness_eligible_absent",
+                },
+            ),
+            "selections": ({**reviewed, "type": "keyword", "modifiers": []},),
+            "resolutions": ({**reviewed, "review_state": "reviewed"},),
+        }
+
+    with pytest.raises(BrainError) as raised:
+        render_structural_existing(
+            compiler=compiler,
+            lease=_lease(source),
+            request=_request(
+                "per la lista target sostituisci `Azione` con `Azione,Avventura`.",
+                source,
+            ),
+            record=_record(),
+            grounding={
+                "semantic_source_revision": _sha("semantic-source"),
+                "catalogs": ["catalog.video"],
+                "selections": [],
+                "resolutions": [],
+            },
+            source=source,
+            reviewed_value_resolver=resolve,
+        )
+
+    assert raised.value.code == expected_code
     assert compiler.lossless_apply_calls == 0
 
 

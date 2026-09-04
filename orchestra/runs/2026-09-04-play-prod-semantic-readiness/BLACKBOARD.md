@@ -335,7 +335,56 @@ grounding, compiler, tenant or no-Apply gate.
   gaps=0`; focused structural/orchestrator/qualification tests, Ruff
   check/format and `git diff --check` are green.  The final sealed 10/10 HTTP
   replay remains the only open existing-edit closure gate.
+- FACT [L1019] — The second sealed real-loopback replay completed all ten edits
+  in 199.878 s and improved the public result from 2/10 to 8/10 `PASS_DRAFT`.
+  Cases 1, 2, 3, 4, 5, 6, 8 and 10 passed on the first candidate compilation
+  with exact lossless source and resolved terminal grounding.  Case 7 rendered
+  the exact requested label edit but failed its subsequent full-source compile;
+  case 9 failed before apply because raw structural prose did not itself produce
+  reviewed authority for the newly added `Avventura` argument.  Result digest
+  `sha256:c82f7c566ac75a270b5a1a2fcfd54f6834ee1434c2ef6d51495b3b21dda7d1f5`;
+  model guard `sha256:e4c2e465b21cdffc10c90c090bd331e0d1350cd3a84af9c311e7510de9daf517`;
+  tenant guard `sha256:eec0ba8bfaefc79fcd66983390bea5f3384801bd48bd252a2bbb2bd377b6c716`.
 - STOP [L0] — The diagnostic v2 CREATE journeys remain non-promotable: typed
   incremental CREATE/refinement authority and a cumulative exact structural
   oracle are still required.  Existing-edit closure must not be reported as
   completion or accuracy evidence for complex create-from-zero journeys.
+- FIX [L1022] — Case 7's compiler rejection was a false lineage assumption:
+  context/list predicates such as `@ts` under `context.user.video_watched_w_ts`
+  are now preserved with `catalog=null` instead of being treated as malformed
+  catalog predicates.  Mismatched catalog lineage still fails closed.  The
+  runner was reformatted with the pinned Metis formatter and resealed as
+  `sha256:2ab8ebdf1fe74e29807d7ed1cd46e5b82de1cc40fc937f15975005f21738ad34`.
+- FIX [L1023] — Case 9 exposed one legitimate multi-binding parameter:
+  `genere` feeds both `genere_mcm` and `genere_mcm_primario`.  Exact schema-2
+  authority now classifies every compiler identity.  Each added literal still
+  requires at least one exact reviewed value; a remaining reviewed field with
+  undeclared domain is witness-eligible only when another pre-edit BlockArg in
+  the same endpoint has the exact CSV member, argument name and complete
+  binding roster.  Finite/open domains, draft/unannotated values, witness-only
+  authority, substring/alias matches and partial rosters fail closed.  Witness
+  edit identity plus property preimage are sealed privately; terminal grounding
+  publishes only the reviewed anchor and never fabricates review for the
+  witness-covered field.
+- FACT [L1022-L1023] — Real read-only loopback replays after these fixes report
+  case 7 `play.tvod_multiple_block = PASS_DRAFT` and case 9
+  `play.inf_multiple_block_film_serie = PASS_DRAFT`, both with exact source and
+  no failures.  `Avventura` was already reviewed under
+  `play-prod-v2.video.genere_mcm`; the compatible `genere_mcm_primario` use is
+  proven by the compiler-owned pre-existing anonymous occurrence.  No tenant
+  or catalog file was changed.  The final sealed ten-case replay remains the
+  promotion evidence required by L1019.
+- FIX [L1024] — Compiler-derived value authority is now mandatory for every
+  semantic structural edit: absence of the exact schema-2 resolver fails with
+  `STRUCTURAL_EDIT_AUTHORITY_UNAVAILABLE` before permit or apply, even when raw
+  natural-language grounding happens to contain a reviewed value.  The final
+  adversarial witness matrix also proves fail-closed behavior for a different
+  argument name, a partial or reordered binding roster, and a literal present
+  only as a substring; all four mutations execute zero apply calls.
+- DONE [L1022-L1024] — Final pre-seal Brain roster
+  `in=1147 out=1147 distinct=1147 gaps=0`; Ruff check/format and
+  `git diff --check` are green.  Independent authority audit reports
+  P0=0/P1=0/P2=0.  No tenant/catalog enrichment is required by this ten-edit
+  denominator: its sole added literal, `Avventura`, already has exact reviewed
+  authority.  L1019's clean-commit sealed HTTP replay remains the only open
+  existing-edit promotion gate.

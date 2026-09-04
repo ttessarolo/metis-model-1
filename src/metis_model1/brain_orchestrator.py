@@ -36,6 +36,9 @@ from metis_model1.brain_model_runtime import BrainModelRuntime, ModelCandidate, 
 from metis_model1.brain_output_contract import OutputRequestSurface, parse_output_request
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import BrainRetriever, RetrievalResult
+from metis_model1.brain_semantic_retrieval import (
+    EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT,
+)
 from metis_model1.brain_sessions import SessionManager
 from metis_model1.brain_structural_edit import (
     STRUCTURAL_LOSSLESS_PROOF_CONTRACT,
@@ -224,6 +227,13 @@ class BrainOrchestrator:
                 "inference_started",
                 "Preparazione locale del draft",
             )
+            reviewed_value_resolver = (
+                getattr(self._retriever, "resolve_exact_reviewed_values", None)
+                if structural_requested
+                else None
+            )
+            if not callable(reviewed_value_resolver):
+                reviewed_value_resolver = None
             with record.heartbeat_while(
                 phase="inference_running",
                 label="Verifica lossless del compilatore in corso",
@@ -236,6 +246,7 @@ class BrainOrchestrator:
                         record=record,
                         grounding=retrieved.grounding,
                         source=previous,
+                        reviewed_value_resolver=reviewed_value_resolver,
                     )
                     if structural_requested
                     else render_lossless_existing(
@@ -903,9 +914,11 @@ class BrainOrchestrator:
         delta_fields = {
             "contract",
             "all_operator_semantics_consumed",
+            "compiler_binding_identities",
             "reviewed_selection_identities",
             "semantic_source_revision",
             "context_revision",
+            "exact_authority",
         }
         source_sha256 = bytes_sha256(candidate.source.encode("utf-8"))
         if (
@@ -933,9 +946,19 @@ class BrainOrchestrator:
                 503,
                 "compiler-owned structural grounding certificate is invalid",
             )
+        compiler_identities = semantic_delta.get("compiler_binding_identities")
         identities = semantic_delta.get("reviewed_selection_identities")
         if (
-            not isinstance(identities, tuple)
+            not isinstance(compiler_identities, tuple)
+            or len(compiler_identities) > 32
+            or any(
+                not isinstance(identity, tuple)
+                or len(identity) != 3
+                or any(not isinstance(item, str) or not item for item in identity)
+                for identity in compiler_identities
+            )
+            or len(compiler_identities) != len(set(compiler_identities))
+            or not isinstance(identities, tuple)
             or len(identities) > 32
             or any(
                 not isinstance(identity, tuple)
@@ -944,26 +967,105 @@ class BrainOrchestrator:
                 for identity in identities
             )
             or len(identities) != len(set(identities))
+            or any(identity not in compiler_identities for identity in identities)
         ):
             raise BrainError(
                 "STRUCTURAL_GROUNDING_INVALID",
                 503,
                 "compiler-owned semantic delta roster is invalid",
             )
-        raw_selections = retrieved.grounding.get("selections", [])
-        raw_resolutions = retrieved.grounding.get("resolutions", [])
-        if not isinstance(raw_selections, list) or not isinstance(raw_resolutions, list):
-            raise BrainError(
-                "STRUCTURAL_GROUNDING_INVALID",
-                503,
-                "reviewed grounding roster is invalid",
-            )
+        exact_authority = semantic_delta.get("exact_authority")
+        if compiler_identities:
+            authority_fields = {
+                "contract",
+                "context_revision",
+                "semantic_source_revision",
+                "toolchain_binding",
+                "index_revision",
+                "outcomes",
+                "selections",
+                "resolutions",
+            }
+            context_toolchain = retrieved.context.get("toolchain_binding")
+            if (
+                not isinstance(exact_authority, Mapping)
+                or set(exact_authority) != authority_fields
+                or exact_authority.get("contract") != EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT
+                or exact_authority.get("context_revision") != request.expected_context_revision
+                or exact_authority.get("semantic_source_revision")
+                != retrieved.semantic_source_revision
+                or not isinstance(context_toolchain, str)
+                or exact_authority.get("toolchain_binding") != context_toolchain
+                or not isinstance(exact_authority.get("index_revision"), str)
+                or _SHA256_RE.fullmatch(exact_authority["index_revision"]) is None
+                or not isinstance(exact_authority.get("outcomes"), tuple)
+                or not isinstance(exact_authority.get("selections"), tuple)
+                or not isinstance(exact_authority.get("resolutions"), tuple)
+            ):
+                raise BrainError(
+                    "STRUCTURAL_GROUNDING_INVALID",
+                    503,
+                    "exact reviewed value authority is invalid",
+                )
+            authority_selections = exact_authority["selections"]
+            authority_resolutions = exact_authority["resolutions"]
+            authority_outcomes = exact_authority["outcomes"]
+            outcome_identities: dict[tuple[str, str, str], str] = {}
+            for outcome in authority_outcomes:
+                if not isinstance(outcome, Mapping):
+                    raise BrainError(
+                        "STRUCTURAL_GROUNDING_INVALID",
+                        503,
+                        "exact reviewed value outcome is invalid",
+                    )
+                identity = (
+                    outcome.get("catalog"),
+                    outcome.get("field"),
+                    outcome.get("literal"),
+                )
+                status = outcome.get("status")
+                if (
+                    any(not isinstance(item, str) or not item for item in identity)
+                    or identity in outcome_identities
+                    or status not in {"reviewed_exact", "witness_eligible_absent"}
+                ):
+                    raise BrainError(
+                        "STRUCTURAL_GROUNDING_INVALID",
+                        503,
+                        "exact reviewed value outcome roster is invalid",
+                    )
+                outcome_identities[identity] = status
+            if {
+                identity
+                for identity, status in outcome_identities.items()
+                if status == "reviewed_exact"
+            } != set(identities):
+                raise BrainError(
+                    "STRUCTURAL_GROUNDING_INVALID",
+                    503,
+                    "reviewed semantic delta differs from exact authority outcomes",
+                )
+            if set(outcome_identities) != set(compiler_identities):
+                raise BrainError(
+                    "STRUCTURAL_GROUNDING_INVALID",
+                    503,
+                    "compiler binding delta differs from exact authority outcomes",
+                )
+        else:
+            if exact_authority is not None:
+                raise BrainError(
+                    "STRUCTURAL_GROUNDING_INVALID",
+                    503,
+                    "empty semantic delta unexpectedly carries value authority",
+                )
+            authority_selections = ()
+            authority_resolutions = ()
         selections: list[dict[str, Any]] = []
         resolutions: list[dict[str, Any]] = []
         for catalog, field, literal in identities:
             selected = [
                 item
-                for item in raw_selections
+                for item in authority_selections
                 if isinstance(item, Mapping)
                 and item.get("catalog") == catalog
                 and item.get("field") == field
@@ -971,7 +1073,7 @@ class BrainOrchestrator:
             ]
             reviewed = [
                 item
-                for item in raw_resolutions
+                for item in authority_resolutions
                 if isinstance(item, Mapping)
                 and item.get("review_state") == "reviewed"
                 and item.get("catalog") == catalog
@@ -984,8 +1086,24 @@ class BrainOrchestrator:
                     503,
                     "semantic delta is not backed by one exact reviewed grounding",
                 )
-            selections.append(dict(selected[0]))
-            resolutions.append(dict(reviewed[0]))
+            public_selection = {
+                "catalog": catalog,
+                "field": field,
+                "literal": literal,
+            }
+            for key in ("domain", "matched_by", "type", "modifiers"):
+                if key in selected[0]:
+                    public_selection[key] = deepcopy(selected[0][key])
+            selections.append(public_selection)
+            resolutions.append(
+                {
+                    "concept": literal,
+                    "catalog": catalog,
+                    "field": field,
+                    "literal": literal,
+                    "review_state": "reviewed",
+                }
+            )
         catalogs = retrieved.grounding.get("catalogs", [])
         if not isinstance(catalogs, list) or any(
             not isinstance(item, str) or not item for item in catalogs
@@ -995,7 +1113,7 @@ class BrainOrchestrator:
                 503,
                 "structural grounding catalog roster is invalid",
             )
-        if any(catalog not in catalogs for catalog, _field, _literal in identities):
+        if any(catalog not in catalogs for catalog, _field, _literal in compiler_identities):
             raise BrainError(
                 "STRUCTURAL_GROUNDING_INVALID",
                 503,

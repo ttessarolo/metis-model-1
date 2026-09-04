@@ -1616,9 +1616,11 @@ def test_structural_existing_path_skips_baseline_compile_and_model(
     semantic_delta = {
         "contract": "metis-brain-compiler-owned-semantic-delta/v1",
         "all_operator_semantics_consumed": True,
+        "compiler_binding_identities": (),
         "reviewed_selection_identities": (),
         "semantic_source_revision": semantic,
         "context_revision": context,
+        "exact_authority": None,
     }
     monkeypatch.setattr(
         orchestrator_module,
@@ -1747,7 +1749,7 @@ def test_structural_terminal_grounding_retains_only_exact_reviewed_delta() -> No
         "literal": "Azione",
     }
     retrieved = RetrievalResult(
-        context={},
+        context={"toolchain_binding": "sha256:" + "d" * 64},
         grounding={
             "status": "unsupported",
             "catalogs": ["play-prod-v2.video"],
@@ -1774,9 +1776,31 @@ def test_structural_terminal_grounding_retains_only_exact_reviewed_delta() -> No
     delta = {
         "contract": "metis-brain-compiler-owned-semantic-delta/v1",
         "all_operator_semantics_consumed": True,
+        "compiler_binding_identities": (
+            ("play-prod-v2.video", "genere_mcm", "Avventura"),
+            ("play-prod-v2.video", "genere_mcm_primario", "Avventura"),
+        ),
         "reviewed_selection_identities": (("play-prod-v2.video", "genere_mcm", "Avventura"),),
         "semantic_source_revision": semantic,
         "context_revision": context,
+        "exact_authority": {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": context,
+            "semantic_source_revision": semantic,
+            "toolchain_binding": "sha256:" + "d" * 64,
+            "index_revision": "sha256:" + "e" * 64,
+            "outcomes": (
+                {**reviewed, "status": "reviewed_exact"},
+                {
+                    "catalog": "play-prod-v2.video",
+                    "field": "genere_mcm_primario",
+                    "literal": "Avventura",
+                    "status": "witness_eligible_absent",
+                },
+            ),
+            "selections": ({**reviewed, "type": "keyword"},),
+            "resolutions": ({**reviewed, "review_state": "reviewed"},),
+        },
     }
 
     final = BrainOrchestrator._structural_terminal_grounding(
@@ -1790,7 +1814,9 @@ def test_structural_terminal_grounding_retains_only_exact_reviewed_delta() -> No
     assert final is not None
     assert final["status"] == "resolved"
     assert final["selections"] == [{**reviewed, "type": "keyword"}]
-    assert final["resolutions"] == [{**reviewed, "review_state": "reviewed"}]
+    assert final["resolutions"] == [
+        {**reviewed, "concept": "Avventura", "review_state": "reviewed"}
+    ]
     assert final["unresolved"] == []
     assert retrieved.grounding["status"] == "unsupported"
     assert retrieved.grounding["selections"][-1] == incidental
@@ -1812,7 +1838,7 @@ def test_structural_terminal_grounding_rejects_unreviewed_delta() -> None:
         },
     )
     retrieved = RetrievalResult(
-        context={},
+        context={"toolchain_binding": "sha256:" + "d" * 64},
         grounding={
             "status": "unsupported",
             "catalogs": ["play-prod-v2.video"],
@@ -1833,9 +1859,40 @@ def test_structural_terminal_grounding_rejects_unreviewed_delta() -> None:
     delta = {
         "contract": "metis-brain-compiler-owned-semantic-delta/v1",
         "all_operator_semantics_consumed": True,
+        "compiler_binding_identities": (("play-prod-v2.video", "genere_mcm", "Avventura"),),
         "reviewed_selection_identities": (("play-prod-v2.video", "genere_mcm", "Avventura"),),
         "semantic_source_revision": semantic,
         "context_revision": context,
+        "exact_authority": {
+            "contract": "metis-brain-exact-reviewed-value-authority/v1",
+            "context_revision": context,
+            "semantic_source_revision": semantic,
+            "toolchain_binding": "sha256:" + "d" * 64,
+            "index_revision": "sha256:" + "e" * 64,
+            "outcomes": (
+                {
+                    "catalog": "play-prod-v2.video",
+                    "field": "genere_mcm",
+                    "literal": "Avventura",
+                    "status": "reviewed_exact",
+                },
+            ),
+            "selections": (
+                {
+                    "catalog": "play-prod-v2.video",
+                    "field": "genere_mcm",
+                    "literal": "Avventura",
+                },
+            ),
+            "resolutions": (
+                {
+                    "catalog": "play-prod-v2.video",
+                    "field": "genere_mcm",
+                    "literal": "Avventura",
+                    "review_state": "draft",
+                },
+            ),
+        },
     }
 
     with pytest.raises(BrainError) as raised:

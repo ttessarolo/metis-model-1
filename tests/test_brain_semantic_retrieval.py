@@ -300,6 +300,118 @@ def test_loader_receives_exact_snapshot_and_index_is_bound_to_it() -> None:
     ]
 
 
+def test_exact_reviewed_value_resolver_is_snapshot_bound_and_literal_exact() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(_projection))
+
+    authority = retriever.resolve_exact_reviewed_values(
+        lease=_lease(snapshot),
+        identities=(("video", "genre", "Film"),),
+    )
+
+    assert authority["contract"] == "metis-brain-exact-reviewed-value-authority/v1"
+    assert authority["context_revision"] == snapshot.revision
+    assert authority["semantic_source_revision"] == snapshot.semantic_source_revision()
+    assert authority["toolchain_binding"] == snapshot.toolchain_binding
+    assert authority["index_revision"].startswith("sha256:")
+    assert authority["outcomes"] == (
+        {
+            "catalog": "video",
+            "field": "genre",
+            "literal": "Film",
+            "status": "reviewed_exact",
+        },
+    )
+    assert authority["selections"] == (
+        {
+            "catalog": "video",
+            "field": "genre",
+            "literal": "Film",
+            "domain": {"kind": "enum", "size": 2, "nature": "editorial"},
+            "matched_by": "compiler_exact_reviewed_value",
+            "type": "keyword",
+            "modifiers": [],
+        },
+    )
+    assert authority["resolutions"] == (
+        {
+            "concept": "Film",
+            "catalog": "video",
+            "field": "genre",
+            "literal": "Film",
+            "review_state": "reviewed",
+        },
+    )
+
+
+def test_exact_reviewed_value_resolver_classifies_reviewed_field_without_domain() -> None:
+    authority = Schema2SnapshotRetriever(_bound_loader(_projection)).resolve_exact_reviewed_values(
+        lease=_lease(_snapshot()),
+        identities=(
+            ("video", "genre", "Film"),
+            ("video", "protagonistaSesso", "Donna"),
+        ),
+    )
+
+    assert authority["outcomes"] == (
+        {
+            "catalog": "video",
+            "field": "genre",
+            "literal": "Film",
+            "status": "reviewed_exact",
+        },
+        {
+            "catalog": "video",
+            "field": "protagonistaSesso",
+            "literal": "Donna",
+            "status": "witness_eligible_absent",
+        },
+    )
+    assert len(authority["selections"]) == len(authority["resolutions"]) == 1
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        ("video", "genre", "film"),
+        ("video", "genre", "opera cinematografica"),
+        ("video", "genre", "Sport"),
+        ("video", "genre", "Missing"),
+        ("video", "mood", "Drammatico"),
+    ],
+)
+def test_exact_reviewed_value_resolver_rejects_case_alias_draft_and_missing(
+    identity: tuple[str, str, str],
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        Schema2SnapshotRetriever(_bound_loader(_projection)).resolve_exact_reviewed_values(
+            lease=_lease(_snapshot()),
+            identities=(identity,),
+        )
+    assert raised.value.code == "EXACT_REVIEWED_VALUE_UNAVAILABLE"
+
+
+def test_exact_reviewed_value_resolver_rejects_unreviewed_parent_and_bad_rosters() -> None:
+    projection = _projection()
+    projection["catalogs"][0]["fields"][0]["semantic"]["state"] = "draft"
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: projection))
+    with pytest.raises(BrainError) as raised:
+        retriever.resolve_exact_reviewed_values(
+            lease=_lease(_snapshot()),
+            identities=(("video", "genre", "Film"),),
+        )
+    assert raised.value.code == "EXACT_REVIEWED_VALUE_UNAVAILABLE"
+
+    valid = ("video", "genre", "Film")
+    for identities in ((), (valid, valid), (("video", "genre"),)):
+        with pytest.raises(BrainError) as malformed:
+            Schema2SnapshotRetriever(_bound_loader(_projection)).resolve_exact_reviewed_values(
+                lease=_lease(_snapshot()),
+                identities=identities,  # type: ignore[arg-type]
+            )
+        assert malformed.value.code == "RETRIEVAL_INVALID"
+
+
 def test_retrieval_preserves_multi_cardinality_in_context_and_grounding() -> None:
     snapshot = _snapshot()
     projection = _projection()

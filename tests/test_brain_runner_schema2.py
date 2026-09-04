@@ -228,6 +228,41 @@ def _real_edit_surface_runner(
     )
 
 
+def _real_candidate_runner(
+    authority: Path,
+    *,
+    endpoint: str,
+) -> subprocess.CompletedProcess[str]:
+    node = os.environ.get("METIS_MODEL1_NODE") or shutil.which("node")
+    if (
+        node is None
+        or not (METIS_TOOLING / "node_modules/tsx").exists()
+        or not (PLAY_PROD_ROOT / "metis.toml").is_file()
+    ):
+        pytest.skip("local pinned Metis/play-prod fixtures are unavailable")
+    runner = authority / "runtime/metis_brain/runner.mts"
+    runner.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(brain_tools.RUNNER_PATH, runner)
+    tooling_link = authority / "tooling"
+    if not tooling_link.exists():
+        tooling_link.symlink_to(METIS_TOOLING, target_is_directory=True)
+    request = {
+        "schema_version": 1,
+        "operation": "compile-candidate",
+        "tenant_root": str(PLAY_PROD_ROOT),
+        "endpoint": endpoint,
+    }
+    return subprocess.run(
+        [node, "--import", "tsx", str(runner)],
+        cwd=authority / "tooling",
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+
+
 COMPLEX_EDIT_SURFACE_SOURCE = """metis 0.43
 catalog demo.video {
   index "video"
@@ -363,6 +398,29 @@ def test_compile_candidate_invalid_identity_returns_no_partial_authority(tmp_pat
         "manifest_sha256",
     ):
         assert payload[field] is None
+
+
+def test_compile_candidate_preserves_non_catalog_context_predicate_lineage(
+    tmp_path: Path,
+) -> None:
+    completed = _real_candidate_runner(
+        tmp_path,
+        endpoint="play.tvod_multiple_block",
+    )
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["status"] == "ok", payload["diagnostics"]
+    contextual = [
+        item
+        for item in payload["manifest"]["fetches"]
+        if item["source"] == {"kind": "context", "ref": "user.video_watched_w_ts"}
+    ]
+    assert len(contextual) == 1
+    assert contextual[0]["catalog"] is None
+    ts = [item for item in contextual[0]["predicates"] if item["field"] == "ts"]
+    assert len(ts) == 1
+    assert ts[0]["catalog"] is None
+    assert ts[0]["operator"] == "within"
 
 
 def test_edit_surface_projects_exact_private_complex_targets_in_source_order(

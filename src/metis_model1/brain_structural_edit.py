@@ -16,7 +16,7 @@ import secrets
 import time
 import unicodedata
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,6 +39,9 @@ from metis_model1.brain_protocol import (
     bounded_source,
     bytes_sha256,
     canonical_sha256,
+)
+from metis_model1.brain_semantic_retrieval import (
+    EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT,
 )
 
 EDIT_SURFACE_CONTRACT = "metis-brain-edit-surface/v1"
@@ -1691,32 +1694,142 @@ def _reviewed_values(grounding: Mapping[str, Any]) -> frozenset[tuple[str, str, 
     return frozenset(values)
 
 
+def _witness_eligible_values(
+    grounding: Mapping[str, Any],
+) -> frozenset[tuple[str, str, str]]:
+    authority = grounding.get("exact_authority")
+    if not isinstance(authority, Mapping):
+        return frozenset()
+    outcomes = authority.get("outcomes")
+    if not isinstance(outcomes, tuple):
+        return frozenset()
+    return frozenset(
+        (item["catalog"], item["field"], item["literal"])
+        for item in outcomes
+        if isinstance(item, Mapping)
+        and item.get("status") == "witness_eligible_absent"
+        and isinstance(item.get("catalog"), str)
+        and isinstance(item.get("field"), str)
+        and isinstance(item.get("literal"), str)
+    )
+
+
 def _block_argument_grants(
     *,
     replacement: _Replacement,
     items: Sequence[Mapping[str, Any]],
     reviewed: frozenset[tuple[str, str, str]],
+    witness_eligible: frozenset[tuple[str, str, str]],
 ) -> tuple[tuple[str, str, str, str, str | None], ...]:
-    """Require reviewed semantic authority for every compiler binding."""
+    """Require review plus exact compiler-owned compatibility evidence.
+
+    One block argument can deliberately feed alternative fields in the same
+    template (for example a primary-genre fetch followed by an aggregate-genre
+    fetch).  A new literal still needs exact reviewed authority on at least one
+    compiler binding.  Any remaining binding is admitted only when the same
+    literal already occurs in another argument occurrence with the identical
+    argument name and complete binding roster.  Thus source text can prove
+    compatibility, but can never replace semantic review by itself.
+    """
 
     old_items = [part.strip() for part in str(replacement.item["old_value"]["value"]).split(",")]
     new_items = [part.strip() for part in str(replacement.new_value).split(",")]
+    if (
+        any(not item for item in (*old_items, *new_items))
+        or len(old_items) != len(set(old_items))
+        or len(new_items) != len(set(new_items))
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "block argument authority requires distinct exact CSV members",
+        )
     added = [part for part in new_items if part not in old_items]
-    # Keep the complete edit-surface roster in this helper's signature: the
-    # caller and permit path share one contract.  It is deliberately not used
-    # as value authority; another source occurrence cannot substitute review.
-    _ = items
+    target_bindings = tuple(
+        (binding["catalog"], binding["field"])
+        for binding in replacement.item["authority"]["bindings"]
+    )
+    argument = replacement.item["old_value"]["argument"]
+
+    def source_witness(literal: str) -> str | None:
+        witnesses: list[str] = []
+        for item in items:
+            if item.get("edit_ref") == replacement.item.get("edit_ref"):
+                continue
+            if item.get("primitive") != "block_argument_list":
+                continue
+            old_value = item.get("old_value")
+            authority = item.get("authority")
+            if not isinstance(old_value, Mapping) or not isinstance(authority, Mapping):
+                continue
+            if old_value.get("argument") != argument:
+                continue
+            candidate_bindings = authority.get("bindings")
+            if not isinstance(candidate_bindings, list):
+                continue
+            candidate_roster = tuple(
+                (binding.get("catalog"), binding.get("field"))
+                for binding in candidate_bindings
+                if isinstance(binding, Mapping)
+            )
+            if (
+                len(candidate_roster) != len(candidate_bindings)
+                or candidate_roster != target_bindings
+            ):
+                continue
+            literals = [part.strip() for part in str(old_value.get("value", "")).split(",")]
+            edit_ref = item.get("edit_ref")
+            property_value = item.get("property")
+            preimage = (
+                property_value.get("preimage_sha256")
+                if isinstance(property_value, Mapping)
+                else None
+            )
+            if (
+                literal in literals
+                and all(literals)
+                and len(literals) == len(set(literals))
+                and isinstance(edit_ref, str)
+                and edit_ref
+                and isinstance(preimage, str)
+                and _HASH_RE.fullmatch(preimage) is not None
+            ):
+                witnesses.append(
+                    canonical_sha256(
+                        {
+                            "edit_ref": edit_ref,
+                            "property_preimage_sha256": preimage,
+                        }
+                    )
+                )
+        return min(witnesses) if witnesses else None
+
     grants: list[tuple[str, str, str, str, str | None]] = []
-    for binding in replacement.item["authority"]["bindings"]:
-        for literal in added:
+    for literal in added:
+        reviewed_bindings = [
+            binding
+            for binding in replacement.item["authority"]["bindings"]
+            if (binding["catalog"], binding["field"], literal) in reviewed
+        ]
+        if not reviewed_bindings:
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "new argument value has no exact reviewed semantic authority",
+            )
+        witness = source_witness(literal)
+        for binding in replacement.item["authority"]["bindings"]:
             key = (binding["catalog"], binding["field"], literal)
-            if key not in reviewed:
+            if key in reviewed:
+                grants.append(("reviewed_catalog_value", *key, None))
+            elif key in witness_eligible and witness is not None:
+                grants.append(("compiler_source_witness", *key, witness))
+            else:
                 raise BrainError(
                     "STRUCTURAL_EDIT_AUTHORITY_MISSING",
                     422,
-                    "new argument value has no reviewed authority for every compiler binding",
+                    "new argument value lacks reviewed or same-contract source authority",
                 )
-            grants.append(("reviewed_catalog_value", *key, None))
     if not added or not grants:
         raise BrainError(
             "STRUCTURAL_EDIT_AUTHORITY_MISSING",
@@ -1724,6 +1837,189 @@ def _block_argument_grants(
             "new argument value has no reviewed or source-witness authority",
         )
     return tuple(grants)
+
+
+def _required_reviewed_identities(
+    replacements: Sequence[_Replacement],
+) -> tuple[tuple[str, str, str], ...]:
+    """Derive exact finite-value requirements only from compiler bindings."""
+
+    identities: list[tuple[str, str, str]] = []
+    for replacement in replacements:
+        if replacement.item["primitive"] != "block_argument_list":
+            continue
+        old_items = [
+            part.strip() for part in str(replacement.item["old_value"]["value"]).split(",")
+        ]
+        new_items = [part.strip() for part in str(replacement.new_value).split(",")]
+        added = [literal for literal in new_items if literal not in old_items]
+        bindings = replacement.item["authority"]["bindings"]
+        for binding in bindings:
+            for literal in added:
+                identity = (binding["catalog"], binding["field"], literal)
+                if identity not in identities:
+                    identities.append(identity)
+                if len(identities) > MAX_EDIT_OPERATIONS:
+                    raise BrainError(
+                        "STRUCTURAL_EDIT_LIMIT",
+                        422,
+                        "reviewed semantic delta exceeds its operation bound",
+                    )
+    return tuple(identities)
+
+
+def _exact_reviewed_grounding(
+    *,
+    grounding: Mapping[str, Any],
+    identities: tuple[tuple[str, str, str], ...],
+    resolver: Callable[..., Mapping[str, Any]] | None,
+    lease: Any,
+) -> dict[str, Any]:
+    """Return a private exact authority view without mutating raw retrieval."""
+
+    raw_catalogs = grounding.get("catalogs", [])
+    if (
+        not isinstance(raw_catalogs, list)
+        or any(not isinstance(item, str) or not item for item in raw_catalogs)
+        or any(catalog not in raw_catalogs for catalog, _field, _literal in identities)
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "compiler-derived catalog value is outside source catalog authority",
+        )
+    if resolver is None:
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_UNAVAILABLE",
+            503,
+            "structural value edit requires the exact schema-2 authority resolver",
+        )
+    try:
+        envelope = resolver(lease=lease, identities=identities)
+    except BrainError:
+        raise
+    except Exception as error:
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_UNAVAILABLE",
+            503,
+            "exact reviewed value resolver failed",
+        ) from error
+    fields = {
+        "contract",
+        "context_revision",
+        "semantic_source_revision",
+        "toolchain_binding",
+        "index_revision",
+        "outcomes",
+        "selections",
+        "resolutions",
+    }
+    if (
+        not isinstance(envelope, Mapping)
+        or set(envelope) != fields
+        or envelope.get("contract") != EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT
+        or envelope.get("context_revision") != lease.snapshot.revision
+        or envelope.get("semantic_source_revision") != grounding.get("semantic_source_revision")
+        or envelope.get("toolchain_binding") != lease.snapshot.toolchain_binding
+        or not isinstance(envelope.get("index_revision"), str)
+        or _HASH_RE.fullmatch(envelope["index_revision"]) is None
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "exact reviewed value authority is stale or invalid",
+        )
+    selections = envelope.get("selections")
+    resolutions = envelope.get("resolutions")
+    outcomes = envelope.get("outcomes")
+    if (
+        not isinstance(selections, tuple)
+        or not isinstance(resolutions, tuple)
+        or not isinstance(outcomes, tuple)
+        or len(selections) != len(resolutions)
+        or len(selections) > len(identities)
+        or len(outcomes) != len(identities)
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "exact reviewed value authority roster differs",
+        )
+    outcome_by_identity: dict[tuple[str, str, str], str] = {}
+    for item in outcomes:
+        if not isinstance(item, Mapping):
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "exact reviewed value outcome roster is invalid",
+            )
+        identity = (item.get("catalog"), item.get("field"), item.get("literal"))
+        status = item.get("status")
+        if (
+            identity not in identities
+            or identity in outcome_by_identity
+            or status not in {"reviewed_exact", "witness_eligible_absent"}
+        ):
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "exact reviewed value outcome is outside compiler bindings",
+            )
+        outcome_by_identity[identity] = status
+    selected_identities: list[tuple[str, str, str]] = []
+    for item in selections:
+        if not isinstance(item, Mapping):
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "exact reviewed value authority roster is invalid",
+            )
+        identity = (item.get("catalog"), item.get("field"), item.get("literal"))
+        if identity not in identities or identity in selected_identities:
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "exact reviewed value authority roster is outside compiler bindings",
+            )
+        selected_identities.append(identity)
+    if set(selected_identities) != {
+        identity for identity, status in outcome_by_identity.items() if status == "reviewed_exact"
+    }:
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "exact reviewed value outcome differs from its semantic authority",
+        )
+    for catalog, field, literal in selected_identities:
+        selected = [
+            item
+            for item in selections
+            if isinstance(item, Mapping)
+            and item.get("catalog") == catalog
+            and item.get("field") == field
+            and item.get("literal") == literal
+        ]
+        reviewed = [
+            item
+            for item in resolutions
+            if isinstance(item, Mapping)
+            and item.get("review_state") == "reviewed"
+            and item.get("catalog") == catalog
+            and item.get("field") == field
+            and item.get("literal") == literal
+        ]
+        if len(selected) != 1 or len(reviewed) != 1:
+            raise BrainError(
+                "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                422,
+                "exact reviewed value authority is incomplete or duplicated",
+            )
+    return {
+        **dict(grounding),
+        "selections": [dict(item) for item in selections],
+        "resolutions": [dict(item) for item in resolutions],
+        "exact_authority": dict(envelope),
+    }
 
 
 def _semantic_delta_authority(
@@ -1769,7 +2065,9 @@ def _semantic_delta_authority(
         )
 
     reviewed = _reviewed_values(grounding)
+    witness_eligible = _witness_eligible_values(grounding)
     identities: list[tuple[str, str, str]] = []
+    compiler_identities: list[tuple[str, str, str]] = []
     has_semantic_replacement = any(
         replacement.item["primitive"] == "block_argument_list" for replacement in replacements
     )
@@ -1794,7 +2092,18 @@ def _semantic_delta_authority(
             replacement=replacement,
             items=items,
             reviewed=reviewed,
+            witness_eligible=witness_eligible,
         )
+        for _kind, catalog, field, granted_literal, _witness in grants:
+            identity = (catalog, field, granted_literal)
+            if identity not in compiler_identities:
+                compiler_identities.append(identity)
+            if len(compiler_identities) > MAX_EDIT_OPERATIONS:
+                raise BrainError(
+                    "STRUCTURAL_EDIT_LIMIT",
+                    422,
+                    "compiler binding semantic delta exceeds its operation bound",
+                )
         for literal in added:
             reviewed_grants = [
                 (catalog, field, granted_literal)
@@ -1844,16 +2153,17 @@ def _semantic_delta_authority(
     return {
         "contract": STRUCTURAL_SEMANTIC_DELTA_CONTRACT,
         "all_operator_semantics_consumed": True,
+        "compiler_binding_identities": tuple(compiler_identities),
         "reviewed_selection_identities": tuple(identities),
         "semantic_source_revision": semantic_source_revision,
         "context_revision": context_revision,
+        "exact_authority": grounding.get("exact_authority"),
     }
 
 
 def _select_replacements(
     instruction: str,
     items: Sequence[dict[str, Any]],
-    grounding: Mapping[str, Any],
 ) -> list[_Replacement]:
     active_instruction = _active_instruction(instruction)
     _assert_no_unsupported_mutation(active_instruction)
@@ -2016,7 +2326,6 @@ def _select_replacements(
             "one or more numeric objects have no compiler-owned target",
         )
     selected: list[_Replacement] = []
-    reviewed = _reviewed_values(grounding)
     for (_kind, _start, _end, primitive, old, new), group in candidates.items():
         best = max(item[0] for item in group)
         winners = [item for item in group if item[0] == best]
@@ -2075,12 +2384,6 @@ def _select_replacements(
                 evidence_sha256=_sha(evidence.encode("utf-8")),
                 evidence_key=(_kind, _start, _end),
             )
-            if primitive == "block_argument_list":
-                _block_argument_grants(
-                    replacement=replacement,
-                    items=items,
-                    reviewed=reviewed,
-                )
             selected.append(replacement)
     selected.sort(key=lambda item: item.item["property"]["span"]["utf8_bytes"]["start"])
     if len({item.item["edit_ref"] for item in selected}) != len(selected):
@@ -2225,6 +2528,7 @@ def _permit_operations(
     grounding: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], dict[str, str], dict[str, Any]]:
     reviewed = _reviewed_values(grounding)
+    witness_eligible = _witness_eligible_values(grounding)
     operations: list[dict[str, Any]] = []
     roles: dict[str, str] = {}
     registry: dict[str, Any] = {}
@@ -2238,6 +2542,7 @@ def _permit_operations(
                 replacement=replacement,
                 items=items,
                 reviewed=reviewed,
+                witness_eligible=witness_eligible,
             )
             grant_ref = _host_ref("block_argument_authority")
             roles[grant_ref] = "block_argument_authority"
@@ -2410,6 +2715,7 @@ def render_structural_existing(
     record: Any,
     grounding: Mapping[str, Any],
     source: str | None,
+    reviewed_value_resolver: Callable[..., Mapping[str, Any]] | None = None,
 ) -> LosslessRenderResult | None:
     """Render a complex existing-endpoint scalar edit without model generation."""
 
@@ -2462,21 +2768,32 @@ def render_structural_existing(
             relative_path=target["relative_path"],
             endpoint=endpoint,
         )
-        replacements = _select_replacements(request.instruction, items, grounding)
+        replacements = _select_replacements(request.instruction, items)
+        required_identities = _required_reviewed_identities(replacements)
+        effective_grounding = (
+            _exact_reviewed_grounding(
+                grounding=grounding,
+                identities=required_identities,
+                resolver=reviewed_value_resolver,
+                lease=lease,
+            )
+            if required_identities
+            else grounding
+        )
         # Semantic authority must fail before a permit is issued or the
         # compiler is asked to apply bytes.  The certificate is retained
         # privately and becomes publishable only after the lossless receipt.
         semantic_delta = _semantic_delta_authority(
             replacements=replacements,
             items=items,
-            grounding=grounding,
+            grounding=effective_grounding,
             semantic_source_revision=getattr(request, "expected_semantic_source_revision", None),
             context_revision=lease.snapshot.revision,
         )
         operations, roles, registry = _permit_operations(
             replacements=replacements,
             items=items,
-            grounding=grounding,
+            grounding=effective_grounding,
         )
         permit_id = _host_ref("permit")
         nonce = _host_ref("nonce")

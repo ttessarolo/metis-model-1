@@ -17,7 +17,7 @@ import copy
 import re
 import threading
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -43,6 +43,8 @@ MAX_CATALOG_LABEL = 256
 MAX_TEMPLATE_BYTES = 16 * 1024
 MAX_TEMPLATES = 2
 MAX_GROUNDING_PASSES = 16
+MAX_EXACT_REVIEWED_VALUES = 32
+EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT = "metis-brain-exact-reviewed-value-authority/v1"
 _CLAUSE_SPLIT_RE = re.compile(r"[,;]|(?<!\w)(?:che|con)(?!\w)", re.IGNORECASE)
 _TOKEN_RE = re.compile(r"[0-9A-Za-zÀ-ÖØ-öø-ÿ_]+")
 _INSTRUCTION_STOPWORDS = frozenset(
@@ -1750,6 +1752,143 @@ class Schema2SnapshotRetriever:
                 self._cache.popitem(last=False)
             return result
 
+    def resolve_exact_reviewed_values(
+        self,
+        *,
+        lease: OperationLease,
+        identities: Sequence[tuple[str, str, str]],
+    ) -> dict[str, Any]:
+        """Resolve compiler-derived finite members without natural-language matching.
+
+        This is a host-only bridge for a structural edit whose exact catalog,
+        field and newly added literal have already been bound by the compiler.
+        It performs no alias expansion, fuzzy lookup, Flash rewrite or model
+        inference.  Each identity is either exact and reviewed, or is marked
+        witness-eligible only when its field itself is reviewed, has no
+        declared domain, and contains no conflicting value entry.  Finite,
+        open, draft, unannotated and ambiguous cases fail closed here.
+        """
+
+        if (
+            not isinstance(identities, Sequence)
+            or isinstance(identities, (str, bytes))
+            or not 1 <= len(identities) <= MAX_EXACT_REVIEWED_VALUES
+        ):
+            _fail("RETRIEVAL_INVALID", "exact reviewed value roster is invalid", 400)
+        normalized: list[tuple[str, str, str]] = []
+        for identity in identities:
+            if (
+                not isinstance(identity, tuple)
+                or len(identity) != 3
+                or any(not isinstance(item, str) or not item for item in identity)
+                or any(len(item) > 1_024 for item in identity)
+            ):
+                _fail("RETRIEVAL_INVALID", "exact reviewed value identity is invalid", 400)
+            normalized.append(identity)
+        if len(normalized) != len(set(normalized)):
+            _fail("RETRIEVAL_INVALID", "exact reviewed value roster is duplicated", 400)
+
+        snapshot = lease.snapshot
+        indexed = self._indexed(snapshot)
+        selections: list[dict[str, Any]] = []
+        resolutions: list[dict[str, Any]] = []
+        outcomes: list[dict[str, str]] = []
+        for catalog, field, literal in normalized:
+            field_entries = [
+                item
+                for item in indexed.index["entries"]
+                if item["node_kind"] == "field"
+                and item["catalog"] == catalog
+                and item["field"] == field
+            ]
+            value_entries = [
+                item
+                for item in indexed.index["entries"]
+                if item["node_kind"] == "value"
+                and item["catalog"] == catalog
+                and item["field"] == field
+                and item.get("literal") == literal
+            ]
+            technical = indexed.field_technical.get((catalog, field))
+            if (
+                len(field_entries) != 1
+                or field_entries[0].get("state") != "reviewed"
+                or technical is None
+            ):
+                raise BrainError(
+                    "EXACT_REVIEWED_VALUE_UNAVAILABLE",
+                    422,
+                    "compiler-derived catalog value has no exact reviewed authority",
+                )
+            if not value_entries:
+                domain = field_entries[0].get("domain")
+                if not isinstance(domain, Mapping) or domain.get("kind") != "none":
+                    raise BrainError(
+                        "EXACT_REVIEWED_VALUE_UNAVAILABLE",
+                        422,
+                        "compiler-derived catalog value conflicts with its declared domain",
+                    )
+                outcomes.append(
+                    {
+                        "catalog": catalog,
+                        "field": field,
+                        "literal": literal,
+                        "status": "witness_eligible_absent",
+                    }
+                )
+                continue
+            if len(value_entries) != 1 or value_entries[0].get("state") != "reviewed":
+                raise BrainError(
+                    "EXACT_REVIEWED_VALUE_UNAVAILABLE",
+                    422,
+                    "compiler-derived catalog value has no exact reviewed authority",
+                )
+            selection = _candidate_selection(
+                indexed.index,
+                {"catalog": catalog, "field": field, "literal": literal},
+            )
+            if selection is None:
+                raise BrainError(
+                    "EXACT_REVIEWED_VALUE_UNAVAILABLE",
+                    422,
+                    "compiler-derived catalog value has no exact reviewed authority",
+                )
+            selections.append(
+                {
+                    **selection,
+                    "matched_by": "compiler_exact_reviewed_value",
+                    "type": technical["type"],
+                    "modifiers": list(technical["modifiers"]),
+                }
+            )
+            resolutions.append(
+                {
+                    "concept": literal,
+                    "catalog": catalog,
+                    "field": field,
+                    "literal": literal,
+                    "review_state": "reviewed",
+                }
+            )
+            outcomes.append(
+                {
+                    "catalog": catalog,
+                    "field": field,
+                    "literal": literal,
+                    "status": "reviewed_exact",
+                }
+            )
+        return {
+            "contract": EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT,
+            "context_revision": snapshot.revision,
+            "semantic_source_revision": indexed.index["semantic_source_revision"],
+            "toolchain_binding": snapshot.toolchain_binding,
+            "index_revision": indexed.index["revision"],
+            "outcomes": tuple(copy.deepcopy(outcomes)),
+            "selections": tuple(copy.deepcopy(selections)),
+            "resolutions": tuple(copy.deepcopy(resolutions)),
+        }
+
     def retrieve(self, *, lease: OperationLease, request: Any) -> RetrievalResult:
         snapshot = lease.snapshot
         indexed = self._indexed(snapshot)
@@ -2154,4 +2293,9 @@ class Schema2SnapshotRetriever:
         )
 
 
-__all__ = ["LoadedProjection", "Schema2SnapshotRetriever", "SnapshotProjectionLoader"]
+__all__ = [
+    "EXACT_REVIEWED_VALUE_AUTHORITY_CONTRACT",
+    "LoadedProjection",
+    "Schema2SnapshotRetriever",
+    "SnapshotProjectionLoader",
+]

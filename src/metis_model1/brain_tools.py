@@ -41,7 +41,7 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:f20c5fe80547bb973b41610507157cb03942fe4736105722b6a5b8fa063c1dde"
+RUNNER_SHA256 = "sha256:2ab8ebdf1fe74e29807d7ed1cd46e5b82de1cc40fc937f15975005f21738ad34"
 MAX_RUNNER_BYTES = 256 * 1024
 MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
@@ -801,10 +801,8 @@ def _validate_candidate_manifest(
             predicate_catalog = _bounded_manifest_string(
                 predicate.get("catalog"), label="predicate catalog", nullable=True
             )
-            field = _bounded_manifest_string(
-                predicate.get("field"), label="predicate field", nullable=True
-            )
-            if predicate_catalog != catalog or (field is not None and catalog is None):
+            _bounded_manifest_string(predicate.get("field"), label="predicate field", nullable=True)
+            if predicate_catalog != catalog:
                 raise _BrainIsolationError("candidate predicate catalog lineage differs")
             _bounded_manifest_string(predicate.get("operator"), label="predicate operator")
             if type(predicate.get("graded")) is not bool:

@@ -338,9 +338,8 @@ async function losslessInventory(
 ): Promise<Record<string, unknown>> {
   const sourcePath = tenantSourcePath(tenantRoot, relativePath);
   const source = fs.readFileSync(sourcePath);
-  const { buildInventory } = await import(
-    "../../tooling/src/lossless/inventory.js"
-  );
+  const { buildInventory } =
+    await import("../../tooling/src/lossless/inventory.js");
   const result = buildInventory(source);
   if (!result.ok) {
     return {
@@ -933,9 +932,8 @@ async function editSurface(
   const sourcePath = tenantSourcePath(tenantRoot, relativePath);
   const source = fs.readFileSync(sourcePath);
   const sourceText = source.toString("utf8");
-  const { buildInventory, byteOffsetMap } = await import(
-    "../../tooling/src/lossless/inventory.js"
-  );
+  const { buildInventory, byteOffsetMap } =
+    await import("../../tooling/src/lossless/inventory.js");
   const inventoryResult = buildInventory(source);
   if (!inventoryResult.ok) {
     return invalidEditSurface(
@@ -1828,15 +1826,11 @@ function candidateManifest(
     }
     const provisionalCatalog = source.kind === "catalog" ? source.ref : null;
     const predicates = fetchPredicates(fetch, provisionalCatalog);
-    if (
-      provisionalCatalog === null &&
-      predicates.some((predicate) => predicate.field !== null)
-    ) {
-      throw new CandidateManifestError(
-        "BRAIN_CATALOG_LINEAGE",
-        "candidate field predicate has no catalog lineage",
-      );
-    }
+    // A field predicate over a context/list fetch is compiler-owned but has no
+    // catalog lineage by construction (for example @ts on a user's watched
+    // history).  Preserve it with catalog=null under the exact non-catalog
+    // source occurrence; downstream create grounding still rejects it unless
+    // separate authority exists, while manifest preservation can compare it.
     predicateCount += predicates.length;
     if (predicateCount > MAX_MANIFEST_PREDICATES) {
       throw new CandidateManifestError(

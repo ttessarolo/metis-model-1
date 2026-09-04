@@ -622,6 +622,91 @@ def test_compile_candidate_compiles_once_and_keeps_manifest_out_of_public_receip
     assert toolchain_harness["compiler"].execution_count == 1
 
 
+def test_compile_candidate_accepts_context_field_with_null_catalog_lineage(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _candidate_manifest()
+    digest = "sha256:" + "1" * 64
+    manifest["fetches"] = [
+        {
+            **manifest["fetches"][0],
+            "stage_id": "context.watched",
+            "container_path": "endpoint/context:watched",
+            "source": {"kind": "context", "ref": "user.video_watched_w_ts"},
+            "catalog": None,
+            "predicates": [
+                {
+                    "intent": "include",
+                    "clause_index": 0,
+                    "leaf_path": "constraints[0].predicate",
+                    "catalog": None,
+                    "field": "ts",
+                    "operator": "within",
+                    "value": {"duration": "60d"},
+                    "amount": None,
+                    "graded": False,
+                    "origin": {"kind": "inline", "ref": None},
+                    "clause_guard_sha256": None,
+                    "leaf_guard_sha256": None,
+                    "expression_sha256": digest,
+                }
+            ],
+        }
+    ]
+    response = _candidate_compile_response(manifest=manifest)
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    result = toolchain_harness["compiler"].compile_candidate(
+        lease=_lease(),
+        source="metis 0.43\ntenant candidate {}\n",
+        filename="candidate.metis",
+        endpoint="catalog.search",
+    )
+
+    assert result.manifest is not None
+    assert result.manifest["fetches"][0]["catalog"] is None
+    assert result.manifest["fetches"][0]["predicates"][0]["field"] == "ts"
+
+
+def test_compile_candidate_rejects_context_predicate_with_catalog_lineage(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _candidate_manifest()
+    manifest["fetches"][0]["source"] = {
+        "kind": "context",
+        "ref": "user.video_watched_w_ts",
+    }
+    manifest["fetches"][0]["catalog"] = None
+    manifest["fetches"][0]["predicates"] = [
+        {
+            "intent": "include",
+            "clause_index": 0,
+            "leaf_path": "constraints[0].predicate",
+            "catalog": "tenant.video",
+            "field": "ts",
+            "operator": "within",
+            "value": {"duration": "60d"},
+            "amount": None,
+            "graded": False,
+            "origin": {"kind": "inline", "ref": None},
+            "clause_guard_sha256": None,
+            "leaf_guard_sha256": None,
+            "expression_sha256": "sha256:" + "1" * 64,
+        }
+    ]
+    response = _candidate_compile_response(manifest=manifest)
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    with pytest.raises(BrainError, match="invalid manifest") as raised:
+        toolchain_harness["compiler"].compile_candidate(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename="candidate.metis",
+            endpoint="catalog.search",
+        )
+    assert raised.value.code == "COMPILER_FAILED"
+
+
 def test_compile_candidate_preserves_bounded_invalid_as_public_compile_receipt(
     toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:

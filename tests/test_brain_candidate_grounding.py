@@ -273,6 +273,35 @@ def test_compiled_manifest_grounding_fails_closed_without_explicit_predicate_aut
     assert result.diagnostic["unauthorized_predicates"]
 
 
+def test_non_catalog_context_predicate_is_preserved_but_not_create_authority() -> None:
+    manifest = _compiled_manifest(
+        [
+            (
+                "context.watched",
+                "play-demo.video",
+                [_manifest_predicate(catalog="play-demo.video", field="ts", value=None)],
+            )
+        ]
+    )
+    fetch = manifest["fetches"][0]
+    fetch["source"] = {"kind": "context", "ref": "user.video_watched_w_ts"}
+    fetch["catalog"] = None
+    fetch["predicates"][0]["catalog"] = None
+
+    create = adjudicate_candidate_manifest(manifest, _grounding("ITALIA"))
+    assert not create.ok
+    assert create.diagnostic is not None
+    assert create.diagnostic["unauthorized_predicates"]
+
+    assert adjudicate_manifest_preservation(manifest, copy.deepcopy(manifest)).ok
+    changed = copy.deepcopy(manifest)
+    changed["fetches"][0]["predicates"][0]["field"] = "other_ts"
+    preserved = adjudicate_manifest_preservation(manifest, changed)
+    assert not preserved.ok
+    assert preserved.diagnostic is not None
+    assert any(item["component"] == "predicates" for item in preserved.diagnostic["deltas"])
+
+
 def test_occurrence_manifest_preserves_multi_catalog_multi_take_endpoint() -> None:
     reference = _compiled_manifest(
         [
