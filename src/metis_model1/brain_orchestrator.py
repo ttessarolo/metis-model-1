@@ -39,10 +39,13 @@ from metis_model1.brain_retrieval import BrainRetriever, RetrievalResult
 from metis_model1.brain_sessions import SessionManager
 from metis_model1.brain_structural_edit import (
     STRUCTURAL_LOSSLESS_PROOF_CONTRACT,
+    STRUCTURAL_SEMANTIC_DELTA_CONTRACT,
     render_structural_existing,
     structural_edit_requested,
 )
 from metis_model1.brain_turns import TurnRecord, TurnRequest
+
+_SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _server_decision(request: TurnRequest, kind: str) -> Mapping[str, Any] | None:
@@ -145,12 +148,16 @@ class BrainOrchestrator:
                 count=len(retrieved.context),
                 duration_ms=max(0, int((time.monotonic() - retrieval_started) * 1000)),
             )
-            request, retrieved = self._retry_with_flash(
-                lease=lease,
-                request=request,
-                retrieved=retrieved,
-                record=record,
-            )
+            # The compiler-owned structural path consumes the complete operator
+            # instruction against exact AST occurrences.  Flash must not rewrite
+            # or reject that evidence before the structural ledger can judge it.
+            if not structural_requested:
+                request, retrieved = self._retry_with_flash(
+                    lease=lease,
+                    request=request,
+                    retrieved=retrieved,
+                    record=record,
+                )
             record.request = request
             if not structural_requested:
                 candidates = retrieved.catalog_candidates
@@ -246,6 +253,7 @@ class BrainOrchestrator:
                     "structural edit could not be resolved exactly",
                 )
             lossless_proof = lossless.proof if lossless is not None else None
+            semantic_delta = lossless.semantic_delta if lossless is not None else None
             if lossless is not None:
                 candidate = lossless.candidate
             else:
@@ -444,6 +452,7 @@ class BrainOrchestrator:
                 previous=previous,
                 diagnostics=diagnostics,
                 lossless_proof=lossless_proof,
+                semantic_delta=semantic_delta,
             )
             proposal = result.get("proposal")
             if request.server_clarification is not None and isinstance(proposal, Mapping):
@@ -861,6 +870,153 @@ class BrainOrchestrator:
         value["semantic_source_revision"] = retrieved.semantic_source_revision
         value.setdefault("resolutions", [])
         value.setdefault("unresolved", [])
+        return value
+
+    @staticmethod
+    def _structural_terminal_grounding(
+        *,
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+        candidate: ModelCandidate,
+        lossless_proof: Mapping[str, Any] | None,
+        semantic_delta: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Reconcile raw prose retrieval with compiler-consumed structural intent.
+
+        Retrieval deliberately keeps unrecognized structural prose unresolved.
+        Only a validated structural lossless proof plus its host-only semantic
+        delta certificate may replace that raw diagnostic in the terminal.  A
+        finite literal is copied only from one exact reviewed selection and
+        resolution in the same semantic snapshot.
+        """
+
+        if semantic_delta is None:
+            return None
+        proof_fields = {
+            "contract",
+            "proof_mode",
+            "receipt_sha256",
+            "sha_before",
+            "sha_after",
+            "touched_count",
+        }
+        delta_fields = {
+            "contract",
+            "all_operator_semantics_consumed",
+            "reviewed_selection_identities",
+            "semantic_source_revision",
+            "context_revision",
+        }
+        source_sha256 = bytes_sha256(candidate.source.encode("utf-8"))
+        if (
+            not isinstance(lossless_proof, Mapping)
+            or set(lossless_proof) != proof_fields
+            or lossless_proof.get("contract") != STRUCTURAL_LOSSLESS_PROOF_CONTRACT
+            or lossless_proof.get("proof_mode") != "validate"
+            or not isinstance(lossless_proof.get("receipt_sha256"), str)
+            or _SHA256_RE.fullmatch(lossless_proof["receipt_sha256"]) is None
+            or lossless_proof.get("sha_before") != request.target.get("base_sha256")
+            or lossless_proof.get("sha_after") != source_sha256
+            or type(lossless_proof.get("touched_count")) is not int
+            or not 1 <= lossless_proof["touched_count"] <= 32
+            or not isinstance(semantic_delta, Mapping)
+            or set(semantic_delta) != delta_fields
+            or semantic_delta.get("contract") != STRUCTURAL_SEMANTIC_DELTA_CONTRACT
+            or semantic_delta.get("all_operator_semantics_consumed") is not True
+            or semantic_delta.get("semantic_source_revision")
+            != request.expected_semantic_source_revision
+            or semantic_delta.get("semantic_source_revision") != retrieved.semantic_source_revision
+            or semantic_delta.get("context_revision") != request.expected_context_revision
+        ):
+            raise BrainError(
+                "STRUCTURAL_GROUNDING_INVALID",
+                503,
+                "compiler-owned structural grounding certificate is invalid",
+            )
+        identities = semantic_delta.get("reviewed_selection_identities")
+        if (
+            not isinstance(identities, tuple)
+            or len(identities) > 32
+            or any(
+                not isinstance(identity, tuple)
+                or len(identity) != 3
+                or any(not isinstance(item, str) or not item for item in identity)
+                for identity in identities
+            )
+            or len(identities) != len(set(identities))
+        ):
+            raise BrainError(
+                "STRUCTURAL_GROUNDING_INVALID",
+                503,
+                "compiler-owned semantic delta roster is invalid",
+            )
+        raw_selections = retrieved.grounding.get("selections", [])
+        raw_resolutions = retrieved.grounding.get("resolutions", [])
+        if not isinstance(raw_selections, list) or not isinstance(raw_resolutions, list):
+            raise BrainError(
+                "STRUCTURAL_GROUNDING_INVALID",
+                503,
+                "reviewed grounding roster is invalid",
+            )
+        selections: list[dict[str, Any]] = []
+        resolutions: list[dict[str, Any]] = []
+        for catalog, field, literal in identities:
+            selected = [
+                item
+                for item in raw_selections
+                if isinstance(item, Mapping)
+                and item.get("catalog") == catalog
+                and item.get("field") == field
+                and item.get("literal") == literal
+            ]
+            reviewed = [
+                item
+                for item in raw_resolutions
+                if isinstance(item, Mapping)
+                and item.get("review_state") == "reviewed"
+                and item.get("catalog") == catalog
+                and item.get("field") == field
+                and item.get("literal") == literal
+            ]
+            if len(selected) != 1 or len(reviewed) != 1:
+                raise BrainError(
+                    "STRUCTURAL_GROUNDING_INVALID",
+                    503,
+                    "semantic delta is not backed by one exact reviewed grounding",
+                )
+            selections.append(dict(selected[0]))
+            resolutions.append(dict(reviewed[0]))
+        catalogs = retrieved.grounding.get("catalogs", [])
+        if not isinstance(catalogs, list) or any(
+            not isinstance(item, str) or not item for item in catalogs
+        ):
+            raise BrainError(
+                "STRUCTURAL_GROUNDING_INVALID",
+                503,
+                "structural grounding catalog roster is invalid",
+            )
+        if any(catalog not in catalogs for catalog, _field, _literal in identities):
+            raise BrainError(
+                "STRUCTURAL_GROUNDING_INVALID",
+                503,
+                "semantic delta catalog is outside the retrieved authority",
+            )
+        value = dict(retrieved.grounding)
+        value.update(
+            {
+                "status": "resolved",
+                "reason": "compiler-owned structural delta is fully accounted for",
+                "selected": selections[0] if len(selections) == 1 else None,
+                "selections": selections,
+                "candidates": [],
+                "catalog_candidates": [],
+                "lookup": None,
+                "lookups": [],
+                "unresolved": [],
+                "resolutions": resolutions,
+                "semantic_source_revision": retrieved.semantic_source_revision,
+            }
+        )
         return value
 
     def _clarification_terminal(
@@ -1468,6 +1624,7 @@ class BrainOrchestrator:
         previous: str | None,
         diagnostics: list[dict[str, Any]],
         lossless_proof: Mapping[str, Any] | None = None,
+        semantic_delta: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         clean = receipt.get("compiler", receipt).get("status") == "ok"
         source_hash = bytes_sha256(candidate.source.encode("utf-8"))
@@ -1521,7 +1678,13 @@ class BrainOrchestrator:
                     "public lossless proof has an invalid field roster",
                 )
             validation["lossless"] = dict(lossless_proof)
-        grounding = self._grounding(retrieved)
+        grounding = self._structural_terminal_grounding(
+            request=request,
+            retrieved=retrieved,
+            candidate=candidate,
+            lossless_proof=lossless_proof,
+            semantic_delta=semantic_delta,
+        ) or self._grounding(retrieved)
         semantically_grounded = (
             grounding.get("status") in {None, "resolved"}
             and not grounding.get("candidates")

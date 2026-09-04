@@ -43,6 +43,7 @@ from metis_model1.brain_protocol import (
 
 EDIT_SURFACE_CONTRACT = "metis-brain-edit-surface/v1"
 STRUCTURAL_LOSSLESS_PROOF_CONTRACT = "metis-brain-structural-lossless-proof/v1"
+STRUCTURAL_SEMANTIC_DELTA_CONTRACT = "metis-brain-compiler-owned-semantic-delta/v1"
 MAX_EDIT_ITEMS = 256
 MAX_EDIT_OPERATIONS = 32
 MAX_EDIT_TEXT_UNITS = 512
@@ -1696,48 +1697,26 @@ def _block_argument_grants(
     items: Sequence[Mapping[str, Any]],
     reviewed: frozenset[tuple[str, str, str]],
 ) -> tuple[tuple[str, str, str, str, str | None], ...]:
-    """Resolve every binding from review or an exact same-snapshot witness."""
+    """Require reviewed semantic authority for every compiler binding."""
 
     old_items = [part.strip() for part in str(replacement.item["old_value"]["value"]).split(",")]
     new_items = [part.strip() for part in str(replacement.new_value).split(",")]
     added = [part for part in new_items if part not in old_items]
-    witnesses: dict[tuple[str, str, str], set[str]] = defaultdict(set)
-    for item in items:
-        if item.get("primitive") != "block_argument_list":
-            continue
-        authority = item.get("authority")
-        old_value = item.get("old_value")
-        if not isinstance(authority, Mapping) or not isinstance(old_value, Mapping):
-            continue
-        value = old_value.get("value")
-        edit_ref = item.get("edit_ref")
-        if not isinstance(value, str) or not isinstance(edit_ref, str):
-            continue
-        literals = [part.strip() for part in value.split(",") if part.strip()]
-        for binding in authority.get("bindings", []):
-            if not isinstance(binding, Mapping):
-                continue
-            catalog = binding.get("catalog")
-            field = binding.get("field")
-            if not isinstance(catalog, str) or not isinstance(field, str):
-                continue
-            for literal in literals:
-                witnesses[(catalog, field, literal)].add(edit_ref)
+    # Keep the complete edit-surface roster in this helper's signature: the
+    # caller and permit path share one contract.  It is deliberately not used
+    # as value authority; another source occurrence cannot substitute review.
+    _ = items
     grants: list[tuple[str, str, str, str, str | None]] = []
     for binding in replacement.item["authority"]["bindings"]:
         for literal in added:
             key = (binding["catalog"], binding["field"], literal)
-            if key in reviewed:
-                grants.append(("reviewed_catalog_value", *key, None))
-                continue
-            refs = sorted(witnesses.get(key, ()))
-            if not refs:
+            if key not in reviewed:
                 raise BrainError(
                     "STRUCTURAL_EDIT_AUTHORITY_MISSING",
                     422,
-                    "new argument value has no reviewed or source-witness authority",
+                    "new argument value has no reviewed authority for every compiler binding",
                 )
-            grants.append(("same_snapshot_source_witness", *key, refs[0]))
+            grants.append(("reviewed_catalog_value", *key, None))
     if not added or not grants:
         raise BrainError(
             "STRUCTURAL_EDIT_AUTHORITY_MISSING",
@@ -1745,6 +1724,130 @@ def _block_argument_grants(
             "new argument value has no reviewed or source-witness authority",
         )
     return tuple(grants)
+
+
+def _semantic_delta_authority(
+    *,
+    replacements: Sequence[_Replacement],
+    items: Sequence[Mapping[str, Any]],
+    grounding: Mapping[str, Any],
+    semantic_source_revision: Any,
+    context_revision: Any,
+) -> dict[str, Any]:
+    """Seal the reviewed semantic delta consumed by a structural render.
+
+    Numeric and display-only operations have an intentionally empty semantic
+    roster.  A block-argument addition is different: at least one exact
+    compiler binding for every new literal must also be present in both the
+    server-owned reviewed selection and resolution rosters.  A same-snapshot
+    source occurrence can never replace editorial review.
+    """
+
+    if (
+        not isinstance(semantic_source_revision, str)
+        or _HASH_RE.fullmatch(semantic_source_revision) is None
+        or not isinstance(context_revision, str)
+        or _HASH_RE.fullmatch(context_revision) is None
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "structural semantic authority is not snapshot-bound",
+        )
+    raw_selections = grounding.get("selections", [])
+    raw_resolutions = grounding.get("resolutions", [])
+    if (
+        not isinstance(raw_selections, Sequence)
+        or isinstance(raw_selections, (str, bytes))
+        or not isinstance(raw_resolutions, Sequence)
+        or isinstance(raw_resolutions, (str, bytes))
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "structural semantic authority roster is invalid",
+        )
+
+    reviewed = _reviewed_values(grounding)
+    identities: list[tuple[str, str, str]] = []
+    has_semantic_replacement = any(
+        replacement.item["primitive"] == "block_argument_list" for replacement in replacements
+    )
+    if (
+        has_semantic_replacement
+        and grounding.get("semantic_source_revision") != semantic_source_revision
+    ):
+        raise BrainError(
+            "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+            422,
+            "reviewed semantic authority differs from the requested snapshot",
+        )
+    for replacement in replacements:
+        if replacement.item["primitive"] != "block_argument_list":
+            continue
+        old_items = [
+            part.strip() for part in str(replacement.item["old_value"]["value"]).split(",")
+        ]
+        new_items = [part.strip() for part in str(replacement.new_value).split(",")]
+        added = [literal for literal in new_items if literal not in old_items]
+        grants = _block_argument_grants(
+            replacement=replacement,
+            items=items,
+            reviewed=reviewed,
+        )
+        for literal in added:
+            reviewed_grants = [
+                (catalog, field, granted_literal)
+                for kind, catalog, field, granted_literal, _witness in grants
+                if kind == "reviewed_catalog_value" and granted_literal == literal
+            ]
+            if not reviewed_grants:
+                raise BrainError(
+                    "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                    422,
+                    "new argument value has no exact reviewed semantic authority",
+                )
+            for identity in reviewed_grants:
+                catalog, field, granted_literal = identity
+                selection_matches = [
+                    item
+                    for item in raw_selections
+                    if isinstance(item, Mapping)
+                    and item.get("catalog") == catalog
+                    and item.get("field") == field
+                    and item.get("literal") == granted_literal
+                ]
+                resolution_matches = [
+                    item
+                    for item in raw_resolutions
+                    if isinstance(item, Mapping)
+                    and item.get("review_state") == "reviewed"
+                    and item.get("catalog") == catalog
+                    and item.get("field") == field
+                    and item.get("literal") == granted_literal
+                ]
+                if len(selection_matches) != 1 or len(resolution_matches) != 1:
+                    raise BrainError(
+                        "STRUCTURAL_EDIT_AUTHORITY_MISSING",
+                        422,
+                        "new argument value lacks one exact reviewed selection and resolution",
+                    )
+                if identity not in identities:
+                    identities.append(identity)
+                if len(identities) > MAX_EDIT_OPERATIONS:
+                    raise BrainError(
+                        "STRUCTURAL_EDIT_LIMIT",
+                        422,
+                        "reviewed semantic delta exceeds its operation bound",
+                    )
+
+    return {
+        "contract": STRUCTURAL_SEMANTIC_DELTA_CONTRACT,
+        "all_operator_semantics_consumed": True,
+        "reviewed_selection_identities": tuple(identities),
+        "semantic_source_revision": semantic_source_revision,
+        "context_revision": context_revision,
+    }
 
 
 def _select_replacements(
@@ -2360,6 +2463,16 @@ def render_structural_existing(
             endpoint=endpoint,
         )
         replacements = _select_replacements(request.instruction, items, grounding)
+        # Semantic authority must fail before a permit is issued or the
+        # compiler is asked to apply bytes.  The certificate is retained
+        # privately and becomes publishable only after the lossless receipt.
+        semantic_delta = _semantic_delta_authority(
+            replacements=replacements,
+            items=items,
+            grounding=grounding,
+            semantic_source_revision=getattr(request, "expected_semantic_source_revision", None),
+            context_revision=lease.snapshot.revision,
+        )
         operations, roles, registry = _permit_operations(
             replacements=replacements,
             items=items,
@@ -2439,6 +2552,7 @@ def render_structural_existing(
         return LosslessRenderResult(
             ModelCandidate(expected, "not_used", "not_used", "lossless_renderer"),
             proof,
+            semantic_delta,
         )
     except StructuralEditInapplicable:
         return None
@@ -2449,6 +2563,7 @@ def render_structural_existing(
 __all__ = [
     "EDIT_SURFACE_CONTRACT",
     "STRUCTURAL_LOSSLESS_PROOF_CONTRACT",
+    "STRUCTURAL_SEMANTIC_DELTA_CONTRACT",
     "StructuralEditInapplicable",
     "render_structural_existing",
     "structural_edit_requested",

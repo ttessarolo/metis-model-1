@@ -66,6 +66,18 @@ message remain distinct recorded operations. A question that cannot be
 answered exactly from that message stops the dependent path rather than being
 guessed.
 
+For an existing endpoint admitted by the compiler-owned structural path, the
+full operator sentence remains diagnostic retrieval input but Flash does not
+rewrite it. The structural ledger must consume every requested operation,
+apply only the exact compiler occurrences and return a validating lossless
+receipt. Brain then creates a new terminal grounding without mutating the raw
+retrieval result: count, limit and display-label edits have an explicitly empty
+semantic delta; a changed block argument carries only exact `(catalog, field,
+literal)` selections that exist once in both the reviewed selection and
+resolution rosters of the same semantic snapshot. Another occurrence of a
+literal in source code is never sufficient value authority. The private delta
+certificate is consumed server-side and is not exposed to the client or model.
+
 ## Verdicts
 
 Every edit receives exactly one of:

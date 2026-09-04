@@ -276,6 +276,7 @@ def _request(
         target=target,
         basis=basis,
         payload_hash=_sha("request-payload"),
+        expected_semantic_source_revision=_sha("semantic-source"),
     )
 
 
@@ -290,6 +291,27 @@ def _lease(workspace_source: str = SOURCE) -> Any:
 
 def _record(*, basis_source: str | None = None) -> Any:
     return SimpleNamespace(session_id="s" * 43, turn_id="t" * 32, basis_source=basis_source)
+
+
+def _reviewed_grounding(catalog: str, field: str, literal: str) -> dict[str, Any]:
+    return {
+        "semantic_source_revision": _sha("semantic-source"),
+        "selections": [
+            {
+                "catalog": catalog,
+                "field": field,
+                "literal": literal,
+            }
+        ],
+        "resolutions": [
+            {
+                "review_state": "reviewed",
+                "catalog": catalog,
+                "field": field,
+                "literal": literal,
+            }
+        ],
+    }
 
 
 def _compiler(specs: list[dict[str, Any]], source: str = SOURCE, **kwargs: Any) -> FakeCompiler:
@@ -594,16 +616,7 @@ def test_block_argument_addition_requires_reviewed_literal() -> None:
             source,
         ),
         record=_record(),
-        grounding={
-            "resolutions": [
-                {
-                    "review_state": "reviewed",
-                    "catalog": "catalog.video",
-                    "field": "genres",
-                    "literal": "Documentario",
-                }
-            ]
-        },
+        grounding=_reviewed_grounding("catalog.video", "genres", "Documentario"),
         source=source,
     )
     assert result is not None
@@ -632,16 +645,7 @@ def test_block_argument_add_action_is_bound_to_exact_delimited_transition() -> N
             source,
         ),
         record=_record(),
-        grounding={
-            "resolutions": [
-                {
-                    "review_state": "reviewed",
-                    "catalog": "catalog.video",
-                    "field": "genres",
-                    "literal": "Documentario",
-                }
-            ]
-        },
+        grounding=_reviewed_grounding("catalog.video", "genres", "Documentario"),
         source=source,
     )
 
@@ -730,6 +734,93 @@ def test_block_argument_authority_must_cover_every_compiler_binding() -> None:
     assert compiler.lossless_apply_calls == 0
 
 
+@pytest.mark.parametrize("mutation", ["missing_selection", "duplicate_selection", "stale_revision"])
+def test_block_argument_review_roster_fails_before_apply(mutation: str) -> None:
+    source = 'endpoint demo {\n  args "Film,Serie";\n}\n'
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Film,Serie"',
+                "old_value": {"type": "string", "argument": "genres", "value": "Film,Serie"},
+                "name": "args",
+                "authority": {"bindings": [{"catalog": "catalog.video", "field": "genres"}]},
+            }
+        ],
+        source,
+    )
+    grounding = _reviewed_grounding("catalog.video", "genres", "Documentario")
+    if mutation == "missing_selection":
+        grounding["selections"] = []
+    elif mutation == "duplicate_selection":
+        grounding["selections"] = grounding["selections"] * 2
+    else:
+        grounding["semantic_source_revision"] = _sha("stale-semantic-source")
+
+    with pytest.raises(BrainError) as error:
+        render_structural_existing(
+            compiler=compiler,
+            lease=_lease(source),
+            request=_request(
+                "per la lista args sostituisci `Film,Serie` con `Film,Serie,Documentario`.",
+                source,
+            ),
+            record=_record(),
+            grounding=grounding,
+            source=source,
+        )
+    assert error.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
+    assert compiler.lossless_apply_calls == 0
+
+
+def test_block_argument_requires_and_retains_every_reviewed_compiler_binding() -> None:
+    source = 'endpoint demo {\n  args "Film,Serie";\n}\n'
+    compiler = _compiler(
+        [
+            {
+                "primitive": "block_argument_list",
+                "token": '"Film,Serie"',
+                "old_value": {"type": "string", "argument": "genres", "value": "Film,Serie"},
+                "name": "args",
+                "authority": {
+                    "bindings": [
+                        {"catalog": "catalog.video", "field": "genre_primary"},
+                        {"catalog": "catalog.video", "field": "genre_secondary"},
+                    ]
+                },
+            }
+        ],
+        source,
+    )
+    first = _reviewed_grounding("catalog.video", "genre_primary", "Documentario")
+    second = _reviewed_grounding("catalog.video", "genre_secondary", "Documentario")
+    grounding = {
+        "semantic_source_revision": first["semantic_source_revision"],
+        "selections": first["selections"] + second["selections"],
+        "resolutions": first["resolutions"] + second["resolutions"],
+    }
+
+    result = render_structural_existing(
+        compiler=compiler,
+        lease=_lease(source),
+        request=_request(
+            "per la lista args sostituisci `Film,Serie` con `Film,Serie,Documentario`.",
+            source,
+        ),
+        record=_record(),
+        grounding=grounding,
+        source=source,
+    )
+
+    assert result is not None
+    assert result.semantic_delta is not None
+    assert result.semantic_delta["reviewed_selection_identities"] == (
+        ("catalog.video", "genre_primary", "Documentario"),
+        ("catalog.video", "genre_secondary", "Documentario"),
+    )
+    assert compiler.lossless_apply_calls == 1
+
+
 def test_string_object_cue_prevents_label_and_argument_collision() -> None:
     source = 'endpoint demo {\n  title "Azione";\n  args "Azione";\n}\n'
     compiler = _compiler(
@@ -759,16 +850,7 @@ def test_string_object_cue_prevents_label_and_argument_collision() -> None:
             source,
         ),
         record=_record(),
-        grounding={
-            "resolutions": [
-                {
-                    "review_state": "reviewed",
-                    "catalog": "catalog.video",
-                    "field": "genre",
-                    "literal": "Avventura",
-                }
-            ]
-        },
+        grounding=_reviewed_grounding("catalog.video", "genre", "Avventura"),
         source=source,
     )
     assert result is not None
@@ -2139,7 +2221,7 @@ def test_plural_rows_can_share_one_exact_relative_output_limit_transition() -> N
     assert result.proof is not None and result.proof["touched_count"] == 3
 
 
-def test_block_argument_can_use_exact_same_snapshot_compiler_bound_witness() -> None:
+def test_block_argument_source_witness_cannot_replace_reviewed_authority() -> None:
     source = 'endpoint demo {\n  target "Film,Serie";\n  witness "Film,Serie,Documentario";\n}\n'
     authority = {"bindings": [{"catalog": "catalog.video", "field": "genres"}]}
     compiler = _compiler(
@@ -2165,20 +2247,21 @@ def test_block_argument_can_use_exact_same_snapshot_compiler_bound_witness() -> 
         ],
         source,
     )
-    result = render_structural_existing(
-        compiler=compiler,
-        lease=_lease(source),
-        request=_request(
-            "per la lista target modifica: sostituisci `Film,Serie` con `Film,Serie,Documentario`.",
-            source,
-        ),
-        record=_record(),
-        grounding={},
-        source=source,
-    )
-    assert result is not None
-    assert result.candidate.source.count('"Film,Serie,Documentario"') == 2
-    assert compiler.lossless_apply_calls == 1
+    with pytest.raises(BrainError) as error:
+        render_structural_existing(
+            compiler=compiler,
+            lease=_lease(source),
+            request=_request(
+                "per la lista target modifica: sostituisci `Film,Serie` "
+                "con `Film,Serie,Documentario`.",
+                source,
+            ),
+            record=_record(),
+            grounding={},
+            source=source,
+        )
+    assert error.value.code == "STRUCTURAL_EDIT_AUTHORITY_MISSING"
+    assert compiler.lossless_apply_calls == 0
 
 
 def test_overlapping_compiler_property_spans_fail_closed() -> None:

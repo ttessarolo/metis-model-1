@@ -296,6 +296,10 @@ class HostRefRegistry:
 class LosslessRenderResult:
     candidate: ModelCandidate
     proof: dict[str, Any] | None
+    # Host-only authority emitted by the compiler-owned structural path.  The
+    # orchestrator validates and consumes it when building the public final
+    # grounding; it is never serialized directly to a client or model.
+    semantic_delta: dict[str, Any] | None = None
 
 
 def _opaque_ref() -> str:

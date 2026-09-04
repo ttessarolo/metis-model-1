@@ -20,6 +20,16 @@ _SESSION_ID = "s" * 32
 _TURN_ID = "t" * 24
 
 
+def _nested_mapping_keys(value: object) -> set[str]:
+    if isinstance(value, dict):
+        return set(value) | {
+            key for member in value.values() for key in _nested_mapping_keys(member)
+        }
+    if isinstance(value, list):
+        return {key for member in value for key in _nested_mapping_keys(member)}
+    return set()
+
+
 def _request(
     context: str,
     semantic: str,
@@ -1603,12 +1613,20 @@ def test_structural_existing_path_skips_baseline_compile_and_model(
         "sha_after": bytes_sha256(source.encode()),
         "touched_count": 1,
     }
+    semantic_delta = {
+        "contract": "metis-brain-compiler-owned-semantic-delta/v1",
+        "all_operator_semantics_consumed": True,
+        "reviewed_selection_identities": (),
+        "semantic_source_revision": semantic,
+        "context_revision": context,
+    }
     monkeypatch.setattr(
         orchestrator_module,
         "render_structural_existing",
         lambda **_kwargs: LosslessRenderResult(
             ModelCandidate(source, "not_used", "not_used", "lossless_renderer"),
             proof,
+            semantic_delta,
         ),
     )
 
@@ -1637,10 +1655,17 @@ def test_structural_existing_path_skips_baseline_compile_and_model(
         snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
         cancellation=threading.Event(),
     )
+    retrieved = _grounded_retrieval(context, semantic)
+    retrieved.grounding.update(
+        {
+            "status": "unsupported",
+            "reason": "structural prose is not a catalog concept",
+            "unresolved": ["porta la take da 24 a 30"],
+            "resolutions": [],
+        }
+    )
     result = BrainOrchestrator(
-        retriever=SimpleNamespace(
-            retrieve=lambda **_kwargs: _grounded_retrieval(context, semantic)
-        ),
+        retriever=SimpleNamespace(retrieve=lambda **_kwargs: retrieved),
         model=model,
         compiler=compiler,
         intent_compiler=SimpleNamespace(compile=unexpected_flash),
@@ -1660,6 +1685,14 @@ def test_structural_existing_path_skips_baseline_compile_and_model(
     assert result["identity"]["generation_strategy"] == "lossless_renderer"
     assert result["identity"]["model_revision"] == "not_used"
     assert result["validation"]["lossless"] == proof
+    assert result["grounding"]["status"] == "resolved"
+    assert result["grounding"]["selections"] == []
+    assert result["grounding"]["resolutions"] == []
+    assert result["claims"]["semantic_grounded"] is True
+    assert retrieved.grounding["status"] == "unsupported"
+    assert retrieved.grounding["unresolved"] == ["porta la take da 24 a 30"]
+    assert "metis-brain-compiler-owned-semantic-delta" not in str(result)
+    assert "semantic_delta" not in _nested_mapping_keys(result)
     assert record.basis_manifest is None
     assert record.candidate_manifest is not None
     assert "hostref:" not in str(result)
@@ -1685,6 +1718,135 @@ def test_structural_existing_path_skips_baseline_compile_and_model(
         ("heartbeat", "inference_running"),
         ("inference.completed", "inference_completed"),
     ]
+
+
+def test_structural_terminal_grounding_retains_only_exact_reviewed_delta() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    previous = 'endpoint demo.test { use block.row(genere="Azione") }'
+    source = 'endpoint demo.test { use block.row(genere="Azione,Avventura") }'
+    request = _request(
+        context,
+        semantic,
+        instruction=("per la lista genere sostituisci `Azione` con `Azione,Avventura`"),
+        target={
+            "mode": "existing",
+            "relative_path": "properties/demo/test.metis",
+            "endpoint": "demo.test",
+            "base_sha256": bytes_sha256(previous.encode()),
+        },
+    )
+    reviewed = {
+        "catalog": "play-prod-v2.video",
+        "field": "genere_mcm",
+        "literal": "Avventura",
+    }
+    incidental = {
+        "catalog": "play-prod-v2.video",
+        "field": "title",
+        "literal": "Azione",
+    }
+    retrieved = RetrievalResult(
+        context={},
+        grounding={
+            "status": "unsupported",
+            "catalogs": ["play-prod-v2.video"],
+            "selections": [{**reviewed, "type": "keyword"}, incidental],
+            "resolutions": [
+                {**reviewed, "review_state": "reviewed"},
+                {**incidental, "review_state": "reviewed"},
+            ],
+            "candidates": [],
+            "unresolved": ["sostituisci la lista"],
+            "semantic_source_revision": semantic,
+        },
+        semantic_source_revision=semantic,
+        catalog_candidates=({"catalog": "play-prod-v2.video"},),
+    )
+    proof = {
+        "contract": "metis-brain-structural-lossless-proof/v1",
+        "proof_mode": "validate",
+        "receipt_sha256": "sha256:" + "c" * 64,
+        "sha_before": request.target["base_sha256"],
+        "sha_after": bytes_sha256(source.encode()),
+        "touched_count": 1,
+    }
+    delta = {
+        "contract": "metis-brain-compiler-owned-semantic-delta/v1",
+        "all_operator_semantics_consumed": True,
+        "reviewed_selection_identities": (("play-prod-v2.video", "genere_mcm", "Avventura"),),
+        "semantic_source_revision": semantic,
+        "context_revision": context,
+    }
+
+    final = BrainOrchestrator._structural_terminal_grounding(
+        request=request,
+        retrieved=retrieved,
+        candidate=ModelCandidate(source, "not_used", "not_used", "lossless_renderer"),
+        lossless_proof=proof,
+        semantic_delta=delta,
+    )
+
+    assert final is not None
+    assert final["status"] == "resolved"
+    assert final["selections"] == [{**reviewed, "type": "keyword"}]
+    assert final["resolutions"] == [{**reviewed, "review_state": "reviewed"}]
+    assert final["unresolved"] == []
+    assert retrieved.grounding["status"] == "unsupported"
+    assert retrieved.grounding["selections"][-1] == incidental
+
+
+def test_structural_terminal_grounding_rejects_unreviewed_delta() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    previous = 'endpoint demo.test { use block.row(genere="Azione") }'
+    source = 'endpoint demo.test { use block.row(genere="Azione,Avventura") }'
+    request = _request(
+        context,
+        semantic,
+        target={
+            "mode": "existing",
+            "relative_path": "properties/demo/test.metis",
+            "endpoint": "demo.test",
+            "base_sha256": bytes_sha256(previous.encode()),
+        },
+    )
+    retrieved = RetrievalResult(
+        context={},
+        grounding={
+            "status": "unsupported",
+            "catalogs": ["play-prod-v2.video"],
+            "selections": [],
+            "resolutions": [],
+        },
+        semantic_source_revision=semantic,
+        catalog_candidates=({"catalog": "play-prod-v2.video"},),
+    )
+    proof = {
+        "contract": "metis-brain-structural-lossless-proof/v1",
+        "proof_mode": "validate",
+        "receipt_sha256": "sha256:" + "c" * 64,
+        "sha_before": request.target["base_sha256"],
+        "sha_after": bytes_sha256(source.encode()),
+        "touched_count": 1,
+    }
+    delta = {
+        "contract": "metis-brain-compiler-owned-semantic-delta/v1",
+        "all_operator_semantics_consumed": True,
+        "reviewed_selection_identities": (("play-prod-v2.video", "genere_mcm", "Avventura"),),
+        "semantic_source_revision": semantic,
+        "context_revision": context,
+    }
+
+    with pytest.raises(BrainError) as raised:
+        BrainOrchestrator._structural_terminal_grounding(
+            request=request,
+            retrieved=retrieved,
+            candidate=ModelCandidate(source, "not_used", "not_used", "lossless_renderer"),
+            lossless_proof=proof,
+            semantic_delta=delta,
+        )
+    assert raised.value.code == "STRUCTURAL_GROUNDING_INVALID"
 
 
 def test_lossless_bridge_failure_never_falls_back_to_model1(

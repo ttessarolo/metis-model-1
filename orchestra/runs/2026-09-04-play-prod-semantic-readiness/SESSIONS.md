@@ -22,6 +22,8 @@
 | L1017 | Authority cleanup hardening | delegated bounded implementation lane | bounded ENOTEMPTY retry and visible terminal cleanup failure | compiler bridge and focused tests only | synthetic retry/failure plus real capsule close | done |
 | L1018 | Dual-pin full-suite certification | L0 plus delegated audit | isolate legacy and Brain Metis authorities; exact catalog answer | test harness/clarification/tests and board | 1120 Brain; 3271 pass + 2 skip; P0=0/P1=0 | done |
 | L1019 | Sealed public HTTP ten-edit replay | L0 frontier / maximum | Draft + lossless apply + compile + exact oracle through Brain loopback | ignored runtime/evidence only; no Apply/tenant write | 10/10 PASS_DRAFT and before/after guards | pending after tested-tree commit |
+| L1020 | Structural semantic-delta reconciliation | L0 plus delegated frontier audit | reconcile structural proof with reviewed terminal grounding without mutating raw retrieval | Brain lossless/structural/orchestrator modules, focused tests and docs/board | 1126 Brain tests, adversarial authority matrix, sealed replay | implemented; sealed replay pending |
+| L1021 | Structural Flash bypass | L0 plus delegated read-only diagnosis | keep Flash out of compiler-owned structural instructions while preserving fail-closed ledger | orchestrator, focused tests and board | exact TVOD case plus 10-case sealed replay | implemented; sealed replay pending |
 
 Delegated lanes may not edit, run models, use network/live data, touch tenants,
 commit or push. L0 alone integrates after independent evidence converges.

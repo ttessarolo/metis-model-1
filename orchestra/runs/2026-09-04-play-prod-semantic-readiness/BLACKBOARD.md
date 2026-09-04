@@ -311,6 +311,30 @@ grounding, compiler, tenant or no-Apply gate.
   `PASS_DRAFT`, one compiler attempt, exact lossless proof/source oracle,
   unchanged runtime identity, no Apply capability and unchanged tenant/model
   guards before closing the existing-edit wave.
+- FACT [L1019] — The first sealed real-loopback replay completed all ten edit
+  cases in 244.021 s with unchanged tenant/model guards and exact first-attempt
+  lossless source for nine rendered cases.  Cases 3 and 8 passed; cases 1, 2,
+  4, 5, 6, 9 and 10 were rejected only because the terminal reused raw
+  `grounding.status=unsupported` for structural prose; case 7 failed closed in
+  the Flash pre-pass.  Result digest:
+  `sha256:68e59bb37a3c8dc46fa59cf58db358649cdcbe3de702c5ac32b9fd010d7d4f71`.
+- FIX [L1020] — Structural lossless rendering now emits a host-only semantic
+  delta certificate after its complete instruction ledger.  Terminal grounding
+  is reconciled only when that certificate and the exact lossless proof agree;
+  raw retrieval remains unchanged.  Empty semantic rosters are admitted only
+  for fully consumed count/limit/label edits.  A new block-argument literal must
+  have one exact reviewed selection and resolution for every compiler binding,
+  on the requested semantic revision, before `lossless_apply`; a source witness
+  alone now fails closed.
+- FIX [L1021] — Structural edits no longer invoke Flash before their compiler
+  ledger.  This removes case 7's request-local rejection of the preserved
+  technical text `genere_mcm="Azione"` without allowing Flash or free prose to
+  become edit authority; mixed or partially consumed instructions still fail in
+  the structural parser before any proposal.
+- DONE [L1020-L1021] — Post-fix Brain test roster `in=1126 out=1126 distinct=1126
+  gaps=0`; focused structural/orchestrator/qualification tests, Ruff
+  check/format and `git diff --check` are green.  The final sealed 10/10 HTTP
+  replay remains the only open existing-edit closure gate.
 - STOP [L0] — The diagnostic v2 CREATE journeys remain non-promotable: typed
   incremental CREATE/refinement authority and a cumulative exact structural
   oracle are still required.  Existing-edit closure must not be reported as
