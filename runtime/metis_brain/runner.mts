@@ -10,7 +10,11 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  AstUtils,
+  CstUtils,
+  GrammarUtils,
   stream,
+  type AstNode,
   type LangiumDocuments,
 } from "../../tooling/node_modules/langium/lib/index.js";
 import {
@@ -19,6 +23,14 @@ import {
   loadTenantDocs,
   tenantErrors,
 } from "../../tooling/src/compiler/tenant-build.js";
+import type {
+  IrBlock,
+  IrEndpoint,
+  IrFetch,
+  IrOrigin,
+  IrPredicate,
+} from "../../tooling/src/compiler/ir.js";
+import { parseIr } from "../../tooling/src/compiler/serialize.js";
 import { tenantIdFromMetisToml } from "../../tooling/src/compiler/tenant-artifact-set.js";
 import {
   describeTenant,
@@ -27,6 +39,22 @@ import {
   type TenantContext,
 } from "../../tooling/src/cli/catalog-domain.js";
 import { catalogThresholds } from "../../tooling/src/language/field-values.js";
+import type {
+  ArgRef,
+  BlockArg,
+  BlockInstance,
+  Catalog,
+  CountQty,
+  Endpoint,
+  FieldCondition,
+  LimitStep,
+  Literal,
+  NamedBlock,
+  ReturnFlow,
+  Take,
+  UseBlock,
+  VariantDecl,
+} from "../../tooling/src/language/generated/ast.js";
 
 type CompileRequest = {
   schema_version: 1;
@@ -38,6 +66,13 @@ type CompileRequest = {
 type CompileStructureRequest = {
   schema_version: 1;
   operation: "compile-structure";
+  tenant_root: string;
+  endpoint: string;
+};
+
+type CompileCandidateRequest = {
+  schema_version: 1;
+  operation: "compile-candidate";
   tenant_root: string;
   endpoint: string;
 };
@@ -65,10 +100,20 @@ type LosslessApplyRequest = {
   plan: unknown;
 };
 
+type EditSurfaceRequest = {
+  schema_version: 1;
+  operation: "edit-surface";
+  tenant_root: string;
+  relative_path: string;
+  endpoint: string;
+};
+
 type Request =
   | CompileRequest
+  | CompileCandidateRequest
   | CompileStructureRequest
   | CatalogRequest
+  | EditSurfaceRequest
   | LosslessInventoryRequest
   | LosslessApplyRequest;
 
@@ -99,7 +144,9 @@ async function readRequest(): Promise<Request> {
     value.schema_version !== 1 ||
     ![
       "compile",
+      "compile-candidate",
       "compile-structure",
+      "edit-surface",
       "semantic-catalog",
       "lossless-inventory",
       "lossless-apply",
@@ -130,10 +177,12 @@ async function readRequest(): Promise<Request> {
   }
   if (
     value.operation === "lossless-inventory" ||
-    value.operation === "lossless-apply"
+    value.operation === "lossless-apply" ||
+    value.operation === "edit-surface"
   ) {
     const expected =
-      value.operation === "lossless-inventory"
+      value.operation === "lossless-inventory" ||
+      value.operation === "edit-surface"
         ? "endpoint,operation,relative_path,schema_version,tenant_root"
         : "endpoint,operation,plan,relative_path,schema_version,tenant_root";
     if (Object.keys(value).sort().join(",") !== expected) {
@@ -170,6 +219,15 @@ async function readRequest(): Promise<Request> {
         endpoint,
       };
     }
+    if (value.operation === "edit-surface") {
+      return {
+        schema_version: 1,
+        operation: "edit-surface",
+        tenant_root: tenantRoot,
+        relative_path: relativePath,
+        endpoint,
+      };
+    }
     return {
       schema_version: 1,
       operation: "lossless-apply",
@@ -195,13 +253,16 @@ async function readRequest(): Promise<Request> {
   ) {
     return fail("endpoint is invalid");
   }
-  if (value.operation === "compile-structure") {
+  if (
+    value.operation === "compile-structure" ||
+    value.operation === "compile-candidate"
+  ) {
     if (typeof endpoint !== "string") {
-      return fail("structure endpoint is invalid");
+      return fail("private compiler endpoint is invalid");
     }
     return {
       schema_version: 1,
-      operation: "compile-structure",
+      operation: value.operation,
       tenant_root: tenantRoot,
       endpoint,
     };
@@ -277,8 +338,9 @@ async function losslessInventory(
 ): Promise<Record<string, unknown>> {
   const sourcePath = tenantSourcePath(tenantRoot, relativePath);
   const source = fs.readFileSync(sourcePath);
-  const { buildInventory } =
-    await import("../../tooling/src/lossless/inventory.js");
+  const { buildInventory } = await import(
+    "../../tooling/src/lossless/inventory.js"
+  );
   const result = buildInventory(source);
   if (!result.ok) {
     return {
@@ -292,7 +354,11 @@ async function losslessInventory(
       reasons: result.reasons,
     };
   }
-  const docs = await loadTenantDocs(tenantRoot, { validate: false });
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
+  const diagnostics = tenantErrors(docs);
+  if (diagnostics.length > 0) {
+    return fail(`tenant validation failed (${diagnostics.length} diagnostics)`);
+  }
   const targetDocs = docs.filter(
     (doc) => fs.realpathSync(doc.uri.fsPath) === sourcePath,
   );
@@ -378,6 +444,884 @@ async function losslessInventory(
   };
 }
 
+const EDIT_SURFACE_CONTRACT = "metis-brain-edit-surface/v1";
+const MAX_EDIT_SURFACE_AST_NODES = 16_384;
+const MAX_EDIT_SURFACE_ITEMS = 256;
+const MAX_EDIT_SURFACE_ANCESTORS = 16;
+const MAX_EDIT_SURFACE_ACTIVATION_TOKENS = 512;
+const MAX_EDIT_SURFACE_SELECTORS = 128;
+const MAX_EDIT_SURFACE_TEXT_UNITS = 512;
+const MAX_EDIT_SURFACE_BYTES = 4 * 1024 * 1024;
+
+type EditPrimitive =
+  | "take_cardinality"
+  | "output_limit"
+  | "display_label_or_title"
+  | "block_argument_list";
+
+type ExplicitSpan = {
+  utf16: { start: number; end: number };
+  utf8_bytes: { start: number; end: number };
+};
+
+type EditSurfaceInventory = {
+  sourceSha256: string;
+  nodes: Array<{
+    id: string;
+    type: string;
+    span: {
+      offset: number;
+      end: number;
+      byteOffset: number;
+      byteEnd: number;
+    };
+    preimageSha256: string;
+  }>;
+};
+
+type EditSurfaceCandidate = {
+  primitive: EditPrimitive;
+  propertyOffset: number;
+  occurrenceKey: string;
+  item: Record<string, unknown>;
+};
+
+type BlockArgumentAuthority = {
+  bindings: Array<{ catalog: string; field: string }>;
+};
+
+class EditSurfaceError extends Error {
+  constructor(
+    readonly code:
+      | "BRAIN_EDIT_SURFACE_AMBIGUOUS"
+      | "BRAIN_EDIT_SURFACE_INVALID"
+      | "BRAIN_EDIT_SURFACE_LIMIT",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function explicitSpan(span: {
+  offset: number;
+  end: number;
+  byteOffset: number;
+  byteEnd: number;
+}): ExplicitSpan {
+  return {
+    utf16: { start: span.offset, end: span.end },
+    utf8_bytes: { start: span.byteOffset, end: span.byteEnd },
+  };
+}
+
+function boundedEditText(value: string, label: string): string {
+  if (value.length > MAX_EDIT_SURFACE_TEXT_UNITS) {
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_LIMIT",
+      `${label} exceeds the edit-surface text limit`,
+    );
+  }
+  return value;
+}
+
+function exactEditInteger(
+  value: number,
+  label: string,
+  minimum: number,
+): number {
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_INVALID",
+      `${label} is not an exact supported integer`,
+    );
+  }
+  return value;
+}
+
+function isQuotedStringValue(node: Literal): boolean {
+  const properties = GrammarUtils.findNodesForProperty(node.$cstNode, "value");
+  if (properties.length !== 1) {
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_AMBIGUOUS",
+      "block argument literal does not map uniquely to CST",
+    );
+  }
+  const tokens = CstUtils.flattenCst(properties[0]!)
+    .filter((token) => !token.hidden)
+    .toArray();
+  return tokens.length === 1 && tokens[0]!.tokenType.name === "STRING";
+}
+
+function containingCatalog(node: AstNode): Catalog | undefined {
+  let current: AstNode | undefined = node;
+  while (current !== undefined) {
+    if (current.$type === "Catalog") return current as Catalog;
+    current = current.$container;
+  }
+  return undefined;
+}
+
+function blockArgumentAuthority(argument: BlockArg): BlockArgumentAuthority {
+  const template = argument.$container.template.ref;
+  if (template === undefined) {
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_INVALID",
+      "block argument template is unresolved",
+    );
+  }
+  const bindings = new Map<string, { catalog: string; field: string }>();
+  for (const node of AstUtils.streamAst(template)) {
+    if (node.$type !== "FieldCondition") continue;
+    const condition = node as FieldCondition;
+    if (
+      condition.value?.$type !== "ArgRef" ||
+      (condition.value as ArgRef).name !== argument.name
+    ) {
+      continue;
+    }
+    const field = condition.field.field.ref;
+    const catalog = field === undefined ? undefined : containingCatalog(field);
+    if (field === undefined || catalog === undefined) {
+      throw new EditSurfaceError(
+        "BRAIN_EDIT_SURFACE_INVALID",
+        "block argument field authority is unresolved",
+      );
+    }
+    const binding = {
+      catalog: boundedEditText(catalog.name, "block argument catalog"),
+      field: boundedEditText(field.name, "block argument field"),
+    };
+    bindings.set(`${binding.catalog}\0${binding.field}`, binding);
+  }
+  return {
+    bindings: [...bindings.values()].sort(
+      (left, right) =>
+        left.catalog.localeCompare(right.catalog) ||
+        left.field.localeCompare(right.field),
+    ),
+  };
+}
+
+function editNodeIdentity(
+  inventory: EditSurfaceInventory,
+  node: AstNode,
+): {
+  node_id: string;
+  node_type: string;
+  preimage_sha256: string;
+  span: ExplicitSpan;
+} {
+  const match = exactNode(inventory, node);
+  return {
+    node_id: match.id,
+    node_type: match.type,
+    preimage_sha256: match.preimageSha256,
+    span: explicitSpan(match.span),
+  };
+}
+
+function exactPropertyAnchor(
+  inventory: EditSurfaceInventory,
+  owner: AstNode,
+  propertyOwner: AstNode,
+  propertyPath: string,
+  propertyName: string,
+  sourceText: string,
+  byteAt: Uint32Array,
+  valueNode?: AstNode,
+): {
+  ast_node_id: string | null;
+  path: string;
+  preimage_sha256: string;
+  span: ExplicitSpan;
+} {
+  const matches = GrammarUtils.findNodesForProperty(
+    propertyOwner.$cstNode,
+    propertyName,
+  );
+  if (matches.length !== 1) {
+    const ownerIdentity = editNodeIdentity(inventory, owner);
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_AMBIGUOUS",
+      `editable property ${propertyPath} of ${ownerIdentity.node_id} does not map uniquely to CST`,
+    );
+  }
+  const token = matches[0]!;
+  const span = {
+    offset: token.offset,
+    end: token.end,
+    byteOffset: byteAt[token.offset]!,
+    byteEnd: byteAt[token.end]!,
+  };
+  return {
+    ast_node_id:
+      valueNode === undefined
+        ? null
+        : editNodeIdentity(inventory, valueNode).node_id,
+    path: propertyPath,
+    preimage_sha256: sha256(sourceText.slice(token.offset, token.end)),
+    span: explicitSpan(span),
+  };
+}
+
+function editAncestorChain(owner: AstNode, endpoint: Endpoint): AstNode[] {
+  const reversed: AstNode[] = [];
+  let cursor: AstNode | undefined = owner;
+  while (cursor !== undefined) {
+    reversed.push(cursor);
+    if (cursor === endpoint) {
+      break;
+    }
+    cursor = cursor.$container;
+    if (reversed.length > MAX_EDIT_SURFACE_ANCESTORS) {
+      throw new EditSurfaceError(
+        "BRAIN_EDIT_SURFACE_LIMIT",
+        "editable node exceeds the edit-surface ancestor limit",
+      );
+    }
+  }
+  if (reversed.at(-1) !== endpoint) {
+    throw new EditSurfaceError(
+      "BRAIN_EDIT_SURFACE_INVALID",
+      "editable node is not owned by the requested endpoint",
+    );
+  }
+  return reversed.reverse();
+}
+
+function staticTitle(node: AstNode): string | null {
+  if (
+    ["NamedBlock", "VariantDecl", "BlockInstance"].includes(node.$type) &&
+    typeof (node as { title?: unknown }).title === "string"
+  ) {
+    return boundedEditText((node as { title: string }).title, "scope label");
+  }
+  return null;
+}
+
+function scopeName(node: AstNode): string | null {
+  if (node.$type === "Endpoint") {
+    return boundedEditText((node as Endpoint).name, "endpoint name");
+  }
+  if (node.$type === "VariantDecl" || node.$type === "NamedBlock") {
+    const name = (node as VariantDecl | NamedBlock).name;
+    return typeof name === "string"
+      ? boundedEditText(name, "scope name")
+      : null;
+  }
+  if (node.$type === "BlockInstance") {
+    const instance = node as BlockInstance;
+    const name = instance.name ?? instance.template.$refText;
+    return typeof name === "string"
+      ? boundedEditText(name, "use-instance name")
+      : null;
+  }
+  return null;
+}
+
+function scopeKind(
+  node: AstNode,
+): "endpoint" | "variant" | "block" | "use_instance" | null {
+  if (node.$type === "Endpoint") return "endpoint";
+  if (node.$type === "VariantDecl") return "variant";
+  if (node.$type === "NamedBlock") return "block";
+  if (node.$type === "BlockInstance") return "use_instance";
+  return null;
+}
+
+function guardOf(node: AstNode): AstNode | undefined {
+  if (
+    node.$type === "VariantDecl" ||
+    node.$type === "NamedBlock" ||
+    node.$type === "Take"
+  ) {
+    return (node as VariantDecl | NamedBlock | Take).guard;
+  }
+  return undefined;
+}
+
+function decodedStringToken(text: string): string {
+  if (text.startsWith('"')) {
+    const parsed = JSON.parse(text) as unknown;
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+  }
+  if (text.startsWith("'") && text.endsWith("'")) {
+    return text.slice(1, -1);
+  }
+  throw new EditSurfaceError(
+    "BRAIN_EDIT_SURFACE_INVALID",
+    "validated string selector cannot be decoded",
+  );
+}
+
+function activationSurface(
+  chain: AstNode[],
+  stage: Take | ReturnFlow | UseBlock | BlockInstance,
+  inventory: EditSurfaceInventory,
+): {
+  activation_sha256: string | null;
+  selectors: { identifiers: string[]; string_literals: string[] };
+} {
+  const signatures: Array<Record<string, unknown>> = [];
+  const stageIdentifiers: string[] = [];
+  const stageStringLiterals: string[] = [];
+  let tokenCount = 0;
+  const appendSelector = (
+    items: string[],
+    value: string,
+    label: string,
+  ): void => {
+    const bounded = boundedEditText(value, label);
+    if (!items.includes(bounded)) {
+      items.push(bounded);
+      if (items.length > MAX_EDIT_SURFACE_SELECTORS) {
+        throw new EditSurfaceError(
+          "BRAIN_EDIT_SURFACE_LIMIT",
+          "activation selectors exceed the edit-surface limit",
+        );
+      }
+    }
+  };
+  for (const node of chain) {
+    const guard = guardOf(node);
+    if (guard?.$cstNode === undefined) continue;
+    const tokens = CstUtils.flattenCst(guard.$cstNode)
+      .filter((token) => !token.hidden)
+      .map((token) => {
+        tokenCount += 1;
+        if (tokenCount > MAX_EDIT_SURFACE_ACTIVATION_TOKENS) {
+          throw new EditSurfaceError(
+            "BRAIN_EDIT_SURFACE_LIMIT",
+            "activation tokens exceed the edit-surface limit",
+          );
+        }
+        if (node === stage && token.tokenType.name === "ID") {
+          appendSelector(stageIdentifiers, token.text, "activation identifier");
+        } else if (node === stage && token.tokenType.name === "STRING") {
+          appendSelector(
+            stageStringLiterals,
+            decodedStringToken(token.text),
+            "activation string literal",
+          );
+        }
+        return { token: token.tokenType.name, text: token.text };
+      })
+      .toArray();
+    signatures.push({
+      owner_node_id: editNodeIdentity(inventory, node).node_id,
+      tokens,
+    });
+  }
+  return {
+    activation_sha256:
+      signatures.length === 0 ? null : canonicalHash(signatures),
+    // The digest protects the whole ancestor-to-stage activation chain. The
+    // selectors are deliberately stage-local: flattening an ancestor variant's
+    // HDR|SDR guard into both child takes would make the siblings identical.
+    selectors: {
+      identifiers: stageIdentifiers,
+      string_literals: stageStringLiterals,
+    },
+  };
+}
+
+function stageKind(
+  node: Take | ReturnFlow | UseBlock | BlockInstance,
+): "take" | "return_flow" | "use_block" | "use_instance" {
+  if (node.$type === "Take") return "take";
+  if (node.$type === "ReturnFlow") return "return_flow";
+  if (node.$type === "UseBlock") return "use_block";
+  return "use_instance";
+}
+
+function stageIdentifier(
+  node: Take | ReturnFlow | UseBlock | BlockInstance,
+): string | null {
+  if (node.$type === "Take") {
+    return typeof node.name === "string"
+      ? boundedEditText(node.name, "take name")
+      : null;
+  }
+  if (node.$type === "UseBlock") {
+    return boundedEditText(node.block.$refText, "use-block reference");
+  }
+  if (node.$type === "BlockInstance") {
+    return boundedEditText(
+      node.name ?? node.template.$refText,
+      "use-instance identifier",
+    );
+  }
+  return null;
+}
+
+function editScope(
+  endpoint: Endpoint,
+  owner: AstNode,
+  stage: Take | ReturnFlow | UseBlock | BlockInstance,
+  inventory: EditSurfaceInventory,
+): {
+  ancestors: Array<{
+    kind: "endpoint" | "variant" | "block" | "use_instance";
+    node_id: string;
+    name: string | null;
+    label: string | null;
+  }>;
+  stage: {
+    kind: "take" | "return_flow" | "use_block" | "use_instance";
+    node_id: string;
+    identifier: string | null;
+    activation_sha256: string | null;
+    selectors: { identifiers: string[]; string_literals: string[] };
+  };
+  occurrence: number;
+} {
+  const chain = editAncestorChain(owner, endpoint);
+  const ancestors = chain.flatMap((node) => {
+    const kind = scopeKind(node);
+    if (kind === null) return [];
+    return [
+      {
+        kind,
+        node_id: editNodeIdentity(inventory, node).node_id,
+        name: scopeName(node),
+        label: staticTitle(node),
+      },
+    ];
+  });
+  const activation = activationSurface(chain, stage, inventory);
+  return {
+    ancestors,
+    stage: {
+      kind: stageKind(stage),
+      node_id: editNodeIdentity(inventory, stage).node_id,
+      identifier: stageIdentifier(stage),
+      ...activation,
+    },
+    occurrence: 0,
+  };
+}
+
+function invalidEditSurface(
+  relativePath: string,
+  requestedEndpoint: string,
+  code: string,
+  message: string,
+  diagnostics: unknown[] = [],
+): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    operation: "edit-surface",
+    status: "invalid",
+    diagnostics:
+      diagnostics.length > 0
+        ? diagnostics
+        : [{ file: "", line: 1, code, message }],
+    relative_path: relativePath,
+    endpoint: requestedEndpoint,
+    edit_surface: null,
+    edit_surface_sha256: null,
+  };
+}
+
+async function editSurface(
+  tenantRoot: string,
+  relativePath: string,
+  requestedEndpoint: string,
+): Promise<Record<string, unknown>> {
+  const sourcePath = tenantSourcePath(tenantRoot, relativePath);
+  const source = fs.readFileSync(sourcePath);
+  const sourceText = source.toString("utf8");
+  const { buildInventory, byteOffsetMap } = await import(
+    "../../tooling/src/lossless/inventory.js"
+  );
+  const inventoryResult = buildInventory(source);
+  if (!inventoryResult.ok) {
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_EDIT_SURFACE_SOURCE",
+      "edit-surface source is not lossless-admissible",
+      inventoryResult.reasons,
+    );
+  }
+  const inventory = inventoryResult.inventory as EditSurfaceInventory;
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
+  const targetDocs = docs.filter(
+    (doc) => fs.realpathSync(doc.uri.fsPath) === sourcePath,
+  );
+  if (targetDocs.length !== 1) {
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_EDIT_SURFACE_AMBIGUOUS",
+      "edit-surface target document is not unique",
+    );
+  }
+  const model = targetDocs[0]!.parseResult.value as {
+    elements?: AstNode[];
+  };
+  const endpointMatches = (model.elements ?? []).filter(
+    (node) =>
+      node.$type === "Endpoint" &&
+      (node as Endpoint).name === requestedEndpoint,
+  ) as Endpoint[];
+  if (endpointMatches.length !== 1) {
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_ENDPOINT_IDENTITY",
+      endpointMatches.length === 0
+        ? "edit-surface endpoint is not present in the target document"
+        : "edit-surface endpoint is ambiguous in the target document",
+    );
+  }
+  const diagnostics = tenantErrors(docs).slice(0, 128);
+  if (diagnostics.length > 0) {
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_TENANT_INVALID",
+      "edit-surface tenant snapshot is invalid",
+      diagnostics,
+    );
+  }
+  const compiled = compileTenantEndpoints(docs, tenantRoot);
+  if (!compiled.has(requestedEndpoint)) {
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_ENDPOINT_IDENTITY",
+      "edit-surface endpoint is not compiler-owned",
+    );
+  }
+
+  const endpoint = endpointMatches[0]!;
+  const endpointIdentity = editNodeIdentity(inventory, endpoint);
+  const byteAt = byteOffsetMap(sourceText);
+  const candidates: EditSurfaceCandidate[] = [];
+  let astNodes = 0;
+  const append = (
+    primitive: EditPrimitive,
+    owner: AstNode,
+    stage: Take | ReturnFlow | UseBlock | BlockInstance,
+    property: ReturnType<typeof exactPropertyAnchor>,
+    oldValue: Record<string, unknown>,
+  ): void => {
+    if (candidates.length >= MAX_EDIT_SURFACE_ITEMS) {
+      throw new EditSurfaceError(
+        "BRAIN_EDIT_SURFACE_LIMIT",
+        "endpoint has too many editable surface items",
+      );
+    }
+    const ownerIdentity = editNodeIdentity(inventory, owner);
+    const scope = editScope(endpoint, owner, stage, inventory);
+    const structuralOwner = scope.ancestors.at(-1);
+    if (structuralOwner === undefined) {
+      throw new EditSurfaceError(
+        "BRAIN_EDIT_SURFACE_INVALID",
+        "editable node has no structural owner",
+      );
+    }
+    candidates.push({
+      primitive,
+      propertyOffset: property.span.utf16.start,
+      occurrenceKey: `${structuralOwner.node_id}\0${scope.stage.kind}\0${primitive}`,
+      item: {
+        ordinal: 0,
+        edit_ref: "",
+        primitive,
+        owner: ownerIdentity,
+        property,
+        scope,
+        old_value: oldValue,
+        authority:
+          primitive === "block_argument_list"
+            ? blockArgumentAuthority(owner as BlockArg)
+            : null,
+      },
+    });
+  };
+
+  try {
+    for (const node of AstUtils.streamAst(endpoint)) {
+      astNodes += 1;
+      if (astNodes > MAX_EDIT_SURFACE_AST_NODES) {
+        throw new EditSurfaceError(
+          "BRAIN_EDIT_SURFACE_LIMIT",
+          "endpoint AST exceeds the edit-surface node limit",
+        );
+      }
+      if (node.$type === "Take") {
+        const take = node as Take;
+        if (typeof take.count === "number") {
+          append(
+            "take_cardinality",
+            take,
+            take,
+            exactPropertyAnchor(
+              inventory,
+              take,
+              take,
+              "count",
+              "count",
+              sourceText,
+              byteAt,
+            ),
+            {
+              type: "positive_integer",
+              mode: "count",
+              value: exactEditInteger(take.count, "take count", 1),
+            },
+          );
+        } else if (take.page && typeof take.pageDefault === "number") {
+          append(
+            "take_cardinality",
+            take,
+            take,
+            exactPropertyAnchor(
+              inventory,
+              take,
+              take,
+              "pageDefault",
+              "pageDefault",
+              sourceText,
+              byteAt,
+            ),
+            {
+              type: "positive_integer",
+              mode: "page_default",
+              value: exactEditInteger(take.pageDefault, "take page default", 1),
+            },
+          );
+        }
+        if (typeof take.title === "string") {
+          append(
+            "display_label_or_title",
+            take,
+            take,
+            exactPropertyAnchor(
+              inventory,
+              take,
+              take,
+              "title",
+              "title",
+              sourceText,
+              byteAt,
+            ),
+            {
+              type: "string",
+              value: boundedEditText(take.title, "take display label"),
+            },
+          );
+        }
+      } else if (node.$type === "LimitStep") {
+        const limit = node as LimitStep;
+        const quantity = limit.quantity;
+        if (
+          quantity.$type === "CountQty" &&
+          (quantity as CountQty).n.$type === "CardinalityLiteral"
+        ) {
+          const count = quantity as CountQty;
+          const literal = count.n;
+          const stage = limit.$container;
+          if (stage.$type !== "ReturnFlow") {
+            continue;
+          }
+          append(
+            "output_limit",
+            limit,
+            stage,
+            exactPropertyAnchor(
+              inventory,
+              limit,
+              count,
+              "quantity.n.value",
+              "n",
+              sourceText,
+              byteAt,
+              literal,
+            ),
+            {
+              type: "non_negative_integer",
+              unit: count.percent ? "percent" : "items",
+              value: exactEditInteger(literal.value, "output limit", 0),
+            },
+          );
+        }
+      } else if (node.$type === "UseBlock") {
+        const use = node as UseBlock;
+        if (typeof use.title === "string") {
+          append(
+            "display_label_or_title",
+            use,
+            use,
+            exactPropertyAnchor(
+              inventory,
+              use,
+              use,
+              "title",
+              "title",
+              sourceText,
+              byteAt,
+            ),
+            {
+              type: "string",
+              value: boundedEditText(use.title, "use-block display label"),
+            },
+          );
+        }
+      } else if (node.$type === "BlockInstance") {
+        const instance = node as BlockInstance;
+        if (typeof instance.title === "string") {
+          append(
+            "display_label_or_title",
+            instance,
+            instance,
+            exactPropertyAnchor(
+              inventory,
+              instance,
+              instance,
+              "title",
+              "title",
+              sourceText,
+              byteAt,
+            ),
+            {
+              type: "string",
+              value: boundedEditText(
+                instance.title,
+                "use-instance display label",
+              ),
+            },
+          );
+        }
+      } else if (node.$type === "BlockArg") {
+        const argument = node as BlockArg;
+        if (
+          argument.value.$type === "Literal" &&
+          typeof (argument.value as Literal).value === "string" &&
+          isQuotedStringValue(argument.value as Literal)
+        ) {
+          const literal = argument.value as Literal;
+          append(
+            "block_argument_list",
+            argument,
+            argument.$container,
+            exactPropertyAnchor(
+              inventory,
+              argument,
+              argument,
+              "value.value",
+              "value",
+              sourceText,
+              byteAt,
+              literal,
+            ),
+            {
+              type: "string",
+              argument: boundedEditText(argument.name, "block argument name"),
+              value: boundedEditText(
+                literal.value as string,
+                "block argument string literal",
+              ),
+            },
+          );
+        }
+      }
+    }
+
+    candidates.sort(
+      (left, right) =>
+        left.propertyOffset - right.propertyOffset ||
+        left.primitive.localeCompare(right.primitive) ||
+        String((left.item.owner as { node_id: string }).node_id).localeCompare(
+          String((right.item.owner as { node_id: string }).node_id),
+        ),
+    );
+    const occurrences = new Map<string, number>();
+    const items = candidates.map((candidate, ordinal) => {
+      const occurrence = occurrences.get(candidate.occurrenceKey) ?? 0;
+      occurrences.set(candidate.occurrenceKey, occurrence + 1);
+      const scope = candidate.item.scope as { occurrence: number };
+      scope.occurrence = occurrence;
+      candidate.item.ordinal = ordinal;
+      candidate.item.edit_ref = canonicalHash({
+        contract: EDIT_SURFACE_CONTRACT,
+        source_sha256: inventory.sourceSha256,
+        primitive: candidate.primitive,
+        owner_node_id: (candidate.item.owner as { node_id: string }).node_id,
+        property: candidate.item.property,
+        scope,
+        authority: candidate.item.authority,
+      });
+      return candidate.item;
+    });
+    const editSurfaceProjection = {
+      contract: EDIT_SURFACE_CONTRACT,
+      relative_path: relativePath,
+      source_sha256: inventory.sourceSha256,
+      endpoint: {
+        name: requestedEndpoint,
+        node_id: endpointIdentity.node_id,
+        preimage_sha256: endpointIdentity.preimage_sha256,
+        span: endpointIdentity.span,
+      },
+      items,
+      counts: {
+        items: items.length,
+        take_cardinality: candidates.filter(
+          (item) => item.primitive === "take_cardinality",
+        ).length,
+        output_limit: candidates.filter(
+          (item) => item.primitive === "output_limit",
+        ).length,
+        display_label_or_title: candidates.filter(
+          (item) => item.primitive === "display_label_or_title",
+        ).length,
+        block_argument_list: candidates.filter(
+          (item) => item.primitive === "block_argument_list",
+        ).length,
+      },
+    };
+    if (
+      Buffer.byteLength(canonicalJson(editSurfaceProjection), "utf8") >
+      MAX_EDIT_SURFACE_BYTES
+    ) {
+      throw new EditSurfaceError(
+        "BRAIN_EDIT_SURFACE_LIMIT",
+        "edit-surface projection exceeds its byte limit",
+      );
+    }
+    return {
+      schema_version: 1,
+      operation: "edit-surface",
+      status: "ok",
+      diagnostics: [],
+      relative_path: relativePath,
+      endpoint: requestedEndpoint,
+      edit_surface: editSurfaceProjection,
+      edit_surface_sha256: canonicalHash(editSurfaceProjection),
+    };
+  } catch (error: unknown) {
+    if (error instanceof EditSurfaceError) {
+      return invalidEditSurface(
+        relativePath,
+        requestedEndpoint,
+        error.code,
+        error.message,
+      );
+    }
+    return invalidEditSurface(
+      relativePath,
+      requestedEndpoint,
+      "BRAIN_EDIT_SURFACE_INVALID",
+      "endpoint edit surface cannot be projected safely",
+    );
+  }
+}
+
 async function losslessApply(
   tenantRoot: string,
   relativePath: string,
@@ -409,7 +1353,11 @@ async function context(tenantRoot: string): Promise<TenantContext> {
     "utf8",
   );
   const tenant = tenantIdFromMetisToml(metisToml);
-  const docs = await loadTenantDocs(tenantRoot, { validate: false });
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
+  const diagnostics = tenantErrors(docs);
+  if (diagnostics.length > 0) {
+    return fail(`tenant validation failed (${diagnostics.length} diagnostics)`);
+  }
   const langiumDocs = { all: stream(docs) } as unknown as LangiumDocuments;
   return {
     docs,
@@ -473,7 +1421,7 @@ async function compile(
   tenantRoot: string,
   requestedEndpoint: string | null,
 ): Promise<Record<string, unknown>> {
-  const docs = await loadTenantDocs(tenantRoot, { validate: false });
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
   const diagnostics = tenantErrors(docs).slice(0, 128);
   if (diagnostics.length > 0) {
     return {
@@ -531,15 +1479,42 @@ async function compile(
   };
 }
 
-function stripProvenance(value: unknown): unknown {
+type ProvenanceTraversal = "node" | "node-array" | "node-map" | "data";
+
+function stripProvenance(
+  value: unknown,
+  mode: ProvenanceTraversal = "node",
+): unknown {
   if (Array.isArray(value)) {
-    return value.map(stripProvenance);
+    const childMode = mode === "node-array" ? "node" : "data";
+    return value.map((member) => stripProvenance(member, childMode));
   }
   if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (mode === "node-map") {
+      return Object.fromEntries(
+        Object.entries(record).map(([key, member]) => [
+          key,
+          stripProvenance(member, "node"),
+        ]),
+      );
+    }
+    const node = mode === "node" ? record.node : null;
+    const childMode = (key: string): ProvenanceTraversal => {
+      if (node === "Endpoint") {
+        if (key === "context") return "node-map";
+        if (["blocks", "variants"].includes(key)) return "node-array";
+        if (key === "inline") return "node";
+      }
+      if (node === "Block" && ["takes", "blocks"].includes(key)) {
+        return "node-array";
+      }
+      return "data";
+    };
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => key !== "provenance")
-        .map(([key, member]) => [key, stripProvenance(member)]),
+      Object.entries(record)
+        .filter(([key]) => !(mode === "node" && key === "provenance"))
+        .map(([key, member]) => [key, stripProvenance(member, childMode(key))]),
     );
   }
   return value;
@@ -562,11 +1537,446 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(normalize(value));
 }
 
+const MAX_MANIFEST_CONTAINERS = 512;
+const MAX_MANIFEST_FETCHES = 512;
+const MAX_MANIFEST_PREDICATES = 8192;
+const MAX_MANIFEST_CONTEXT_NODES = 512;
+const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
+
+class CandidateManifestError extends Error {
+  constructor(
+    readonly code: "BRAIN_MANIFEST_LIMIT" | "BRAIN_CATALOG_LINEAGE",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function canonicalHash(value: unknown): string {
+  return sha256(canonicalJson(value));
+}
+
+function hashWhenPresent(value: unknown): string | null {
+  return value === undefined ? null : canonicalHash(value);
+}
+
+function fetchSemanticsHash(fetch: IrFetch): string {
+  const normalized = stripProvenance(fetch) as Record<string, unknown>;
+  delete normalized.stageId;
+  return canonicalHash(normalized);
+}
+
+function containerSemanticsHash(
+  container: IrEndpoint | IrBlock,
+  kind: "endpoint" | "block",
+): string {
+  const normalized = stripProvenance(container) as Record<string, unknown>;
+  if (kind === "block") {
+    // Child structure has its own ordered container/fetch roster.  Everything
+    // else is direct block semantics and must remain covered as the IR grows.
+    delete normalized.takes;
+    delete normalized.blocks;
+    return canonicalHash(normalized);
+  }
+
+  delete normalized.blocks;
+  delete normalized.variants;
+  delete normalized.inline;
+  const context = normalized.context;
+  if (context !== undefined) {
+    if (
+      context === null ||
+      typeof context !== "object" ||
+      Array.isArray(context)
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate endpoint context is invalid",
+      );
+    }
+    const entries = Object.entries(context as Record<string, unknown>);
+    if (entries.length > MAX_MANIFEST_CONTEXT_NODES) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate has too many context nodes",
+      );
+    }
+    normalized.context = Object.fromEntries(
+      entries.map(([name, node]) => {
+        if (
+          node !== null &&
+          typeof node === "object" &&
+          !Array.isArray(node) &&
+          (node as Record<string, unknown>).node === "Fetch"
+        ) {
+          // The complete Fetch is separately manifested.  Retain the mapping
+          // from context name to its compiler-owned occurrence identity here.
+          return [
+            name,
+            {
+              node: "Fetch",
+              stageId: (node as Record<string, unknown>).stageId,
+            },
+          ];
+        }
+        // ContextTransform has no fetch occurrence, so its full direct IR
+        // semantics (minus provenance) belongs to the endpoint container.
+        return [name, node];
+      }),
+    );
+  }
+  return canonicalHash(normalized);
+}
+
+function fallbackHash(value: {
+  fallback?: unknown;
+  fallbacks?: unknown;
+  materializedFallbacks?: unknown;
+}): string | null {
+  if (
+    value.fallback === undefined &&
+    value.fallbacks === undefined &&
+    value.materializedFallbacks === undefined
+  ) {
+    return null;
+  }
+  return canonicalHash({
+    fallback: value.fallback,
+    fallbacks: value.fallbacks,
+    materializedFallbacks: value.materializedFallbacks,
+  });
+}
+
+function normalizedOrigin(origin: IrOrigin): {
+  kind: string;
+  ref: string | null;
+} {
+  return { kind: origin.kind, ref: origin.ref ?? null };
+}
+
+type ManifestPredicate = {
+  intent: "include" | "exclude" | "promote";
+  clause_index: number;
+  leaf_path: string;
+  catalog: string | null;
+  field: string | null;
+  operator: string;
+  value: unknown;
+  amount: unknown;
+  graded: boolean;
+  origin: { kind: string; ref: string | null };
+  clause_guard_sha256: string | null;
+  leaf_guard_sha256: string | null;
+  expression_sha256: string;
+};
+
+function predicateLeaves(
+  predicate: IrPredicate,
+  path: string,
+): Array<{ predicate: IrPredicate; path: string }> {
+  if (
+    !("args" in predicate) ||
+    predicate.args === undefined ||
+    !["group", "and", "or"].includes(predicate.op)
+  ) {
+    return [{ predicate, path }];
+  }
+  return predicate.args.flatMap((item, index) =>
+    predicateLeaves(item, `${path}.args[${index}]`),
+  );
+}
+
+function fetchPredicates(
+  fetch: IrFetch,
+  catalog: string | null,
+): ManifestPredicate[] {
+  const result: ManifestPredicate[] = [];
+  const append = (
+    intent: ManifestPredicate["intent"],
+    clauseIndex: number,
+    predicate: IrPredicate,
+    origin: IrOrigin,
+    clauseGuard: string | undefined,
+    path: string,
+  ): void => {
+    const expressionSha256 = canonicalHash(predicate);
+    for (const leaf of predicateLeaves(predicate, path)) {
+      const item = leaf.predicate;
+      result.push({
+        intent,
+        clause_index: clauseIndex,
+        leaf_path: leaf.path,
+        catalog,
+        field: "field" in item ? (item.field ?? null) : null,
+        operator: item.op,
+        value: "value" in item ? (item.value ?? null) : null,
+        amount: "amount" in item ? (item.amount ?? null) : null,
+        graded: item.graded,
+        origin: normalizedOrigin(origin),
+        clause_guard_sha256: hashWhenPresent(clauseGuard),
+        leaf_guard_sha256: "guard" in item ? hashWhenPresent(item.guard) : null,
+        expression_sha256: expressionSha256,
+      });
+    }
+  };
+  fetch.constraints.forEach((clause, index) =>
+    append(
+      "include",
+      index,
+      clause.predicate,
+      clause.origin,
+      clause.guard,
+      `constraints[${index}].predicate`,
+    ),
+  );
+  fetch.exclusions.forEach((clause, index) =>
+    clause.predicates.forEach((predicate, predicateIndex) =>
+      append(
+        "exclude",
+        index,
+        predicate,
+        clause.origin,
+        clause.guard,
+        `exclusions[${index}].predicates[${predicateIndex}]`,
+      ),
+    ),
+  );
+  fetch.preferences.forEach((clause, index) =>
+    append(
+      "promote",
+      index,
+      clause.predicate,
+      clause.origin,
+      clause.guard,
+      `preferences[${index}].predicate`,
+    ),
+  );
+  return result;
+}
+
+function candidateManifest(
+  endpoint: IrEndpoint,
+  endpointSource: string,
+): unknown {
+  const containers: Array<Record<string, unknown>> = [];
+  const fetches: Array<Record<string, unknown>> = [];
+  let predicateCount = 0;
+
+  const addContainer = (
+    container: IrEndpoint | IrBlock,
+    containerPath: string,
+    kind: "endpoint" | "block",
+  ): void => {
+    if (containers.length >= MAX_MANIFEST_CONTAINERS) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate has too many structural containers",
+      );
+    }
+    const endpointNode = kind === "endpoint" ? (container as IrEndpoint) : null;
+    const blockNode = kind === "block" ? (container as IrBlock) : null;
+    containers.push({
+      path: containerPath,
+      kind,
+      name: container.name,
+      activation_sha256: hashWhenPresent(blockNode?.activation),
+      output_sha256: hashWhenPresent(container.output),
+      fallback_sha256: fallbackHash(container),
+      uses_sha256: hashWhenPresent(blockNode?.uses),
+      semantics_sha256: containerSemanticsHash(container, kind),
+      presentation_sha256: canonicalHash(
+        endpointNode === null
+          ? {
+              title: blockNode?.title,
+              titleInterpolates: blockNode?.titleInterpolates,
+              titleFallback: blockNode?.titleFallback,
+              titleContextDeps: blockNode?.titleContextDeps,
+              titleField: blockNode?.titleField,
+              pinned: blockNode?.pinned,
+              viewAll: blockNode?.viewAll,
+              meta: blockNode?.meta,
+              empty: blockNode?.empty,
+            }
+          : {
+              reference: endpointNode.reference,
+              expires: endpointNode.expires,
+              paginate: endpointNode.paginate,
+              analytics: endpointNode.analytics,
+              cardinalityParams: endpointNode.cardinalityParams,
+            },
+      ),
+    });
+  };
+
+  const addFetch = (fetch: IrFetch, containerPath: string): void => {
+    if (fetches.length >= MAX_MANIFEST_FETCHES) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate has too many fetch occurrences",
+      );
+    }
+    const source = fetch.source;
+    if (
+      typeof source.ref !== "string" ||
+      source.ref.length === 0 ||
+      source.ref.length > 256
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_CATALOG_LINEAGE",
+        "candidate fetch source identity is unavailable",
+      );
+    }
+    const provisionalCatalog = source.kind === "catalog" ? source.ref : null;
+    const predicates = fetchPredicates(fetch, provisionalCatalog);
+    if (
+      provisionalCatalog === null &&
+      predicates.some((predicate) => predicate.field !== null)
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_CATALOG_LINEAGE",
+        "candidate field predicate has no catalog lineage",
+      );
+    }
+    predicateCount += predicates.length;
+    if (predicateCount > MAX_MANIFEST_PREDICATES) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate has too many predicate leaves",
+      );
+    }
+    fetches.push({
+      occurrence: fetches.length,
+      stage_id: fetch.stageId,
+      container_path: containerPath,
+      source: { kind: source.kind, ref: source.ref },
+      catalog: provisionalCatalog,
+      count: fetch.count,
+      activation_sha256: hashWhenPresent(fetch.activation),
+      ordering_sha256: canonicalHash(fetch.ordering),
+      output_sha256: hashWhenPresent(fetch.output),
+      fallback_sha256: fallbackHash(fetch),
+      predicates,
+      semantics_sha256: fetchSemanticsHash(fetch),
+    });
+  };
+
+  const addBlock = (block: IrBlock, containerPath: string): void => {
+    addContainer(block, containerPath, "block");
+    block.takes.forEach((fetch) => addFetch(fetch, containerPath));
+    (block.blocks ?? []).forEach((nested, index) =>
+      addBlock(nested, `${containerPath}/blocks[${index}]:${nested.name}`),
+    );
+  };
+
+  addContainer(endpoint, "endpoint", "endpoint");
+  for (const [name, contextNode] of Object.entries(endpoint.context ?? {})) {
+    if (contextNode.node === "Fetch") {
+      addFetch(contextNode, `endpoint/context:${name}`);
+    }
+  }
+  endpoint.blocks.forEach((block, index) =>
+    addBlock(block, `endpoint/blocks[${index}]:${block.name}`),
+  );
+  endpoint.variants.forEach((variant, index) =>
+    addBlock(variant, `endpoint/variants[${index}]:${variant.name}`),
+  );
+  if (endpoint.inline !== undefined) {
+    addBlock(endpoint.inline, "endpoint/inline");
+  }
+  const endpointSha256 = sha256(endpointSource);
+  const manifest = {
+    schema_version: 1,
+    endpoint: endpoint.name,
+    endpoint_sha256: endpointSha256,
+    containers,
+    fetches,
+  };
+  if (Buffer.byteLength(canonicalJson(manifest), "utf8") > MAX_MANIFEST_BYTES) {
+    throw new CandidateManifestError(
+      "BRAIN_MANIFEST_LIMIT",
+      "candidate structural manifest exceeds its byte limit",
+    );
+  }
+  return manifest;
+}
+
+function invalidCandidateCompile(
+  code: string,
+  message: string,
+): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    operation: "compile-candidate",
+    status: "invalid",
+    diagnostics: [{ file: "", line: 1, code, message }],
+    endpoint: null,
+    endpoint_sha256: null,
+    runtime_context_sha256: null,
+    manifest: null,
+    manifest_sha256: null,
+  };
+}
+
+async function compileCandidate(
+  tenantRoot: string,
+  requestedEndpoint: string,
+): Promise<Record<string, unknown>> {
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
+  const diagnostics = tenantErrors(docs).slice(0, 128);
+  if (diagnostics.length > 0) {
+    return {
+      ...invalidCandidateCompile(
+        "BRAIN_TENANT_INVALID",
+        "candidate tenant snapshot is invalid",
+      ),
+      diagnostics,
+    };
+  }
+  const compiled = compileTenantEndpoints(docs, tenantRoot);
+  const endpointSource = compiled.get(requestedEndpoint);
+  if (endpointSource === undefined) {
+    return invalidCandidateCompile(
+      "BRAIN_ENDPOINT_IDENTITY",
+      "endpoint strutturale richiesto non compilato",
+    );
+  }
+  try {
+    const endpoint = parseIr<IrEndpoint>(endpointSource);
+    if (endpoint.node !== "Endpoint" || endpoint.name !== requestedEndpoint) {
+      return invalidCandidateCompile(
+        "BRAIN_ENDPOINT_IDENTITY",
+        "endpoint strutturale richiesto non univoco",
+      );
+    }
+    const manifest = candidateManifest(endpoint, endpointSource);
+    const runtimeContext = JSON.stringify(buildRuntimeCtx(docs, tenantRoot));
+    return {
+      schema_version: 1,
+      operation: "compile-candidate",
+      status: "ok",
+      diagnostics: [],
+      endpoint: requestedEndpoint,
+      endpoint_sha256: sha256(endpointSource),
+      runtime_context_sha256: sha256(runtimeContext),
+      manifest,
+      manifest_sha256: canonicalHash(manifest),
+    };
+  } catch (error: unknown) {
+    if (error instanceof CandidateManifestError) {
+      return invalidCandidateCompile(error.code, error.message);
+    }
+    return invalidCandidateCompile(
+      "BRAIN_MANIFEST_INVALID",
+      "compiled endpoint cannot be normalized safely",
+    );
+  }
+}
+
 async function compileStructure(
   tenantRoot: string,
   requestedEndpoint: string,
 ): Promise<Record<string, unknown>> {
-  const docs = await loadTenantDocs(tenantRoot, { validate: false });
+  const docs = await loadTenantDocs(tenantRoot, { validate: true });
   const diagnostics = tenantErrors(docs).slice(0, 128);
   if (diagnostics.length > 0) {
     return {
@@ -619,20 +2029,28 @@ async function main(): Promise<void> {
       ? await semanticCatalog(request.tenant_root)
       : request.operation === "compile"
         ? await compile(request.tenant_root, request.endpoint)
-        : request.operation === "compile-structure"
-          ? await compileStructure(request.tenant_root, request.endpoint)
-          : request.operation === "lossless-inventory"
-            ? await losslessInventory(
-                request.tenant_root,
-                request.relative_path,
-                request.endpoint,
-              )
-            : await losslessApply(
-                request.tenant_root,
-                request.relative_path,
-                request.endpoint,
-                request.plan,
-              );
+        : request.operation === "compile-candidate"
+          ? await compileCandidate(request.tenant_root, request.endpoint)
+          : request.operation === "compile-structure"
+            ? await compileStructure(request.tenant_root, request.endpoint)
+            : request.operation === "edit-surface"
+              ? await editSurface(
+                  request.tenant_root,
+                  request.relative_path,
+                  request.endpoint,
+                )
+              : request.operation === "lossless-inventory"
+                ? await losslessInventory(
+                    request.tenant_root,
+                    request.relative_path,
+                    request.endpoint,
+                  )
+                : await losslessApply(
+                    request.tenant_root,
+                    request.relative_path,
+                    request.endpoint,
+                    request.plan,
+                  );
   process.stdout.write(`${JSON.stringify(response)}\n`);
 }
 

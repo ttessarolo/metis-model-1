@@ -8,11 +8,16 @@ import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from metis_model1.brain_clarifications import ClarificationStore, clarification_reference
+from metis_model1.brain_clarifications import (
+    ClarificationStore,
+    clarification_reference,
+    clarification_text,
+)
 from metis_model1.brain_model_runtime import BrainModelRuntime
 from metis_model1.brain_protocol import (
     MAX_SOURCE_BYTES,
@@ -128,6 +133,11 @@ class TurnRequest:
         compare=False,
         repr=False,
     )
+    server_target_catalogs: tuple[str, ...] = field(
+        default=(),
+        compare=False,
+        repr=False,
+    )
 
     @classmethod
     def parse(cls, value: dict[str, Any]) -> TurnRequest:
@@ -205,19 +215,18 @@ class TurnRequest:
                 answer = clarification["answer"]
                 if not isinstance(answer, dict):
                     raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
-                exact_fields(
-                    answer,
-                    required={"option_ref"} if "option_ref" in answer else {"integer"},
-                    label="clarification answer",
-                )
-                if "option_ref" in answer:
+                if set(answer) == {"option_ref"}:
                     clarification_reference(answer["option_ref"], name="option_ref")
                     parsed_answer: dict[str, Any] = {"option_ref": answer["option_ref"]}
-                else:
+                elif set(answer) == {"integer"}:
                     integer = answer.get("integer")
                     if type(integer) is not int or not 1 <= integer <= 1_000_000:
                         raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
                     parsed_answer = {"integer": integer}
+                elif set(answer) == {"text"}:
+                    parsed_answer = {"text": clarification_text(answer["text"])}
+                else:
+                    raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
                 clarification = {
                     "clarification_id": clarification["clarification_id"],
                     "answer": parsed_answer,
@@ -289,10 +298,27 @@ class TurnRequest:
 
         return replace(self, server_flash_intent=dict(value))
 
+    def with_server_target_catalogs(self, values: tuple[str, ...]) -> TurnRequest:
+        """Attach source-derived catalog hints without changing client identity."""
+
+        if (
+            not isinstance(values, tuple)
+            or len(values) > 64
+            or any(not isinstance(item, str) or not item for item in values)
+            or len(values) != len(set(values))
+        ):
+            raise BrainError("INVALID_SCHEMA", 400, "target catalog roster is invalid")
+        return replace(self, server_target_catalogs=values)
+
 
 @dataclass(frozen=True)
 class ClarificationAnswerRequest:
-    """Client-neutral answer to one server-owned pending clarification."""
+    """Client-neutral answer to one server-owned pending clarification.
+
+    ``schema_version`` versions this standalone transport envelope.  It is not
+    the Turn schema version: this route already carries typed integer answers
+    for schema-2 conversations and now also carries bounded catalog text.
+    """
 
     schema_version: int
     request_id: str
@@ -317,19 +343,18 @@ class ClarificationAnswerRequest:
         answer = value["answer"]
         if not isinstance(answer, dict):
             raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
-        exact_fields(
-            answer,
-            required={"option_ref"} if "option_ref" in answer else {"integer"},
-            label="clarification answer",
-        )
-        if "option_ref" in answer:
+        if set(answer) == {"option_ref"}:
             option_ref = clarification_reference(answer["option_ref"], name="option_ref")
             parsed_answer: dict[str, Any] = {"option_ref": option_ref}
-        else:
+        elif set(answer) == {"integer"}:
             integer = answer.get("integer")
             if type(integer) is not int or not 1 <= integer <= 1_000_000:
                 raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
             parsed_answer = {"integer": integer}
+        elif set(answer) == {"text"}:
+            parsed_answer = {"text": clarification_text(answer["text"])}
+        else:
+            raise BrainError("INVALID_SCHEMA", 400, "clarification answer is invalid")
         return cls(
             schema_version=1,
             request_id=request_id,
@@ -347,6 +372,10 @@ class TurnRecord:
     conversation_id: str | None = None
     basis_source: str | None = None
     basis_grounding: dict[str, Any] | None = None
+    basis_manifest: dict[str, Any] | None = field(default=None, repr=False)
+    basis_manifest_sha256: str | None = field(default=None, repr=False)
+    candidate_manifest: dict[str, Any] | None = field(default=None, repr=False)
+    candidate_manifest_sha256: str | None = field(default=None, repr=False)
     clarification_decision: dict[str, Any] | None = None
     status: str = "queued"
     outcome: str | None = None
@@ -357,6 +386,23 @@ class TurnRecord:
     apply_ticket: str | None = None
     apply_ticket_expires_at: datetime | None = None
     _next_sequence: int = field(default=1, repr=False)
+
+    def clear_private(self) -> None:
+        """Erase server-only proposal and conversation attachments.
+
+        The owning :class:`TurnStore` calls this while holding its lifecycle
+        lock.  Keeping the operation on the record makes every erasure site use
+        the same complete roster and prevents a newly added private attachment
+        from being forgotten by close, TTL cleanup, cancellation or shutdown.
+        """
+
+        self.basis_source = None
+        self.basis_grounding = None
+        self.basis_manifest = None
+        self.basis_manifest_sha256 = None
+        self.candidate_manifest = None
+        self.candidate_manifest_sha256 = None
+        self.clarification_decision = None
 
     def emit(self, event: str, phase: str, label: str, **metrics: int | str | bool) -> None:
         if event not in _EVENTS:
@@ -448,6 +494,48 @@ class TurnRecord:
             }
 
 
+class _OrchestratorTurnRecord:
+    """Stage orchestrator-owned manifest writes away from the live store.
+
+    The orchestrator intentionally receives a record-like object because it
+    emits progress and observes cancellation throughout a turn.  Its two
+    private manifest pairs, however, must not be written to the live record
+    until the session lifecycle is rechecked atomically by ``TurnStore``.
+    """
+
+    __slots__ = (
+        "_record",
+        "basis_manifest",
+        "basis_manifest_sha256",
+        "candidate_manifest",
+        "candidate_manifest_sha256",
+    )
+
+    _PRIVATE_NAMES = frozenset(__slots__[1:])
+
+    def __init__(self, record: TurnRecord) -> None:
+        object.__setattr__(self, "_record", record)
+        object.__setattr__(self, "basis_manifest", deepcopy(record.basis_manifest))
+        object.__setattr__(self, "basis_manifest_sha256", record.basis_manifest_sha256)
+        object.__setattr__(self, "candidate_manifest", deepcopy(record.candidate_manifest))
+        object.__setattr__(self, "candidate_manifest_sha256", record.candidate_manifest_sha256)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._record, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self._PRIVATE_NAMES:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._record, name, value)
+
+    def clear_private(self) -> None:
+        self.basis_manifest = None
+        self.basis_manifest_sha256 = None
+        self.candidate_manifest = None
+        self.candidate_manifest_sha256 = None
+
+
 class TurnStore:
     """Bounded async turn scheduler shared by the HTTP server and clients."""
 
@@ -495,7 +583,65 @@ class TurnStore:
             if value not in existing:
                 return value
 
-    def submit(self, *, session_id: str, token: str, request: TurnRequest) -> TurnRecord:
+    @staticmethod
+    def _private_manifest_copy(
+        manifest: dict[str, Any] | None,
+        manifest_sha256: str | None,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        if manifest is None and manifest_sha256 is None:
+            return None, None
+        if (
+            not isinstance(manifest, dict)
+            or not isinstance(manifest_sha256, str)
+            or canonical_sha256(manifest) != manifest_sha256
+        ):
+            raise BrainError("COMPILER_FAILED", 503, "private manifest authority is invalid")
+        return deepcopy(manifest), manifest_sha256
+
+    def _publish_private_attachments(
+        self,
+        record: TurnRecord,
+        staged: _OrchestratorTurnRecord,
+    ) -> bool:
+        """Publish staged manifests only to the exact still-live turn record."""
+
+        with self._lock:
+            if (
+                self._closed
+                or self._turns.get(record.turn_id) is not record
+                or record.cancellation.is_set()
+                or record.terminal is not None
+            ):
+                record.clear_private()
+                return False
+            basis_manifest, basis_manifest_sha256 = self._private_manifest_copy(
+                staged.basis_manifest,
+                staged.basis_manifest_sha256,
+            )
+            candidate_manifest, candidate_manifest_sha256 = self._private_manifest_copy(
+                staged.candidate_manifest,
+                staged.candidate_manifest_sha256,
+            )
+            record.basis_manifest = basis_manifest
+            record.basis_manifest_sha256 = basis_manifest_sha256
+            record.candidate_manifest = candidate_manifest
+            record.candidate_manifest_sha256 = candidate_manifest_sha256
+            return True
+
+    def _clear_private_if_current(self, record: TurnRecord) -> None:
+        with self._lock:
+            if self._turns.get(record.turn_id) is record:
+                record.clear_private()
+
+    def submit(
+        self,
+        *,
+        session_id: str,
+        token: str,
+        request: TurnRequest,
+        _private_basis_manifest: dict[str, Any] | None = None,
+        _private_basis_manifest_sha256: str | None = None,
+    ) -> TurnRecord:
         # Authenticate before the idempotency lookup. A retry must return its
         # terminal record even if the tenant has changed since the first turn.
         self._manager._authenticate(  # noqa: SLF001
@@ -588,6 +734,23 @@ class TurnStore:
                     if basis_record and isinstance(basis_record.terminal, dict)
                     else None
                 )
+                basis_manifest = (
+                    basis_record.candidate_manifest
+                    if basis_record is not None
+                    else _private_basis_manifest
+                )
+                basis_manifest_sha256 = (
+                    basis_record.candidate_manifest_sha256
+                    if basis_record is not None
+                    else _private_basis_manifest_sha256
+                )
+                if basis_manifest is not None and (
+                    not isinstance(basis_manifest_sha256, str)
+                    or canonical_sha256(basis_manifest) != basis_manifest_sha256
+                ):
+                    raise BrainError(
+                        "PROPOSAL_STALE", 409, "proposal structural authority is stale"
+                    )
                 if isinstance(basis_grounding, dict):
                     request = request.with_server_basis_grounding(basis_grounding)
                 record = TurnRecord(
@@ -604,6 +767,10 @@ class TurnStore:
                     basis_grounding=(
                         dict(basis_grounding) if isinstance(basis_grounding, dict) else None
                     ),
+                    basis_manifest=(
+                        deepcopy(basis_manifest) if isinstance(basis_manifest, dict) else None
+                    ),
+                    basis_manifest_sha256=basis_manifest_sha256,
                 )
                 if lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "session was revoked")
@@ -704,6 +871,14 @@ class TurnStore:
                 raise BrainError("PROPOSAL_STALE", 409, "proposal revision is stale")
             if record.request.target != request.target:
                 raise BrainError("PROPOSAL_STALE", 409, "proposal target differs")
+            if isinstance(request.target.get("endpoint"), str) and (
+                record.candidate_manifest is None
+                or not isinstance(record.candidate_manifest_sha256, str)
+                or canonical_sha256(record.candidate_manifest) != record.candidate_manifest_sha256
+            ):
+                raise BrainError(
+                    "PROPOSAL_STALE", 409, "proposal structural authority is unavailable"
+                )
             return record
         raise BrainError("PROPOSAL_STALE", 409, "proposal is unavailable")
 
@@ -730,9 +905,7 @@ class TurnStore:
                 record = self._turns.pop(turn_id)
                 record.cancellation.set()
                 self._admitted_work.pop(turn_id, None)
-                record.basis_source = None
-                record.basis_grounding = None
-                record.clarification_decision = None
+                record.clear_private()
             for key in [key for key in self._idempotency if key[0] == session_id]:
                 self._idempotency.pop(key, None)
             self._active.discard(session_id)
@@ -837,7 +1010,13 @@ class TurnStore:
                 else None
             ),
         )
-        return self.submit(session_id=session_id, token=token, request=request)
+        return self.submit(
+            session_id=session_id,
+            token=token,
+            request=request,
+            _private_basis_manifest=parent.basis_manifest,
+            _private_basis_manifest_sha256=parent.basis_manifest_sha256,
+        )
 
     def cancel(self, *, session_id: str, token: str, turn_id: str) -> dict[str, Any]:
         record = self._authenticate_record(
@@ -846,6 +1025,7 @@ class TurnStore:
         with record.condition:
             if record.terminal is None:
                 record.cancellation.set()
+                self._clear_private_if_current(record)
                 if record.status == "queued":
                     with self._lock:
                         self._admitted_work.pop(record.turn_id, None)
@@ -937,6 +1117,7 @@ class TurnStore:
             if record.terminal is not None:
                 return
             record.status = "running"
+        staged_record = _OrchestratorTurnRecord(record)
         try:
             from metis_model1.brain_orchestrator import BrainOrchestrator
 
@@ -988,8 +1169,11 @@ class TurnStore:
                 session_id=record.session_id,
                 token=token,
                 request=request,
-                record=record,
+                record=staged_record,
             )
+            self._publish_private_attachments(record, staged_record)
+            if record.cancellation.is_set():
+                self._clear_private_if_current(record)
             with record.condition:
                 if record.cancellation.is_set():
                     record.status = "cancelled"
@@ -999,11 +1183,13 @@ class TurnStore:
                     record.status = "completed"
                 self._finish(record, result)
         except BrainError as error:
+            self._clear_private_if_current(record)
             with record.condition:
                 record.status = "cancelled" if record.cancellation.is_set() else "failed"
                 self._discard_turn_pending(record)
                 self._finish(record, self._error_payload(record, error))
         except Exception:
+            self._clear_private_if_current(record)
             with record.condition:
                 record.status = "cancelled" if record.cancellation.is_set() else "failed"
                 self._discard_turn_pending(record)
@@ -1029,10 +1215,13 @@ class TurnStore:
                         owner=record.turn_id,
                     )
                 finally:
-                    self.clarifications.release_revocation_guard(
-                        record.session_id,
-                        owner=record.turn_id,
-                    )
+                    try:
+                        self.clarifications.release_revocation_guard(
+                            record.session_id,
+                            owner=record.turn_id,
+                        )
+                    finally:
+                        staged_record.clear_private()
 
     def _discard_cancelled_pending(self, record: TurnRecord) -> None:
         if record.cancellation.is_set():
@@ -1083,6 +1272,7 @@ class TurnStore:
         with self._lock:
             self._closed = True
             for record in self._turns.values():
+                record.clear_private()
                 if record.terminal is None:
                     record.cancellation.set()
             self._admitted_work.clear()
@@ -1091,9 +1281,7 @@ class TurnStore:
         self._executor.shutdown(wait=True, cancel_futures=True)
         with self._lock:
             for record in self._turns.values():
-                record.basis_source = None
-                record.basis_grounding = None
-                record.clarification_decision = None
+                record.clear_private()
             self._turns.clear()
             self._idempotency.clear()
             self._active.clear()

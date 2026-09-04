@@ -134,6 +134,81 @@ def test_catalog_public_field_is_preserved_without_exposing_private_option_value
     assert "value" not in payload and "resolved_value" not in payload
 
 
+def test_catalog_overflow_uses_complete_exact_reference_roster() -> None:
+    clock = Clock()
+    store = _store(clock)
+    catalogs = [f"play-prod-v2.catalog_{index}" for index in range(6)]
+    pending = _pending(
+        store,
+        options=[
+            ClarificationChoice(
+                f"Catalogo {index}",
+                catalog,
+                catalog=catalog,
+            )
+            for index, catalog in enumerate(catalogs)
+        ],
+    )
+
+    payload = pending.payload()
+    assert payload["options"] == []
+    assert payload["catalog_refs"] == catalogs
+    assert payload["answer_schema"] == {
+        "type": "text",
+        "format": "catalog-ref",
+        "max_bytes": 256,
+    }
+    resolved = store.answer(
+        session_id=SESSION,
+        clarification_id=pending.clarification_id,
+        request_fingerprint=FINGERPRINT,
+        context_revision=REVISION,
+        semantic_source_revision=SEMANTIC_REVISION,
+        answer={"text": "play-prod-v2.catalog_5"},
+    )
+    assert resolved.answer.payload() == {"text": "play-prod-v2.catalog_5"}
+    assert resolved.answer.resolved_value == "play-prod-v2.catalog_5"
+
+
+def test_catalog_overflow_requires_one_exact_case_sensitive_reference() -> None:
+    clock = Clock()
+    store = _store(clock)
+    catalogs = [
+        "tenant-a.video",
+        "tenant-b.video",
+        "tenant-a.users",
+        "tenant-a.links",
+        "tenant-a.trending",
+        "tenant-a.sessions",
+    ]
+    pending = _pending(
+        store,
+        options=[ClarificationChoice(catalog, catalog, catalog=catalog) for catalog in catalogs],
+    )
+    common = {
+        "session_id": SESSION,
+        "clarification_id": pending.clarification_id,
+        "request_fingerprint": FINGERPRINT,
+        "context_revision": REVISION,
+        "semantic_source_revision": SEMANTIC_REVISION,
+    }
+
+    with pytest.raises(BrainError) as raised:
+        store.validate_answer(**common, answer={"text": "missing"})
+    assert raised.value.code == "CLARIFICATION_CATALOG_UNKNOWN"
+    with pytest.raises(BrainError) as raised:
+        store.validate_answer(**common, answer={"text": "video"})
+    assert raised.value.code == "CLARIFICATION_CATALOG_UNKNOWN"
+    with pytest.raises(BrainError) as raised:
+        store.validate_answer(**common, answer={"text": "TENANT-B.VIDEO"})
+    assert raised.value.code == "CLARIFICATION_CATALOG_UNKNOWN"
+    for padded in (" tenant-b.video", "tenant-b.video "):
+        with pytest.raises(BrainError) as raised:
+            store.validate_answer(**common, answer={"text": padded})
+        assert raised.value.code == "INVALID_SCHEMA"
+    store.validate_answer(**common, answer={"text": "tenant-b.video"})
+
+
 def test_option_ref_factory_collision_is_retried_within_one_question() -> None:
     clock = Clock()
     values = iter(["opt_same", "opt_same", "opt_other"])

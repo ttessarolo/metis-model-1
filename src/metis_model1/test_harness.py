@@ -1,8 +1,9 @@
-"""Isolated local authority for the repository's integration-test gate.
+"""Isolated local authorities for the repository's integration-test gate.
 
-The source Metis checkout is an object provider only.  Tests execute against a
-temporary clean repository at the historical oracle pin, so concurrent work in
-the source checkout cannot weaken or spuriously fail the clean-HEAD contract.
+The source Metis checkout is an object provider only.  Tests execute against
+separate temporary clean repositories at the historical oracle pin and the
+current Brain toolchain pin, so concurrent work in the source checkout cannot
+weaken or spuriously fail either contract.
 """
 
 from __future__ import annotations
@@ -283,7 +284,12 @@ def isolated_metis_test_authority(
         raise TestHarnessError("cannot construct isolated Metis test authority") from error
 
 
-def _pytest_environment(*, isolated: Path, node: Path) -> dict[str, str]:
+def _pytest_environment(
+    *,
+    isolated: Path,
+    brain_isolated: Path,
+    node: Path,
+) -> dict[str, str]:
     environment = dict(os.environ)
     for key in tuple(environment):
         if (
@@ -304,6 +310,7 @@ def _pytest_environment(*, isolated: Path, node: Path) -> dict[str, str]:
         {
             oracles.NODE_RUNTIME_ENV: str(node),
             "METIS_MODEL1_METIS_ROOT": str(isolated),
+            "METIS_MODEL1_BRAIN_METIS_ROOT": str(brain_isolated),
             "GIT_CONFIG_GLOBAL": "/dev/null",
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_OPTIONAL_LOCKS": "0",
@@ -356,16 +363,30 @@ def run_tests(
             or brain_receipt.get("probes_executed") is not True
         ):
             raise TestHarnessError("Metis Brain lossless authority is incomplete")
-        with isolated_metis_test_authority(
-            source_root,
-            runtime_modules=oracle_node_modules,
-        ) as isolated:
+        with (
+            isolated_metis_test_authority(
+                source_root,
+                runtime_modules=oracle_node_modules,
+            ) as isolated,
+            isolated_metis_test_authority(
+                source_root,
+                revision=brain_receipt["revision"],
+                tree=brain_receipt["tree"],
+                modules_sha256=brain_receipt["identity"].node_modules_sha256.removeprefix(
+                    "sha256:"
+                ),
+            ) as brain_isolated,
+        ):
             oracles.validate_pinned_metis(isolated)
             grammar_stdlib_oracle.validate_grammar_stdlib_pin(metis_root=isolated)
             completed = subprocess.run(
                 [sys.executable, "-m", "pytest", *pytest_args],
                 cwd=PROJECT_ROOT,
-                env=_pytest_environment(isolated=isolated, node=node),
+                env=_pytest_environment(
+                    isolated=isolated,
+                    brain_isolated=brain_isolated,
+                    node=node,
+                ),
                 check=False,
             )
             return completed.returncode

@@ -436,6 +436,13 @@ def _explicit_catalog(request: str, records: tuple[dict[str, Any], ...], hint: A
         for record in records:
             if record["catalog"] == hint or record["option_ref"] == hint:
                 return record["catalog"]
+        short_matches = [
+            record["catalog"] for record in records if record["catalog"].rsplit(".", 1)[-1] == hint
+        ]
+        if len(short_matches) > 1:
+            return "__ambiguous__"
+        if short_matches:
+            return short_matches[0]
         return "__unknown__"
     folded = request.casefold()
     matches: list[str] = []
@@ -455,6 +462,31 @@ def _explicit_catalog(request: str, records: tuple[dict[str, Any], ...], hint: A
     if len(set(matches)) > 1:
         return "__ambiguous__"
     return matches[0] if matches else None
+
+
+def _source_catalog(reference: str, records: tuple[dict[str, Any], ...]) -> str | None:
+    """Resolve one scanner-derived ``@catalog(.member)*`` reference exactly."""
+
+    exact = [
+        record["catalog"]
+        for record in records
+        if reference in {record["catalog"], record["catalog"].rsplit(".", 1)[-1]}
+    ]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        return None
+    prefixes = [
+        record["catalog"]
+        for record in records
+        if reference.startswith(record["catalog"] + ".")
+        or reference.startswith(record["catalog"].rsplit(".", 1)[-1] + ".")
+    ]
+    if not prefixes:
+        return None
+    longest = max(len(item) for item in prefixes)
+    winners = [item for item in prefixes if len(item) == longest]
+    return winners[0] if len(winners) == 1 else None
 
 
 def _whole_surface(text: str, surface: str) -> bool:
@@ -1527,6 +1559,79 @@ def _bounded_context(
     return context
 
 
+def _bounded_source_context(
+    index: Mapping[str, Any],
+    field_technical: Mapping[tuple[str, str], Mapping[str, Any]],
+    catalogs: tuple[str, ...],
+    grounding: Mapping[str, Any],
+    snapshot: Any,
+) -> dict[str, Any]:
+    """Build one explicit, bounded context for an existing multi-catalog source.
+
+    ``catalogs`` is the server-observed source roster, not an ordered list of
+    candidates.  Keeping the catalog identity on every field avoids inventing
+    a primary catalog when two source blocks expose the same field name.
+    """
+
+    if len(catalogs) < 2 or len(catalogs) > MAX_CATALOGS:
+        _fail("RETRIEVAL_INVALID", "source catalog context roster is invalid")
+    catalog_context: list[dict[str, Any]] = []
+    fields: list[dict[str, Any]] = []
+    templates: list[dict[str, str]] = []
+    template_keys: set[tuple[str, str]] = set()
+    for catalog in catalogs:
+        local_grounding = {
+            "selections": [
+                item
+                for item in grounding.get("selections", [])
+                if isinstance(item, Mapping) and item.get("catalog") == catalog
+            ],
+            "candidates": [
+                item
+                for item in grounding.get("candidates", [])
+                if isinstance(item, Mapping) and item.get("catalog") == catalog
+            ],
+        }
+        view = _bounded_context(index, field_technical, catalog, local_grounding, snapshot)
+        raw_catalog = view.get("catalog")
+        raw_fields = view.get("fields")
+        raw_templates = view.get("endpoint_templates")
+        if (
+            not isinstance(raw_catalog, Mapping)
+            or not isinstance(raw_fields, list)
+            or not isinstance(raw_templates, list)
+        ):
+            _fail("RETRIEVAL_INVALID", "source catalog context is invalid")
+        catalog_context.append(dict(raw_catalog))
+        fields.extend({"catalog": catalog, **dict(item)} for item in raw_fields)
+        for item in raw_templates:
+            if not isinstance(item, Mapping):
+                _fail("RETRIEVAL_INVALID", "source endpoint template is invalid")
+            path = item.get("path")
+            source = item.get("source")
+            if not isinstance(path, str) or not isinstance(source, str):
+                _fail("RETRIEVAL_INVALID", "source endpoint template is invalid")
+            key = (path, source)
+            if key not in template_keys:
+                template_keys.add(key)
+                templates.append({"path": path, "source": source})
+    context: dict[str, Any] = {
+        "language_version": "0.43",
+        "semantic_schema": 2,
+        "tenant_alias": snapshot.tenant_alias,
+        "tenant_id": snapshot.tenant_id,
+        "context_revision": snapshot.revision,
+        "semantic_source_revision": index["semantic_source_revision"],
+        "toolchain_binding": snapshot.toolchain_binding,
+        "catalogs": catalog_context,
+        "fields": fields,
+        "endpoint_templates": templates[:MAX_TEMPLATES],
+    }
+    if len(canonical_json(context)) > MAX_CONTEXT_BYTES:
+        _fail("RETRIEVAL_TOO_LARGE", "multi-catalog model context exceeds the byte bound")
+    return context
+
+
 class Schema2SnapshotRetriever:
     """Production-facing retriever over a session's immutable source snapshot."""
 
@@ -1704,12 +1809,17 @@ class Schema2SnapshotRetriever:
             if catalog_clarification is not None
             else None
         )
-        catalog_hint = catalog_decision or getattr(request, "catalog_hint", None)
-        explicit = _explicit_catalog(
-            instruction,
-            indexed.catalogs,
-            catalog_hint,
-        )
+        explicit = _explicit_catalog(instruction, indexed.catalogs, None)
+        source_catalogs = getattr(request, "server_target_catalogs", ())
+        if (
+            not isinstance(source_catalogs, tuple)
+            or len(source_catalogs) > MAX_CATALOGS
+            or any(not isinstance(item, str) or not item for item in source_catalogs)
+            or len(source_catalogs) != len(set(source_catalogs))
+        ):
+            _fail("RETRIEVAL_INVALID", "target catalog roster is invalid", 400)
+        if explicit is None and isinstance(catalog_decision, str):
+            explicit = _explicit_catalog(instruction, indexed.catalogs, catalog_decision)
         if explicit is None and isinstance(basis_grounding, Mapping):
             basis_catalogs = basis_grounding.get("catalogs")
             if (
@@ -1718,6 +1828,26 @@ class Schema2SnapshotRetriever:
                 and isinstance(basis_catalogs[0], str)
             ):
                 explicit = _explicit_catalog(instruction, indexed.catalogs, basis_catalogs[0])
+        source_candidates: list[dict[str, Any]] | None = None
+        if source_catalogs:
+            resolved_sources: list[str] = []
+            for source_catalog in source_catalogs:
+                resolved = _source_catalog(source_catalog, indexed.catalogs)
+                if resolved is None:
+                    _fail("RETRIEVAL_INVALID", "target catalog does not resolve uniquely")
+                if resolved not in resolved_sources:
+                    resolved_sources.append(resolved)
+            records_by_catalog = {item["catalog"]: item for item in indexed.catalogs}
+            source_candidates = [records_by_catalog[item] for item in resolved_sources]
+            if len(source_candidates) != len(resolved_sources):
+                _fail("RETRIEVAL_INVALID", "target catalog roster differs from projection")
+            if len(source_candidates) == 1 and explicit is None:
+                explicit = source_candidates[0]["catalog"]
+        if explicit is None and source_candidates is None:
+            client_hint = getattr(request, "catalog_hint", None)
+            if client_hint is not None:
+                explicit = _explicit_catalog(instruction, indexed.catalogs, client_hint)
+        source_routing_blocked = explicit in {"__ambiguous__", "__unknown__"}
         if explicit == "__ambiguous__":
             explicit = None
             true_candidates = [item for item in indexed.catalogs if item["owner"]]
@@ -1725,6 +1855,8 @@ class Schema2SnapshotRetriever:
             true_candidates = []
         elif explicit is not None:
             true_candidates = [item for item in indexed.catalogs if item["catalog"] == explicit]
+        elif source_candidates is not None:
+            true_candidates = source_candidates
         else:
             true_candidates = _semantic_catalog_candidates(
                 indexed.index,
@@ -1752,6 +1884,164 @@ class Schema2SnapshotRetriever:
             }
             for item in true_candidates
         )
+        if (
+            not source_routing_blocked
+            and source_candidates is not None
+            and (
+                len(source_candidates) > 1
+                or (
+                    isinstance(explicit, str)
+                    and explicit not in {item["catalog"] for item in source_candidates}
+                )
+            )
+        ):
+            source_roster = [item["catalog"] for item in source_candidates]
+            semantic_records = (
+                [item for item in indexed.catalogs if item["catalog"] == explicit]
+                if isinstance(explicit, str)
+                else source_candidates
+            )
+            attempts = [
+                _resolve_complete_grounding(
+                    indexed.index,
+                    semantic_instruction,
+                    item["catalog"],
+                    disambiguation_instruction=disambiguation_instruction,
+                )
+                for item in semantic_records
+            ]
+            resolved = [
+                value
+                for value in attempts
+                if value.get("status") == "resolved" and value.get("selections")
+            ]
+            partial = [
+                value
+                for value in attempts
+                if value.get("status") == "unsupported" and value.get("selections")
+            ]
+            clarification_candidates = [
+                dict(candidate)
+                for value in attempts
+                for candidate in value.get("candidates", [])
+                if isinstance(candidate, Mapping)
+            ]
+            if len(resolved) == 1 and not clarification_candidates:
+                grounding = resolved[0]
+            elif len(resolved) > 1:
+                tied = [
+                    _semantic_candidate(indexed.index, selection, semantic_instruction)
+                    for value in resolved
+                    for selection in value.get("selections", [])
+                    if isinstance(selection, Mapping)
+                ]
+                grounding = {
+                    "status": "clarify",
+                    "reason": "reviewed semantics tie across source-authorized catalogs",
+                    "selected": None,
+                    "selections": [],
+                    "candidates": tied,
+                    "lookup": None,
+                    "lookups": [],
+                    "unresolved": [],
+                }
+            elif clarification_candidates:
+                grounding = {
+                    "status": "clarify",
+                    "reason": "one source-authorized semantic clause requires confirmation",
+                    "selected": None,
+                    "selections": [],
+                    "candidates": clarification_candidates,
+                    "lookup": None,
+                    "lookups": [],
+                    "unresolved": [],
+                }
+            elif len(partial) == 1:
+                # Preserve the partial exact evidence and its residue so the
+                # bounded Flash retry can segment the instruction.  Treating
+                # this as a generic structural edit would suppress that safe
+                # retry and lose an operator-named reviewed member.
+                grounding = partial[0]
+            else:
+                # No reviewed semantic member was requested.  This is the
+                # structural-edit path: the complete source roster is still
+                # authoritative, while the candidate oracle below prevents
+                # the model from introducing an ungrounded finite predicate.
+                grounding = {
+                    "status": "resolved",
+                    "reason": "existing source catalogs authorize a structural edit",
+                    "selected": None,
+                    "selections": [],
+                    "candidates": [],
+                    "lookup": None,
+                    "lookups": [],
+                    "unresolved": [],
+                }
+            semantic_decisions = (
+                tuple(
+                    decision
+                    for decision in (_current_server_decision(request, "semantic_choice"),)
+                    if decision is not None
+                )
+                if isinstance(basis_grounding, Mapping)
+                else _server_decisions(request, "semantic_choice")
+            )
+            for semantic_clarification in semantic_decisions:
+                option_ref = semantic_clarification.get("resolved_value")
+                if not isinstance(option_ref, str):
+                    raise BrainError(
+                        "CLARIFICATION_UNAVAILABLE", 409, "semantic option is unavailable"
+                    )
+                _apply_semantic_decision(indexed.index, grounding, option_ref)
+            enriched_selections: list[dict[str, Any]] = []
+            for raw_selection in grounding.get("selections", []):
+                if not isinstance(raw_selection, Mapping):
+                    _fail("RETRIEVAL_INVALID", "grounding selection is invalid")
+                field = raw_selection.get("field")
+                catalog = raw_selection.get("catalog")
+                technical = indexed.field_technical.get((catalog, field))
+                if technical is None:
+                    _fail("RETRIEVAL_INVALID", "grounding field technical surface is unavailable")
+                enriched_selections.append(
+                    {
+                        **raw_selection,
+                        "type": technical["type"],
+                        "modifiers": list(technical["modifiers"]),
+                    }
+                )
+            grounding["selections"] = enriched_selections
+            authorized_catalogs = [explicit] if isinstance(explicit, str) else list(source_roster)
+            grounding["catalogs"] = authorized_catalogs
+            grounding["source_catalogs"] = source_roster
+            grounding["catalog_candidates"] = []
+            grounding["semantic_source_revision"] = indexed.index["semantic_source_revision"]
+            grounding["resolutions"] = [
+                {
+                    "concept": item.get("literal") or item.get("field"),
+                    "catalog": item.get("catalog"),
+                    "field": item.get("field"),
+                    "literal": item.get("literal"),
+                    "review_state": "reviewed",
+                }
+                for item in enriched_selections
+            ]
+            context_catalogs = list(source_roster)
+            if isinstance(explicit, str) and explicit not in context_catalogs:
+                context_catalogs.append(explicit)
+            context = _bounded_source_context(
+                indexed.index,
+                indexed.field_technical,
+                tuple(context_catalogs),
+                grounding,
+                snapshot,
+            )
+            return RetrievalResult(
+                context=context,
+                grounding=grounding,
+                semantic_source_revision=indexed.index["semantic_source_revision"],
+                catalog_candidates=(),
+                output_request=output_request,
+            )
         if len(true_candidates) != 1:
             status = "clarify" if len(true_candidates) > 1 else "unsupported"
             reason = (

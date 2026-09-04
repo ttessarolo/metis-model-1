@@ -9,8 +9,10 @@ returns either a redacted compiler receipt or a normalized schema-2 projection.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -39,7 +41,7 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:5497794fe0bbedf84639e40a2e7a8a9143feb661080510fc3b115642a690f432"
+RUNNER_SHA256 = "sha256:f20c5fe80547bb973b41610507157cb03942fe4736105722b6a5b8fa063c1dde"
 MAX_RUNNER_BYTES = 256 * 1024
 MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
@@ -47,6 +49,11 @@ MAX_RUNNER_STDERR_BYTES = 128 * 1024
 MAX_SNAPSHOT_FILES = 1024
 MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
 RUNNER_TIMEOUT_SECONDS = 180
+MAX_CANDIDATE_MANIFEST_CONTAINERS = 512
+MAX_CANDIDATE_MANIFEST_FETCHES = 512
+MAX_CANDIDATE_MANIFEST_PREDICATES = 8192
+MAX_CANDIDATE_MANIFEST_BYTES = 4 * 1024 * 1024
+AUTHORITY_CLEANUP_ATTEMPTS = 3
 
 
 class _BrainIsolationError(RuntimeError):
@@ -60,6 +67,15 @@ _WRITE_BITS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 class _AuthorityJob:
     authority_root: Path
     job_root: Path
+
+
+@dataclass(frozen=True)
+class CandidateCompileResult:
+    """One public-safe compiler receipt plus an in-process-only manifest."""
+
+    receipt: dict[str, Any]
+    manifest: dict[str, Any] | None
+    manifest_sha256: str | None
 
 
 def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
@@ -338,17 +354,30 @@ class PinnedMetisAuthority:
 
     def close(self) -> None:
         with self._lock:
-            if self._closed:
+            if self._closed and self._temporary is None:
                 return
             if self._active_jobs:
                 raise BrainError("TOOLCHAIN_BUSY", 503, "pinned toolchain is still active")
             self._closed = True
             temporary = self._temporary
+            if temporary is not None:
+                for attempt in range(AUTHORITY_CLEANUP_ATTEMPTS):
+                    try:
+                        temporary.cleanup()
+                        break
+                    except OSError as error:
+                        if (
+                            error.errno != errno.ENOTEMPTY
+                            or attempt + 1 == AUTHORITY_CLEANUP_ATTEMPTS
+                        ):
+                            raise BrainError(
+                                "TOOLCHAIN_CLEANUP_FAILED",
+                                503,
+                                "pinned toolchain cleanup failed",
+                            ) from error
             self._temporary = None
             self._authority_root = None
             self._jobs_root = None
-        if temporary is not None:
-            temporary.cleanup()
 
 
 @contextmanager
@@ -579,6 +608,231 @@ def validate_compile_request(
     return source_text, filename_text, execution_mode, endpoint
 
 
+def _manifest_hash(value: Any, *, nullable: bool = False) -> str | None:
+    if nullable and value is None:
+        return None
+    if not isinstance(value, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
+        raise _BrainIsolationError("candidate manifest contains an invalid hash")
+    return value
+
+
+def _bounded_manifest_string(value: Any, *, label: str, nullable: bool = False) -> str | None:
+    if nullable and value is None:
+        return None
+    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 4096:
+        raise _BrainIsolationError(f"candidate manifest {label} is invalid")
+    return value
+
+
+def _validate_manifest_json(value: Any, *, depth: int = 0) -> None:
+    if depth > 24:
+        raise _BrainIsolationError("candidate manifest JSON is too deep")
+    if value is None or isinstance(value, (str, bool)):
+        if isinstance(value, str) and len(value.encode("utf-8")) > 64 * 1024:
+            raise _BrainIsolationError("candidate manifest JSON string is too large")
+        return
+    if isinstance(value, int):
+        if not -(2**53 - 1) <= value <= 2**53 - 1:
+            raise _BrainIsolationError("candidate manifest JSON integer is unsafe")
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise _BrainIsolationError("candidate manifest JSON number is invalid")
+        return
+    if isinstance(value, list):
+        if len(value) > MAX_CANDIDATE_MANIFEST_PREDICATES:
+            raise _BrainIsolationError("candidate manifest JSON array is too large")
+        for item in value:
+            _validate_manifest_json(item, depth=depth + 1)
+        return
+    if isinstance(value, Mapping):
+        if len(value) > 256:
+            raise _BrainIsolationError("candidate manifest JSON object is too large")
+        for key, item in value.items():
+            if not isinstance(key, str) or not key or len(key) > 256:
+                raise _BrainIsolationError("candidate manifest JSON key is invalid")
+            _validate_manifest_json(item, depth=depth + 1)
+        return
+    raise _BrainIsolationError("candidate manifest JSON value is invalid")
+
+
+def _validate_candidate_manifest(
+    value: Any,
+    *,
+    endpoint: str,
+    endpoint_sha256: str,
+    manifest_sha256: str,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {
+        "schema_version",
+        "endpoint",
+        "endpoint_sha256",
+        "containers",
+        "fetches",
+    }:
+        raise _BrainIsolationError("candidate manifest has an invalid shape")
+    if (
+        value.get("schema_version") != 1
+        or value.get("endpoint") != endpoint
+        or value.get("endpoint_sha256") != endpoint_sha256
+    ):
+        raise _BrainIsolationError("candidate manifest identity differs")
+    containers = value.get("containers")
+    fetches = value.get("fetches")
+    if (
+        not isinstance(containers, list)
+        or not 1 <= len(containers) <= MAX_CANDIDATE_MANIFEST_CONTAINERS
+        or not isinstance(fetches, list)
+        or len(fetches) > MAX_CANDIDATE_MANIFEST_FETCHES
+    ):
+        raise _BrainIsolationError("candidate manifest roster is invalid")
+    container_paths: set[str] = set()
+    for container in containers:
+        if not isinstance(container, Mapping) or set(container) != {
+            "path",
+            "kind",
+            "name",
+            "activation_sha256",
+            "output_sha256",
+            "fallback_sha256",
+            "uses_sha256",
+            "semantics_sha256",
+            "presentation_sha256",
+        }:
+            raise _BrainIsolationError("candidate manifest container is invalid")
+        path = _bounded_manifest_string(container.get("path"), label="container path")
+        _bounded_manifest_string(container.get("name"), label="container name")
+        if container.get("kind") not in {"endpoint", "block"} or path in container_paths:
+            raise _BrainIsolationError("candidate manifest container identity is invalid")
+        container_paths.add(path)
+        for key in (
+            "activation_sha256",
+            "output_sha256",
+            "fallback_sha256",
+            "uses_sha256",
+        ):
+            _manifest_hash(container.get(key), nullable=True)
+        _manifest_hash(container.get("semantics_sha256"))
+        _manifest_hash(container.get("presentation_sha256"))
+    if "endpoint" not in container_paths:
+        raise _BrainIsolationError("candidate manifest endpoint container is absent")
+    predicate_count = 0
+    occurrence_ids: set[int] = set()
+    stage_ids: set[str] = set()
+    for fetch in fetches:
+        if not isinstance(fetch, Mapping) or set(fetch) != {
+            "occurrence",
+            "stage_id",
+            "container_path",
+            "source",
+            "catalog",
+            "count",
+            "activation_sha256",
+            "ordering_sha256",
+            "output_sha256",
+            "fallback_sha256",
+            "predicates",
+            "semantics_sha256",
+        }:
+            raise _BrainIsolationError("candidate manifest fetch is invalid")
+        occurrence = fetch.get("occurrence")
+        if type(occurrence) is not int or occurrence != len(occurrence_ids):
+            raise _BrainIsolationError("candidate manifest occurrence order is invalid")
+        occurrence_ids.add(occurrence)
+        stage_id = _bounded_manifest_string(fetch.get("stage_id"), label="stage id")
+        if stage_id in stage_ids:
+            raise _BrainIsolationError("candidate manifest stage identity is duplicated")
+        stage_ids.add(stage_id)
+        container_path = _bounded_manifest_string(
+            fetch.get("container_path"), label="fetch container"
+        )
+        if container_path not in container_paths and not container_path.startswith(
+            "endpoint/context:"
+        ):
+            raise _BrainIsolationError("candidate manifest fetch container is unavailable")
+        source = fetch.get("source")
+        if not isinstance(source, Mapping) or set(source) != {"kind", "ref"}:
+            raise _BrainIsolationError("candidate manifest source is invalid")
+        if source.get("kind") not in {"catalog", "list", "context"}:
+            raise _BrainIsolationError("candidate manifest source kind is invalid")
+        source_ref = _bounded_manifest_string(source.get("ref"), label="source ref")
+        catalog = _bounded_manifest_string(fetch.get("catalog"), label="catalog", nullable=True)
+        if (source.get("kind") == "catalog" and catalog != source_ref) or (
+            source.get("kind") != "catalog" and catalog is not None
+        ):
+            raise _BrainIsolationError("candidate manifest catalog lineage differs")
+        _validate_manifest_json(fetch.get("count"))
+        for key in (
+            "activation_sha256",
+            "output_sha256",
+            "fallback_sha256",
+        ):
+            _manifest_hash(fetch.get(key), nullable=True)
+        _manifest_hash(fetch.get("ordering_sha256"))
+        _manifest_hash(fetch.get("semantics_sha256"))
+        predicates = fetch.get("predicates")
+        if not isinstance(predicates, list):
+            raise _BrainIsolationError("candidate manifest predicates are invalid")
+        predicate_count += len(predicates)
+        if predicate_count > MAX_CANDIDATE_MANIFEST_PREDICATES:
+            raise _BrainIsolationError("candidate manifest has too many predicates")
+        for predicate in predicates:
+            if not isinstance(predicate, Mapping) or set(predicate) != {
+                "intent",
+                "clause_index",
+                "leaf_path",
+                "catalog",
+                "field",
+                "operator",
+                "value",
+                "amount",
+                "graded",
+                "origin",
+                "clause_guard_sha256",
+                "leaf_guard_sha256",
+                "expression_sha256",
+            }:
+                raise _BrainIsolationError("candidate manifest predicate is invalid")
+            if predicate.get("intent") not in {"include", "exclude", "promote"}:
+                raise _BrainIsolationError("candidate manifest predicate intent is invalid")
+            if type(predicate.get("clause_index")) is not int or predicate["clause_index"] < 0:
+                raise _BrainIsolationError("candidate manifest clause index is invalid")
+            _bounded_manifest_string(predicate.get("leaf_path"), label="predicate path")
+            predicate_catalog = _bounded_manifest_string(
+                predicate.get("catalog"), label="predicate catalog", nullable=True
+            )
+            field = _bounded_manifest_string(
+                predicate.get("field"), label="predicate field", nullable=True
+            )
+            if predicate_catalog != catalog or (field is not None and catalog is None):
+                raise _BrainIsolationError("candidate predicate catalog lineage differs")
+            _bounded_manifest_string(predicate.get("operator"), label="predicate operator")
+            if type(predicate.get("graded")) is not bool:
+                raise _BrainIsolationError("candidate manifest predicate grading is invalid")
+            origin = predicate.get("origin")
+            if (
+                not isinstance(origin, Mapping)
+                or set(origin) != {"kind", "ref"}
+                or origin.get("kind") not in {"inline", "preset"}
+            ):
+                raise _BrainIsolationError("candidate manifest predicate origin is invalid")
+            _bounded_manifest_string(origin.get("ref"), label="origin ref", nullable=True)
+            if (origin.get("kind") == "preset") != (origin.get("ref") is not None):
+                raise _BrainIsolationError("candidate manifest predicate origin differs")
+            _validate_manifest_json(predicate.get("value"))
+            _validate_manifest_json(predicate.get("amount"))
+            _manifest_hash(predicate.get("clause_guard_sha256"), nullable=True)
+            _manifest_hash(predicate.get("leaf_guard_sha256"), nullable=True)
+            _manifest_hash(predicate.get("expression_sha256"))
+    normalized = json.loads(canonical_json(value))
+    raw = canonical_json(normalized)
+    if len(raw) > MAX_CANDIDATE_MANIFEST_BYTES:
+        raise _BrainIsolationError("candidate manifest exceeds its byte limit")
+    if canonical_sha256(normalized) != manifest_sha256:
+        raise _BrainIsolationError("candidate manifest hash differs")
+    return normalized
+
+
 class _PinnedBridge:
     def __init__(
         self,
@@ -692,6 +946,7 @@ class BrainCompiler(_PinnedBridge):
         filename: Any,
         endpoint: Any,
         plan: Mapping[str, Any] | None = None,
+        allow_new: bool = False,
     ) -> dict[str, Any]:
         source_text, filename_text, _execution_mode, endpoint_text = validate_compile_request(
             source=source,
@@ -699,17 +954,19 @@ class BrainCompiler(_PinnedBridge):
             execution_mode="endpoint",
             endpoint=endpoint,
         )
-        if operation not in {"lossless-inventory", "lossless-apply"}:
+        if operation not in {"lossless-inventory", "lossless-apply", "edit-surface"}:
             raise BrainError("INVALID_SCHEMA", 500, "lossless operation is invalid")
-        if operation == "lossless-inventory" and plan is not None:
-            raise BrainError("INVALID_SCHEMA", 500, "inventory request contains a plan")
+        if operation in {"lossless-inventory", "edit-surface"} and plan is not None:
+            raise BrainError("INVALID_SCHEMA", 500, f"{operation} request contains a plan")
         if operation == "lossless-apply" and not isinstance(plan, Mapping):
             raise BrainError("INVALID_SCHEMA", 500, "lossless plan is invalid")
+        if type(allow_new) is not bool or (allow_new and operation != "edit-surface"):
+            raise BrainError("INVALID_SCHEMA", 500, "edit-surface allow_new is invalid")
         if lease.cancellation.is_set():
             raise BrainError("SESSION_REVOKED", 409, "session was revoked")
         if lease.snapshot.toolchain_binding != self._binding:
             raise BrainError("STALE_CONTEXT", 409, "session toolchain binding is stale")
-        if filename_text not in {item.path for item in lease.snapshot.files}:
+        if filename_text not in {item.path for item in lease.snapshot.files} and not allow_new:
             raise BrainError("STALE_CONTEXT", 409, "lossless target is absent from the snapshot")
         try:
             with (
@@ -793,6 +1050,31 @@ class BrainCompiler(_PinnedBridge):
             filename=filename,
             endpoint=endpoint,
             plan=plan,
+        )
+
+    def edit_surface(
+        self,
+        *,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+        allow_new: bool = False,
+    ) -> dict[str, Any]:
+        """Return the runner's private edit-surface envelope to its consumer.
+
+        This is a transport boundary only: the consumer owns the exact envelope
+        schema and semantic validation.  The call still inherits the pinned,
+        immutable snapshot, sandbox, cancellation and toolchain-binding gates.
+        """
+
+        return self._lossless_call(
+            operation="edit-surface",
+            lease=lease,
+            source=source,
+            filename=filename,
+            endpoint=endpoint,
+            allow_new=allow_new,
         )
 
     def compile(
@@ -899,6 +1181,176 @@ class BrainCompiler(_PinnedBridge):
         }
         receipt["receipt_sha256"] = canonical_sha256(receipt)
         return receipt
+
+    def compile_candidate(
+        self,
+        *,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+    ) -> CandidateCompileResult:
+        """Compile once and split public evidence from private structural authority.
+
+        The receipt intentionally preserves the established ``compile`` wire.
+        The occurrence manifest never enters that receipt and has no HTTP route.
+        """
+
+        source_text, filename_text, _execution_mode, endpoint_text = validate_compile_request(
+            source=source,
+            filename=filename,
+            execution_mode="endpoint",
+            endpoint=endpoint,
+        )
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        if lease.snapshot.toolchain_binding != self._binding:
+            raise BrainError("STALE_CONTEXT", 409, "session toolchain binding is stale")
+        try:
+            with (
+                self._slot(busy_code="COMPILER_BUSY"),
+                _isolated_metis_repository(
+                    metis_root=self._metis_root,
+                    node_path=self._node_path,
+                    expected_identity=self._external_identity,
+                    authority=self._authority,
+                ) as isolation,
+            ):
+                authority_root, job_root, additional_read_roots = _job_paths(isolation)
+                tenant_root = _materialize_snapshot(
+                    lease.snapshot,
+                    job_root,
+                    candidate_filename=filename_text,
+                    candidate_source=source_text,
+                )
+                envelope = _run_brain_runner(
+                    isolated_root=authority_root,
+                    additional_read_roots=additional_read_roots,
+                    node_path=self._node_path,
+                    request={
+                        "schema_version": 1,
+                        "operation": "compile-candidate",
+                        "tenant_root": str(tenant_root),
+                        "endpoint": endpoint_text,
+                    },
+                )
+        except BrainError:
+            raise
+        except (
+            brain_pin.BrainToolchainPinError,
+            sandbox_support.CatalogMaintenancePinError,
+            _BrainIsolationError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            raise BrainError(
+                "COMPILER_FAILED", 503, "pinned candidate compiler execution failed"
+            ) from error
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        expected_fields = {
+            "schema_version",
+            "operation",
+            "status",
+            "diagnostics",
+            "endpoint",
+            "endpoint_sha256",
+            "runtime_context_sha256",
+            "manifest",
+            "manifest_sha256",
+        }
+        status = envelope.get("status")
+        if (
+            set(envelope) != expected_fields
+            or envelope.get("schema_version") != 1
+            or envelope.get("operation") != "compile-candidate"
+            or status not in {"ok", "invalid"}
+            or not isinstance(envelope.get("diagnostics"), list)
+        ):
+            raise BrainError(
+                "COMPILER_FAILED", 503, "pinned candidate compiler returned an invalid receipt"
+            )
+        manifest: dict[str, Any] | None = None
+        manifest_sha256: str | None = None
+        if status == "ok":
+            try:
+                endpoint_sha256 = _manifest_hash(envelope.get("endpoint_sha256"))
+                runtime_context_sha256 = _manifest_hash(envelope.get("runtime_context_sha256"))
+                manifest_sha256 = _manifest_hash(envelope.get("manifest_sha256"))
+                if (
+                    envelope.get("endpoint") != endpoint_text
+                    or envelope.get("diagnostics") != []
+                    or endpoint_sha256 is None
+                    or runtime_context_sha256 is None
+                    or manifest_sha256 is None
+                ):
+                    raise _BrainIsolationError("candidate compiler identity differs")
+                manifest = _validate_candidate_manifest(
+                    envelope.get("manifest"),
+                    endpoint=endpoint_text,
+                    endpoint_sha256=endpoint_sha256,
+                    manifest_sha256=manifest_sha256,
+                )
+            except _BrainIsolationError as error:
+                raise BrainError(
+                    "COMPILER_FAILED",
+                    503,
+                    "pinned candidate compiler returned an invalid manifest",
+                ) from error
+        elif not envelope.get("diagnostics") or any(
+            envelope.get(key) is not None
+            for key in (
+                "endpoint",
+                "endpoint_sha256",
+                "runtime_context_sha256",
+                "manifest",
+                "manifest_sha256",
+            )
+        ):
+            raise BrainError(
+                "COMPILER_FAILED", 503, "pinned candidate compiler returned an invalid receipt"
+            )
+        with self._execution_lock:
+            self._execution_count += 1
+        public_compiler = {
+            "schema_version": 1,
+            "operation": "compile",
+            "status": status,
+            "diagnostics": envelope["diagnostics"],
+            "endpoint": envelope["endpoint"],
+            "endpoint_sha256": envelope["endpoint_sha256"],
+            "runtime_context_sha256": envelope["runtime_context_sha256"],
+        }
+        candidate = {
+            "filename": filename_text,
+            "execution_mode": "endpoint",
+            "endpoint": endpoint_text,
+            "source_sha256": canonical_sha256(source_text),
+            "context_revision": lease.snapshot.revision,
+        }
+        receipt: dict[str, Any] = {
+            "schema_version": 1,
+            "status": status,
+            "session_id": lease.session_id,
+            "tenant_alias": lease.tenant_alias,
+            "context_revision": lease.snapshot.revision,
+            "toolchain_binding": self._binding,
+            "candidate": candidate,
+            "compiler": public_compiler,
+            "claims": {
+                "archive_snapshot": True,
+                "network_denied": True,
+                "writes_denied": True,
+                "tenant_modified": False,
+                "semantic_correctness": False,
+            },
+        }
+        receipt["receipt_sha256"] = canonical_sha256(receipt)
+        return CandidateCompileResult(
+            receipt=receipt,
+            manifest=manifest,
+            manifest_sha256=manifest_sha256,
+        )
 
     def compile_structure(
         self,
@@ -1087,6 +1539,7 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
 
 __all__ = [
     "BrainCompiler",
+    "CandidateCompileResult",
     "PinnedMetisAuthority",
     "PinnedCatalogProjectionLoader",
     "RUNNER_SHA256",

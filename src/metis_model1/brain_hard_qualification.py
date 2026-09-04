@@ -35,12 +35,18 @@ from metis_model1.brain_protocol import (
     parse_json_object,
 )
 from metis_model1.brain_server import BrainConfig, MetisBrainService, parse_brain_config_bytes
+from metis_model1.brain_structural_edit import (
+    MAX_EDIT_OPERATIONS,
+    STRUCTURAL_LOSSLESS_PROOF_CONTRACT,
+)
 from metis_model1.brain_turns import validate_target
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = PROJECT_ROOT / "artifacts/metis-brain-hard-qualification"
 EXPECTED_CORPUS_PATH = PROJECT_ROOT / "examples/metis-brain-hard-prompts.play-prod-v1.json"
 EXPECTED_PLAN_PATH = PROJECT_ROOT / "examples/metis-brain-hard-qualification.play-prod-v1.json"
+EXPECTED_V2_CORPUS_PATH = PROJECT_ROOT / "examples/metis-brain-hard-prompts.play-prod-v2.json"
+EXPECTED_V2_PLAN_PATH = PROJECT_ROOT / "examples/metis-brain-hard-qualification.play-prod-v2.json"
 EXPECTED_CONFIG_PATH = (
     PROJECT_ROOT / "examples/metis-brain-config.play-prod-hard-qualification.local.json"
 )
@@ -49,6 +55,10 @@ EXPECTED_CORPUS_SHA256 = "sha256:6022ea8104a0b01deacd81bf4f46bd78d72154a30827808
 # qualification plan/config cannot redefine its own oracle or runtime after
 # those constants are sealed.
 EXPECTED_PLAN_SHA256 = "sha256:f3aa5efbeed73b14f9805ee42b6906faa3bda2fdd8bab498ddc52323af5ccf5c"
+EXPECTED_V2_CORPUS_SHA256 = (
+    "sha256:656c59004142b6e49b2881da328149c801e8ff280959138507f9650591c12e4a"
+)
+EXPECTED_V2_PLAN_SHA256 = "sha256:f54ce97e071a657244b2917533eeb7bc4e59121d75718bcf2dd6d24567b7797f"
 EXPECTED_CONFIG_SHA256 = "sha256:b1e4256a4f1bdd11b3485b7554b6e9c1c8666c034947a99da48c1267f85e2842"
 EXPECTED_CLIENT_ID = "brain-hard-qualification"
 EXPECTED_MODEL_REVISION = "3e6447f082e89cc7f0bc6e5441afd38dfce760ff"
@@ -64,6 +74,9 @@ EXPECTED_NODE_MODULES_SHA256 = (
     "sha256:5ba3b1ef8e399260fa40c840fdeffd255931b37c01d284b4d445c0311533e7e5"
 )
 EXPECTED_RUNNER_SHA256 = "sha256:5497794fe0bbedf84639e40a2e7a8a9143feb661080510fc3b115642a690f432"
+EXPECTED_V2_RUNNER_SHA256 = (
+    "sha256:f20c5fe80547bb973b41610507157cb03942fe4736105722b6a5b8fa063c1dde"
+)
 EXPECTED_CAPABILITIES = frozenset(
     {"chat.read", "chat.turn", "context.read", "session.close", "session.read"}
 )
@@ -116,7 +129,66 @@ _STRUCTURAL_FACT_NAMES = frozenset(
 
 
 @dataclass(frozen=True)
+class HardQualificationProfile:
+    profile_id: str
+    corpus_path: Path
+    corpus_relative_path: str
+    corpus_sha256: str
+    corpus_artifact_id: str
+    corpus_artifact_version: int
+    plan_path: Path
+    plan_sha256: str
+    qualification_id: str
+    runner_sha256: str
+    tenant_head: str
+    tenant_tree: str
+    require_structural_lossless_edits: bool
+    require_reference_equivalence: bool
+    promotable: bool
+
+
+_V1_PROFILE = HardQualificationProfile(
+    profile_id="play-prod-v1",
+    corpus_path=EXPECTED_CORPUS_PATH,
+    corpus_relative_path="examples/metis-brain-hard-prompts.play-prod-v1.json",
+    corpus_sha256=EXPECTED_CORPUS_SHA256,
+    corpus_artifact_id="metis-brain-hard-prompts.play-prod-v1",
+    corpus_artifact_version=1,
+    plan_path=EXPECTED_PLAN_PATH,
+    plan_sha256=EXPECTED_PLAN_SHA256,
+    qualification_id="metis-brain-hard-headless/play-prod-v1",
+    runner_sha256=EXPECTED_RUNNER_SHA256,
+    tenant_head="5f56bdfe27e3fb00b735db630a4eb5cdf5ab12c3",
+    tenant_tree="03abf1a30603ff6cb59d55c32c3395cef868a218",
+    require_structural_lossless_edits=False,
+    require_reference_equivalence=True,
+    promotable=True,
+)
+_V2_PROFILE = HardQualificationProfile(
+    profile_id="play-prod-v2",
+    corpus_path=EXPECTED_V2_CORPUS_PATH,
+    corpus_relative_path="examples/metis-brain-hard-prompts.play-prod-v2.json",
+    corpus_sha256=EXPECTED_V2_CORPUS_SHA256,
+    corpus_artifact_id="metis-brain-hard-prompts.play-prod-v2",
+    corpus_artifact_version=2,
+    plan_path=EXPECTED_V2_PLAN_PATH,
+    plan_sha256=EXPECTED_V2_PLAN_SHA256,
+    qualification_id="metis-brain-hard-headless/play-prod-v2",
+    runner_sha256=EXPECTED_V2_RUNNER_SHA256,
+    tenant_head="98e78407f7286d2a9ac404dceb655fd1f6a9118e",
+    tenant_tree="914785f55c2be453ee75a6314f4e9e77010eed25",
+    require_structural_lossless_edits=True,
+    require_reference_equivalence=False,
+    promotable=False,
+)
+_PROFILES_BY_PATHS = {
+    (profile.corpus_path, profile.plan_path): profile for profile in (_V1_PROFILE, _V2_PROFILE)
+}
+
+
+@dataclass(frozen=True)
 class HardQualificationSpec:
+    profile_id: str
     corpus_path: Path
     corpus_sha256: str
     corpus: dict[str, Any]
@@ -131,6 +203,9 @@ class HardQualificationSpec:
     tenant_id: str
     tenant_head: str
     tenant_tree: str
+    require_structural_lossless_edits: bool
+    require_reference_equivalence: bool
+    promotable: bool
 
 
 @dataclass(frozen=True)
@@ -252,7 +327,9 @@ def _apply_replacements(source: str, replacements: Sequence[Mapping[str, Any]]) 
     return "".join(lines)
 
 
-def _validate_corpus(value: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _validate_corpus(
+    value: dict[str, Any], *, profile: HardQualificationProfile
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     exact_fields(
         value,
         required={
@@ -271,8 +348,8 @@ def _validate_corpus(value: dict[str, Any]) -> tuple[list[dict[str, Any]], list[
         label="hard prompt corpus",
     )
     if (
-        value["artifact_id"] != "metis-brain-hard-prompts.play-prod-v1"
-        or value["artifact_version"] != 1
+        value["artifact_id"] != profile.corpus_artifact_id
+        or value["artifact_version"] != profile.corpus_artifact_version
         or value["language"] != "en"
     ):
         raise BrainError("HARD_QUALIFICATION_INVALID", 400, "hard prompt corpus is unsupported")
@@ -310,7 +387,20 @@ def _validate_corpus(value: dict[str, Any]) -> tuple[list[dict[str, Any]], list[
         if not isinstance(source_hash, str) or _HASH_RE.fullmatch(source_hash) is None:
             raise BrainError("HARD_QUALIFICATION_INVALID", 400, "source hash is invalid")
         lossless = endpoint.get("lossless_path")
-        if not isinstance(lossless, dict) or lossless.get("decision") != "fail_closed_fallback":
+        expected_lossless_decision = (
+            "fail_closed_fallback"
+            if profile.corpus_artifact_version == 1
+            else "compiler_owned_structural_lossless"
+        )
+        if (
+            not isinstance(lossless, dict)
+            or set(lossless) != {"decision", "reason", "eligible_only_if"}
+            or lossless.get("decision") != expected_lossless_decision
+            or not isinstance(lossless.get("reason"), str)
+            or not lossless["reason"]
+            or not isinstance(lossless.get("eligible_only_if"), str)
+            or not lossless["eligible_only_if"]
+        ):
             raise BrainError("HARD_QUALIFICATION_INVALID", 400, "lossless decision is invalid")
         endpoint_names.append(qualified)
         endpoint_paths.append(path)
@@ -344,18 +434,19 @@ def _validate_corpus(value: dict[str, Any]) -> tuple[list[dict[str, Any]], list[
 def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualificationSpec:
     requested_corpus = Path(corpus_path)
     requested_plan = Path(plan_path)
-    if requested_corpus != EXPECTED_CORPUS_PATH or requested_plan != EXPECTED_PLAN_PATH:
+    profile = _PROFILES_BY_PATHS.get((requested_corpus, requested_plan))
+    if profile is None:
         raise BrainError("HARD_QUALIFICATION_INVALID", 409, "qualification input path differs")
     corpus_raw = _safe_regular_bytes(requested_corpus, label="hard prompt corpus")
     corpus_sha = _sha256(corpus_raw)
-    if corpus_sha != EXPECTED_CORPUS_SHA256:
+    if corpus_sha != profile.corpus_sha256:
         raise BrainError("HARD_QUALIFICATION_INVALID", 409, "hard prompt corpus hash differs")
     corpus = parse_json_object(corpus_raw, label="hard prompt corpus")
-    endpoints, journeys = _validate_corpus(corpus)
+    endpoints, journeys = _validate_corpus(corpus, profile=profile)
 
     plan_raw = _safe_regular_bytes(requested_plan, label="hard qualification plan")
     plan_sha = _sha256(plan_raw)
-    if plan_sha != EXPECTED_PLAN_SHA256:
+    if plan_sha != profile.plan_sha256:
         raise BrainError("HARD_QUALIFICATION_INVALID", 409, "qualification plan hash differs")
     plan = parse_json_object(plan_raw, label="hard qualification plan")
     exact_fields(
@@ -375,16 +466,14 @@ def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualifica
         },
         label="hard qualification plan",
     )
-    if plan["schema_version"] != 1 or plan["qualification_id"] != (
-        "metis-brain-hard-headless/play-prod-v1"
-    ):
+    if plan["schema_version"] != 1 or plan["qualification_id"] != profile.qualification_id:
         raise BrainError("HARD_QUALIFICATION_INVALID", 400, "qualification plan is unsupported")
     corpus_binding = plan["corpus"]
     if (
         not isinstance(corpus_binding, dict)
         or corpus_binding.get("artifact_id") != corpus["artifact_id"]
         or corpus_binding.get("sha256") != corpus_sha
-        or corpus_binding.get("path") != "examples/metis-brain-hard-prompts.play-prod-v1.json"
+        or corpus_binding.get("path") != profile.corpus_relative_path
         or (PROJECT_ROOT / corpus_binding["path"]).resolve(strict=True)
         != Path(corpus_path).resolve(strict=True)
     ):
@@ -426,7 +515,7 @@ def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualifica
             "revision": EXPECTED_TOOLCHAIN_REVISION,
             "tree": EXPECTED_TOOLCHAIN_TREE,
             "node_modules_sha256": EXPECTED_NODE_MODULES_SHA256,
-            "runner_sha256": EXPECTED_RUNNER_SHA256,
+            "runner_sha256": profile.runner_sha256,
         },
     }
     if runtime_identity != expected_runtime:
@@ -442,8 +531,10 @@ def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualifica
         or tenant_root.resolve(strict=True) != tenant_root
         or authority.get("root") != snapshot.get("repository")
         or authority.get("head") != snapshot.get("head")
+        or authority.get("head") != profile.tenant_head
         or not isinstance(authority.get("tree"), str)
         or len(authority["tree"]) != 40
+        or authority.get("tree") != profile.tenant_tree
         or authority.get("tenant_alias") != "play-prod"
         or authority.get("tenant_id") != "play-prod-v2"
     ):
@@ -621,6 +712,7 @@ def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualifica
     ):
         raise BrainError("HARD_QUALIFICATION_INVALID", 409, "qualification rosters differ")
     return HardQualificationSpec(
+        profile_id=profile.profile_id,
         corpus_path=Path(corpus_path).resolve(strict=True),
         corpus_sha256=corpus_sha,
         corpus=corpus,
@@ -635,6 +727,9 @@ def load_hard_qualification(corpus_path: Path, plan_path: Path) -> HardQualifica
         tenant_id=authority["tenant_id"],
         tenant_head=authority["head"],
         tenant_tree=authority["tree"],
+        require_structural_lossless_edits=profile.require_structural_lossless_edits,
+        require_reference_equivalence=profile.require_reference_equivalence,
+        promotable=profile.promotable,
     )
 
 
@@ -986,6 +1081,36 @@ def clarification_answer(
             return {"integer": exact_counts[0]}
         numbers = [int(item) for item in re.findall(r"(?<!\w)([1-9][0-9]{0,3})(?!\w)", evidence)]
         return {"integer": numbers[0]} if len(set(numbers)) == 1 else None
+    if kind == "catalog" and clarification.get("answer_schema") == {
+        "type": "text",
+        "format": "catalog-ref",
+        "max_bytes": 256,
+    }:
+        catalog_refs = clarification.get("catalog_refs")
+        if (
+            not isinstance(catalog_refs, list)
+            or not 6 <= len(catalog_refs) <= 64
+            or any(not isinstance(item, str) or not item for item in catalog_refs)
+            or len(catalog_refs) != len(set(catalog_refs))
+        ):
+            return None
+        matches: list[str] = []
+        for catalog in catalog_refs:
+            short = catalog.rsplit(".", 1)[-1]
+            explicit = any(
+                re.search(pattern, folded)
+                for pattern in (
+                    rf"(?<!\w)catalog(?:o)?\s+{re.escape(short.casefold())}(?!\w)",
+                    rf"(?<!\w)@{re.escape(short.casefold())}(?!\w)",
+                    rf"(?<!\w){re.escape(catalog.casefold())}(?!\w)",
+                )
+            )
+            from_source = source_catalogs is not None and (
+                short in source_catalogs or catalog in source_catalogs
+            )
+            if explicit or from_source:
+                matches.append(catalog)
+        return {"text": matches[0]} if len(matches) == 1 else None
     if not isinstance(options, list) or not options:
         return None
     if kind == "catalog":
@@ -1198,6 +1323,67 @@ def _draft_gate(terminal: Mapping[str, Any], target: Mapping[str, Any]) -> tuple
         failures.append("tenant_claim")
     if not isinstance(claims, Mapping) or claims.get("semantic_grounded") is not True:
         failures.append("semantic_grounded_claim")
+    return not failures, failures
+
+
+def _edit_route_gate(
+    terminal: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    require_structural_lossless: bool,
+    expected_touched_count: int | None = None,
+) -> tuple[bool, list[str]]:
+    """Bind a v2 edit pass to the compiler-owned structural renderer proof."""
+
+    if not require_structural_lossless:
+        return True, []
+
+    failures: list[str] = []
+    identity = terminal.get("identity")
+    if (
+        not isinstance(identity, Mapping)
+        or identity.get("generation_strategy") != "lossless_renderer"
+    ):
+        failures.append("edit_generation_not_structural_lossless")
+
+    validation = terminal.get("validation")
+    proposal = terminal.get("proposal")
+    proof = validation.get("lossless") if isinstance(validation, Mapping) else None
+    proposal_source = proposal.get("source") if isinstance(proposal, Mapping) else None
+    proposal_source_sha256 = (
+        proposal.get("source_sha256") if isinstance(proposal, Mapping) else None
+    )
+    base_sha256 = target.get("base_sha256")
+    proof_fields = {
+        "contract",
+        "proof_mode",
+        "receipt_sha256",
+        "sha_before",
+        "sha_after",
+        "touched_count",
+    }
+    proof_valid = (
+        isinstance(proof, Mapping)
+        and set(proof) == proof_fields
+        and proof.get("contract") == STRUCTURAL_LOSSLESS_PROOF_CONTRACT
+        and proof.get("proof_mode") == "validate"
+        and isinstance(proof.get("receipt_sha256"), str)
+        and _HASH_RE.fullmatch(proof["receipt_sha256"]) is not None
+        and isinstance(base_sha256, str)
+        and _HASH_RE.fullmatch(base_sha256) is not None
+        and proof.get("sha_before") == base_sha256
+        and isinstance(proposal_source, str)
+        and isinstance(proposal_source_sha256, str)
+        and _HASH_RE.fullmatch(proposal_source_sha256) is not None
+        and proposal_source_sha256 == _sha256(proposal_source.encode("utf-8"))
+        and proof.get("sha_after") == proposal_source_sha256
+        and type(expected_touched_count) is int
+        and 1 <= expected_touched_count <= MAX_EDIT_OPERATIONS
+        and type(proof.get("touched_count")) is int
+        and proof["touched_count"] == expected_touched_count
+    )
+    if not proof_valid:
+        failures.append("edit_structural_lossless_proof_invalid")
     return not failures, failures
 
 
@@ -1557,6 +1743,20 @@ def _clarification_gate(
             or answer_schema["maximum"] < answer_schema["minimum"]
         ):
             failures.append("clarification_schema")
+    elif kind == "catalog" and answer_schema == {
+        "type": "text",
+        "format": "catalog-ref",
+        "max_bytes": 256,
+    }:
+        catalog_refs = clarification.get("catalog_refs")
+        if (
+            options != []
+            or not isinstance(catalog_refs, list)
+            or not 6 <= len(catalog_refs) <= 64
+            or any(not isinstance(item, str) or not item for item in catalog_refs)
+            or len(catalog_refs) != len(set(catalog_refs))
+        ):
+            failures.append("clarification_catalog_roster")
     elif kind in OPTION_KINDS:
         if (
             not isinstance(options, list)
@@ -1673,7 +1873,7 @@ def _structural_evidence(
         )
         if previous_structural_sha256 == candidate_structural_sha256:
             failures.append("structural:no_delta_from_prior_draft")
-        if final_turn:
+        if final_turn and spec.require_reference_equivalence:
             source_path = create_target["reference_source_path"]
             reference_raw = _safe_regular_bytes(
                 spec.tenant_root / source_path,
@@ -1817,6 +2017,14 @@ def _run_edit(
         )
         operations.extend(answers)
         gate, failures = _draft_gate(terminal, target)
+        route_green, route_failures = _edit_route_gate(
+            terminal,
+            target,
+            require_structural_lossless=spec.require_structural_lossless_edits,
+            expected_touched_count=len(oracle["replacements"]),
+        )
+        gate = gate and route_green
+        failures.extend(route_failures)
         proposal = terminal.get("proposal")
         proposal_source = proposal.get("source") if isinstance(proposal, Mapping) else None
         exact_edit = isinstance(proposal_source, str) and proposal_source == expected_source
@@ -2473,7 +2681,8 @@ def run_hard_qualification(
     )
     aggregate = _aggregate(edits, journeys)
     qualification_green = (
-        terminal_error is None
+        spec.promotable
+        and terminal_error is None
         and measurement_complete
         and aggregate["edits"]["pass_draft"] == aggregate["edits"]["total"]
         and aggregate["create_journeys"]["converged_structural_oracle"]
@@ -2533,6 +2742,19 @@ def run_hard_qualification(
             "phase": terminal_phase,
             "code": terminal_code,
         },
+        "promotion_gate": {
+            "profile_promotable": spec.promotable,
+            "status": (
+                "NOT_PROMOTABLE"
+                if not spec.promotable
+                else ("PASSED" if qualification_green else "FAILED")
+            ),
+            "reason_code": (
+                "REFERENCE_EQUIVALENCE_NOT_REQUIRED"
+                if not spec.promotable
+                else (None if qualification_green else "QUALIFICATION_GATES_NOT_GREEN")
+            ),
+        },
         "qualification_green": qualification_green,
         "edits": edits,
         "create_journeys": journeys,
@@ -2545,6 +2767,9 @@ def run_hard_qualification(
 __all__ = [
     "EXPECTED_CAPABILITIES",
     "EXPECTED_DENOMINATOR",
+    "EXPECTED_V2_CORPUS_SHA256",
+    "EXPECTED_V2_PLAN_SHA256",
+    "EXPECTED_V2_RUNNER_SHA256",
     "HardQualificationSpec",
     "HeadlessBrainClient",
     "clarification_answer",

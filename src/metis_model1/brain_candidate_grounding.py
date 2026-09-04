@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from metis_model1.brain_protocol import MAX_SOURCE_BYTES, BrainError
+from metis_model1.brain_protocol import MAX_SOURCE_BYTES, BrainError, canonical_json
 
 MAX_PREDICATES = 256
 MAX_LITERAL_BYTES = 4096
@@ -117,7 +117,7 @@ def _skip_trivia(source: str, index: int) -> int:
     return index
 
 
-def _scan_string(source: str, start: int) -> tuple[str, int]:
+def _scan_string(source: str, start: int, *, allow_empty: bool = False) -> tuple[str, int]:
     if start >= len(source) or source[start] != '"':
         raise _ScanFailure("quoted literal is required")
     index = start + 1
@@ -126,7 +126,7 @@ def _scan_string(source: str, start: int) -> tuple[str, int]:
         char = source[index]
         if char == '"':
             literal = "".join(chars)
-            if not literal:
+            if not literal and not allow_empty:
                 raise _ScanFailure("empty literal is not authorized")
             if len(literal.encode("utf-8")) > MAX_LITERAL_BYTES:
                 raise _ScanFailure("literal is too large")
@@ -291,7 +291,7 @@ def _skip_guard(source: str, index: int) -> tuple[int, bool]:
             continue
         char = source[index]
         if char == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if char == "(":
             depth += 1
@@ -401,7 +401,7 @@ def _block_end(source: str, opening: int) -> int:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             depth += 1
@@ -423,7 +423,7 @@ def _endpoint_blocks(source: str) -> list[tuple[str, int, int]]:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             index = _block_end(source, index) + 1
@@ -439,7 +439,7 @@ def _endpoint_blocks(source: str) -> list[tuple[str, int, int]]:
                 cursor = _skip_trivia(source, cursor)
                 continue
             if source[cursor] == '"':
-                _literal, cursor = _scan_string(source, cursor)
+                _literal, cursor = _scan_string(source, cursor, allow_empty=True)
                 continue
             if source[cursor] == "{":
                 closing = _block_end(source, cursor)
@@ -471,7 +471,7 @@ def _endpoint_headers(source: str) -> list[tuple[str, str | None]]:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if not _word_at(source, index, "endpoint"):
             index += 1
@@ -505,7 +505,7 @@ def _take_directives(source: str, start: int, end: int) -> list[TakeContract]:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             index = _block_end(source, index) + 1
@@ -547,7 +547,7 @@ def _take_region_end(source: str, start: int, end: int) -> int:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             return _block_end(source, index) + 1
@@ -570,7 +570,7 @@ def _endpoint_take_regions(source: str) -> list[_TakeRegion]:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             index = _block_end(source, index) + 1
@@ -604,7 +604,7 @@ def _reject_endpoint_predicates_outside_take(
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if source[index] == "{":
             index = _block_end(source, index) + 1
@@ -635,7 +635,7 @@ def _contains_word_outside_trivia(source: str, word: str) -> bool:
             index = _skip_trivia(source, index)
             continue
         if source[index] == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if _word_at(source, index, word):
             return True
@@ -675,6 +675,60 @@ def source_endpoint_has_fallback(source: str, endpoint: str) -> bool:
     except _ScanFailure as error:
         raise BrainError(
             "OUTPUT_CONTRACT_UNAVAILABLE", 422, "target endpoint fallback is unavailable"
+        ) from error
+
+
+def source_endpoint_catalogs(source: str, endpoint: str) -> tuple[str, ...]:
+    """Return the exact ``from @catalog`` roster of one existing endpoint.
+
+    This is a server-owned edit hint, not a semantic guess.  It reuses the
+    bounded Metis scanner so catalog-looking text in comments or strings can
+    never steer retrieval.  Multiple source catalogs are preserved in source
+    order.  For an existing target that complete roster is source authority;
+    it is not a request to guess one primary catalog.
+    """
+
+    if not isinstance(source, str) or not source:
+        raise BrainError(
+            "CATALOG_CONTEXT_UNAVAILABLE", 422, "target endpoint catalog is unavailable"
+        )
+    if len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
+        raise BrainError("PAYLOAD_TOO_LARGE", 413, "target source exceeds the byte limit")
+    if not isinstance(endpoint, str) or not endpoint:
+        raise BrainError(
+            "CATALOG_CONTEXT_UNAVAILABLE", 422, "target endpoint catalog is unavailable"
+        )
+    parsed_name, parsed_end = _word_after(endpoint, 0)
+    if parsed_name != endpoint or parsed_end != len(endpoint):
+        raise BrainError(
+            "CATALOG_CONTEXT_UNAVAILABLE", 422, "target endpoint catalog is unavailable"
+        )
+    try:
+        matches = [block for block in _endpoint_blocks(source) if block[0] == endpoint]
+        if len(matches) != 1:
+            raise _ScanFailure("target endpoint is not unique")
+        _name, start, end = matches[0]
+        catalogs: list[str] = []
+        index = start
+        while index < end:
+            if source[index].isspace() or source.startswith(("//", "/*"), index):
+                index = _skip_trivia(source, index)
+                continue
+            if source[index] == '"':
+                _literal, index = _scan_string(source, index, allow_empty=True)
+                continue
+            if _word_at(source, index, "from"):
+                catalog, next_index = _catalog_source_after(source, index + len("from"))
+                if catalog is not None:
+                    if catalog not in catalogs:
+                        catalogs.append(catalog)
+                    index = next_index
+                    continue
+            index += 1
+        return tuple(catalogs)
+    except _ScanFailure as error:
+        raise BrainError(
+            "CATALOG_CONTEXT_UNAVAILABLE", 422, "target endpoint catalog is unavailable"
         ) from error
 
 
@@ -739,7 +793,7 @@ def _scan_candidate(source: str) -> tuple[list[_Predicate], list[str]]:
             continue
         char = source[index]
         if char == '"':
-            _literal, index = _scan_string(source, index)
+            _literal, index = _scan_string(source, index, allow_empty=True)
             continue
         if _word_at(source, index, "if"):
             index, opened_guard_block = _skip_guard(source, index + 2)
@@ -897,8 +951,21 @@ def _authorized_catalogs(grounding: Mapping[str, Any]) -> set[str]:
     return {name for item in catalogs for name in (item, item.rsplit(".", 1)[-1])}
 
 
-def _catalog_is_authorized(source: str, authorized: set[str]) -> bool:
+def _catalog_reference_is_authorized(source: str, authorized: set[str]) -> bool:
+    """Match text-scanned ``@catalog.FIELD`` references against an owner."""
+
     return any(source == name or source.startswith(name + ".") for name in authorized)
+
+
+def _catalog_is_authorized(source: str, authorized: set[str]) -> bool:
+    """Match a compiler-resolved catalog identity exactly.
+
+    The IR already separates the catalog source from its field/aggregation
+    member.  Prefix matching here would let a synthetic descendant such as
+    ``video.shadow`` inherit authority from ``video``.
+    """
+
+    return source in authorized
 
 
 def _values(predicates: list[_Predicate]) -> list[str]:
@@ -957,7 +1024,7 @@ def adjudicate_candidate_shape(
                 opening = _skip_trivia(source, opening)
                 continue
             if source[opening] == '"':
-                _literal, opening = _scan_string(source, opening)
+                _literal, opening = _scan_string(source, opening, allow_empty=True)
                 continue
             if source[opening] == "{":
                 break
@@ -973,7 +1040,7 @@ def adjudicate_candidate_shape(
                 index = _skip_trivia(source, index)
                 continue
             if source[index] == '"':
-                _literal, index = _scan_string(source, index)
+                _literal, index = _scan_string(source, index, allow_empty=True)
                 continue
             if source[index] == "{":
                 index = _block_end(source, index) + 1
@@ -1093,7 +1160,11 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
             },
         )
     unauthorized_catalogs = sorted(
-        {item for item in catalog_sources if not _catalog_is_authorized(item, authorized_catalogs)}
+        {
+            item
+            for item in catalog_sources
+            if not _catalog_reference_is_authorized(item, authorized_catalogs)
+        }
     )[:MAX_PREDICATES]
     catalog_source_diagnostic = None
     if endpoint_blocks and len(catalog_sources) != 1:
@@ -1142,6 +1213,281 @@ def adjudicate_candidate(source: str, grounding: Mapping[str, Any]) -> Candidate
             "catalog_source": catalog_source_diagnostic,
             "take": take_diagnostic,
             "fallback": fallback_diagnostic,
+        },
+    )
+
+
+def _compiled_manifest_fetches(manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    if (
+        set(manifest)
+        != {
+            "schema_version",
+            "endpoint",
+            "endpoint_sha256",
+            "containers",
+            "fetches",
+        }
+        or manifest.get("schema_version") != 1
+        or not isinstance(manifest.get("endpoint"), str)
+        or not isinstance(manifest.get("containers"), list)
+        or not isinstance(manifest.get("fetches"), list)
+        or len(manifest["fetches"]) > 512
+    ):
+        raise BrainError("GROUNDING_INVALID", 500, "compiled candidate manifest is invalid")
+    fetches: list[Mapping[str, Any]] = []
+    stage_ids: set[str] = set()
+    for index, fetch in enumerate(manifest["fetches"]):
+        if (
+            not isinstance(fetch, Mapping)
+            or fetch.get("occurrence") != index
+            or not isinstance(fetch.get("stage_id"), str)
+            or not isinstance(fetch.get("container_path"), str)
+            or not isinstance(fetch.get("predicates"), list)
+        ):
+            raise BrainError("GROUNDING_INVALID", 500, "compiled candidate fetch is invalid")
+        if fetch["stage_id"] in stage_ids:
+            raise BrainError("GROUNDING_INVALID", 500, "compiled stage identity is duplicated")
+        stage_ids.add(fetch["stage_id"])
+        fetches.append(fetch)
+    return fetches
+
+
+def _compiled_literal(predicate: Mapping[str, Any]) -> tuple[str, ...] | None:
+    value = predicate.get("value")
+    if not isinstance(value, Mapping):
+        return None
+    if set(value) == {"lit"} and isinstance(value.get("lit"), str) and value["lit"]:
+        return (value["lit"],)
+    if (
+        set(value) == {"vals"}
+        and isinstance(value.get("vals"), list)
+        and value["vals"]
+        and all(isinstance(item, str) and item for item in value["vals"])
+    ):
+        return tuple(sorted(value["vals"]))
+    return None
+
+
+def _compiled_selection_token(selection: Mapping[str, Any]) -> tuple[Any, ...] | None:
+    catalog = selection.get("catalog")
+    expected = _selection_predicate(selection, {str(catalog)})
+    if expected is None:
+        return None
+    operator = {
+        "is": "eq",
+        "has": "eq",
+        "in": "in",
+        "has any": "in",
+    }[expected.operator]
+    return (catalog, expected.field, operator, expected.literals)
+
+
+def adjudicate_candidate_manifest(
+    manifest: Mapping[str, Any], grounding: Mapping[str, Any]
+) -> CandidateGroundingCheck:
+    """Adjudicate create/simple finite grounding from compiler-owned occurrences.
+
+    Existing complex edits additionally require a source-manifest delta contract;
+    this function intentionally does not infer an occurrence from repeated fields.
+    """
+
+    authorized = _authorized_catalogs(grounding)
+    selections = grounding.get("selections")
+    if not isinstance(selections, list):
+        raise BrainError("GROUNDING_INVALID", 500, "grounding selections are unavailable")
+    expected: Counter[tuple[Any, ...]] = Counter()
+    for selection in selections:
+        if not isinstance(selection, Mapping):
+            raise BrainError("GROUNDING_INVALID", 500, "grounding selection is invalid")
+        token = _compiled_selection_token(selection)
+        if token is not None:
+            expected[token] += 1
+    actual: Counter[tuple[Any, ...]] = Counter()
+    unauthorized_catalogs: set[str] = set()
+    unauthorized_predicates: list[dict[str, Any]] = []
+    for fetch in _compiled_manifest_fetches(manifest):
+        catalog = fetch.get("catalog")
+        if isinstance(catalog, str) and not _catalog_is_authorized(catalog, authorized):
+            unauthorized_catalogs.add(catalog)
+        for predicate in fetch["predicates"]:
+            if not isinstance(predicate, Mapping):
+                unauthorized_predicates.append(
+                    {"occurrence": fetch["occurrence"], "reason": "malformed"}
+                )
+                continue
+            origin = predicate.get("origin")
+            literals = _compiled_literal(predicate)
+            field = predicate.get("field")
+            operator = predicate.get("operator")
+            predicate_catalog = predicate.get("catalog")
+            if field is None:
+                continue
+            if (
+                not isinstance(origin, Mapping)
+                or origin.get("kind") != "inline"
+                or literals is None
+                or predicate.get("intent") != "include"
+                or not isinstance(predicate_catalog, str)
+                or not isinstance(field, str)
+                or not isinstance(operator, str)
+            ):
+                unauthorized_predicates.append(
+                    {
+                        "occurrence": fetch["occurrence"],
+                        "catalog": predicate_catalog,
+                        "field": field,
+                        "intent": predicate.get("intent"),
+                        "origin": origin.get("ref") if isinstance(origin, Mapping) else None,
+                        "reason": "no_explicit_reviewed_authority",
+                    }
+                )
+                continue
+            actual[(predicate_catalog, field, operator, literals)] += 1
+    if not unauthorized_predicates and not unauthorized_catalogs and actual == expected:
+        return CandidateGroundingCheck(True)
+    missing = list((expected - actual).elements())[:MAX_PREDICATES]
+    extra = list((actual - expected).elements())[:MAX_PREDICATES]
+    return CandidateGroundingCheck(
+        False,
+        {
+            "code": "CANDIDATE_GROUNDING_MISMATCH",
+            "reason": "compiled candidate predicates differ from reviewed grounding",
+            "missing": [
+                {"catalog": item[0], "field": item[1], "operator": item[2], "values": list(item[3])}
+                for item in missing
+            ],
+            "extra": [
+                {"catalog": item[0], "field": item[1], "operator": item[2], "values": list(item[3])}
+                for item in extra
+            ],
+            "unauthorized_catalogs": sorted(unauthorized_catalogs)[:MAX_PREDICATES],
+            "unauthorized_predicates": unauthorized_predicates[:MAX_PREDICATES],
+        },
+    )
+
+
+def candidate_manifest_delta(
+    reference: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> list[dict[str, str]]:
+    """Return a bounded, value-redacted occurrence delta between two manifests."""
+
+    reference_fetches = _compiled_manifest_fetches(reference)
+    candidate_fetches = _compiled_manifest_fetches(candidate)
+    if reference.get("endpoint") != candidate.get("endpoint"):
+        return [{"locator": "endpoint", "component": "identity"}]
+    deltas: list[dict[str, str]] = []
+
+    def append(locator: str, component: str) -> None:
+        if len(deltas) < 1024:
+            deltas.append({"locator": locator, "component": component})
+
+    def container_map(value: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+        containers = value.get("containers")
+        if not isinstance(containers, list) or len(containers) > 512:
+            raise BrainError("GROUNDING_INVALID", 500, "compiled candidate containers are invalid")
+        result: dict[str, Mapping[str, Any]] = {}
+        for item in containers:
+            if not isinstance(item, Mapping) or not isinstance(item.get("path"), str):
+                raise BrainError(
+                    "GROUNDING_INVALID", 500, "compiled candidate container is invalid"
+                )
+            path = item["path"]
+            if path in result:
+                raise BrainError(
+                    "GROUNDING_INVALID", 500, "compiled candidate container is duplicated"
+                )
+            result[path] = item
+        return result
+
+    reference_containers = container_map(reference)
+    candidate_containers = container_map(candidate)
+    reference_container_order = [item["path"] for item in reference["containers"]]
+    candidate_container_order = [item["path"] for item in candidate["containers"]]
+    if reference_container_order != candidate_container_order:
+        append("endpoint", "container_roster")
+    for path in sorted(set(reference_containers) | set(candidate_containers)):
+        left = reference_containers.get(path)
+        right = candidate_containers.get(path)
+        if left is None:
+            append(f"container:{path}", "added")
+            continue
+        if right is None:
+            append(f"container:{path}", "removed")
+            continue
+        for component in (
+            "kind",
+            "name",
+            "activation_sha256",
+            "output_sha256",
+            "fallback_sha256",
+            "uses_sha256",
+            "semantics_sha256",
+            "presentation_sha256",
+        ):
+            if left.get(component) != right.get(component):
+                append(f"container:{path}", component.removesuffix("_sha256"))
+
+    reference_roster = [
+        (item["occurrence"], item["stage_id"], item["container_path"]) for item in reference_fetches
+    ]
+    candidate_roster = [
+        (item["occurrence"], item["stage_id"], item["container_path"]) for item in candidate_fetches
+    ]
+    if reference_roster != candidate_roster:
+        append("endpoint", "fetch_roster")
+    for index in range(max(len(reference_fetches), len(candidate_fetches))):
+        left = reference_fetches[index] if index < len(reference_fetches) else None
+        right = candidate_fetches[index] if index < len(candidate_fetches) else None
+        stage = (
+            left["stage_id"]
+            if left is not None
+            else right["stage_id"]
+            if right is not None
+            else str(index)
+        )
+        locator = f"fetch:{index}:{stage}"
+        if left is None:
+            append(locator, "added")
+            continue
+        if right is None:
+            append(locator, "removed")
+            continue
+        for identity_component in ("stage_id", "container_path"):
+            if left.get(identity_component) != right.get(identity_component):
+                append(locator, identity_component.removesuffix("_id"))
+        for component in (
+            "source",
+            "catalog",
+            "count",
+            "activation_sha256",
+            "ordering_sha256",
+            "output_sha256",
+            "fallback_sha256",
+            "predicates",
+        ):
+            if canonical_json(left.get(component)) != canonical_json(right.get(component)):
+                append(locator, component.removesuffix("_sha256"))
+        if left.get("semantics_sha256") != right.get("semantics_sha256") and not any(
+            item["locator"] == locator for item in deltas
+        ):
+            append(locator, "other_semantics")
+    return deltas
+
+
+def adjudicate_manifest_preservation(
+    reference: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> CandidateGroundingCheck:
+    """Require exact occurrence preservation, without exposing predicate values."""
+
+    deltas = candidate_manifest_delta(reference, candidate)
+    if not deltas:
+        return CandidateGroundingCheck(True)
+    return CandidateGroundingCheck(
+        False,
+        {
+            "code": "CANDIDATE_STRUCTURE_MISMATCH",
+            "reason": "compiled candidate changed protected occurrences",
+            "deltas": deltas,
         },
     )
 

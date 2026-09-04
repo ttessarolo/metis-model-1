@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -28,6 +29,55 @@ class FakeCompiler:
             "session_id": lease.session_id,
             "filename": filename,
         }
+
+    def compile_candidate(
+        self,
+        *,
+        lease: Any,
+        source: str,
+        filename: str,
+        endpoint: str,
+    ) -> object:
+        receipt = self.compile(lease=lease, source=source, filename=filename)
+        manifest: dict[str, Any] = {
+            "schema_version": 1,
+            "endpoint": endpoint,
+            "endpoint_sha256": "sha256:" + "1" * 64,
+            "containers": [
+                {
+                    "path": "endpoint",
+                    "kind": "endpoint",
+                    "name": endpoint,
+                    "activation_sha256": None,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "uses_sha256": None,
+                    "semantics_sha256": "sha256:" + "8" * 64,
+                    "presentation_sha256": "sha256:" + "2" * 64,
+                }
+            ],
+            "fetches": [
+                {
+                    "occurrence": 0,
+                    "stage_id": "endpoint.take.0",
+                    "container_path": "endpoint",
+                    "source": {"kind": "catalog", "ref": "video"},
+                    "catalog": "video",
+                    "count": {"skip": 0, "take": 1},
+                    "activation_sha256": None,
+                    "ordering_sha256": "sha256:" + "3" * 64,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "predicates": [],
+                    "semantics_sha256": "sha256:" + "4" * 64,
+                }
+            ],
+        }
+        return SimpleNamespace(
+            receipt=receipt,
+            manifest=manifest,
+            manifest_sha256=canonical_sha256(manifest),
+        )
 
 
 class RecordingModel:

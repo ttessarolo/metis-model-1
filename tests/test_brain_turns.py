@@ -18,7 +18,12 @@ from metis_model1.brain_protocol import CAPABILITIES, BrainError, bytes_sha256, 
 from metis_model1.brain_retrieval import RetrievalResult, semantic_revision
 from metis_model1.brain_server import BrainApplication, BrainRuntime, _ThreadingBrainHTTPServer
 from metis_model1.brain_sessions import ClientPolicy, SessionManager
-from metis_model1.brain_turns import TurnRecord, TurnRequest, TurnStore
+from metis_model1.brain_turns import (
+    ClarificationAnswerRequest,
+    TurnRecord,
+    TurnRequest,
+    TurnStore,
+)
 
 
 class FakeCompiler:
@@ -27,6 +32,7 @@ class FakeCompiler:
     def __init__(self, statuses: list[str] | None = None) -> None:
         self.statuses = statuses or ["ok"]
         self.calls = 0
+        self.candidate_sources: list[str] = []
 
     def compile(self, *, lease: Any, source: str, filename: str, **_kwargs: Any) -> dict[str, Any]:
         status = self.statuses[min(self.calls, len(self.statuses) - 1)]
@@ -40,6 +46,68 @@ class FakeCompiler:
             "session_id": lease.session_id,
             "filename": filename,
         }
+
+    def compile_candidate(
+        self,
+        *,
+        lease: Any,
+        source: str,
+        filename: str,
+        endpoint: str,
+    ) -> object:
+        status = self.statuses[min(self.calls, len(self.statuses) - 1)]
+        self.calls += 1
+        self.candidate_sources.append(source)
+        receipt = {
+            "schema_version": 1,
+            "status": status,
+            "compiler": {"status": status, "diagnostics": []},
+            "toolchain_binding": self.toolchain_binding,
+            "receipt_sha256": canonical_sha256({"status": status, "source": source}),
+            "session_id": lease.session_id,
+            "filename": filename,
+        }
+        if status != "ok":
+            return SimpleNamespace(receipt=receipt, manifest=None, manifest_sha256=None)
+        manifest: dict[str, Any] = {
+            "schema_version": 1,
+            "endpoint": endpoint,
+            "endpoint_sha256": "sha256:" + "1" * 64,
+            "containers": [
+                {
+                    "path": "endpoint",
+                    "kind": "endpoint",
+                    "name": endpoint,
+                    "activation_sha256": None,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "uses_sha256": None,
+                    "semantics_sha256": "sha256:" + "8" * 64,
+                    "presentation_sha256": "sha256:" + "2" * 64,
+                }
+            ],
+            "fetches": [
+                {
+                    "occurrence": 0,
+                    "stage_id": "endpoint.take.0",
+                    "container_path": "endpoint",
+                    "source": {"kind": "catalog", "ref": "video"},
+                    "catalog": "video",
+                    "count": {"skip": 0, "take": 24},
+                    "activation_sha256": None,
+                    "ordering_sha256": "sha256:" + "3" * 64,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "predicates": [],
+                    "semantics_sha256": "sha256:" + "4" * 64,
+                }
+            ],
+        }
+        return SimpleNamespace(
+            receipt=receipt,
+            manifest=manifest,
+            manifest_sha256=canonical_sha256(manifest),
+        )
 
 
 class FakeRetriever:
@@ -281,6 +349,44 @@ def test_turn_request_v2_parses_typed_clarification_and_stable_fingerprint() -> 
     assert answered.payload_hash != original.payload_hash
 
 
+def test_catalog_text_answer_is_additive_for_schema_two_and_answer_endpoint() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    payload = {
+        "schema_version": 2,
+        "request_id": str(uuid.uuid4()),
+        "expected_context_revision": context,
+        "expected_semantic_source_revision": semantic,
+        "intent": "create",
+        "instruction": "crea un endpoint video",
+        "target": {
+            "mode": "create",
+            "relative_path": "candidate.metis",
+            "endpoint": None,
+            "base_sha256": None,
+        },
+        "basis": None,
+        "clarification_response": {
+            "clarification_id": "clarification-123456789012345678901234",
+            "answer": {"text": "play-prod-v2.video"},
+            "context_revision": context,
+            "semantic_source_revision": semantic,
+        },
+    }
+
+    parsed = TurnRequest.parse(payload)
+    assert parsed.clarification_answer == {"text": "play-prod-v2.video"}
+    standalone = ClarificationAnswerRequest.parse(
+        {
+            "schema_version": 1,
+            "request_id": str(uuid.uuid4()),
+            "clarification_id": "clarification-123456789012345678901234",
+            "answer": {"text": "play-prod-v2.video"},
+        }
+    )
+    assert standalone.answer == {"text": "play-prod-v2.video"}
+
+
 def test_create_target_reference_is_first_class_and_legacy_payload_normalizes() -> None:
     base = {
         "schema_version": 2,
@@ -424,6 +530,58 @@ def test_active_error_and_cancel_payloads_preserve_request_schema_version(
         == schema_version
     )
     assert TurnStore._cancelled_payload(record)["schema_version"] == schema_version  # noqa: SLF001
+
+
+def test_private_manifest_publication_requires_the_exact_current_record() -> None:
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": "sha256:" + "a" * 64,
+            "expected_semantic_source_revision": "sha256:" + "b" * 64,
+            "intent": "create",
+            "instruction": "crea un endpoint",
+            "target": {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.private",
+                "base_sha256": None,
+            },
+            "basis": None,
+            "clarification_response": None,
+        }
+    )
+    turn_id = "turn_" + "p" * 32
+    stale = TurnRecord(turn_id, "session_" + "a" * 32, request, request.payload_hash)
+    replacement = TurnRecord(turn_id, "session_" + "b" * 32, request, request.payload_hash)
+    manifest = {
+        "schema_version": 1,
+        "endpoint": "demo.private",
+        "endpoint_sha256": "sha256:" + "1" * 64,
+        "containers": [],
+        "fetches": [],
+    }
+    manifest_sha256 = canonical_sha256(manifest)
+    stale.basis_manifest = dict(manifest)
+    stale.basis_manifest_sha256 = manifest_sha256
+    staged = SimpleNamespace(
+        basis_manifest=dict(manifest),
+        basis_manifest_sha256=manifest_sha256,
+        candidate_manifest=dict(manifest),
+        candidate_manifest_sha256=manifest_sha256,
+    )
+    store = object.__new__(TurnStore)
+    store._lock = threading.RLock()  # noqa: SLF001
+    store._closed = False  # noqa: SLF001
+    store._turns = {turn_id: replacement}  # noqa: SLF001
+
+    assert not store._publish_private_attachments(stale, staged)  # noqa: SLF001
+    assert stale.basis_manifest is None
+    assert stale.basis_manifest_sha256 is None
+    assert stale.candidate_manifest is None
+    assert stale.candidate_manifest_sha256 is None
+    assert replacement.basis_manifest is None
+    assert replacement.candidate_manifest is None
 
 
 def test_heartbeat_is_bounded_replayable_and_contains_no_work_payload() -> None:
@@ -572,9 +730,12 @@ def test_event_sequence_remains_monotonic_after_bounded_replay_eviction() -> Non
     [
         {},
         {"option_ref": "option-a", "integer": 3},
+        {"option_ref": "option-a", "text": "video"},
         {"integer": 0},
         {"integer": 2.5},
         {"option_ref": "contains spaces"},
+        {"text": "bad\nvalue"},
+        {"text": " "},
     ],
 )
 def test_turn_request_v2_rejects_invalid_typed_answers(answer: dict[str, Any]) -> None:
@@ -899,6 +1060,119 @@ def test_close_during_retrieval_cannot_resurrect_pending_memory(tmp_path: Path) 
             "clarification_assumptions": 0,
         }
         assert compiler.calls == 0
+
+
+@pytest.mark.parametrize("lifecycle", ["close", "ttl", "cancel"])
+def test_revoked_turn_cannot_republish_staged_private_manifests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lifecycle: str,
+) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    staged_records: list[Any] = []
+    manifest = {
+        "schema_version": 1,
+        "endpoint": "demo.private",
+        "endpoint_sha256": "sha256:" + "1" * 64,
+        "containers": [],
+        "fetches": [],
+    }
+    manifest_sha256 = canonical_sha256(manifest)
+
+    def stage_after_revocation(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        staged = kwargs["record"]
+        request = kwargs["request"]
+        staged_records.append(staged)
+        entered.set()
+        assert release.wait(timeout=5)
+        staged.basis_manifest = dict(manifest)
+        staged.basis_manifest_sha256 = manifest_sha256
+        staged.candidate_manifest = dict(manifest)
+        staged.candidate_manifest_sha256 = manifest_sha256
+        return {
+            "schema_version": request.schema_version,
+            "turn_id": staged.turn_id,
+            "request_id": request.request_id,
+            "status": "completed",
+            "route": "local",
+            "outcome": "proposed",
+        }
+
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run",
+        stage_after_revocation,
+    )
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _turn_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        assert entered.wait(timeout=5)
+        held = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        held.basis_manifest = dict(manifest)
+        held.basis_manifest_sha256 = manifest_sha256
+        held.candidate_manifest = dict(manifest)
+        held.candidate_manifest_sha256 = manifest_sha256
+
+        try:
+            if lifecycle == "close":
+                status, closed, _ = _request(
+                    server,
+                    "DELETE",
+                    f"/v1/sessions/{session['id']}",
+                    token=session["token"],
+                )
+                assert status == 200 and closed["session"]["state"] == "closed"
+            elif lifecycle == "ttl":
+                now = app.manager._monotonic()  # noqa: SLF001
+                app.manager._monotonic = lambda: now + 1_201  # type: ignore[method-assign]  # noqa: SLF001
+                assert app.manager.sweep_expired() == 1
+            else:
+                status, _cancelling, _ = _request(
+                    server,
+                    "DELETE",
+                    f"/v1/sessions/{session['id']}/turns/{accepted['turn_id']}",
+                    token=session["token"],
+                )
+                assert status == 200
+
+            assert held.basis_manifest is None
+            assert held.basis_manifest_sha256 is None
+            assert held.candidate_manifest is None
+            assert held.candidate_manifest_sha256 is None
+        finally:
+            release.set()
+
+        app.turns._executor.submit(lambda: None).result(timeout=5)  # noqa: SLF001
+        assert held.basis_manifest is None
+        assert held.basis_manifest_sha256 is None
+        assert held.candidate_manifest is None
+        assert held.candidate_manifest_sha256 is None
+        assert staged_records
+        assert staged_records[0].basis_manifest is None
+        assert staged_records[0].basis_manifest_sha256 is None
+        assert staged_records[0].candidate_manifest is None
+        assert staged_records[0].candidate_manifest_sha256 is None
+        if lifecycle == "cancel":
+            assert app.turns._turns.get(held.turn_id) is held  # noqa: SLF001
+            assert held.public_status()["status"] == "cancelled"
+        else:
+            assert held.turn_id not in app.turns._turns  # noqa: SLF001
 
 
 def test_close_before_turn_insertion_revokes_submit_without_resurrecting_record(
@@ -1928,6 +2202,160 @@ def test_refinement_uses_server_side_proposal_source_and_grounding_memory(tmp_pa
         assert refined["session_memory"]["rounds_used"] == 1
         assert refined["session_memory"]["decisions"] == first["session_memory"]["decisions"]
         assert app.turns.aggregate_metrics()["conversations"] == 1
+
+
+def test_named_basis_reuses_private_manifest_and_stale_authority_fails_closed(
+    tmp_path: Path,
+) -> None:
+    source = "metis 0.43\nendpoint demo.named { take 24 from @video }\n"
+
+    class SequenceModel:
+        model_loaded = True
+        model_revision = "model-test"
+        adapter_sha256 = "sha256:" + "b" * 64
+
+        def __init__(self) -> None:
+            self.requests: list[Any] = []
+
+        def generate(self, request: Any) -> ModelCandidate:
+            self.requests.append(request)
+            return ModelCandidate(source, self.model_revision, self.adapter_sha256)
+
+    compiler = FakeCompiler()
+    model = SequenceModel()
+    with _service(tmp_path, model=model, compiler=compiler) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _turn_request(session, snapshot.semantic_source_revision())
+        first_body.update(
+            schema_version=2,
+            instruction="crea l'endpoint nominato",
+            target={
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.named",
+                "base_sha256": None,
+            },
+        )
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        assert first["outcome"] == "proposed"
+        first_record = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        assert first_record.candidate_manifest is not None
+        assert compiler.calls == 1
+        assert "manifest" not in json.dumps(first).lower()
+
+        refined_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "mantieni invariata la struttura",
+            "basis": {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]},
+        }
+        status, accepted_refined, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=refined_body,
+        )
+        assert status == 202
+        refined = _wait_turn(server, session, accepted_refined["turn_id"])
+        assert refined["outcome"] == "no_change"
+        refined_record = app.turns._turns[accepted_refined["turn_id"]]  # noqa: SLF001
+        assert refined_record.basis_manifest == first_record.candidate_manifest
+        assert refined_record.basis_manifest is not first_record.candidate_manifest
+        assert compiler.calls == 2
+        assert compiler.candidate_sources == [source, source]
+        assert model.requests[1].previous_source == source
+        assert "manifest" not in json.dumps(refined).lower()
+        assert "manifest" not in json.dumps(refined_record.events).lower()
+
+        first_record.candidate_manifest_sha256 = "sha256:" + "0" * 64
+        stale_body = {**refined_body, "request_id": str(uuid.uuid4())}
+        status, stale, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=stale_body,
+        )
+        assert status == 409 and stale["error"]["code"] == "PROPOSAL_STALE"
+
+        status, _closed, _ = _request(
+            server,
+            "DELETE",
+            f"/v1/sessions/{session['id']}",
+            token=session["token"],
+        )
+        assert status == 200
+        for record in (first_record, refined_record):
+            assert record.basis_manifest is None
+            assert record.basis_manifest_sha256 is None
+            assert record.candidate_manifest is None
+            assert record.candidate_manifest_sha256 is None
+
+
+def test_shutdown_erases_private_manifest_authority(tmp_path: Path) -> None:
+    compiler = FakeCompiler()
+    model = StaticModelRuntime("metis 0.43\ntenant candidate {}\n")
+    held: TurnRecord | None = None
+    with _service(tmp_path, model=model, compiler=compiler) as (_server, _runtime, app):
+        request = TurnRequest(
+            2,
+            str(uuid.uuid4()),
+            "sha256:" + "a" * 64,
+            "sha256:" + "b" * 64,
+            "create",
+            "crea un endpoint",
+            {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.named",
+                "base_sha256": None,
+                "reference": None,
+            },
+            None,
+            None,
+        )
+        manifest = {
+            "schema_version": 1,
+            "endpoint": "demo.named",
+            "endpoint_sha256": "sha256:" + "1" * 64,
+            "containers": [],
+            "fetches": [],
+        }
+        held = TurnRecord(
+            turn_id="turn_" + "z" * 32,
+            session_id="session_" + "z" * 32,
+            request=request,
+            payload_hash=request.payload_hash,
+            basis_source="private source",
+            basis_grounding={"private": "grounding"},
+            basis_manifest=manifest,
+            basis_manifest_sha256=canonical_sha256(manifest),
+            candidate_manifest=manifest,
+            candidate_manifest_sha256=canonical_sha256(manifest),
+            clarification_decision={"private": "decision"},
+        )
+        app.turns._turns[held.turn_id] = held  # noqa: SLF001
+
+    assert held is not None
+    assert held.basis_source is None
+    assert held.basis_grounding is None
+    assert held.basis_manifest is None
+    assert held.basis_manifest_sha256 is None
+    assert held.candidate_manifest is None
+    assert held.candidate_manifest_sha256 is None
+    assert held.clarification_decision is None
 
 
 def test_http_cancel_interrupts_generation_and_never_reaches_compiler(tmp_path: Path) -> None:

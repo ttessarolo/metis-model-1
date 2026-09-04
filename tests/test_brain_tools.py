@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import stat
@@ -19,6 +20,7 @@ from metis_model1.brain_semantic_retrieval import LoadedProjection
 from metis_model1.brain_sessions import OperationLease
 from metis_model1.brain_tools import (
     BrainCompiler,
+    CandidateCompileResult,
     PinnedCatalogProjectionLoader,
     PinnedMetisAuthority,
 )
@@ -277,6 +279,9 @@ def test_authority_capsule_is_built_once_and_jobs_are_ephemeral(
         assert first_job.is_dir()
         sealed_module = first_authority / "tooling/node_modules/package/index.js"
         assert sealed_module.lstat().st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH) == 0
+        with pytest.raises(BrainError) as busy:
+            authority.close()
+        assert busy.value.code == "TOOLCHAIN_BUSY"
     assert not first_job.exists()
     with authority.job() as second:
         assert second.authority_root == first_authority
@@ -284,8 +289,40 @@ def test_authority_capsule_is_built_once_and_jobs_are_ephemeral(
         assert second.job_root.is_dir()
     assert archive_calls == 1
 
+    temporary = authority._temporary
+    assert temporary is not None
+
+    class FlakyCleanup:
+        def __init__(self) -> None:
+            self.name = temporary.name
+            self.remaining_failures = brain_tools_module.AUTHORITY_CLEANUP_ATTEMPTS
+            self.calls = 0
+
+        def cleanup(self) -> None:
+            self.calls += 1
+            if self.remaining_failures:
+                self.remaining_failures -= 1
+                raise OSError(errno.ENOTEMPTY, "Directory not empty", ".bin")
+            temporary.cleanup()
+
+    flaky = FlakyCleanup()
+    authority._temporary = flaky  # type: ignore[assignment]
+    with pytest.raises(BrainError) as failed:
+        authority.close()
+    assert failed.value.code == "TOOLCHAIN_CLEANUP_FAILED"
+    assert first_authority.exists()
+    with (
+        pytest.raises(brain_tools_module._BrainIsolationError, match="closed"),
+        authority.job(),
+    ):
+        pass
+
+    flaky.remaining_failures = 1
     authority.close()
+    assert flaky.calls == brain_tools_module.AUTHORITY_CLEANUP_ATTEMPTS + 2
     assert not first_authority.exists()
+    authority.close()
+    assert flaky.calls == brain_tools_module.AUTHORITY_CLEANUP_ATTEMPTS + 2
 
 
 def test_candidate_replaces_same_workspace_filename(
@@ -475,6 +512,168 @@ def test_endpoint_mode_passes_endpoint_to_runner(
     assert receipt["candidate"]["execution_mode"] == "endpoint"
     assert receipt["candidate"]["endpoint"] == "catalog.search"
     assert toolchain_harness["runner"]["request"]["endpoint"] == "catalog.search"
+
+
+def _candidate_manifest() -> dict[str, Any]:
+    null_hash = None
+    digest = "sha256:" + "1" * 64
+    endpoint_sha256 = "sha256:" + "2" * 64
+    return {
+        "schema_version": 1,
+        "endpoint": "catalog.search",
+        "endpoint_sha256": endpoint_sha256,
+        "containers": [
+            {
+                "path": "endpoint",
+                "kind": "endpoint",
+                "name": "catalog.search",
+                "activation_sha256": null_hash,
+                "output_sha256": null_hash,
+                "fallback_sha256": null_hash,
+                "uses_sha256": null_hash,
+                "semantics_sha256": digest,
+                "presentation_sha256": digest,
+            },
+            {
+                "path": "endpoint/inline",
+                "kind": "block",
+                "name": "catalog.search",
+                "activation_sha256": null_hash,
+                "output_sha256": null_hash,
+                "fallback_sha256": null_hash,
+                "uses_sha256": null_hash,
+                "semantics_sha256": digest,
+                "presentation_sha256": digest,
+            },
+        ],
+        "fetches": [
+            {
+                "occurrence": 0,
+                "stage_id": "inline.take.1",
+                "container_path": "endpoint/inline",
+                "source": {"kind": "catalog", "ref": "tenant.video"},
+                "catalog": "tenant.video",
+                "count": {"skip": 0, "take": 24},
+                "activation_sha256": null_hash,
+                "ordering_sha256": digest,
+                "output_sha256": null_hash,
+                "fallback_sha256": null_hash,
+                "predicates": [],
+                "semantics_sha256": digest,
+            }
+        ],
+    }
+
+
+def _candidate_compile_response(
+    *, status: str = "ok", manifest: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    selected = _candidate_manifest() if manifest is None else manifest
+    if status == "invalid":
+        return {
+            "schema_version": 1,
+            "operation": "compile-candidate",
+            "status": "invalid",
+            "diagnostics": [{"code": "BRAIN_MANIFEST_INVALID"}],
+            "endpoint": None,
+            "endpoint_sha256": None,
+            "runtime_context_sha256": None,
+            "manifest": None,
+            "manifest_sha256": None,
+        }
+    return {
+        "schema_version": 1,
+        "operation": "compile-candidate",
+        "status": "ok",
+        "diagnostics": [],
+        "endpoint": "catalog.search",
+        "endpoint_sha256": selected["endpoint_sha256"],
+        "runtime_context_sha256": "sha256:" + "3" * 64,
+        "manifest": selected,
+        "manifest_sha256": canonical_sha256(selected),
+    }
+
+
+def test_compile_candidate_compiles_once_and_keeps_manifest_out_of_public_receipt(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    response = _candidate_compile_response()
+    observed: dict[str, Any] = {}
+
+    def runner(**kwargs: Any) -> dict[str, Any]:
+        observed.update(kwargs)
+        return response
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", runner)
+    result = toolchain_harness["compiler"].compile_candidate(
+        lease=_lease(),
+        source="metis 0.43\ntenant candidate {}\n",
+        filename="candidate.metis",
+        endpoint="catalog.search",
+    )
+
+    assert isinstance(result, CandidateCompileResult)
+    assert result.manifest == response["manifest"]
+    assert result.manifest_sha256 == response["manifest_sha256"]
+    assert "manifest" not in json.dumps(result.receipt)
+    assert result.receipt["compiler"]["operation"] == "compile"
+    assert result.receipt["compiler"]["endpoint_sha256"] == response["endpoint_sha256"]
+    assert observed["request"]["operation"] == "compile-candidate"
+    assert toolchain_harness["compiler"].execution_count == 1
+
+
+def test_compile_candidate_preserves_bounded_invalid_as_public_compile_receipt(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        brain_tools_module,
+        "_run_brain_runner",
+        lambda **_: _candidate_compile_response(status="invalid"),
+    )
+    result = toolchain_harness["compiler"].compile_candidate(
+        lease=_lease(),
+        source="metis 0.43\ntenant candidate {}\n",
+        filename="candidate.metis",
+        endpoint="catalog.search",
+    )
+
+    assert result.manifest is None
+    assert result.manifest_sha256 is None
+    assert result.receipt["status"] == "invalid"
+    assert result.receipt["compiler"]["status"] == "invalid"
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["catalog", "stage", "hash", "container_semantics_missing", "container_semantics_invalid"],
+)
+def test_compile_candidate_rejects_untrusted_manifest_shapes(
+    toolchain_harness: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    manifest = _candidate_manifest()
+    if corruption == "catalog":
+        manifest["fetches"][0]["catalog"] = "tenant.other"
+    elif corruption == "stage":
+        manifest["fetches"].append(dict(manifest["fetches"][0], occurrence=1))
+    elif corruption == "container_semantics_missing":
+        del manifest["containers"][0]["semantics_sha256"]
+    elif corruption == "container_semantics_invalid":
+        manifest["containers"][0]["semantics_sha256"] = "not-a-hash"
+    response = _candidate_compile_response(manifest=manifest)
+    if corruption == "hash":
+        response["manifest_sha256"] = "sha256:" + "f" * 64
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    with pytest.raises(BrainError, match="invalid manifest") as raised:
+        toolchain_harness["compiler"].compile_candidate(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename="candidate.metis",
+            endpoint="catalog.search",
+        )
+    assert raised.value.code == "COMPILER_FAILED"
 
 
 def test_compile_structure_uses_private_runner_and_returns_provenance_free_ir(
@@ -695,6 +894,226 @@ def test_lossless_target_must_already_exist_in_snapshot(
 
     assert raised.value.code == "STALE_CONTEXT"
     assert "runner_calls" not in toolchain_harness
+
+
+def test_edit_surface_uses_exact_request_roster_and_snapshot_override(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    envelope = {
+        "schema_version": 1,
+        "operation": "edit-surface",
+        "consumer_owned": {"opaque": True},
+    }
+    observed: dict[str, Any] = {}
+
+    def runner(**kwargs: Any) -> dict[str, Any]:
+        observed.update(kwargs)
+        return envelope
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", runner)
+    compiler = toolchain_harness["compiler"]
+    lease = _lease()
+    original = next(item for item in lease.snapshot.files if item.path == "source-0.metis")
+    replacement = "metis 0.43\ntenant replacement {}\n"
+    draft_path = "drafts/new-endpoint.metis"
+
+    result = compiler.edit_surface(
+        lease=lease,
+        source=replacement,
+        filename=draft_path,
+        endpoint="demo.test",
+        allow_new=True,
+    )
+
+    materialized = toolchain_harness["materializations"][-1]
+    tenant_root = materialized["path"]
+    assert result is envelope
+    assert observed["request"] == {
+        "schema_version": 1,
+        "operation": "edit-surface",
+        "tenant_root": str(tenant_root),
+        "relative_path": draft_path,
+        "endpoint": "demo.test",
+    }
+    assert set(observed["request"]) == {
+        "schema_version",
+        "operation",
+        "tenant_root",
+        "relative_path",
+        "endpoint",
+    }
+    assert "plan" not in observed["request"]
+    assert materialized["kwargs"] == {
+        "candidate_filename": draft_path,
+        "candidate_source": replacement,
+    }
+    assert tenant_root.joinpath(draft_path).read_text(encoding="utf-8") == replacement
+    assert tenant_root.joinpath("source-0.metis").read_bytes() == original.content
+    assert all(item.path != draft_path for item in lease.snapshot.files)
+    assert original.content == b"metis 0.43\ntenant t0 {}\n"
+    assert compiler.execution_count == 0
+
+
+def test_edit_surface_rejects_plan_at_transport_boundary_without_runner(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    compiler = toolchain_harness["compiler"]
+    with pytest.raises(BrainError, match="contains a plan") as raised:
+        compiler._lossless_call(
+            operation="edit-surface",
+            lease=_lease(),
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+            plan={"not": "admitted"},
+        )
+
+    assert raised.value.code == "INVALID_SCHEMA"
+    assert "runner_calls" not in toolchain_harness
+    assert not toolchain_harness["materializations"]
+
+
+def test_edit_surface_public_api_does_not_accept_a_plan(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument 'plan'"):
+        toolchain_harness["compiler"].edit_surface(
+            lease=_lease(),
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+            plan={},
+        )
+
+    assert "runner_calls" not in toolchain_harness
+
+
+def test_edit_surface_new_path_requires_explicit_strict_boolean_authority(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    request = {
+        "lease": _lease(),
+        "source": "metis 0.43\ntenant replacement {}\n",
+        "filename": "drafts/new-endpoint.metis",
+        "endpoint": "demo.test",
+    }
+    with pytest.raises(BrainError) as default_denied:
+        toolchain_harness["compiler"].edit_surface(**request)
+    assert default_denied.value.code == "STALE_CONTEXT"
+
+    for invalid in (1, None, "true"):
+        with pytest.raises(BrainError) as malformed:
+            toolchain_harness["compiler"].edit_surface(**request, allow_new=invalid)
+        assert malformed.value.code == "INVALID_SCHEMA"
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'unknown'"):
+        toolchain_harness["compiler"].edit_surface(**request, unknown=True)
+
+    assert "runner_calls" not in toolchain_harness
+    assert not toolchain_harness["materializations"]
+
+
+@pytest.mark.parametrize(
+    ("filename", "endpoint", "code"),
+    [
+        ("../source-0.metis", "demo.test", "INVALID_SCHEMA"),
+        ("source-0.metis", None, "INVALID_SCHEMA"),
+    ],
+)
+def test_edit_surface_rejects_api_identity_misuse_before_runner(
+    toolchain_harness: dict[str, Any],
+    filename: str,
+    endpoint: str | None,
+    code: str,
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        toolchain_harness["compiler"].edit_surface(
+            lease=_lease(),
+            source="metis 0.43\ntenant replacement {}\n",
+            filename=filename,
+            endpoint=endpoint,
+        )
+
+    assert raised.value.code == code
+    assert "runner_calls" not in toolchain_harness
+    assert not toolchain_harness["materializations"]
+
+
+def test_edit_surface_rejects_cancellation_and_toolchain_drift_before_runner(
+    toolchain_harness: dict[str, Any],
+) -> None:
+    cancelled = _lease()
+    cancelled.cancellation.set()
+    with pytest.raises(BrainError) as revoked:
+        toolchain_harness["compiler"].edit_surface(
+            lease=cancelled,
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+        )
+    assert revoked.value.code == "SESSION_REVOKED"
+
+    with pytest.raises(BrainError) as stale:
+        toolchain_harness["compiler"].edit_surface(
+            lease=_lease(binding="sha256:" + "0" * 64),
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+        )
+    assert stale.value.code == "STALE_CONTEXT"
+    assert "runner_calls" not in toolchain_harness
+    assert not toolchain_harness["materializations"]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        brain_tools_module._BrainIsolationError("private runner detail"),
+        subprocess.TimeoutExpired(["pinned-edit-surface"], 180),
+        OSError("private operating-system detail"),
+    ],
+)
+def test_edit_surface_normalizes_isolation_timeout_and_os_failures(
+    toolchain_harness: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+) -> None:
+    def fail_runner(**_kwargs: Any) -> dict[str, Any]:
+        raise error
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", fail_runner)
+    with pytest.raises(BrainError) as raised:
+        toolchain_harness["compiler"].edit_surface(
+            lease=_lease(),
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+        )
+
+    assert raised.value.code == "LOSSLESS_FAILED"
+    assert raised.value.status == 503
+    assert "private" not in str(raised.value)
+
+
+def test_edit_surface_honors_post_runner_cancellation(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lease = _lease()
+
+    def cancel_runner(**_kwargs: Any) -> dict[str, Any]:
+        lease.cancellation.set()
+        return {"operation": "edit-surface", "private": "consumer-owned"}
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", cancel_runner)
+    with pytest.raises(BrainError) as raised:
+        toolchain_harness["compiler"].edit_surface(
+            lease=lease,
+            source="metis 0.43\ntenant replacement {}\n",
+            filename="source-0.metis",
+            endpoint="demo.test",
+        )
+
+    assert raised.value.code == "SESSION_REVOKED"
 
 
 def _projection_response() -> dict[str, Any]:

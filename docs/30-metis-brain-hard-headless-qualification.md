@@ -20,6 +20,18 @@ The full operator-message denominator is therefore 50. Typed answers emitted
 through Brain's `/answer` route are protocol continuations and are counted
 separately; they do not silently replace a corpus message.
 
+The successor `play-prod-v2` corpus and plan are a **diagnostic profile**, not a
+promotion profile. They exercise the enriched tenant authority and the private
+compiler manifest while the create/refinement path is still acquiring typed
+structural edit authority. Because that plan deliberately does not require
+final normalized-IR equivalence to each pinned reference endpoint, even a
+complete run with every declared turn check satisfied emits
+`promotion_gate.status=NOT_PROMOTABLE` and `qualification_green=false`. This
+prevents turn-local cardinality or containment checks from being reported as
+end-to-end accuracy. Promotion requires a later sealed profile with exact
+cumulative structural equivalence (or an equally strong reviewed oracle) and
+cannot be inferred from the v2 receipt.
+
 ## Runtime boundary
 
 The tracked non-secret config
@@ -96,6 +108,10 @@ the CLI exits 2. A run interrupted before the closed denominator writes a
 create-only `*.incomplete-<uuid>.json` receipt with
 `measurement_status=PARTIAL`, preserves the completed per-case evidence and
 exits 1. No terminal failure can be converted into a promotion success.
+The receipt also exposes a closed `promotion_gate`: it records whether the
+selected profile is eligible for promotion, and a bounded reason code when it
+is not. Profile eligibility is fixed in code alongside the pinned corpus and
+plan digests; the input JSON cannot opt itself into promotion.
 
 ## Evidence policy
 

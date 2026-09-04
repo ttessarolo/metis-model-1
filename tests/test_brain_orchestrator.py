@@ -12,7 +12,7 @@ from metis_model1.brain_lossless_edit import LosslessRenderResult
 from metis_model1.brain_model_runtime import ModelCandidate
 from metis_model1.brain_orchestrator import BrainOrchestrator
 from metis_model1.brain_output_contract import parse_output_request
-from metis_model1.brain_protocol import BrainError, bytes_sha256
+from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult
 from metis_model1.brain_turns import TurnRecord, TurnRequest
 
@@ -107,6 +107,68 @@ def test_catalog_clarification_preserves_legacy_public_catalog_field() -> None:
     )
 
 
+def test_catalog_overflow_is_a_complete_schema_two_reference_roster() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    request = _request(context, semantic, schema_version=2)
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    candidates = tuple(
+        {
+            "catalog": f"play-prod-v2.catalog_{index}",
+            "label": f"Catalogo {index}",
+            "description": "Catalogo autorizzato",
+        }
+        for index in range(8)
+    )
+    retrieved = RetrievalResult({"semantic_schema": 2}, {}, semantic, candidates)
+
+    terminal = BrainOrchestrator(
+        retriever=SimpleNamespace(),
+        model=SimpleNamespace(),
+        compiler=SimpleNamespace(),
+    )._catalog_clarification(
+        session_id=_SESSION_ID,
+        record=record,
+        request=request,
+        retrieved=retrieved,
+    )
+
+    clarification = terminal["clarification"]
+    assert clarification["options"] == []
+    assert clarification["catalog_refs"] == [item["catalog"] for item in candidates]
+    assert clarification["answer_schema"] == {
+        "type": "text",
+        "format": "catalog-ref",
+        "max_bytes": 256,
+    }
+
+
+def test_schema_one_catalog_overflow_fails_closed() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    request = _request(context, semantic, schema_version=1)
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    retrieved = RetrievalResult(
+        {"semantic_schema": 2},
+        {},
+        semantic,
+        tuple({"catalog": f"catalog_{index}", "label": str(index)} for index in range(6)),
+    )
+
+    with pytest.raises(BrainError) as raised:
+        BrainOrchestrator(
+            retriever=SimpleNamespace(),
+            model=SimpleNamespace(),
+            compiler=SimpleNamespace(),
+        )._catalog_clarification(
+            session_id=_SESSION_ID,
+            record=record,
+            request=request,
+            retrieved=retrieved,
+        )
+    assert raised.value.code == "CLARIFICATION_SCHEMA_UNSUPPORTED"
+
+
 def test_stale_semantic_revision_fails_closed() -> None:
     context = "sha256:" + "a" * 64
     request = _request(context, "sha256:" + "b" * 64)
@@ -178,6 +240,7 @@ def _output_contract_for(
     target: dict | None = None,
     previous_source: str | None = None,
     basis_grounding: dict | None = None,
+    basis_manifest: dict | None = None,
 ) -> dict | None:
     context = "sha256:" + "a" * 64
     semantic = "sha256:" + "b" * 64
@@ -205,6 +268,7 @@ def _output_contract_for(
         request=request,
         retrieved=retrieved,
         previous_source=previous_source,
+        basis_manifest=basis_manifest,
     )
     return result if result is not None else retrieved.grounding["output_contract"]
 
@@ -533,6 +597,52 @@ def test_existing_endpoint_fallback_is_never_silently_removed() -> None:
             previous_source=source,
         )
     assert raised.value.code == "OUTPUT_CONTRACT_UNAVAILABLE"
+
+
+def test_compiled_multi_take_and_fallback_contract_is_preserved_without_singular_take() -> None:
+    contract = _output_contract_for(
+        "rendi più chiara l'etichetta dell'endpoint",
+        target=_existing_target("demo.complex"),
+        previous_source="endpoint demo.complex { take 20 from @play-demo.video }",
+        basis_manifest=_complex_candidate_manifest(),
+    )
+
+    assert contract == {"mode": "preserve"}
+
+
+def test_compiled_multi_take_output_change_fails_without_occurrence_delta_authority() -> None:
+    with pytest.raises(BrainError) as raised:
+        _output_contract_for(
+            "porta il numero di risultati a 30",
+            target=_existing_target("demo.complex"),
+            previous_source="endpoint demo.complex { take 20 from @play-demo.video }",
+            basis_manifest=_complex_candidate_manifest(),
+        )
+
+    assert raised.value.code == "OUTPUT_CONTRACT_UNAVAILABLE"
+
+
+def test_create_proposal_refinement_can_replace_its_draft_output_contract() -> None:
+    contract = _output_contract_for(
+        "porta il numero complessivo a 30 risultati",
+        basis_grounding={
+            "output_contract": {
+                "take": {
+                    "mode": "count",
+                    "value": 20,
+                    "source": "operator_confirmed",
+                },
+                "fallback": {"mode": "none"},
+            }
+        },
+        basis_manifest=_complex_candidate_manifest(),
+    )
+
+    assert contract["take"] == {
+        "mode": "count",
+        "value": 30,
+        "source": "operator_confirmed",
+    }
 
 
 def test_proposal_basis_fallback_is_never_relabelled_as_none() -> None:
@@ -925,13 +1035,200 @@ class _SequenceModel:
 class _CountingCompiler:
     toolchain_binding = "sha256:" + "a" * 64
 
-    def __init__(self, status: str = "ok") -> None:
+    def __init__(
+        self,
+        status: str = "ok",
+        *,
+        manifests: list[dict[str, object]] | None = None,
+    ) -> None:
         self.calls = 0
         self.status = status
+        self.candidate_sources: list[str] = []
+        self._manifests = iter(manifests) if manifests is not None else None
 
     def compile(self, **_kwargs: object) -> dict[str, object]:
         self.calls += 1
         return {"status": self.status, "toolchain_binding": self.toolchain_binding}
+
+    def compile_candidate(self, **kwargs: object) -> object:
+        self.calls += 1
+        source = str(kwargs["source"])
+        endpoint = str(kwargs["endpoint"])
+        self.candidate_sources.append(source)
+        receipt = {
+            "status": self.status,
+            "toolchain_binding": self.toolchain_binding,
+            "compiler": {"status": self.status, "diagnostics": []},
+        }
+        if self.status != "ok":
+            return SimpleNamespace(receipt=receipt, manifest=None, manifest_sha256=None)
+        manifest = (
+            next(self._manifests)
+            if self._manifests is not None
+            else _candidate_manifest(endpoint=endpoint, source=source)
+        )
+        return SimpleNamespace(
+            receipt=receipt,
+            manifest=manifest,
+            manifest_sha256=canonical_sha256(manifest),
+        )
+
+
+def _candidate_manifest(*, endpoint: str, source: str) -> dict[str, object]:
+    literals = [literal for literal in ("ITALIA", "italia") if f'"{literal}"' in source]
+    predicates: list[dict[str, object]] = []
+    if "@paesiorigine" in source:
+        predicates.append(
+            {
+                "intent": "include",
+                "clause_index": 0,
+                "leaf_path": "constraints[0].predicate",
+                "catalog": "play-demo.video",
+                "field": "paesiorigine",
+                "operator": "in" if len(literals) > 1 else "eq",
+                "value": (
+                    {"vals": literals}
+                    if len(literals) > 1
+                    else {"lit": literals[0] if literals else "unknown"}
+                ),
+                "amount": None,
+                "graded": False,
+                "origin": {"kind": "inline", "ref": None},
+                "clause_guard_sha256": None,
+                "leaf_guard_sha256": None,
+                "expression_sha256": "sha256:" + "1" * 64,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "endpoint": endpoint,
+        "endpoint_sha256": "sha256:" + "2" * 64,
+        "containers": [
+            {
+                "path": "endpoint",
+                "kind": "endpoint",
+                "name": endpoint,
+                "activation_sha256": None,
+                "output_sha256": None,
+                "fallback_sha256": None,
+                "uses_sha256": None,
+                "semantics_sha256": "sha256:" + "8" * 64,
+                "presentation_sha256": "sha256:" + "3" * 64,
+            }
+        ],
+        "fetches": [
+            {
+                "occurrence": 0,
+                "stage_id": "endpoint.take.0",
+                "container_path": "endpoint",
+                "source": {"kind": "catalog", "ref": "play-demo.video"},
+                "catalog": "play-demo.video",
+                "count": {"skip": 0, "take": 24},
+                "activation_sha256": None,
+                "ordering_sha256": "sha256:" + "4" * 64,
+                "output_sha256": None,
+                "fallback_sha256": None,
+                "predicates": predicates,
+                "semantics_sha256": "sha256:" + "5" * 64,
+            }
+        ],
+    }
+
+
+def _complex_candidate_manifest(endpoint: str = "demo.complex") -> dict[str, object]:
+    manifest = _candidate_manifest(
+        endpoint=endpoint,
+        source='@paesiorigine in ["ITALIA", "italia"]',
+    )
+    containers = manifest["containers"]
+    fetches = manifest["fetches"]
+    assert isinstance(containers, list) and isinstance(fetches, list)
+    containers[0]["fallback_sha256"] = "sha256:" + "6" * 64
+    containers.append(
+        {
+            "path": "endpoint/blocks[0]:rescue",
+            "kind": "block",
+            "name": "rescue",
+            "activation_sha256": "sha256:" + "7" * 64,
+            "output_sha256": None,
+            "fallback_sha256": "sha256:" + "8" * 64,
+            "uses_sha256": None,
+            "semantics_sha256": "sha256:" + "b" * 64,
+            "presentation_sha256": "sha256:" + "9" * 64,
+        }
+    )
+    fetches[0]["fallback_sha256"] = "sha256:" + "a" * 64
+    fetches.append(
+        {
+            "occurrence": 1,
+            "stage_id": "block.rescue.take.0",
+            "container_path": "endpoint/blocks[0]:rescue",
+            "source": {"kind": "catalog", "ref": "play-demo.video"},
+            "catalog": "play-demo.video",
+            "count": {"skip": 0, "take": 6},
+            "activation_sha256": "sha256:" + "b" * 64,
+            "ordering_sha256": "sha256:" + "c" * 64,
+            "output_sha256": None,
+            "fallback_sha256": "sha256:" + "d" * 64,
+            "predicates": [],
+            "semantics_sha256": "sha256:" + "e" * 64,
+        }
+    )
+    return manifest
+
+
+def test_existing_endpoint_catalog_roster_is_attached_before_retrieval() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/existing.metis"
+    source = """metis 0.43
+// endpoint demo.target { take 1 from @comment }
+endpoint demo.target as "from @label" {
+  take 24 from @play-demo.video {
+    fallback { take 1 from @play-demo.archive }
+  }
+}
+"""
+    request = _request(
+        context,
+        semantic,
+        instruction="modifica l'endpoint",
+        schema_version=2,
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.target",
+            "base_sha256": bytes_sha256(source.encode("utf-8")),
+            "reference": None,
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    seen: list[tuple[str, ...]] = []
+
+    def retrieve(*, lease: object, request: TurnRequest) -> RetrievalResult:
+        del lease
+        seen.append(request.server_target_catalogs)
+        raise BrainError("PROBE_STOP", 409, "probe completed")
+
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: source}),
+        cancellation=threading.Event(),
+    )
+    with pytest.raises(BrainError) as raised:
+        BrainOrchestrator(
+            retriever=SimpleNamespace(retrieve=retrieve),
+            model=SimpleNamespace(),
+            compiler=SimpleNamespace(),
+        ).run(
+            manager=_FakeManager(lease),
+            session_id=_SESSION_ID,
+            token="token-test",
+            request=request,
+            record=record,
+        )
+
+    assert raised.value.code == "PROBE_STOP"
+    assert seen == [("play-demo.video", "play-demo.archive")]
 
 
 def _grounded_retrieval(context: str, semantic: str) -> RetrievalResult:
@@ -1058,6 +1355,9 @@ def test_reviewed_finite_create_skips_model_but_still_compiles() -> None:
     assert result["proposal"]["reference"] == "videoFilmItaliani"
     assert model.requests == []
     assert compiler.calls == 1
+    assert record.candidate_manifest is not None
+    assert "manifest" not in str(result).lower()
+    assert "manifest" not in str(record.events).lower()
     completed = {
         event["event"]: event["data"]
         for event in record.events
@@ -1157,7 +1457,8 @@ def test_create_reference_is_preserved_across_target_repair_and_proposal() -> No
         record=record,
     )
 
-    assert compiler.calls == 1
+    assert compiler.calls == 2
+    assert compiler.candidate_sources == sources
     assert model.requests[0].reference == "brainTarget"
     assert model.requests[1].reference == "brainTarget"
     assert model.requests[1].diagnostics[0]["code"] == "CANDIDATE_TARGET_MISMATCH"
@@ -1265,10 +1566,102 @@ def test_lossless_existing_path_calls_no_model1_and_publishes_only_redacted_proo
     assert result["outcome"] == "proposed"
     assert model.requests == []
     assert flash_calls == []
-    assert compiler.calls == 1
+    assert compiler.calls == 2
+    assert compiler.candidate_sources == [previous, source]
     assert result["identity"]["generation_strategy"] == "lossless_renderer"
     assert result["identity"]["model_revision"] == "not_used"
     assert result["validation"]["lossless"] == proof
+    assert "hostref:" not in str(result)
+    assert "targetId" not in str(result)
+
+
+def test_structural_existing_path_skips_baseline_compile_and_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/demo/test.metis"
+    previous = "endpoint demo.test { take 24 from @play-demo.video }"
+    source = "endpoint demo.test { take 30 from @play-demo.video }"
+    request = _request(
+        context,
+        semantic,
+        instruction="porta la take da 24 a 30.",
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.test",
+            "base_sha256": bytes_sha256(previous.encode()),
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    proof = {
+        "contract": "metis-brain-structural-lossless-proof/v1",
+        "proof_mode": "validate",
+        "receipt_sha256": "sha256:" + "c" * 64,
+        "sha_before": bytes_sha256(previous.encode()),
+        "sha_after": bytes_sha256(source.encode()),
+        "touched_count": 1,
+    }
+    monkeypatch.setattr(
+        orchestrator_module,
+        "render_structural_existing",
+        lambda **_kwargs: LosslessRenderResult(
+            ModelCandidate(source, "not_used", "not_used", "lossless_renderer"),
+            proof,
+        ),
+    )
+
+    @contextmanager
+    def immediate_heartbeat(
+        current: TurnRecord,
+        *,
+        phase: str,
+        label: str,
+        interval_seconds: float = 1.0,
+    ):
+        assert interval_seconds > 0
+        current.emit("heartbeat", phase, label, elapsed_ms=0)
+        yield
+
+    monkeypatch.setattr(TurnRecord, "heartbeat_while", immediate_heartbeat)
+    model = _SequenceModel([])
+    compiler = _CountingCompiler()
+    flash_calls: list[object] = []
+
+    def unexpected_flash(value: object) -> object:
+        flash_calls.append(value)
+        raise AssertionError("resolved structural edit must not invoke Flash")
+
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
+        cancellation=threading.Event(),
+    )
+    result = BrainOrchestrator(
+        retriever=SimpleNamespace(
+            retrieve=lambda **_kwargs: _grounded_retrieval(context, semantic)
+        ),
+        model=model,
+        compiler=compiler,
+        intent_compiler=SimpleNamespace(compile=unexpected_flash),
+    ).run(
+        manager=_FakeManager(lease),
+        session_id=_SESSION_ID,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert result["outcome"] == "proposed"
+    assert model.requests == []
+    assert flash_calls == []
+    assert compiler.calls == 1
+    assert compiler.candidate_sources == [source]
+    assert result["identity"]["generation_strategy"] == "lossless_renderer"
+    assert result["identity"]["model_revision"] == "not_used"
+    assert result["validation"]["lossless"] == proof
+    assert record.basis_manifest is None
+    assert record.candidate_manifest is not None
     assert "hostref:" not in str(result)
     assert "targetId" not in str(result)
     assert "hostref:" not in str(record.events)
@@ -1340,3 +1733,159 @@ def test_lossless_bridge_failure_never_falls_back_to_model1(
 
     assert raised.value.code == "LOSSLESS_INVALID"
     assert model.requests == []
+
+
+def test_complex_existing_preserves_all_compiled_occurrences_without_manifest_leak() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/demo/complex.metis"
+    previous = """metis 0.43
+endpoint demo.complex {
+  take 12 from @play-demo.video
+  block rescue { take 6 from @play-demo.video }
+  return response fallback to block.rescue when empty
+}
+"""
+    request = _request(
+        context,
+        semantic,
+        instruction="rendi più chiara l'etichetta dell'endpoint",
+        schema_version=2,
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.complex",
+            "base_sha256": bytes_sha256(previous.encode()),
+            "reference": None,
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    retrieved = _grounded_retrieval(context, semantic)
+    retrieved.context["semantic_schema"] = 2
+    compiler = _CountingCompiler(
+        manifests=[_complex_candidate_manifest(), _complex_candidate_manifest()]
+    )
+    model = _SequenceModel([previous])
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
+        cancellation=threading.Event(),
+    )
+
+    result = BrainOrchestrator(
+        retriever=SimpleNamespace(retrieve=lambda **_kwargs: retrieved),
+        model=model,
+        compiler=compiler,
+        max_repairs=0,
+    ).run(
+        manager=_FakeManager(lease),
+        session_id=_SESSION_ID,
+        token="token-test",
+        request=request,
+        record=record,
+    )
+
+    assert result["outcome"] == "no_change"
+    assert result["grounding"]["output_contract"] == {"mode": "preserve"}
+    assert compiler.calls == 2
+    assert compiler.candidate_sources == [previous, previous]
+    assert len(model.requests) == 1
+    assert model.requests[0].grounding["output_contract"] == {"mode": "preserve"}
+    assert "manifest" not in str(model.requests[0]).lower()
+    assert "manifest" not in str(result).lower()
+    assert "manifest" not in str(record.events).lower()
+    assert record.basis_manifest is not None
+    assert record.candidate_manifest is not None
+
+
+def test_complex_existing_delta_fails_closed_after_one_compile_per_candidate() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    path = "properties/demo/complex.metis"
+    previous = "endpoint demo.complex { take 12 from @play-demo.video }"
+    candidate_source = "endpoint demo.complex { take 13 from @play-demo.video }"
+    baseline = _complex_candidate_manifest()
+    changed = _complex_candidate_manifest()
+    changed_fetches = changed["fetches"]
+    assert isinstance(changed_fetches, list)
+    changed_fetches[0]["count"] = {"skip": 0, "take": 13}
+    compiler = _CountingCompiler(manifests=[baseline, changed])
+    model = _SequenceModel([candidate_source])
+    request = _request(
+        context,
+        semantic,
+        instruction="rendi più chiara l'etichetta dell'endpoint",
+        schema_version=2,
+        target={
+            "mode": "existing",
+            "relative_path": path,
+            "endpoint": "demo.complex",
+            "base_sha256": bytes_sha256(previous.encode()),
+            "reference": None,
+        },
+    )
+    record = TurnRecord(_TURN_ID, _SESSION_ID, request, request.payload_hash)
+    retrieved = _grounded_retrieval(context, semantic)
+    retrieved.context["semantic_schema"] = 2
+    lease = SimpleNamespace(
+        snapshot=SimpleNamespace(source_map=lambda: {path: previous}),
+        cancellation=threading.Event(),
+    )
+
+    with pytest.raises(BrainError) as raised:
+        BrainOrchestrator(
+            retriever=SimpleNamespace(retrieve=lambda **_kwargs: retrieved),
+            model=model,
+            compiler=compiler,
+            max_repairs=0,
+        ).run(
+            manager=_FakeManager(lease),
+            session_id=_SESSION_ID,
+            token="token-test",
+            request=request,
+            record=record,
+        )
+
+    assert raised.value.code == "CANDIDATE_STRUCTURE_MISMATCH"
+    assert compiler.calls == 2
+    assert compiler.candidate_sources == [previous, candidate_source]
+    assert record.candidate_manifest is None
+    assert "manifest" not in str(record.events).lower()
+
+
+def test_create_refinement_without_structural_delta_authority_fails_closed() -> None:
+    context = "sha256:" + "a" * 64
+    semantic = "sha256:" + "b" * 64
+    request = _request(
+        context,
+        semantic,
+        instruction="aggiungi una seconda riga",
+        schema_version=2,
+    )
+    basis = _candidate_manifest(
+        endpoint="demo.create",
+        source='@paesiorigine is "ITALIA"',
+    )
+    candidate = _complex_candidate_manifest(endpoint="demo.create")
+    grounding = _grounded_retrieval(context, semantic).grounding
+
+    diagnostic = BrainOrchestrator(
+        retriever=SimpleNamespace(),
+        model=SimpleNamespace(),
+        compiler=SimpleNamespace(),
+    )._compiled_grounding_diagnostic(
+        candidate=ModelCandidate(
+            "endpoint demo.create { block rescue { take 6 from @play-demo.video } "
+            "take 24 from @play-demo.video { include where "
+            '@paesiorigine in ["ITALIA", "italia"] } }'
+        ),
+        request=request,
+        grounding=grounding,
+        candidate_manifest=candidate,
+        basis_manifest=basis,
+        lossless_proof=None,
+    )
+
+    assert diagnostic is not None
+    assert diagnostic["code"] == "CANDIDATE_STRUCTURE_MISMATCH"
+    assert diagnostic["reason"] == "create refinement has no reviewed structural delta authority"
+    assert isinstance(diagnostic["deltas"], list) and diagnostic["deltas"]

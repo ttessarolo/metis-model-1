@@ -241,10 +241,16 @@ def _snapshot(*, revision: str = HASH_A, binding: str = HASH_C) -> ContextSnapsh
     )
 
 
-def _request(instruction: str, *, catalog_hint: str | None = None) -> Any:
+def _request(
+    instruction: str,
+    *,
+    catalog_hint: str | None = None,
+    server_target_catalogs: tuple[str, ...] = (),
+) -> Any:
     value = SimpleNamespace(instruction=instruction)
     if catalog_hint is not None:
         value.catalog_hint = catalog_hint
+    value.server_target_catalogs = server_target_catalogs
     return value
 
 
@@ -335,6 +341,100 @@ def test_video_is_owner_and_video_pg_is_not_implicit_ambiguity() -> None:
     assert explicit.context["catalog"]["name"] == "video_pg"
     assert explicit.grounding["selections"][0]["literal"] == "Film"
     assert explicit.context["fields"][0]["semantic"]["means"]["text"] == "genere editoriale"
+
+
+def test_existing_source_catalog_hint_precedes_inference_but_not_current_explicit_catalog() -> None:
+    snapshot = _snapshot()
+    retriever = Schema2SnapshotRetriever(_bound_loader(lambda: _projection(second_owner=True)))
+
+    source_selected = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request("modifica l'endpoint", server_target_catalogs=("video_pg",)),
+    )
+    assert source_selected.grounding["catalogs"] == ["video_pg"]
+    assert source_selected.context["catalog"]["name"] == "video_pg"
+
+    explicit_override = retriever.retrieve(
+        lease=_lease(snapshot),
+        request=_request(
+            "sposta la selezione sul catalogo users",
+            server_target_catalogs=("video",),
+        ),
+    )
+    assert explicit_override.grounding["catalogs"] == ["users"]
+
+
+def test_existing_multi_catalog_source_is_authoritative_without_inventing_a_primary() -> None:
+    result = Schema2SnapshotRetriever(
+        _bound_loader(lambda: _projection(second_owner=True))
+    ).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(
+            "modifica l'endpoint",
+            server_target_catalogs=("video", "users"),
+        ),
+    )
+
+    assert result.grounding["status"] == "resolved"
+    assert result.grounding["catalogs"] == ["video", "users"]
+    assert result.grounding["source_catalogs"] == ["video", "users"]
+    assert result.grounding["selections"] == []
+    assert result.catalog_candidates == ()
+    assert "catalog" not in result.context
+    assert [item["name"] for item in result.context["catalogs"]] == ["video", "users"]
+    assert {item["catalog"] for item in result.context["fields"]} == {"video", "users"}
+
+
+def test_existing_multi_catalog_source_resolves_semantics_inside_authorized_roster() -> None:
+    result = Schema2SnapshotRetriever(
+        _bound_loader(lambda: _projection(second_owner=True))
+    ).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(
+            "Film",
+            server_target_catalogs=("video", "users"),
+        ),
+    )
+
+    assert result.grounding["status"] == "resolved"
+    assert result.grounding["catalogs"] == ["video", "users"]
+    assert result.grounding["source_catalogs"] == ["video", "users"]
+    assert [
+        (item["catalog"], item["field"], item["literal"]) for item in result.grounding["selections"]
+    ] == [("video", "genre", "Film")]
+    assert result.catalog_candidates == ()
+
+
+def test_existing_multi_catalog_source_resolves_inherited_mirror_semantics() -> None:
+    result = Schema2SnapshotRetriever(
+        _bound_loader(lambda: _projection(second_owner=True))
+    ).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(
+            "Film",
+            server_target_catalogs=("video_pg", "users"),
+        ),
+    )
+
+    assert result.grounding["status"] == "resolved"
+    assert result.grounding["catalogs"] == ["video_pg", "users"]
+    assert result.grounding["source_catalogs"] == ["video_pg", "users"]
+    assert [
+        (item["catalog"], item["field"], item["literal"]) for item in result.grounding["selections"]
+    ] == [("video_pg", "genre", "Film")]
+
+
+def test_existing_source_catalog_member_resolves_to_its_unique_catalog_owner() -> None:
+    result = Schema2SnapshotRetriever(_bound_loader(_projection)).retrieve(
+        lease=_lease(_snapshot()),
+        request=_request(
+            "modifica l'endpoint",
+            server_target_catalogs=("video.items",),
+        ),
+    )
+
+    assert result.grounding["catalogs"] == ["video"]
+    assert result.context["catalog"]["name"] == "video"
 
 
 def test_fully_qualified_catalog_reference_is_not_an_unresolved_semantic_clause() -> None:

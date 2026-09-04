@@ -33,6 +33,7 @@ CLARIFICATION_KINDS = frozenset(
 OPTION_KINDS = CLARIFICATION_KINDS - {"result_count"}
 MAX_ROUNDS = 3
 MAX_OPTIONS = 5
+MAX_CATALOG_REFERENCES = 64
 MAX_QUESTION_BYTES = 512
 MAX_LABEL_BYTES = 256
 MAX_DESCRIPTION_BYTES = 1024
@@ -78,6 +79,15 @@ def clarification_reference(value: Any, *, name: str) -> str:
     """Validate the exact opaque-reference surface emitted on the public clarification wire."""
 
     return _opaque(value, name=name, max_bytes=MAX_VALUE_BYTES)
+
+
+def clarification_text(value: Any, *, name: str = "catalog_ref") -> str:
+    """Validate bounded operator text used only for catalog-roster selection."""
+
+    text = _bounded_text(value, name=name, max_bytes=MAX_VALUE_BYTES)
+    if not text.strip() or text != text.strip():
+        _fail("INVALID_SCHEMA", 400, f"{name} must be exact non-blank text")
+    return text
 
 
 def _fingerprint(value: Any, *, name: str) -> str:
@@ -154,11 +164,14 @@ class ClarificationAnswer:
     kind: ClarificationKind
     option_ref: str | None = None
     integer: int | None = None
+    text: str | None = None
     resolved_value: str | None = None
 
     def payload(self) -> dict[str, Any]:
         if self.kind == "result_count":
             return {"integer": self.integer}
+        if self.text is not None:
+            return {"text": self.text}
         return {"option_ref": self.option_ref}
 
 
@@ -197,6 +210,7 @@ class PendingClarification:
     round_index: int
     max_rounds: int
     expires_at: float
+    catalog_refs: tuple[str, ...] = ()
     min_value: int | None = None
     max_value: int | None = None
 
@@ -207,6 +221,12 @@ class PendingClarification:
                 "type": "integer",
                 "minimum": self.min_value,
                 "maximum": self.max_value,
+            }
+        if self.catalog_refs:
+            return {
+                "type": "text",
+                "format": "catalog-ref",
+                "max_bytes": MAX_VALUE_BYTES,
             }
         return {"type": "option_ref"}
 
@@ -223,6 +243,8 @@ class PendingClarification:
         }
         if remaining is not None:
             result["expires_in_seconds"] = round(max(0.0, remaining), 3)
+        if self.catalog_refs:
+            result["catalog_refs"] = list(self.catalog_refs)
         return result
 
 
@@ -571,10 +593,18 @@ class ClarificationStore:
             if session_id in self._pending_by_session:
                 _fail("CLARIFICATION_PENDING", 409, "session already has a pending clarification")
             cleaned_options: list[ClarificationChoice] = []
+            catalog_reference_mode = kind == "catalog" and len(options) > MAX_OPTIONS
             if kind in OPTION_KINDS:
-                if not 2 <= len(options) <= MAX_OPTIONS:
+                maximum = MAX_CATALOG_REFERENCES if catalog_reference_mode else MAX_OPTIONS
+                if not 2 <= len(options) <= maximum:
                     _fail(
-                        "INVALID_SCHEMA", 400, "option clarification requires two to five options"
+                        "INVALID_SCHEMA",
+                        400,
+                        (
+                            "catalog clarification exceeds the catalog roster bound"
+                            if catalog_reference_mode
+                            else "option clarification requires two to five options"
+                        ),
                     )
                 for option in options:
                     if isinstance(option, str):
@@ -582,8 +612,26 @@ class ClarificationStore:
                     if not isinstance(option, ClarificationChoice):
                         _fail("INVALID_SCHEMA", 400, "clarification options are invalid")
                     cleaned_options.append(option)
-                if len({item.label for item in cleaned_options}) != len(cleaned_options):
+                if not catalog_reference_mode and len(
+                    {item.label for item in cleaned_options}
+                ) != len(cleaned_options):
                     _fail("INVALID_SCHEMA", 400, "clarification option labels must be distinct")
+                if catalog_reference_mode:
+                    if any(
+                        item.catalog is None or item.value is None or item.value != item.catalog
+                        for item in cleaned_options
+                    ):
+                        _fail(
+                            "INVALID_SCHEMA",
+                            400,
+                            "catalog roster options require one exact catalog identity",
+                        )
+                    catalog_identities = [item.catalog for item in cleaned_options]
+                    distinct_identities = {
+                        item.casefold() for item in catalog_identities if item is not None
+                    }
+                    if len(distinct_identities) != len(catalog_identities):
+                        _fail("INVALID_SCHEMA", 400, "catalog roster identities must be distinct")
             else:
                 if options:
                     _fail("INVALID_SCHEMA", 400, "result-count clarification cannot have options")
@@ -620,6 +668,9 @@ class ClarificationStore:
             values: list[str | None] = []
             option_refs: set[str] = set()
             for option in cleaned_options:
+                if catalog_reference_mode:
+                    values.append(option.value)
+                    continue
                 option_ref = self._new_unique(
                     self._new_option_ref,
                     name="option_ref",
@@ -650,6 +701,11 @@ class ClarificationStore:
                 round_index=conversation.rounds_used + 1,
                 max_rounds=self._max_rounds,
                 expires_at=clock + self._ttl,
+                catalog_refs=(
+                    tuple(item.catalog for item in cleaned_options if item.catalog is not None)
+                    if catalog_reference_mode
+                    else ()
+                ),
                 min_value=min_value if kind == "result_count" else None,
                 max_value=max_value if kind == "result_count" else None,
             )
@@ -727,12 +783,19 @@ class ClarificationStore:
                 _fail("CLARIFICATION_STALE_SEMANTIC", 409, "clarification semantic source is stale")
             if not isinstance(answer, Mapping):
                 _fail("INVALID_SCHEMA", 400, "clarification answer must be an object")
-            expected_field = "integer" if pending.kind == "result_count" else "option_ref"
+            expected_field = (
+                "integer"
+                if pending.kind == "result_count"
+                else "text"
+                if pending.catalog_refs
+                else "option_ref"
+            )
             if set(answer) != {expected_field}:
                 _fail("INVALID_SCHEMA", 400, "clarification answer has an invalid field roster")
             resolved_value: str | None = None
             label: str | None = None
             integer: int | None = None
+            text: str | None = None
             if pending.kind == "result_count":
                 integer = answer[expected_field]
                 if (
@@ -742,6 +805,18 @@ class ClarificationStore:
                     or not pending.min_value <= integer <= pending.max_value
                 ):
                     _fail("CLARIFICATION_VALUE_OUT_OF_RANGE", 422, "result count is out of range")
+            elif pending.catalog_refs:
+                candidate = clarification_text(answer[expected_field])
+                if candidate not in pending.catalog_refs:
+                    _fail(
+                        "CLARIFICATION_CATALOG_UNKNOWN",
+                        422,
+                        "catalog reference is not valid for this question",
+                    )
+                selected_index = pending.catalog_refs.index(candidate)
+                resolved_value = stored.values[selected_index]
+                text = candidate
+                label = candidate
             else:
                 option_ref = answer[expected_field]
                 if not isinstance(option_ref, str):
@@ -767,6 +842,7 @@ class ClarificationStore:
                 kind=pending.kind,
                 option_ref=answer.get("option_ref"),
                 integer=integer,
+                text=text,
                 resolved_value=resolved_value,
             )
             decision = ClarificationDecision(
@@ -851,7 +927,13 @@ class ClarificationStore:
                 _fail("CLARIFICATION_STALE_SEMANTIC", 409, "clarification semantic source is stale")
             if not isinstance(answer, Mapping):
                 _fail("INVALID_SCHEMA", 400, "clarification answer must be an object")
-            expected_field = "integer" if pending.kind == "result_count" else "option_ref"
+            expected_field = (
+                "integer"
+                if pending.kind == "result_count"
+                else "text"
+                if pending.catalog_refs
+                else "option_ref"
+            )
             if set(answer) != {expected_field}:
                 _fail("INVALID_SCHEMA", 400, "clarification answer has an invalid field roster")
             if pending.kind == "result_count":
@@ -863,6 +945,14 @@ class ClarificationStore:
                     or not pending.min_value <= integer <= pending.max_value
                 ):
                     _fail("CLARIFICATION_VALUE_OUT_OF_RANGE", 422, "result count is out of range")
+            elif pending.catalog_refs:
+                candidate = clarification_text(answer[expected_field])
+                if candidate not in pending.catalog_refs:
+                    _fail(
+                        "CLARIFICATION_CATALOG_UNKNOWN",
+                        422,
+                        "catalog reference is not valid for this question",
+                    )
             else:
                 option_ref = answer[expected_field]
                 if not isinstance(option_ref, str):

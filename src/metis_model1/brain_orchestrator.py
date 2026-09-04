@@ -6,11 +6,15 @@ import re
 import secrets
 import time
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 from metis_model1.brain_candidate_grounding import (
+    adjudicate_candidate_manifest,
+    adjudicate_manifest_preservation,
     candidate_grounding_diagnostic,
     candidate_target_diagnostic,
+    source_endpoint_catalogs,
     source_endpoint_has_fallback,
     source_take_contract,
     take_contract,
@@ -33,6 +37,11 @@ from metis_model1.brain_output_contract import OutputRequestSurface, parse_outpu
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import BrainRetriever, RetrievalResult
 from metis_model1.brain_sessions import SessionManager
+from metis_model1.brain_structural_edit import (
+    STRUCTURAL_LOSSLESS_PROOF_CONTRACT,
+    render_structural_existing,
+    structural_edit_requested,
+)
 from metis_model1.brain_turns import TurnRecord, TurnRequest
 
 
@@ -107,6 +116,21 @@ class BrainOrchestrator:
         ) as lease:
             if record.cancellation.is_set() or lease.cancellation.is_set():
                 raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
+            snapshot_previous = lease.snapshot.source_map().get(request.target["relative_path"])
+            previous = record.basis_source if record.basis_source is not None else snapshot_previous
+            if request.target["mode"] == "existing":
+                endpoint = request.target.get("endpoint")
+                if previous is not None and isinstance(endpoint, str):
+                    try:
+                        target_catalogs = source_endpoint_catalogs(previous, endpoint)
+                    except BrainError as error:
+                        if error.code != "CATALOG_CONTEXT_UNAVAILABLE":
+                            raise
+                        target_catalogs = ()
+                    request = request.with_server_target_catalogs(target_catalogs)
+            structural_requested = request.target[
+                "mode"
+            ] == "existing" and structural_edit_requested(request.instruction)
             retrieval_started = time.monotonic()
             record.emit("retrieval.started", "retrieval_started", "Recupero contesto")
             with record.heartbeat_while(
@@ -128,50 +152,64 @@ class BrainOrchestrator:
                 record=record,
             )
             record.request = request
-            candidates = retrieved.catalog_candidates
-            if len(candidates) > 1:
-                selected = self._selected_catalog(request, retrieved)
-                if selected is None:
-                    record.emit(
-                        "catalog.clarification_required",
-                        "clarification_required",
-                        "Serve una scelta di catalogo",
-                        count=len(candidates),
-                    )
-                    return self._catalog_clarification(
+            if not structural_requested:
+                candidates = retrieved.catalog_candidates
+                if len(candidates) > 1:
+                    selected = self._selected_catalog(request, retrieved)
+                    if selected is None:
+                        record.emit(
+                            "catalog.clarification_required",
+                            "clarification_required",
+                            "Serve una scelta di catalogo",
+                            count=len(candidates),
+                        )
+                        return self._catalog_clarification(
+                            session_id=session_id,
+                            record=record,
+                            request=request,
+                            retrieved=retrieved,
+                        )
+                    record.emit("catalog.auto_selected", "catalog_selected", "Catalogo confermato")
+                elif len(candidates) == 1:
+                    record.emit("catalog.auto_selected", "catalog_selected", "Catalogo selezionato")
+                elif not retrieved.grounding.get("catalogs"):
+                    return self._unsupported(record, request, retrieved)
+                if retrieved.grounding.get("status") == "clarify" and retrieved.grounding.get(
+                    "candidates"
+                ):
+                    return self._semantic_clarification(
                         session_id=session_id,
                         record=record,
                         request=request,
                         retrieved=retrieved,
                     )
-                record.emit("catalog.auto_selected", "catalog_selected", "Catalogo confermato")
-            elif len(candidates) == 1:
-                record.emit("catalog.auto_selected", "catalog_selected", "Catalogo selezionato")
-            elif not retrieved.grounding.get("catalogs"):
-                return self._unsupported(record, request, retrieved)
-            if retrieved.grounding.get("status") == "clarify" and retrieved.grounding.get(
-                "candidates"
-            ):
-                return self._semantic_clarification(
+                if retrieved.grounding.get("status") not in {None, "resolved"}:
+                    return self._unsupported(record, request, retrieved)
+
+            if structural_requested and request.basis is None:
+                # The edit-surface + one-shot permit + validating lossless receipt
+                # already bind the immutable baseline byte spans.  Avoid a separate
+                # full baseline compile; the candidate compile below creates the
+                # private manifest needed by a later proposal refinement.
+                basis_manifest = None
+            else:
+                basis_manifest, _basis_manifest_sha256 = self._basis_manifest(
+                    lease=lease,
+                    request=request,
+                    record=record,
+                    previous_source=previous,
+                )
+            if not structural_requested:
+                output_clarification = self._prepare_output_contract(
                     session_id=session_id,
                     record=record,
                     request=request,
                     retrieved=retrieved,
+                    previous_source=previous,
+                    basis_manifest=basis_manifest,
                 )
-            if retrieved.grounding.get("status") not in {None, "resolved"}:
-                return self._unsupported(record, request, retrieved)
-
-            snapshot_previous = lease.snapshot.source_map().get(request.target["relative_path"])
-            previous = record.basis_source if record.basis_source is not None else snapshot_previous
-            output_clarification = self._prepare_output_contract(
-                session_id=session_id,
-                record=record,
-                request=request,
-                retrieved=retrieved,
-                previous_source=previous,
-            )
-            if output_clarification is not None:
-                return output_clarification
+                if output_clarification is not None:
+                    return output_clarification
 
             inference_started = time.monotonic()
             record.emit(
@@ -183,12 +221,29 @@ class BrainOrchestrator:
                 phase="inference_running",
                 label="Verifica lossless del compilatore in corso",
             ):
-                lossless = render_lossless_existing(
-                    compiler=self._compiler,
-                    lease=lease,
-                    request=request,
-                    grounding=retrieved.grounding,
-                    source=previous,
+                lossless = (
+                    render_structural_existing(
+                        compiler=self._compiler,
+                        lease=lease,
+                        request=request,
+                        record=record,
+                        grounding=retrieved.grounding,
+                        source=previous,
+                    )
+                    if structural_requested
+                    else render_lossless_existing(
+                        compiler=self._compiler,
+                        lease=lease,
+                        request=request,
+                        grounding=retrieved.grounding,
+                        source=previous,
+                    )
+                )
+            if structural_requested and lossless is None:
+                raise BrainError(
+                    "STRUCTURAL_EDIT_UNRESOLVED",
+                    422,
+                    "structural edit could not be resolved exactly",
                 )
             lossless_proof = lossless.proof if lossless is not None else None
             if lossless is not None:
@@ -226,65 +281,30 @@ class BrainOrchestrator:
 
             diagnostics: list[dict[str, Any]] = []
             compile_receipt: dict[str, Any] | None = None
+            candidate_manifest: dict[str, Any] | None = None
+            candidate_manifest_sha256: str | None = None
             attempts = 0
             repairs_used = 0
             while True:
                 if record.cancellation.is_set() or lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
-                grounding_diagnostic = candidate_target_diagnostic(
-                    candidate.source, request.target
-                ) or candidate_grounding_diagnostic(candidate.source, retrieved.grounding)
-                if grounding_diagnostic is not None:
-                    if candidate.generator == "lossless_renderer":
-                        raise BrainError(
-                            "LOSSLESS_INVALID",
-                            503,
-                            "lossless candidate differs from reviewed grounding",
+                endpoint = request.target.get("endpoint")
+                compiled_manifest_path = isinstance(endpoint, str)
+                if not compiled_manifest_path:
+                    grounding_diagnostic = candidate_target_diagnostic(
+                        candidate.source, request.target
+                    ) or candidate_grounding_diagnostic(candidate.source, retrieved.grounding)
+                    if grounding_diagnostic is not None:
+                        candidate = self._repair_grounding(
+                            candidate=candidate,
+                            diagnostic=grounding_diagnostic,
+                            request=request,
+                            retrieved=retrieved,
+                            record=record,
+                            repairs_used=repairs_used,
                         )
-                    if repairs_used >= self._max_repairs:
-                        diagnostic_code = grounding_diagnostic.get("code")
-                        if diagnostic_code not in {
-                            "CANDIDATE_GROUNDING_MISMATCH",
-                            "CANDIDATE_TARGET_MISMATCH",
-                        }:
-                            diagnostic_code = "CANDIDATE_GROUNDING_MISMATCH"
-                        raise BrainError(
-                            diagnostic_code,
-                            422,
-                            "candidate does not match the requested target and reviewed grounding",
-                        )
-                    repairs_used += 1
-                    record.emit(
-                        "repair.started",
-                        "repair_started",
-                        "Correzione delimitata della selezione",
-                        attempt=repairs_used,
-                    )
-                    repair_request = ModelRequest(
-                        instruction=request.instruction,
-                        intent=request.intent,
-                        target_path=request.target["relative_path"],
-                        endpoint=request.target["endpoint"],
-                        context=retrieved.context,
-                        grounding=retrieved.grounding,
-                        reference=request.target.get("reference"),
-                        previous_source=candidate.source,
-                        diagnostics=(grounding_diagnostic,),
-                        cancellation=record.cancellation,
-                    )
-                    repair_started = time.monotonic()
-                    with record.heartbeat_while(
-                        phase="repair_running", label="Correzione verificata in corso"
-                    ):
-                        candidate = self._generate(repair_request)
-                    record.emit(
-                        "repair.completed",
-                        "repair_completed",
-                        "Correzione della selezione ricevuta",
-                        attempt=repairs_used,
-                        duration_ms=max(0, int((time.monotonic() - repair_started) * 1000)),
-                    )
-                    continue
+                        repairs_used += 1
+                        continue
                 attempts += 1
                 record.emit(
                     "compile.started",
@@ -297,13 +317,25 @@ class BrainOrchestrator:
                     with record.heartbeat_while(
                         phase="compile_running", label="Validazione del compilatore in corso"
                     ):
-                        compile_receipt = self._compiler.compile(
-                            lease=lease,
-                            source=candidate.source,
-                            filename=request.target["relative_path"],
-                            execution_mode=("endpoint" if request.target["endpoint"] else "source"),
-                            endpoint=request.target["endpoint"],
-                        )
+                        if compiled_manifest_path:
+                            (
+                                compile_receipt,
+                                candidate_manifest,
+                                candidate_manifest_sha256,
+                            ) = self._compile_candidate(
+                                lease=lease,
+                                source=candidate.source,
+                                filename=request.target["relative_path"],
+                                endpoint=endpoint,
+                            )
+                        else:
+                            compile_receipt = self._compiler.compile(
+                                lease=lease,
+                                source=candidate.source,
+                                filename=request.target["relative_path"],
+                                execution_mode="source",
+                                endpoint=None,
+                            )
                 except BrainError:
                     raise
                 except Exception as error:
@@ -317,6 +349,30 @@ class BrainOrchestrator:
                         attempt=attempts,
                         duration_ms=max(0, int((time.monotonic() - compile_started) * 1000)),
                     )
+                    if compiled_manifest_path:
+                        if candidate_manifest is None or candidate_manifest_sha256 is None:
+                            raise BrainError(
+                                "COMPILER_FAILED", 503, "compiler returned no candidate manifest"
+                            )
+                        grounding_diagnostic = self._compiled_grounding_diagnostic(
+                            candidate=candidate,
+                            request=request,
+                            grounding=retrieved.grounding,
+                            candidate_manifest=candidate_manifest,
+                            basis_manifest=basis_manifest,
+                            lossless_proof=lossless_proof,
+                        )
+                        if grounding_diagnostic is not None:
+                            candidate = self._repair_grounding(
+                                candidate=candidate,
+                                diagnostic=grounding_diagnostic,
+                                request=request,
+                                retrieved=retrieved,
+                                record=record,
+                                repairs_used=repairs_used,
+                            )
+                            repairs_used += 1
+                            continue
                     break
                 diagnostics = self._diagnostics(compile_receipt)
                 record.emit(
@@ -375,6 +431,9 @@ class BrainOrchestrator:
                     422,
                     "candidate remains invalid after bounded repair",
                 )
+            if candidate_manifest is not None:
+                record.candidate_manifest = deepcopy(candidate_manifest)
+                record.candidate_manifest_sha256 = candidate_manifest_sha256
             result = self._proposal(
                 record=record,
                 request=request,
@@ -394,6 +453,224 @@ class BrainOrchestrator:
                     proposal_ref=proposal["proposal_ref"],
                 )
             return result
+
+    def _basis_manifest(
+        self,
+        *,
+        lease: Any,
+        request: TurnRequest,
+        record: TurnRecord,
+        previous_source: str | None,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Return private structural authority for a named endpoint.
+
+        A proposal basis already owns the compiler manifest of the accepted
+        candidate.  Recompiling that proposal would create a second authority
+        observation and needlessly double the compiler cost, so the exact
+        revision-bound manifest is reused.  A first edit of an existing source
+        compiles that immutable source once before candidate generation.
+        """
+
+        endpoint = request.target.get("endpoint")
+        if not isinstance(endpoint, str):
+            return None, None
+        if record.basis_manifest is not None:
+            manifest, manifest_sha256 = self._validate_private_manifest(
+                manifest=record.basis_manifest,
+                manifest_sha256=record.basis_manifest_sha256,
+                endpoint=endpoint,
+            )
+            return deepcopy(manifest), manifest_sha256
+        if request.basis is not None:
+            raise BrainError("PROPOSAL_STALE", 409, "proposal structural authority is unavailable")
+        if request.target.get("mode") != "existing":
+            return None, None
+        if previous_source is None:
+            raise BrainError("OUTPUT_CONTRACT_UNAVAILABLE", 422, "target source is unavailable")
+        receipt, manifest, manifest_sha256 = self._compile_candidate(
+            lease=lease,
+            source=previous_source,
+            filename=request.target["relative_path"],
+            endpoint=endpoint,
+        )
+        status = receipt.get("compiler", receipt).get("status")
+        if status != "ok" or manifest is None or manifest_sha256 is None:
+            raise BrainError(
+                "OUTPUT_CONTRACT_UNAVAILABLE",
+                422,
+                "target endpoint structural authority is unavailable",
+            )
+        record.basis_manifest = deepcopy(manifest)
+        record.basis_manifest_sha256 = manifest_sha256
+        return manifest, manifest_sha256
+
+    def _compile_candidate(
+        self,
+        *,
+        lease: Any,
+        source: str,
+        filename: str,
+        endpoint: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+        compile_candidate = getattr(self._compiler, "compile_candidate", None)
+        if not callable(compile_candidate):
+            raise BrainError("COMPILER_FAILED", 503, "candidate compiler is unavailable")
+        result = compile_candidate(
+            lease=lease,
+            source=source,
+            filename=filename,
+            endpoint=endpoint,
+        )
+        receipt = getattr(result, "receipt", None)
+        manifest = getattr(result, "manifest", None)
+        manifest_sha256 = getattr(result, "manifest_sha256", None)
+        if not isinstance(receipt, dict):
+            raise BrainError("COMPILER_FAILED", 503, "candidate compiler returned no receipt")
+        compiler_result = receipt.get("compiler", receipt)
+        status = compiler_result.get("status") if isinstance(compiler_result, Mapping) else None
+        if status == "ok":
+            checked, checked_sha256 = self._validate_private_manifest(
+                manifest=manifest,
+                manifest_sha256=manifest_sha256,
+                endpoint=endpoint,
+            )
+            return receipt, deepcopy(checked), checked_sha256
+        if status != "invalid" or manifest is not None or manifest_sha256 is not None:
+            raise BrainError("COMPILER_FAILED", 503, "candidate compiler result is invalid")
+        return receipt, None, None
+
+    @staticmethod
+    def _validate_private_manifest(
+        *,
+        manifest: Any,
+        manifest_sha256: Any,
+        endpoint: str,
+    ) -> tuple[dict[str, Any], str]:
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("endpoint") != endpoint
+            or not isinstance(manifest_sha256, str)
+            or canonical_sha256(manifest) != manifest_sha256
+        ):
+            raise BrainError("COMPILER_FAILED", 503, "candidate compiler manifest is invalid")
+        return manifest, manifest_sha256
+
+    @staticmethod
+    def _manifest_requires_preservation(manifest: Mapping[str, Any]) -> bool:
+        containers = manifest.get("containers")
+        fetches = manifest.get("fetches")
+        if not isinstance(containers, list) or not isinstance(fetches, list):
+            raise BrainError("GROUNDING_INVALID", 500, "compiled candidate manifest is invalid")
+        if len(containers) != 1 or len(fetches) != 1:
+            return True
+        return any(
+            isinstance(item, Mapping) and item.get("fallback_sha256") is not None
+            for item in [*containers, *fetches]
+        )
+
+    def _compiled_grounding_diagnostic(
+        self,
+        *,
+        candidate: ModelCandidate,
+        request: TurnRequest,
+        grounding: Mapping[str, Any],
+        candidate_manifest: Mapping[str, Any],
+        basis_manifest: Mapping[str, Any] | None,
+        lossless_proof: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        target_diagnostic = candidate_target_diagnostic(candidate.source, request.target)
+        if target_diagnostic is not None:
+            return target_diagnostic
+        if (
+            candidate.generator == "lossless_renderer"
+            and lossless_proof is not None
+            and lossless_proof.get("contract") == STRUCTURAL_LOSSLESS_PROOF_CONTRACT
+        ):
+            return None
+        if basis_manifest is not None:
+            if request.target["mode"] == "existing":
+                if candidate.generator == "lossless_renderer" and lossless_proof is not None:
+                    return candidate_grounding_diagnostic(candidate.source, grounding)
+                return adjudicate_manifest_preservation(
+                    basis_manifest, candidate_manifest
+                ).diagnostic
+            preservation = adjudicate_manifest_preservation(basis_manifest, candidate_manifest)
+            if preservation.diagnostic is None:
+                return candidate_grounding_diagnostic(candidate.source, grounding)
+            return {
+                "code": "CANDIDATE_STRUCTURE_MISMATCH",
+                "reason": "create refinement has no reviewed structural delta authority",
+                "deltas": preservation.diagnostic["deltas"],
+            }
+        manifest_diagnostic = adjudicate_candidate_manifest(
+            candidate_manifest, grounding
+        ).diagnostic
+        if manifest_diagnostic is not None:
+            return manifest_diagnostic
+        # The occurrence manifest owns catalog lineage and finite predicates;
+        # the retained simple scanner still binds create cardinality/fallback
+        # until those surfaces receive their own reviewed delta authority.
+        return candidate_grounding_diagnostic(candidate.source, grounding)
+
+    def _repair_grounding(
+        self,
+        *,
+        candidate: ModelCandidate,
+        diagnostic: dict[str, Any],
+        request: TurnRequest,
+        retrieved: RetrievalResult,
+        record: TurnRecord,
+        repairs_used: int,
+    ) -> ModelCandidate:
+        if candidate.generator == "lossless_renderer":
+            raise BrainError(
+                "LOSSLESS_INVALID",
+                503,
+                "lossless candidate differs from reviewed grounding",
+            )
+        if repairs_used >= self._max_repairs:
+            diagnostic_code = diagnostic.get("code")
+            if diagnostic_code not in {
+                "CANDIDATE_GROUNDING_MISMATCH",
+                "CANDIDATE_STRUCTURE_MISMATCH",
+                "CANDIDATE_TARGET_MISMATCH",
+            }:
+                diagnostic_code = "CANDIDATE_GROUNDING_MISMATCH"
+            raise BrainError(
+                diagnostic_code,
+                422,
+                "candidate does not match the requested target and reviewed grounding",
+            )
+        attempt = repairs_used + 1
+        record.emit(
+            "repair.started",
+            "repair_started",
+            "Correzione delimitata della selezione",
+            attempt=attempt,
+        )
+        repair_request = ModelRequest(
+            instruction=request.instruction,
+            intent=request.intent,
+            target_path=request.target["relative_path"],
+            endpoint=request.target["endpoint"],
+            context=retrieved.context,
+            grounding=retrieved.grounding,
+            reference=request.target.get("reference"),
+            previous_source=candidate.source,
+            diagnostics=(diagnostic,),
+            cancellation=record.cancellation,
+        )
+        repair_started = time.monotonic()
+        with record.heartbeat_while(phase="repair_running", label="Correzione verificata in corso"):
+            repaired = self._generate(repair_request)
+        record.emit(
+            "repair.completed",
+            "repair_completed",
+            "Correzione della selezione ricevuta",
+            attempt=attempt,
+            duration_ms=max(0, int((time.monotonic() - repair_started) * 1000)),
+        )
+        return repaired
 
     def _retry_with_flash(
         self,
@@ -647,11 +924,11 @@ class BrainOrchestrator:
         request: TurnRequest,
         retrieved: RetrievalResult,
     ) -> dict[str, Any]:
-        if len(retrieved.catalog_candidates) > 5:
+        if len(retrieved.catalog_candidates) > 5 and request.schema_version != 2:
             raise BrainError(
-                "CLARIFICATION_TOO_MANY_OPTIONS",
+                "CLARIFICATION_SCHEMA_UNSUPPORTED",
                 409,
-                "catalog ambiguity exceeds the interactive option bound",
+                "client schema cannot answer the catalog roster clarification",
             )
         options: list[ClarificationChoice] = []
         for item in retrieved.catalog_candidates:
@@ -670,7 +947,11 @@ class BrainOrchestrator:
             request=request,
             retrieved=retrieved,
             kind="catalog",
-            question="Quale catalogo vuoi usare?",
+            question=(
+                "Quale catalogo vuoi usare? Scrivi uno dei riferimenti esatti disponibili."
+                if len(options) > 5
+                else "Quale catalogo vuoi usare?"
+            ),
             question_key="catalog-selection",
             options=options,
         )
@@ -744,6 +1025,7 @@ class BrainOrchestrator:
         request: TurnRequest,
         retrieved: RetrievalResult,
         previous_source: str | None = None,
+        basis_manifest: Mapping[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         # Schema 1 clients can answer only option_ref clarifications.  Preserve
         # their legacy non-interactive cardinality path instead of emitting a
@@ -765,11 +1047,40 @@ class BrainOrchestrator:
                 422,
                 "numeric pagination request is invalid",
             )
+        shape_decision = _current_server_decision(request, "response_shape")
+        decision = _current_server_decision(request, "result_count")
         basis_output = (
             request.server_basis_grounding.get("output_contract")
             if isinstance(request.server_basis_grounding, Mapping)
             else None
         )
+        preserve_compiled_output = (
+            request.target["mode"] == "existing"
+            and basis_manifest is not None
+            and (
+                self._manifest_requires_preservation(basis_manifest)
+                or (isinstance(basis_output, Mapping) and basis_output.get("mode") == "preserve")
+            )
+        )
+        if preserve_compiled_output:
+            if (
+                shape_decision is not None
+                or decision is not None
+                or output_request.contracts
+                or output_request.generic_pagination
+                or output_request.ambiguous_count
+            ):
+                raise BrainError(
+                    "OUTPUT_CONTRACT_UNAVAILABLE",
+                    422,
+                    "occurrence-specific output change has no reviewed authority",
+                )
+            retrieved.grounding["output_contract"] = {"mode": "preserve"}
+            retrieved.grounding["assumptions"] = [
+                "Cardinalità, ordine e fallback di ogni occorrenza compilata restano invariati."
+            ]
+            retrieved.context["output_contract"] = {"mode": "preserve"}
+            return None
         if isinstance(basis_output, Mapping):
             basis_fallback = basis_output.get("fallback")
             if basis_fallback is not None and (
@@ -794,7 +1105,6 @@ class BrainOrchestrator:
                     422,
                     "target endpoint fallback cannot be preserved safely",
                 )
-        shape_decision = _current_server_decision(request, "response_shape")
         if shape_decision is not None:
             resolved = shape_decision.get("resolved_value")
             matched = re.fullmatch(r"(count|page):([1-9][0-9]{0,3})", str(resolved))
@@ -822,7 +1132,6 @@ class BrainOrchestrator:
                     },
                 }
                 assumptions = [f"Paginazione confermata: {count} risultati per pagina."]
-        decision = _current_server_decision(request, "result_count")
         if shape_decision is not None:
             pass
         elif decision is not None:

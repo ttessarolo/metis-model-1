@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from metis_model1.brain_candidate_grounding import (
     TakeContract,
     adjudicate_candidate,
+    adjudicate_candidate_manifest,
     adjudicate_candidate_shape,
+    adjudicate_manifest_preservation,
+    candidate_manifest_delta,
     candidate_target_diagnostic,
+    source_endpoint_catalogs,
     source_endpoint_has_fallback,
     source_take_contract,
 )
@@ -89,6 +95,89 @@ def _grounding(
     return grounding
 
 
+def _manifest_predicate(
+    *,
+    catalog: str,
+    field: str,
+    value: object = "ITALIA",
+    intent: str = "include",
+    origin_kind: str = "inline",
+) -> dict[str, object]:
+    return {
+        "intent": intent,
+        "clause_index": 0,
+        "leaf_path": "constraints[0].predicate",
+        "catalog": catalog,
+        "field": field,
+        "operator": "eq" if value is not None else "exists",
+        "value": {"lit": value} if isinstance(value, str) else None,
+        "amount": None,
+        "graded": False,
+        "origin": {
+            "kind": origin_kind,
+            "ref": "demo.preset" if origin_kind == "preset" else None,
+        },
+        "clause_guard_sha256": None,
+        "leaf_guard_sha256": None,
+        "expression_sha256": "sha256:" + "1" * 64,
+    }
+
+
+def _compiled_manifest(
+    fetches: list[tuple[str, str, list[dict[str, object]]]],
+) -> dict[str, object]:
+    containers = [
+        {
+            "path": "endpoint",
+            "kind": "endpoint",
+            "name": "demo.target",
+            "activation_sha256": None,
+            "output_sha256": None,
+            "fallback_sha256": None,
+            "uses_sha256": None,
+            "semantics_sha256": "sha256:" + "8" * 64,
+            "presentation_sha256": "sha256:" + "2" * 64,
+        },
+        *[
+            {
+                "path": f"endpoint/blocks[{index}]:row{index}",
+                "kind": "block",
+                "name": f"row{index}",
+                "activation_sha256": None,
+                "output_sha256": None,
+                "fallback_sha256": None,
+                "uses_sha256": None,
+                "semantics_sha256": "sha256:" + "8" * 64,
+                "presentation_sha256": "sha256:" + "2" * 64,
+            }
+            for index in range(len(fetches))
+        ],
+    ]
+    return {
+        "schema_version": 1,
+        "endpoint": "demo.target",
+        "endpoint_sha256": "sha256:" + "3" * 64,
+        "containers": containers,
+        "fetches": [
+            {
+                "occurrence": index,
+                "stage_id": stage,
+                "container_path": f"endpoint/blocks[{index}]:row{index}",
+                "source": {"kind": "catalog", "ref": catalog},
+                "catalog": catalog,
+                "count": {"skip": 0, "take": index + 1},
+                "activation_sha256": None,
+                "ordering_sha256": "sha256:" + "4" * 64,
+                "output_sha256": None,
+                "fallback_sha256": None,
+                "predicates": predicates,
+                "semantics_sha256": "sha256:" + "5" * 64,
+            }
+            for index, (stage, catalog, predicates) in enumerate(fetches)
+        ],
+    }
+
+
 def test_italy_subset_is_rejected_with_missing_literals() -> None:
     result = adjudicate_candidate('@paesiorigine is "italia"', _grounding("ITALIA", "italia"))
     assert not result.ok
@@ -114,6 +203,171 @@ def test_duplicate_predicate_is_rejected_as_multiset_mismatch() -> None:
     assert not result.ok
     assert result.diagnostic is not None
     assert result.diagnostic["fields"][0]["extra"] == ["ITALIA"]
+
+
+def test_compiled_manifest_grounding_accepts_exact_catalog_qualified_occurrence() -> None:
+    manifest = _compiled_manifest(
+        [
+            (
+                "block.1.row0.take.1",
+                "play-demo.video",
+                [_manifest_predicate(catalog="play-demo.video", field="paesiorigine")],
+            )
+        ]
+    )
+
+    assert adjudicate_candidate_manifest(manifest, _grounding("ITALIA")).ok
+
+
+def test_compiled_manifest_grounding_rejects_catalog_descendant_prefix() -> None:
+    manifest = _compiled_manifest(
+        [
+            (
+                "block.1.row0.take.1",
+                "play-demo.video.shadow",
+                [
+                    _manifest_predicate(
+                        catalog="play-demo.video.shadow",
+                        field="paesiorigine",
+                    )
+                ],
+            )
+        ]
+    )
+
+    result = adjudicate_candidate_manifest(manifest, _grounding("ITALIA"))
+
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["unauthorized_catalogs"] == ["play-demo.video.shadow"]
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        _manifest_predicate(
+            catalog="play-demo.video",
+            field="paesiorigine",
+            origin_kind="preset",
+        ),
+        _manifest_predicate(
+            catalog="play-demo.video",
+            field="paesiorigine",
+            value=None,
+        ),
+        _manifest_predicate(
+            catalog="play-demo.video",
+            field="paesiorigine",
+            intent="exclude",
+        ),
+    ],
+)
+def test_compiled_manifest_grounding_fails_closed_without_explicit_predicate_authority(
+    predicate: dict[str, object],
+) -> None:
+    manifest = _compiled_manifest([("block.1.row0.take.1", "play-demo.video", [predicate])])
+
+    result = adjudicate_candidate_manifest(manifest, _grounding("ITALIA"))
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["unauthorized_predicates"]
+
+
+def test_occurrence_manifest_preserves_multi_catalog_multi_take_endpoint() -> None:
+    reference = _compiled_manifest(
+        [
+            (
+                "block.1.row0.take.1",
+                "play-demo.video",
+                [_manifest_predicate(catalog="play-demo.video", field="paesiorigine")],
+            ),
+            (
+                "block.2.row1.take.1",
+                "play-demo.users",
+                [_manifest_predicate(catalog="play-demo.users", field="segment", value="Family")],
+            ),
+        ]
+    )
+
+    assert adjudicate_manifest_preservation(reference, copy.deepcopy(reference)).ok
+    assert candidate_manifest_delta(reference, copy.deepcopy(reference)) == []
+
+
+@pytest.mark.parametrize("mutation", ["duplicate", "removed", "moved", "wrong_catalog"])
+def test_occurrence_manifest_rejects_adversarial_predicate_changes(mutation: str) -> None:
+    reference = _compiled_manifest(
+        [
+            (
+                "block.1.row0.take.1",
+                "play-demo.video",
+                [_manifest_predicate(catalog="play-demo.video", field="paesiorigine")],
+            ),
+            (
+                "block.2.row1.take.1",
+                "play-demo.video",
+                [_manifest_predicate(catalog="play-demo.video", field="genre", value="Azione")],
+            ),
+        ]
+    )
+    candidate = copy.deepcopy(reference)
+    first = candidate["fetches"][0]
+    second = candidate["fetches"][1]
+    if mutation == "duplicate":
+        first["predicates"].append(copy.deepcopy(first["predicates"][0]))
+    elif mutation == "removed":
+        first["predicates"].clear()
+    elif mutation == "moved":
+        second["predicates"].append(first["predicates"].pop())
+    else:
+        first["source"] = {"kind": "catalog", "ref": "play-demo.users"}
+        first["catalog"] = "play-demo.users"
+        first["predicates"][0]["catalog"] = "play-demo.users"
+
+    result = adjudicate_manifest_preservation(reference, candidate)
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["code"] == "CANDIDATE_STRUCTURE_MISMATCH"
+    components = {item["component"] for item in result.diagnostic["deltas"]}
+    assert "predicates" in components
+    if mutation == "wrong_catalog":
+        assert {"source", "catalog"} <= components
+
+
+def test_occurrence_manifest_rejects_fetch_and_container_reordering() -> None:
+    reference = _compiled_manifest(
+        [
+            ("block.1.row0.take.1", "play-demo.video", []),
+            ("block.2.row1.take.1", "play-demo.users", []),
+        ]
+    )
+    candidate = copy.deepcopy(reference)
+    candidate["containers"][1:] = reversed(candidate["containers"][1:])
+    candidate["fetches"] = list(reversed(candidate["fetches"]))
+    for index, fetch in enumerate(candidate["fetches"]):
+        fetch["occurrence"] = index
+
+    deltas = candidate_manifest_delta(reference, candidate)
+    assert {item["component"] for item in deltas} >= {
+        "container_roster",
+        "fetch_roster",
+    }
+
+
+def test_occurrence_manifest_rejects_other_direct_container_semantics() -> None:
+    reference = _compiled_manifest([("block.1.row0.take.1", "play-demo.video", [])])
+    candidate = copy.deepcopy(reference)
+    candidate["containers"][1]["semantics_sha256"] = "sha256:" + "f" * 64
+
+    result = adjudicate_manifest_preservation(reference, candidate)
+
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["deltas"] == [
+        {
+            "locator": "container:endpoint/blocks[0]:row0",
+            "component": "semantics",
+        }
+    ]
 
 
 def test_scalar_any_of_requires_one_membership_predicate() -> None:
@@ -738,6 +992,47 @@ endpoint demo.target as "Target" {
 """
     assert source_take_contract(source, "demo.target") == TakeContract("count", 24)
     assert source_take_contract(source, "demo.other") == TakeContract("page", 12)
+
+
+def test_existing_source_catalogs_select_exact_endpoint_and_ignore_decoys() -> None:
+    source = """metis 0.43
+// endpoint demo.target { take 1 from @comment }
+endpoint demo.other { take 1 from @users }
+endpoint demo.target as "from @label" {
+  inputs { free_text text default "" }
+  take 24 from @play-demo.video {
+    include where { @title is "from @string" }
+    fallback { take 1 from @play-demo.archive }
+  }
+}
+"""
+
+    assert source_endpoint_catalogs(source, "demo.target") == (
+        "play-demo.video",
+        "play-demo.archive",
+    )
+
+
+def test_empty_source_string_does_not_relax_empty_predicate_rejection() -> None:
+    result = adjudicate_candidate('@paesiorigine is ""', _grounding("ITALIA"))
+    assert not result.ok
+    assert result.diagnostic is not None
+    assert result.diagnostic["parse_error"] == "empty literal is not authorized"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "endpoint demo.other { take 1 from @video }",
+        "endpoint demo.target { take 1 from @video } endpoint demo.target { take 1 from @users }",
+        "endpoint demo.target { take 1 from all }",
+        "endpoint demo.target { take 1 from @video /*",
+    ],
+)
+def test_existing_source_catalogs_fail_closed_on_untrusted_target_surface(source: str) -> None:
+    with pytest.raises(BrainError) as raised:
+        source_endpoint_catalogs(source, "demo.target")
+    assert raised.value.code == "CATALOG_CONTEXT_UNAVAILABLE"
 
 
 def test_existing_source_take_preserves_bare_pagination() -> None:

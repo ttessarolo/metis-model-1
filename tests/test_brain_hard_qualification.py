@@ -29,6 +29,8 @@ from metis_model1.brain_sessions import ClientPolicy, SessionManager
 ROOT = Path(__file__).parents[1]
 CORPUS = ROOT / "examples/metis-brain-hard-prompts.play-prod-v1.json"
 PLAN = ROOT / "examples/metis-brain-hard-qualification.play-prod-v1.json"
+V2_CORPUS = ROOT / "examples/metis-brain-hard-prompts.play-prod-v2.json"
+V2_PLAN = ROOT / "examples/metis-brain-hard-qualification.play-prod-v2.json"
 CONFIG = ROOT / "examples/metis-brain-config.play-prod-hard-qualification.local.json"
 
 
@@ -41,6 +43,9 @@ def test_hard_qualification_plan_binds_exact_corpus_and_authority() -> None:
     assert sum(len(item["turns"]) for item in spec.corpus["zero_generation_scenarios"]) == 40
     assert spec.tenant_head == "5f56bdfe27e3fb00b735db630a4eb5cdf5ab12c3"
     assert spec.tenant_tree == "03abf1a30603ff6cb59d55c32c3395cef868a218"
+    assert spec.require_structural_lossless_edits is False
+    assert spec.require_reference_equivalence is True
+    assert spec.promotable is True
     assert all(
         check["value"] is not True
         for oracle in spec.plan["create_oracles"]
@@ -78,6 +83,81 @@ def test_hard_qualification_plan_binds_exact_corpus_and_authority() -> None:
         "logical_operator_messages": len(spec.corpus["endpoints"])
         + sum(len(item["turns"]) for item in spec.corpus["zero_generation_scenarios"]),
     } == hard.EXPECTED_DENOMINATOR
+
+
+def test_v2_plan_binds_enriched_authority_and_compiler_manifest_runner() -> None:
+    spec = hard.load_hard_qualification(V2_CORPUS, V2_PLAN)
+
+    assert spec.profile_id == "play-prod-v2"
+    assert spec.corpus_sha256 == hard.EXPECTED_V2_CORPUS_SHA256
+    assert spec.plan_sha256 == hard.EXPECTED_V2_PLAN_SHA256
+    assert spec.tenant_head == "98e78407f7286d2a9ac404dceb655fd1f6a9118e"
+    assert spec.tenant_tree == "914785f55c2be453ee75a6314f4e9e77010eed25"
+    assert spec.require_structural_lossless_edits is True
+    assert spec.require_reference_equivalence is False
+    assert spec.promotable is False
+    assert spec.runtime_identity["toolchain"]["runner_sha256"] == hard.EXPECTED_V2_RUNNER_SHA256
+    tvod = next(
+        item
+        for item in spec.plan["create_oracles"]
+        if item["source_endpoint"] == "play.tvod_multiple_block"
+    )
+    instances = next(check for check in tvod["turns"][1]["checks"] if check["id"] == "t3.instances")
+    assert instances == {
+        "id": "t3.instances",
+        "fact": "instance_arg_count",
+        "op": "gte",
+        "value": 11,
+    }
+
+
+@pytest.mark.parametrize(
+    ("corpus", "plan"),
+    [(CORPUS, V2_PLAN), (V2_CORPUS, PLAN)],
+)
+def test_hard_qualification_rejects_mixed_sealed_profiles(corpus: Path, plan: Path) -> None:
+    with pytest.raises(BrainError, match="input path differs") as caught:
+        hard.load_hard_qualification(corpus, plan)
+    assert caught.value.code == "HARD_QUALIFICATION_INVALID"
+
+
+def test_v2_create_oracles_are_explicit_in_inspectable_operator_prompts() -> None:
+    spec = hard.load_hard_qualification(V2_CORPUS, V2_PLAN)
+    messages = {
+        item["endpoint_qualified"]: " ".join(turn["user_message"] for turn in item["turns"])
+        for item in spec.corpus["zero_generation_scenarios"]
+    }
+    required_fragments = {
+        "play.similar_cinema": ("dieci take", "quattro rami"),
+        "play.similar_serie_tv_fiction": ("nove take", "24 per 2"),
+        "search.filtered_search": ("sette percorsi", "quattordici take"),
+        "search.detail": ("inf_channel", "tre blocchi", "nove varianti"),
+        "play.multiple_block_compleanno": (
+            "cataloghi video e users",
+            "undici ruoli",
+            "ventisei take",
+        ),
+        "play.multiple_block_dem_titoli_momento": (
+            "ventisette take",
+            "20 per 2",
+        ),
+        "play.tvod_multiple_block": ("undici istanze", "cinque take"),
+        "play.multiple_block4_k": ("cataloghi video e users", "sei take"),
+        "play.inf_multiple_block_film_serie": (
+            "cataloghi video e users",
+            "quattro blocchi",
+            "dodici istanze",
+        ),
+        "play.similar_intrat_abtest": (
+            "quattro pool candidati da 50",
+            "18 mesi",
+            "14 giorni",
+            "primo take da 4",
+        ),
+    }
+    assert set(messages) == set(required_fragments)
+    for endpoint, fragments in required_fragments.items():
+        assert all(fragment in messages[endpoint] for fragment in fragments), endpoint
 
 
 def test_all_edit_oracles_bind_and_change_only_declared_lines() -> None:
@@ -165,6 +245,54 @@ def test_clarification_resolver_uses_only_exact_message_or_source_evidence() -> 
     ) == {"option_ref": "page-ref"}
 
 
+def test_catalog_roster_clarification_is_exact_and_fully_qualified() -> None:
+    clarification = {
+        "kind": "catalog",
+        "options": [],
+        "catalog_refs": [f"play-prod-v2.catalog_{index}" for index in range(8)],
+        "answer_schema": {
+            "type": "text",
+            "format": "catalog-ref",
+            "max_bytes": 256,
+        },
+    }
+
+    assert hard.clarification_answer(
+        clarification,
+        evidence="Usa @catalog_7",
+    ) == {"text": "play-prod-v2.catalog_7"}
+    assert hard.clarification_answer(
+        clarification,
+        evidence="Confermo",
+        source_catalogs={"catalog_6"},
+    ) == {"text": "play-prod-v2.catalog_6"}
+    assert (
+        hard.clarification_answer(
+            clarification,
+            evidence="Usa @catalog_1 e @catalog_2",
+        )
+        is None
+    )
+
+    terminal = {
+        "turn_id": "turn-1",
+        "clarification": {
+            **clarification,
+            "clarification_id": "clarification-1",
+            "question": "Quale catalogo vuoi usare?",
+            "round": 1,
+            "max_rounds": 3,
+        },
+    }
+    passed, failures = hard._clarification_gate(
+        terminal,
+        expected_turn_id="turn-1",
+        next_evidence="Usa @catalog_7",
+    )
+    assert passed
+    assert failures == []
+
+
 def test_draft_gate_separates_compile_grounding_and_target_contracts() -> None:
     target = {
         "mode": "create",
@@ -200,6 +328,134 @@ def test_draft_gate_separates_compile_grounding_and_target_contracts() -> None:
     valid, failures = hard._draft_gate(invalid, target)
     assert valid is False
     assert failures == ["not_first_attempt", "grounding_not_exact"]
+
+
+def _structural_lossless_terminal(
+    target: Mapping[str, Any],
+    *,
+    source: str = "endpoint qualification.test { take 30 from @video }\n",
+) -> dict[str, Any]:
+    source_sha256 = hard._sha256(source.encode("utf-8"))
+    return {
+        "identity": {"generation_strategy": "lossless_renderer"},
+        "proposal": {
+            "operation": "replace",
+            "relative_path": target["relative_path"],
+            "endpoint": target["endpoint"],
+            "base_sha256": target["base_sha256"],
+            "source": source,
+            "source_sha256": source_sha256,
+        },
+        "validation": {
+            "status": "ok",
+            "attempts": 1,
+            "lossless": {
+                "contract": "metis-brain-structural-lossless-proof/v1",
+                "proof_mode": "validate",
+                "receipt_sha256": "sha256:" + "c" * 64,
+                "sha_before": target["base_sha256"],
+                "sha_after": source_sha256,
+                "touched_count": 1,
+            },
+        },
+    }
+
+
+def test_v2_edit_route_gate_accepts_exact_structural_lossless_proof() -> None:
+    target = {
+        "mode": "existing",
+        "relative_path": "properties/qualification/test.metis",
+        "endpoint": "qualification.test",
+        "base_sha256": "sha256:" + "a" * 64,
+    }
+    terminal = _structural_lossless_terminal(target)
+
+    assert hard._edit_route_gate(
+        terminal,
+        target,
+        require_structural_lossless=True,
+        expected_touched_count=1,
+    ) == (True, [])
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "model_generation",
+        "missing_identity",
+        "missing_lossless",
+        "legacy_lossless_contract",
+        "wrong_proof_mode",
+        "extra_proof_field",
+        "invalid_receipt_hash",
+        "wrong_sha_before",
+        "wrong_sha_after",
+        "source_hash_lie",
+        "zero_touched",
+        "boolean_touched",
+        "wrong_touched_count",
+        "too_many_touched",
+    ],
+)
+def test_v2_edit_route_gate_rejects_non_structural_or_unbound_proof(mutation: str) -> None:
+    target = {
+        "mode": "existing",
+        "relative_path": "properties/qualification/test.metis",
+        "endpoint": "qualification.test",
+        "base_sha256": "sha256:" + "a" * 64,
+    }
+    terminal = _structural_lossless_terminal(target)
+    proof = terminal["validation"]["lossless"]
+    if mutation == "model_generation":
+        terminal["identity"]["generation_strategy"] = "model"
+    elif mutation == "missing_identity":
+        del terminal["identity"]
+    elif mutation == "missing_lossless":
+        del terminal["validation"]["lossless"]
+    elif mutation == "legacy_lossless_contract":
+        proof["contract"] = "metis-lossless-receipt/v1"
+    elif mutation == "wrong_proof_mode":
+        proof["proof_mode"] = "render"
+    elif mutation == "extra_proof_field":
+        proof["private"] = True
+    elif mutation == "invalid_receipt_hash":
+        proof["receipt_sha256"] = "sha256:not-a-hash"
+    elif mutation == "wrong_sha_before":
+        proof["sha_before"] = "sha256:" + "b" * 64
+    elif mutation == "wrong_sha_after":
+        proof["sha_after"] = "sha256:" + "b" * 64
+    elif mutation == "source_hash_lie":
+        terminal["proposal"]["source_sha256"] = "sha256:" + "b" * 64
+        proof["sha_after"] = terminal["proposal"]["source_sha256"]
+    elif mutation == "zero_touched":
+        proof["touched_count"] = 0
+    elif mutation == "boolean_touched":
+        proof["touched_count"] = True
+    elif mutation == "wrong_touched_count":
+        proof["touched_count"] = 2
+    elif mutation == "too_many_touched":
+        proof["touched_count"] = hard.MAX_EDIT_OPERATIONS + 1
+
+    valid, failures = hard._edit_route_gate(
+        terminal,
+        target,
+        require_structural_lossless=True,
+        expected_touched_count=1,
+    )
+
+    assert valid is False
+    if mutation in {"model_generation", "missing_identity"}:
+        assert "edit_generation_not_structural_lossless" in failures
+    else:
+        assert "edit_structural_lossless_proof_invalid" in failures
+
+
+def test_v1_edit_route_gate_preserves_legacy_behavior() -> None:
+    assert hard._edit_route_gate(
+        {},
+        {},
+        require_structural_lossless=False,
+    ) == (True, [])
 
 
 def test_aggregate_keeps_safe_failure_distinct_from_accuracy_pass() -> None:
@@ -275,8 +531,11 @@ def test_receipt_writer_is_create_only_and_self_hash_is_stable(tmp_path: Path) -
 def _mock_live_qualification_runtime(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    *,
+    corpus_path: Path = CORPUS,
+    plan_path: Path = PLAN,
 ) -> tuple[hard.HardQualificationSpec, Path]:
-    spec = hard.load_hard_qualification(CORPUS, PLAN)
+    spec = hard.load_hard_qualification(corpus_path, plan_path)
     output_root = (tmp_path / "receipts").resolve()
     monkeypatch.setattr(hard, "OUTPUT_ROOT", output_root)
     monkeypatch.setattr(hard, "validate_hard_config", lambda _config, _spec: None)
@@ -380,6 +639,59 @@ def test_completed_measurement_survives_failed_post_suite_health_gate(
     stored = json.loads(output.read_text(encoding="utf-8"))
     digest = stored.pop("receipt_sha256")
     assert digest == canonical_sha256(stored)
+
+
+def test_v2_complete_perfect_measurement_is_explicitly_non_promotable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec, output = _mock_live_qualification_runtime(
+        monkeypatch,
+        tmp_path,
+        corpus_path=V2_CORPUS,
+        plan_path=V2_PLAN,
+    )
+    monkeypatch.setattr(
+        hard,
+        "_validate_qualified_health",
+        lambda *_args, **_kwargs: dict(spec.runtime_identity),
+    )
+    monkeypatch.setattr(
+        hard,
+        "_run_edit",
+        lambda **kwargs: {
+            "endpoint": kwargs["case"]["endpoint_identity"]["qualified"],
+            "verdict": "PASS_DRAFT",
+        },
+    )
+    monkeypatch.setattr(
+        hard,
+        "_run_journey",
+        lambda **kwargs: {
+            "source_endpoint": kwargs["journey"]["endpoint_qualified"],
+            "verdict": "PASS_STRUCTURAL_ORACLE",
+            "turns": [{"verdict": "PASS_STRUCTURAL_ORACLE"} for _ in range(4)],
+        },
+    )
+
+    receipt = hard.run_hard_qualification(
+        config_path=CONFIG,
+        corpus_path=V2_CORPUS,
+        plan_path=V2_PLAN,
+        output_path=output,
+        authorize_local_model_execution=True,
+    )
+
+    assert receipt["measurement_status"] == "COMPLETE"
+    assert receipt["terminal_gate"]["status"] == "PASSED"
+    assert receipt["aggregate"]["edits"]["pass_draft"] == 10
+    assert receipt["aggregate"]["create_journeys"]["converged_structural_oracle"] == 10
+    assert receipt["promotion_gate"] == {
+        "profile_promotable": False,
+        "status": "NOT_PROMOTABLE",
+        "reason_code": "REFERENCE_EQUIVALENCE_NOT_REQUIRED",
+    }
+    assert receipt["qualification_green"] is False
 
 
 def test_partial_measurement_preserves_completed_results_in_incomplete_receipt(
@@ -497,10 +809,14 @@ def test_plan_and_config_identity_pins_are_sealed() -> None:
     """The live lane must never run against a self-selected plan or config."""
 
     assert hard._HASH_RE.fullmatch(hard.EXPECTED_PLAN_SHA256)
+    assert hard._HASH_RE.fullmatch(hard.EXPECTED_V2_CORPUS_SHA256)
+    assert hard._HASH_RE.fullmatch(hard.EXPECTED_V2_PLAN_SHA256)
     assert hard._HASH_RE.fullmatch(hard.EXPECTED_CONFIG_SHA256)
     assert hard.EXPECTED_PLAN_SHA256 != "sha256:TO_BE_SEALED"
     assert hard.EXPECTED_CONFIG_SHA256 != "sha256:TO_BE_SEALED"
     assert hard._sha256(PLAN.read_bytes()) == hard.EXPECTED_PLAN_SHA256
+    assert hard._sha256(V2_CORPUS.read_bytes()) == hard.EXPECTED_V2_CORPUS_SHA256
+    assert hard._sha256(V2_PLAN.read_bytes()) == hard.EXPECTED_V2_PLAN_SHA256
     assert hard._sha256(CONFIG.read_bytes()) == hard.EXPECTED_CONFIG_SHA256
 
 
@@ -759,6 +1075,7 @@ def test_case_guard_runs_after_close_failure_and_drift_takes_precedence(
         tenant_root=tenant,
         tenant_alias="play-prod",
         tenant_id="play-prod-v2",
+        require_structural_lossless_edits=False,
     )
     case = {
         "endpoint_identity": {"qualified": "qualification.test"},
@@ -842,6 +1159,55 @@ class _Compiler:
             "receipt_sha256": canonical_sha256({"source": source, "filename": filename}),
             "session_id": lease.session_id,
         }
+
+    def compile_candidate(
+        self,
+        *,
+        lease: Any,
+        source: str,
+        filename: str,
+        endpoint: str,
+    ) -> object:
+        receipt = self.compile(lease=lease, source=source, filename=filename)
+        manifest: dict[str, Any] = {
+            "schema_version": 1,
+            "endpoint": endpoint,
+            "endpoint_sha256": "sha256:" + "1" * 64,
+            "containers": [
+                {
+                    "path": "endpoint",
+                    "kind": "endpoint",
+                    "name": endpoint,
+                    "activation_sha256": None,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "uses_sha256": None,
+                    "semantics_sha256": "sha256:" + "8" * 64,
+                    "presentation_sha256": "sha256:" + "2" * 64,
+                }
+            ],
+            "fetches": [
+                {
+                    "occurrence": 0,
+                    "stage_id": "endpoint.take.0",
+                    "container_path": "endpoint",
+                    "source": {"kind": "catalog", "ref": "video"},
+                    "catalog": "video",
+                    "count": {"skip": 0, "take": 24},
+                    "activation_sha256": None,
+                    "ordering_sha256": "sha256:" + "3" * 64,
+                    "output_sha256": None,
+                    "fallback_sha256": None,
+                    "predicates": [],
+                    "semantics_sha256": "sha256:" + "4" * 64,
+                }
+            ],
+        }
+        return SimpleNamespace(
+            receipt=receipt,
+            manifest=manifest,
+            manifest_sha256=canonical_sha256(manifest),
+        )
 
 
 class _Retriever:

@@ -190,15 +190,22 @@ def test_pytest_environment_removes_external_overrides(
     monkeypatch.setenv("PYTEST_ADDOPTS", "--pdb")
     monkeypatch.setenv("PYTHONPATH", "/forged/python")
     monkeypatch.setenv("METIS_MODEL1_METIS_ROOT", "/forged/metis")
+    monkeypatch.setenv("METIS_MODEL1_BRAIN_METIS_ROOT", "/forged/brain-metis")
     isolated = tmp_path / "isolated"
+    brain_isolated = tmp_path / "brain-isolated"
     node = tmp_path / "runtime/bin/node"
 
-    environment = test_harness._pytest_environment(isolated=isolated, node=node)
+    environment = test_harness._pytest_environment(
+        isolated=isolated,
+        brain_isolated=brain_isolated,
+        node=node,
+    )
 
     assert "GIT_DIR" not in environment
     assert "PYTEST_ADDOPTS" not in environment
     assert "PYTHONPATH" not in environment
     assert environment["METIS_MODEL1_METIS_ROOT"] == str(isolated)
+    assert environment["METIS_MODEL1_BRAIN_METIS_ROOT"] == str(brain_isolated)
     assert environment["METIS_MODEL1_NODE"] == str(node)
     assert environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
 
@@ -274,6 +281,7 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
     brain_root = tmp_path / "brain-metis"
     oracle_node_modules = tmp_path / "oracle-node-modules"
     isolated_root = tmp_path / "isolated-metis"
+    brain_isolated_root = tmp_path / "brain-isolated-metis"
     node = tmp_path / "bin/node"
     for path in (brain_root, oracle_node_modules, isolated_root, node.parent):
         path.mkdir(parents=True)
@@ -308,16 +316,32 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
                 }.items()
             },
             "probes_executed": execute_probes,
+            "revision": "brain-revision",
+            "tree": "brain-tree",
+            "identity": SimpleNamespace(node_modules_sha256="brain-modules"),
             "brain_root": seen.setdefault("brain", Path(root)),
         },
     )
 
     @contextmanager
-    def isolated(root: Path, *, runtime_modules: Path | None = None):
-        seen["oracle_source"] = Path(root)
+    def isolated(
+        root: Path,
+        *,
+        revision: str = test_harness.oracles.PINNED_METIS_REVISION,
+        tree: str = test_harness.oracles.PINNED_METIS_TREE,
+        modules_sha256: str = test_harness.oracles.PINNED_NODE_MODULES_SHA256,
+        runtime_modules: Path | None = None,
+    ):
         if runtime_modules is not None:
+            seen["oracle_source"] = Path(root)
             seen["oracle_runtime"] = Path(runtime_modules)
-        yield isolated_root
+            yield isolated_root
+            return
+        seen["brain_source"] = Path(root)
+        seen["brain_revision"] = Path(revision)
+        seen["brain_tree"] = Path(tree)
+        seen["brain_modules"] = Path(modules_sha256)
+        yield brain_isolated_root
 
     monkeypatch.setattr(test_harness, "isolated_metis_test_authority", isolated)
     monkeypatch.setattr(test_harness.oracles, "validate_pinned_metis", lambda root: None)
@@ -345,6 +369,10 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
         "brain": brain_root,
         "oracle_source": brain_root,
         "oracle_runtime": oracle_node_modules,
+        "brain_source": brain_root,
+        "brain_revision": Path("brain-revision"),
+        "brain_tree": Path("brain-tree"),
+        "brain_modules": Path("brain-modules"),
     }
 
 
