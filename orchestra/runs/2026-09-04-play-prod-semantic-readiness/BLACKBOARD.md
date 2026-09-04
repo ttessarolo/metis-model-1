@@ -388,3 +388,21 @@ grounding, compiler, tenant or no-Apply gate.
   denominator: its sole added literal, `Avventura`, already has exact reviewed
   authority.  L1019's clean-commit sealed HTTP replay remains the only open
   existing-edit promotion gate.
+- DONE [L1019-L1024] — The final sealed public HTTP replay ran on clean Model 1
+  commit `9f7c9bdac0139b37e22d4ebe482464cd1ef0ad17` and immutable play-prod tenant
+  commit `98e78407f7286d2a9ac404dceb655fd1f6a9118e`.  All ten complex existing
+  endpoint edits returned `PASS_DRAFT`, exact oracle source and one successful
+  compiler attempt through the loopback Brain API: `in=10 out=10 distinct=10
+  gaps=0`, elapsed `202328 ms`.  Runtime identity remained stable; Model 1 and
+  tenant before/after guards were byte-identical.  Result digest
+  `sha256:16f6acf5e96ae065eae08f68c2e15b421b06b892f774a7b7a25e9127ed453904`;
+  health identity
+  `sha256:e344fd5fc810a43e535db41311a5fa876e7e0298e248293167cf495a73b8bd8b`;
+  Model 1 guard
+  `sha256:a0a9973be14efed4554b177fa0b63e894cb380aaaf146d7518c4d2bd45922146`;
+  tenant guard
+  `sha256:eec0ba8bfaefc79fcd66983390bea5f3384801bd48bd252a2bbb2bd377b6c716`.
+  No Apply capability was granted and no tenant, catalog or model artifact was
+  written.  The complex existing-edit wave is promotion-green; the separate
+  CREATE/refinement STOP at L0 remains unchanged and must not be conflated with
+  this result.
