@@ -297,3 +297,44 @@ accepted measurement outcome; it is never relabelled as a successful Draft.
   completed `2990 passed, 2 skipped, 0 failed` in `1859.44s` (`30m59s`).
   Foundation, pilot, closure, assets, dataset, evaluation, Ruff, format and the
   pinned Metis test harness all passed on the reviewed diff.
+- DONE — The corrected runtime and receipt semantics were committed and pushed
+  to aligned `main` as `63f340e` after the authoritative gate.
+- DONE — The authorized real headless qualification completed outside VS Code:
+  edits `in=10 out=10 distinct=10 gaps=0`, create journeys
+  `in=10 out=10 distinct=10 gaps=0`, logical create turns
+  `in=40 out=40 gaps=0`. It ran over numeric-loopback HTTP with local MLX only;
+  Apply capability/calls and external network were all false.
+- FACT — The sealed local receipt is
+  `artifacts/metis-brain-hard-qualification/play-prod-v1.json`, status
+  `MEASURED/COMPLETE`, duration `72.050s`, terminal gate `PASSED`, self-hash
+  `sha256:f2745cc43af288d2ad1dd6e6a7acbbcf4e89057811c984733a4716cac593f8f6`.
+  The coordinator independently recomputed the self-hash, verified file mode
+  `0600`, and confirmed `tenant_modified=false` and `model1_modified=false`.
+- FACT — Outcome denominator: edits `PASS_DRAFT=0`, `SAFE_FAIL_CLOSED=10`,
+  unsafe/semantic-oracle failures `0`; create journeys structural convergence
+  `0/10`, not converged `10/10`; logical turns `SAFE_FAIL_CLOSED=10`,
+  `BLOCKED_BY_PREDECESSOR=30`, all other pass/failure categories `0`.
+- FACT — Exact safe-failure cause distribution is semantic-readiness, not an
+  observed Model 1 generation defect: `9/10` edits and every first create turn
+  returned `CLARIFICATION_TOO_MANY_OPTIONS`; the remaining edit returned the
+  supported product outcome `unsupported_metadata`. The repaired Flash worker
+  stayed qualified through the post-suite health gate.
+- DONE — Post-run invariants are green: Model 1 `main` is clean and aligned
+  `0/0`; the read-only tenant remains clean at
+  `5f56bdfe27e3fb00b735db630a4eb5cdf5ab12c3` / tree
+  `03abf1a30603ff6cb59d55c32c3395cef868a218`; no worker owned by the Brain
+  qualification remains.
+- FACT — L915 caught and closed an overbroad process claim. An independent
+  `mlx_lm.server` on loopback port `8098` remains intentionally untouched; it
+  was started on 2026-09-03 by `metis-world-simulator/scripts/dev-mlx.sh`, before
+  this qualification, and is not a child of the Brain qualification. This wave
+  neither owns nor stops that process.
+- DONE — L915 final independent attestation is `GREEN`, `P0=0 P1=0 P2=0`:
+  receipt hash, exact denominator/arithmetic, terminal and boundary gates,
+  `0600` permissions, tenant/repository state and process attribution all match
+  the recorded evidence without inspecting prompt or generated-source text.
+- STOP — Qualification is deliberately non-green and no accuracy claim is
+  admissible from this run: no request reached a grounded, compiled Draft.
+  The next executable prerequisite is reviewed canonical play-prod catalog,
+  field and finite-value semantics (or an explicitly pinned first-class
+  semantic source adopted by that tenant), followed by this exact sealed replay.
