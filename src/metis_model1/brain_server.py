@@ -161,8 +161,16 @@ def _config_path(
     return path if allow_symlink else resolved
 
 
-def load_brain_config(path: Path) -> BrainConfig:
-    value = parse_json_object(_safe_config_bytes(Path(path)), label="config")
+def parse_brain_config_bytes(raw: bytes) -> BrainConfig:
+    """Parse one already-stabilized config byte sequence.
+
+    Callers that must bind a receipt digest to the exact configuration used at
+    runtime can read once with their own no-follow guard and pass those same
+    bytes here.  The ordinary file entry point below retains its existing
+    behavior.
+    """
+
+    value = parse_json_object(raw, label="config")
     exact_fields(
         value,
         required={"schema_version", "server", "toolchain", "tenants", "clients", "limits"},
@@ -353,6 +361,10 @@ def load_brain_config(path: Path) -> BrainConfig:
     )
 
 
+def load_brain_config(path: Path) -> BrainConfig:
+    return parse_brain_config_bytes(_safe_config_bytes(Path(path)))
+
+
 class BrainRuntime:
     """One per-start private runtime and rotated bootstrap file."""
 
@@ -376,7 +388,7 @@ class BrainRuntime:
             self.run_dir.mkdir(mode=0o700)
             descriptor = os.open(
                 self.bootstrap_file,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
                 0o600,
             )
             payload = (token + "\n").encode("ascii")

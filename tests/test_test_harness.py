@@ -129,6 +129,39 @@ def test_isolated_authority_detects_source_runtime_change_during_use(tmp_path: P
         )
 
 
+def test_isolated_authority_allows_clean_source_head_advance(tmp_path: Path) -> None:
+    source, revision, tree, modules_sha256 = _source_authority(tmp_path)
+
+    with test_harness.isolated_metis_test_authority(
+        source,
+        revision=revision,
+        tree=tree,
+        modules_sha256=modules_sha256,
+    ) as isolated:
+        (source / "tooling/package.json").write_text('{"new":true}\n', encoding="utf-8")
+        _git(source, "add", "tooling/package.json")
+        _git(source, "commit", "--quiet", "-m", "concurrent clean advance")
+        assert _git(isolated, "rev-parse", "HEAD") == revision
+
+    assert _git(source, "status", "--porcelain=v1", "--untracked-files=all") == ""
+    assert _git(source, "rev-parse", "HEAD") != revision
+
+
+def test_isolated_authority_rejects_dirty_source_change_during_use(tmp_path: Path) -> None:
+    source, revision, tree, modules_sha256 = _source_authority(tmp_path)
+
+    with (
+        pytest.raises(test_harness.TestHarnessError, match="became dirty"),
+        test_harness.isolated_metis_test_authority(
+            source,
+            revision=revision,
+            tree=tree,
+            modules_sha256=modules_sha256,
+        ),
+    ):
+        (source / "tooling/package.json").write_text("dirty\n", encoding="utf-8")
+
+
 def test_isolated_authority_cleans_up_after_body_exception(tmp_path: Path) -> None:
     source, revision, tree, modules_sha256 = _source_authority(tmp_path)
     retained: Path | None = None
@@ -313,17 +346,6 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
         "oracle_source": brain_root,
         "oracle_runtime": oracle_node_modules,
     }
-
-
-def test_source_worktree_fingerprint_detects_dirty_file_change(tmp_path: Path) -> None:
-    source, _revision, _tree, _modules_sha256 = _source_authority(tmp_path)
-    tracked = source / "tooling/package.json"
-    tracked.write_text("dirty-before\n", encoding="utf-8")
-    before = test_harness._source_worktree_fingerprint(source)
-
-    tracked.write_text("dirty-after\n", encoding="utf-8")
-
-    assert test_harness._source_worktree_fingerprint(source) != before
 
 
 def test_main_redacts_authority_failure_details(

@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from metis_model1.brain_hard_qualification import run_hard_qualification
 from metis_model1.brain_latency_live import run_latency_benchmark
 from metis_model1.brain_protocol import BrainError
 from metis_model1.brain_server import run_brain_server
@@ -220,6 +221,19 @@ def build_parser() -> argparse.ArgumentParser:
     brain_latency.add_argument("--config", type=Path, required=True)
     brain_latency.add_argument("--case", type=Path, required=True)
     brain_latency.add_argument("--output", type=Path, required=True)
+    brain_hard = subparsers.add_parser(
+        "brain-hard-qualification",
+        description="Run the 10-edit plus 10-journey local Brain qualification without Apply.",
+    )
+    brain_hard.add_argument("--config", type=Path, required=True)
+    brain_hard.add_argument("--corpus", type=Path, required=True)
+    brain_hard.add_argument("--plan", type=Path, required=True)
+    brain_hard.add_argument("--output", type=Path, required=True)
+    brain_hard.add_argument(
+        "--authorize-local-model-execution",
+        action="store_true",
+        help="Consume the explicit one-run local MLX execution authorization.",
+    )
     video_semantics = subparsers.add_parser(
         "video-semantics",
         description="Run bounded local preparation for video semantic grounding.",
@@ -411,6 +425,56 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.command == "brain-hard-qualification":
+        try:
+            receipt = run_hard_qualification(
+                config_path=args.config,
+                corpus_path=args.corpus,
+                plan_path=args.plan,
+                output_path=args.output,
+                authorize_local_model_execution=args.authorize_local_model_execution,
+                progress=lambda item: print(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "operation": "brain-hard-qualification.progress",
+                            **item,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                ),
+            )
+        except BrainError as error:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation": "brain-hard-qualification",
+                        "status": "BLOCKED",
+                        "error_code": error.code,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 1
+        qualification_green = receipt["qualification_green"]
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "operation": "brain-hard-qualification",
+                    "status": receipt["status"],
+                    "denominator": receipt["denominator"],
+                    "aggregate": receipt["aggregate"],
+                    "qualification_green": qualification_green,
+                    "receipt_sha256": receipt["receipt_sha256"],
+                    "receipt_path": str(args.output),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0 if qualification_green else 2
     if args.command == "video-semantics":
         operation = args.video_semantics_command
         offline_operation = {

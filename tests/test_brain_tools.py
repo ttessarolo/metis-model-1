@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import stat
 import subprocess
@@ -474,6 +475,159 @@ def test_endpoint_mode_passes_endpoint_to_runner(
     assert receipt["candidate"]["execution_mode"] == "endpoint"
     assert receipt["candidate"]["endpoint"] == "catalog.search"
     assert toolchain_harness["runner"]["request"]["endpoint"] == "catalog.search"
+
+
+def test_compile_structure_uses_private_runner_and_returns_provenance_free_ir(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    structural_ir = {
+        "irVersion": "0.6",
+        "node": "Endpoint",
+        "name": "catalog.search",
+        "inline": {
+            "name": "catalog.search",
+            "node": "Block",
+            "takes": [
+                {
+                    "count": {"skip": 0, "take": 24},
+                    "node": "Fetch",
+                    "source": {"kind": "catalog", "ref": "tenant.video"},
+                }
+            ],
+        },
+    }
+    structural_json = json.dumps(
+        structural_ir,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    response = {
+        "schema_version": 1,
+        "operation": "compile-structure",
+        "status": "ok",
+        "diagnostics": [],
+        "endpoint": "catalog.search",
+        "structural_ir": structural_ir,
+        "structural_sha256": "sha256:" + hashlib.sha256(structural_json.encode()).hexdigest(),
+    }
+    observed: dict[str, Any] = {}
+
+    def runner(**kwargs: Any) -> dict[str, Any]:
+        observed.update(kwargs)
+        return response
+
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", runner)
+    result = toolchain_harness["compiler"].compile_structure(
+        lease=_lease(),
+        source="metis 0.43\ntenant candidate {}\n",
+        filename="candidate.metis",
+        endpoint="catalog.search",
+    )
+
+    assert result == response
+    assert "provenance" not in json.dumps(result["structural_ir"])
+    assert observed["request"] == {
+        "schema_version": 1,
+        "operation": "compile-structure",
+        "tenant_root": str(toolchain_harness["materializations"][0]["path"]),
+        "endpoint": "catalog.search",
+    }
+    assert toolchain_harness["materializations"][0]["kwargs"] == {
+        "candidate_filename": "candidate.metis",
+        "candidate_source": "metis 0.43\ntenant candidate {}\n",
+    }
+    assert toolchain_harness["compiler"].execution_count == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        (
+            {
+                "schema_version": 1,
+                "operation": "compile-structure",
+                "status": "ok",
+                "diagnostics": [],
+                "endpoint": "catalog.search",
+                "structural_ir": {},
+            },
+            "invalid receipt",
+        ),
+        (
+            {
+                "schema_version": 1,
+                "operation": "compile-structure",
+                "status": "ok",
+                "diagnostics": [],
+                "endpoint": "other.endpoint",
+                "structural_ir": {},
+                "structural_sha256": "sha256:" + "a" * 64,
+            },
+            "invalid receipt",
+        ),
+        (
+            {
+                "schema_version": 1,
+                "operation": "compile-structure",
+                "status": "ok",
+                "diagnostics": [],
+                "endpoint": "catalog.search",
+                "structural_ir": {},
+                "structural_sha256": "not-a-sha256",
+            },
+            "invalid receipt",
+        ),
+        (
+            {
+                "schema_version": 1,
+                "operation": "compile-structure",
+                "status": "ok",
+                "diagnostics": [],
+                "endpoint": "catalog.search",
+                "structural_ir": {"node": "Endpoint", "name": "catalog.search"},
+                "structural_sha256": "sha256:" + "a" * 64,
+            },
+            "invalid receipt",
+        ),
+    ],
+)
+def test_compile_structure_rejects_malformed_or_mismatched_receipts(
+    toolchain_harness: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict[str, Any],
+    message: str,
+) -> None:
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    with pytest.raises(BrainError, match=message) as raised:
+        toolchain_harness["compiler"].compile_structure(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename="candidate.metis",
+            endpoint="catalog.search",
+        )
+
+    assert raised.value.code == "COMPILER_FAILED"
+
+
+@pytest.mark.parametrize(
+    ("filename", "endpoint"),
+    [("../candidate.metis", "catalog.search"), ("candidate.metis", None), ("candidate.metis", "")],
+)
+def test_compile_structure_request_identity_is_strict(
+    toolchain_harness: dict[str, Any], filename: str, endpoint: str | None
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        toolchain_harness["compiler"].compile_structure(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename=filename,
+            endpoint=endpoint,
+        )
+
+    assert raised.value.code == "INVALID_SCHEMA"
+    assert "runner_calls" not in toolchain_harness
 
 
 def test_lossless_inventory_and_apply_use_only_snapshot_override(

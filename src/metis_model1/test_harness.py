@@ -8,7 +8,6 @@ the source checkout cannot weaken or spuriously fail the clean-HEAD contract.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
 import shutil
 import stat
@@ -173,58 +172,18 @@ def _authority_identity(
     return observed_revision, observed_tree, observed_modules
 
 
-def _source_worktree_fingerprint(root: Path) -> str:
-    """Hash names and metadata only; never read source-worktree file payloads."""
+def _source_worktree_status(root: Path) -> str:
+    """Return Git-visible source drift; ignored caches and nested worktrees are not authority."""
 
-    authority = root.resolve(strict=True)
-    digest = hashlib.sha256()
-    pending = [authority]
-    while pending:
-        current = pending.pop()
-        try:
-            entries = sorted(os.scandir(current), key=lambda item: item.name)
-        except OSError as error:
-            raise TestHarnessError("source worktree roster is unavailable") from error
-        for entry in entries:
-            path = Path(entry.path)
-            relative = path.relative_to(authority)
-            if relative.parts[:1] == (".git",) or relative.parts[:2] == (
-                "tooling",
-                "node_modules",
-            ):
-                continue
-            try:
-                metadata = entry.stat(follow_symlinks=False)
-            except OSError as error:
-                raise TestHarnessError(
-                    "source worktree roster changed during inspection"
-                ) from error
-            digest.update(relative.as_posix().encode("utf-8") + b"\0")
-            digest.update(
-                ":".join(
-                    str(value)
-                    for value in (
-                        metadata.st_dev,
-                        metadata.st_ino,
-                        metadata.st_mode,
-                        metadata.st_nlink,
-                        metadata.st_size,
-                        metadata.st_mtime_ns,
-                        metadata.st_ctime_ns,
-                    )
-                ).encode("ascii")
-                + b"\0"
-            )
-            if entry.is_symlink():
-                try:
-                    digest.update(os.readlink(path).encode("utf-8") + b"\0")
-                except OSError as error:
-                    raise TestHarnessError(
-                        "source worktree roster changed during inspection"
-                    ) from error
-            elif entry.is_dir(follow_symlinks=False):
-                pending.append(path)
-    return digest.hexdigest()
+    return _git_text(
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        ".",
+        ":(exclude)tooling/node_modules",
+    )
 
 
 @contextmanager
@@ -249,7 +208,8 @@ def isolated_metis_test_authority(
             modules_sha256=modules_sha256,
             runtime_modules=runtime_modules,
         )
-        worktree_before = _source_worktree_fingerprint(root)
+        if _source_worktree_status(root):
+            raise TestHarnessError("source worktree is not clean")
         archive = catalog_pin._run_git(
             root,
             "archive",
@@ -317,8 +277,8 @@ def isolated_metis_test_authority(
                 ) from error
             if after != before:
                 raise TestHarnessError("source Git/runtime authority changed during tests")
-            if _source_worktree_fingerprint(root) != worktree_before:
-                raise TestHarnessError("source worktree changed during tests")
+            if _source_worktree_status(root):
+                raise TestHarnessError("source worktree became dirty during tests")
     except (catalog_pin.CatalogMaintenancePinError, OSError, shutil.Error) as error:
         raise TestHarnessError("cannot construct isolated Metis test authority") from error
 

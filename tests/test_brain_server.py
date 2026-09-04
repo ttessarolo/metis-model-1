@@ -26,6 +26,8 @@ from metis_model1.brain_server import (
     BrainRuntime,
     MetisBrainService,
     _ThreadingBrainHTTPServer,
+    load_brain_config,
+    parse_brain_config_bytes,
 )
 from metis_model1.brain_sessions import ClientPolicy, SessionLimits, SessionManager
 
@@ -612,6 +614,61 @@ def _service_config(tmp_path: Path) -> BrainConfig:
         ),
         limits=SessionLimits(),
     )
+
+
+def test_parse_brain_config_bytes_matches_stable_file_loader(tmp_path: Path) -> None:
+    tenant = _tenant(tmp_path / "tenant")
+    metis_root = tmp_path / "metis"
+    metis_root.mkdir()
+    node_path = tmp_path / "node"
+    node_path.write_bytes(b"node")
+    payload = {
+        "schema_version": 1,
+        "server": {
+            "host": "127.0.0.1",
+            "port": 0,
+            "runtime_root": str((tmp_path / "runtime").resolve()),
+        },
+        "toolchain": {
+            "metis_git_root": str(metis_root),
+            "node_path": str(node_path),
+            "compiler_concurrency": 1,
+        },
+        "tenants": [{"alias": "demo", "tenant_id": "tenant-one", "root": str(tenant)}],
+        "clients": [
+            {
+                "client_id": "visix",
+                "tenant_aliases": ["demo"],
+                "capabilities": sorted(CAPABILITIES),
+            }
+        ],
+        "limits": {
+            "global_sessions": 32,
+            "sessions_per_client": 8,
+            "sessions_per_tenant": 8,
+        },
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    config_path = tmp_path / "brain-config.json"
+    config_path.write_bytes(raw)
+
+    assert parse_brain_config_bytes(raw) == load_brain_config(config_path)
+
+
+@pytest.mark.parametrize(
+    ("raw", "code"),
+    [
+        (b"{}", "INVALID_SCHEMA"),
+        (b'{"schema_version":1,"schema_version":1}', "DUPLICATE_FIELD"),
+        (b"[]", "INVALID_JSON"),
+    ],
+)
+def test_parse_brain_config_bytes_rejects_invalid_or_duplicate_documents(
+    raw: bytes, code: str
+) -> None:
+    with pytest.raises(BrainError) as raised:
+        parse_brain_config_bytes(raw)
+    assert raised.value.code == code
 
 
 def test_constructor_bind_failure_cleans_private_runtime(

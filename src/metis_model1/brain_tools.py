@@ -39,7 +39,7 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:b793c47d71c9e24dad49acd1e5002e2c8899bc37de53fdf65f7b75a174ad3e9c"
+RUNNER_SHA256 = "sha256:5497794fe0bbedf84639e40a2e7a8a9143feb661080510fc3b115642a690f432"
 MAX_RUNNER_BYTES = 256 * 1024
 MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
@@ -899,6 +899,106 @@ class BrainCompiler(_PinnedBridge):
         }
         receipt["receipt_sha256"] = canonical_sha256(receipt)
         return receipt
+
+    def compile_structure(
+        self,
+        *,
+        lease: OperationLease,
+        source: Any,
+        filename: Any,
+        endpoint: Any,
+    ) -> dict[str, Any]:
+        """Return a provenance-free IR only to in-process qualification code.
+
+        This method has no HTTP route.  It executes inside the same pinned,
+        write-denied and network-denied authority used by ``compile`` and is
+        intended for structural semantic oracles, not product inference.
+        """
+
+        source_text, filename_text, _execution_mode, endpoint_text = validate_compile_request(
+            source=source,
+            filename=filename,
+            execution_mode="endpoint",
+            endpoint=endpoint,
+        )
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        if lease.snapshot.toolchain_binding != self._binding:
+            raise BrainError("STALE_CONTEXT", 409, "session toolchain binding is stale")
+        try:
+            with (
+                self._slot(busy_code="COMPILER_BUSY"),
+                _isolated_metis_repository(
+                    metis_root=self._metis_root,
+                    node_path=self._node_path,
+                    expected_identity=self._external_identity,
+                    authority=self._authority,
+                ) as isolation,
+            ):
+                authority_root, job_root, additional_read_roots = _job_paths(isolation)
+                tenant_root = _materialize_snapshot(
+                    lease.snapshot,
+                    job_root,
+                    candidate_filename=filename_text,
+                    candidate_source=source_text,
+                )
+                envelope = _run_brain_runner(
+                    isolated_root=authority_root,
+                    additional_read_roots=additional_read_roots,
+                    node_path=self._node_path,
+                    request={
+                        "schema_version": 1,
+                        "operation": "compile-structure",
+                        "tenant_root": str(tenant_root),
+                        "endpoint": endpoint_text,
+                    },
+                )
+        except BrainError:
+            raise
+        except (
+            brain_pin.BrainToolchainPinError,
+            sandbox_support.CatalogMaintenancePinError,
+            _BrainIsolationError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            raise BrainError(
+                "COMPILER_FAILED", 503, "pinned structural compiler execution failed"
+            ) from error
+        if lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        expected_fields = {
+            "schema_version",
+            "operation",
+            "status",
+            "diagnostics",
+            "endpoint",
+            "structural_ir",
+            "structural_sha256",
+        }
+        if (
+            set(envelope) != expected_fields
+            or envelope.get("schema_version") != 1
+            or envelope.get("operation") != "compile-structure"
+            or envelope.get("status") not in {"ok", "invalid"}
+            or not isinstance(envelope.get("diagnostics"), list)
+            or (
+                envelope.get("status") == "ok"
+                and (
+                    not isinstance(envelope.get("structural_ir"), Mapping)
+                    or not isinstance(envelope.get("structural_sha256"), str)
+                    or not re.fullmatch(r"sha256:[0-9a-f]{64}", envelope["structural_sha256"])
+                    or canonical_sha256(envelope["structural_ir"]) != envelope["structural_sha256"]
+                    or envelope.get("endpoint") != endpoint_text
+                )
+            )
+        ):
+            raise BrainError(
+                "COMPILER_FAILED", 503, "pinned structural compiler returned an invalid receipt"
+            )
+        with self._execution_lock:
+            self._execution_count += 1
+        return envelope
 
 
 class PinnedCatalogProjectionLoader(_PinnedBridge):
