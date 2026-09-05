@@ -197,3 +197,32 @@ does not claim that all ten complex endpoints are complete.  Safe refusal is
 safety evidence, not accuracy success, and every remaining gap stays in the
 delivery queue.  The diagnostic v2 profile remains non-promotable even when its
 `gte` and `contains_all` checks pass.
+
+### Second disjoint demo cohort (`play-prod-v4`)
+
+The successor profile adds ten different production-complexity exemplars and
+forty new operator-visible messages. It is not selected by trusting fields in a
+plan: v3 and v4 are two code-owned exact `(prompt, plan)` pairs, each with its
+own digests, scenario roster, target namespace, first-question map, blueprint
+roster and denominator. Mixed pairs and unknown paths fail before any input is
+opened.
+
+The v4 prompts exercise parameterized multi-block pages, subscription-driven
+candidate pools, smart-index selection, multi-route search, multi-stage
+similarity, positional injection, merged and nested materialized fallbacks,
+root error substitution, twenty view-all rails and a 26-instance parameter fan-
+out. The production endpoints establish complexity and test diversity only;
+their source and IR are absent from the model-visible prompt wire and are not
+used as an equivalence golden.
+
+A separate clean-room review of the frozen messages admits nine exact stages
+and identifies twenty-one structural-authority gaps. Those counts define the
+v4 qualification denominator, not product completion: a green `9/9 + 21/21`
+run proves that Brain generates every currently authorized Draft exactly and
+asks a bounded question for every unsupported stage. It does not mean that all
+ten final T4 endpoints are generated. Final-demo completion remains a separate
+metric and can become green only when the last turn of each journey is an exact,
+first-attempt compiling Draft.
+
+The operator-facing prompt pack is
+[`32-metis-brain-complex-create-demo-prompts.md`](32-metis-brain-complex-create-demo-prompts.md).

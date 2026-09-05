@@ -556,6 +556,21 @@ push and did not run MLX, network, a live tenant or Apply.
   measures serial/sharded parity before any Makefile default or promotion.
 - Status: active. No model, tenant, network, Apply, commit or push is delegated.
 
+### L1122 — clean-room v4 stage oracle
+
+- L1122: `gpt-6-astra` max in a no-history clean-room lane; read only the
+  frozen v4 prompt corpus, CREATE contracts and prior reviewed family specs.
+  It owned only `examples/metis-brain-create-blueprints-v4.json` and was
+  forbidden from reading tenant endpoint source, running Model 1 or using the
+  network.
+- Result: `10` scenarios, `30` unique stages, `9` exact ready specs and `21`
+  explicit gap stages; every ready spec self-hashes and renders. Raw digest
+  `536e50115d18f815372339690bead38fefe37c800b0057feeeda8a4bbedd80df`.
+- L0: independently replayed the code-owned recognizer against all forty
+  messages, built the closed plan/profile and owns static/live/final gates.
+- Status: delegated work done; no model, tenant, network, Apply, commit or push
+  occurred in the lane.
+
 ### L1111/L1112 — sharding review and terminal-outcome hardening
 
 - L1111: `gpt-5.6-terra` high, read-only; independent security/parity review of
@@ -608,3 +623,31 @@ push and did not run MLX, network, a live tenant or Apply.
 - Accepted improvement: full pytest `1884.19s -> 1452.50s`, `-431.69s`
   (`-22.91%`) despite `46` additional tests. Status: GREEN, ready for L0 Git
   closure; no model, tenant, network or Apply.
+
+### L1118/L1119/L1120 — second complex-demo cohort discovery
+
+- L1118: bounded mechanical compiler/IR census of the vendored endpoint corpus;
+  exclude the prior ten and rank executable complexity with exact counts.
+- L1119: independent read-only source audit for construct diversity and demo
+  value; no prompt authoring or model execution.
+- L1120: read-only audit of existing v3 prompt/qualification contracts and a
+  minimal successor/document/test plan.
+- L0: frontier roster selection, prompt/oracle separation, implementation,
+  static/full gates, clean-commit local Model 1 execution, result adjudication,
+  documentation, commit and push.
+- Baselines: Model 1 `50854f5`; Metis `07f298d7`; vendored tenant
+  `98e78407`. Writable scope is Model 1 successor artifacts/tests/docs and
+  these boards only. Live ARES, network corpus, credentials, tenant/Metis
+  writes, Apply, training and model/adapter changes are excluded.
+- Status: active; delegated lanes are read-only and cannot commit or push.
+
+### L1121 — v4 operator prompt pack
+
+- L1121: bounded authoring lane; owns only the new prompt-only v4 JSON and the
+  byte-identical human demo document. Endpoint source may inform functional
+  complexity but never appears in model-visible prompts as a source, template,
+  blueprint, IR or golden.
+- L0: fixed the final ten-case roster after independently intersecting L1118
+  compiler/IR evidence with L1119 semantic review. L0 owns prompt review,
+  clean-room oracle, profile integration, every gate and the local-model run.
+- Status: active. No model, tenant, network, Apply, commit or push is delegated.

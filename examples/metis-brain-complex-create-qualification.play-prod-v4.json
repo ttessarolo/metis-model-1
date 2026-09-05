@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "qualification_id": "metis-brain-complex-create/play-prod-v4",
+  "prompt_corpus": {
+    "path": "examples/metis-brain-complex-create-prompts.play-prod-v4.json",
+    "sha256": "sha256:3705c6907206e51d1e379b732f2add46ac5cd48a1e0d4f550edd6fac60e954bf"
+  },
+  "config": {
+    "path": "examples/metis-brain-config.play-prod-complex-create.local.json",
+    "sha256": "sha256:38454eb6db5aaac9adc13875da20d478d98bd846183752f7366db8d2eeeaab24"
+  },
+  "authority": {
+    "tenant_alias": "play-prod",
+    "tenant_id": "play-prod-v2",
+    "root": "/Users/tommasotessarolo/Developer/metis-tenant-play-prod",
+    "head": "98e78407f7286d2a9ac404dceb655fd1f6a9118e",
+    "tree": "914785f55c2be453ee75a6314f4e9e77010eed25"
+  },
+  "runtime_identity": {
+    "model": {
+      "model_revision": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff",
+      "adapter_sha256": "sha256:5e65a0b48531ce9e2a9751c201f570f8793da87bd2a2a9446f461dbe0589dcfb"
+    },
+    "intent_compiler": {
+      "model_revision": "475b9088d29754a3379866cf5aeb6b41acd313c2",
+      "schema_sha256": "sha256:972eb339d8f0f22f4d5dd43aa9f4f74ae49e2a6e2b3b7ff536a60444edd864fa",
+      "decoder": "llguidance-1.8.0"
+    },
+    "semantic_retrieval": {
+      "enabled": true,
+      "schema": 2,
+      "implementation": "Schema2SnapshotRetriever"
+    },
+    "toolchain": {
+      "revision": "3fde0820c04244b011a2f7a9604c425891424b34",
+      "tree": "432bd3babd9f4c2dfe6349288b12eba917d4fe73",
+      "node_modules_sha256": "sha256:5ba3b1ef8e399260fa40c840fdeffd255931b37c01d284b4d445c0311533e7e5",
+      "runner_sha256": "sha256:7a29f85d2c262300cd67f0895fe303ba23ce8fe8ced4cd0731844b58620318a5"
+    },
+    "typed_create": {
+      "enabled": true,
+      "implementation": "PinnedCreateV2AuthorityProvider",
+      "contract_id": "metis-brain-create-authority-provider/production-structural-v2",
+      "policy_revision": "sha256:3866f0236c3a1105cc23587316356c481499c61fb0c0908003b5298f6632dfc0",
+      "inventory_revision": "sha256:5bc6fb63b18ad5c3d2a18f0cb5fbad71f634fb8eb40601befcd0d37edacce9de"
+    }
+  },
+  "execution_boundary": {
+    "transport": "numeric_loopback_http",
+    "one_session_per_journey": true,
+    "apply_authorized": false,
+    "blueprint_load_phase": "after_service_close",
+    "qualification_proof": "metis-brain-typed-create-qualification-receipt/v1",
+    "clarification_proof": "metis-brain-typed-create-clarification-receipt/v1",
+    "required_generation_strategy": "model_create_plan_v2"
+  },
+  "blueprints": [
+    {
+      "kind": "cohort2",
+      "path": "examples/metis-brain-create-blueprints-v4.json",
+      "sha256": "sha256:536e50115d18f815372339690bead38fefe37c800b0057feeeda8a4bbedd80df"
+    }
+  ],
+  "targets": [
+    {
+      "case_id": "case_11",
+      "scenario_id": "play.multiple_block_dem_scelti_per_te",
+      "relative_path": "properties/brain_qualification_v4/case_11.metis",
+      "endpoint": "brain_qualification_v4.case_11"
+    },
+    {
+      "case_id": "case_12",
+      "scenario_id": "play.subscription_channel_film",
+      "relative_path": "properties/brain_qualification_v4/case_12.metis",
+      "endpoint": "brain_qualification_v4.case_12"
+    },
+    {
+      "case_id": "case_13",
+      "scenario_id": "play.inf_smart_block_film",
+      "relative_path": "properties/brain_qualification_v4/case_13.metis",
+      "endpoint": "brain_qualification_v4.case_13"
+    },
+    {
+      "case_id": "case_14",
+      "scenario_id": "search.main",
+      "relative_path": "properties/brain_qualification_v4/case_14.metis",
+      "endpoint": "brain_qualification_v4.case_14"
+    },
+    {
+      "case_id": "case_15",
+      "scenario_id": "play.new_similar_intrattenimento",
+      "relative_path": "properties/brain_qualification_v4/case_15.metis",
+      "endpoint": "brain_qualification_v4.case_15"
+    },
+    {
+      "case_id": "case_16",
+      "scenario_id": "play.enabler_test_film",
+      "relative_path": "properties/brain_qualification_v4/case_16.metis",
+      "endpoint": "brain_qualification_v4.case_16"
+    },
+    {
+      "case_id": "case_17",
+      "scenario_id": "play.similar_sport",
+      "relative_path": "properties/brain_qualification_v4/case_17.metis",
+      "endpoint": "brain_qualification_v4.case_17"
+    },
+    {
+      "case_id": "case_18",
+      "scenario_id": "play.similar_documentari",
+      "relative_path": "properties/brain_qualification_v4/case_18.metis",
+      "endpoint": "brain_qualification_v4.case_18"
+    },
+    {
+      "case_id": "case_19",
+      "scenario_id": "play.fnjwq5_lha2",
+      "relative_path": "properties/brain_qualification_v4/case_19.metis",
+      "endpoint": "brain_qualification_v4.case_19"
+    },
+    {
+      "case_id": "case_20",
+      "scenario_id": "play.inf_multiple_block_film",
+      "relative_path": "properties/brain_qualification_v4/case_20.metis",
+      "endpoint": "brain_qualification_v4.case_20"
+    }
+  ],
+  "denominator": {
+    "journeys": 10,
+    "operator_messages": 40,
+    "initial_ask_stages": 10,
+    "assessed_stages": 30,
+    "expected_ready": 9,
+    "expected_blocked": 21
+  }
+}

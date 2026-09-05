@@ -44,43 +44,213 @@ from metis_model1.brain_turns import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROMPT_PATH = PROJECT_ROOT / "examples/metis-brain-complex-create-prompts.play-prod-v3.json"
-PLAN_PATH = PROJECT_ROOT / "examples/metis-brain-complex-create-qualification.play-prod-v3.json"
-PROMPT_SHA256 = "sha256:3e32180d42614774cbdef7862a809cab19eeef896fedc658efb53811f672c7c8"
-PLAN_SHA256 = "sha256:8f499e87b7faf695e58a34ee8b65494dd7ccb07746a4755fb431359ece1b0249"
-CONFIG_SHA256 = "sha256:38454eb6db5aaac9adc13875da20d478d98bd846183752f7366db8d2eeeaab24"
-QUALIFICATION_ID = "metis-brain-complex-create/play-prod-v3"
 CLIENT_ID = "brain-complex-create-qualification"
 CLIENT_CAPABILITIES = frozenset(
     {"chat.read", "chat.turn", "compile", "context.read", "session.close", "session.read"}
 )
 EXPECTED_CASES = tuple(f"case_{index:02d}" for index in range(1, 11))
-EXPECTED_INITIAL_GAP_TARGET = {
-    "case_01": "endpoint.results.total",
-    "case_02": "endpoint.results.total",
-    "case_03": "endpoint.results.page",
-    "case_04": "catalog.selection",
-    "case_05": "catalog.selection",
-    "case_06": "endpoint.results.total",
-    "case_07": "endpoint.results.total",
-    "case_08": "endpoint.results.row",
-    "case_09": "endpoint.rows.page",
-    "case_10": "endpoint.results.row",
-}
-EXPECTED_DENOMINATOR = {
-    "journeys": 10,
-    "operator_messages": 40,
-    "initial_ask_stages": 10,
-    "assessed_stages": 30,
-    "expected_ready": 6,
-    "expected_blocked": 24,
-}
 _HASH_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _CASE_RE = re.compile(r"case_[0-9]{2}\Z")
-_TARGET_PATH_RE = re.compile(r"properties/brain_qualification_v3/(case_[0-9]{2})\.metis\Z")
-_TARGET_ENDPOINT_RE = re.compile(r"brain_qualification_v3\.(case_[0-9]{2})\Z")
 _GAP_SELECTOR_RE = re.compile(r"\[([^\]\r\n]{1,96})\]")
 _GAP_SEPARATOR_RE = re.compile(r"[^a-z0-9_.:-]+")
+
+
+@dataclass(frozen=True)
+class ComplexCreateProfile:
+    """Code-owned, closed input and oracle roster for one qualification cohort."""
+
+    profile_id: str
+    qualification_id: str
+    prompt_path: Path
+    prompt_relative_path: str
+    prompt_sha256: str
+    prompt_artifact_id: str
+    prompt_artifact_version: int
+    plan_path: Path
+    plan_sha256: str
+    config_path: Path
+    config_relative_path: str
+    config_sha256: str
+    tenant_alias: str
+    tenant_id: str
+    tenant_root: Path
+    tenant_head: str
+    tenant_tree: str
+    target_directory: str
+    target_endpoint_prefix: str
+    expected_cases: tuple[str, ...]
+    scenario_ids: tuple[tuple[str, str], ...]
+    initial_gap_targets: tuple[tuple[str, str], ...]
+    denominator: tuple[tuple[str, int], ...]
+    blueprint_pins: tuple[tuple[str, str, str], ...]
+
+    def initial_gap_map(self) -> dict[str, str]:
+        return dict(self.initial_gap_targets)
+
+    def scenario_map(self) -> dict[str, str]:
+        return dict(self.scenario_ids)
+
+    def denominator_map(self) -> dict[str, int]:
+        return dict(self.denominator)
+
+    def blueprint_map(self) -> dict[str, tuple[str, str]]:
+        return {kind: (path, sha256) for kind, path, sha256 in self.blueprint_pins}
+
+
+_V3_PROFILE = ComplexCreateProfile(
+    profile_id="play-prod-v3",
+    qualification_id="metis-brain-complex-create/play-prod-v3",
+    prompt_path=(PROJECT_ROOT / "examples/metis-brain-complex-create-prompts.play-prod-v3.json"),
+    prompt_relative_path="examples/metis-brain-complex-create-prompts.play-prod-v3.json",
+    prompt_sha256="sha256:3e32180d42614774cbdef7862a809cab19eeef896fedc658efb53811f672c7c8",
+    prompt_artifact_id="metis-brain-complex-create-prompts.play-prod-v3",
+    prompt_artifact_version=3,
+    plan_path=(
+        PROJECT_ROOT / "examples/metis-brain-complex-create-qualification.play-prod-v3.json"
+    ),
+    plan_sha256="sha256:8f499e87b7faf695e58a34ee8b65494dd7ccb07746a4755fb431359ece1b0249",
+    config_path=PROJECT_ROOT / "examples/metis-brain-config.play-prod-complex-create.local.json",
+    config_relative_path="examples/metis-brain-config.play-prod-complex-create.local.json",
+    config_sha256="sha256:38454eb6db5aaac9adc13875da20d478d98bd846183752f7366db8d2eeeaab24",
+    tenant_alias="play-prod",
+    tenant_id="play-prod-v2",
+    tenant_root=Path("/Users/tommasotessarolo/Developer/metis-tenant-play-prod"),
+    tenant_head="98e78407f7286d2a9ac404dceb655fd1f6a9118e",
+    tenant_tree="914785f55c2be453ee75a6314f4e9e77010eed25",
+    target_directory="properties/brain_qualification_v3",
+    target_endpoint_prefix="brain_qualification_v3",
+    expected_cases=EXPECTED_CASES,
+    scenario_ids=(
+        ("case_01", "play.similar_cinema"),
+        ("case_02", "play.similar_serie_tv_fiction"),
+        ("case_03", "search.filtered_search"),
+        ("case_04", "search.detail"),
+        ("case_05", "play.multiple_block_compleanno"),
+        ("case_06", "play.multiple_block_dem_titoli_momento"),
+        ("case_07", "play.tvod_multiple_block"),
+        ("case_08", "play.multiple_block4_k"),
+        ("case_09", "play.inf_multiple_block_film_serie"),
+        ("case_10", "play.similar_intrat_abtest"),
+    ),
+    initial_gap_targets=(
+        ("case_01", "endpoint.results.total"),
+        ("case_02", "endpoint.results.total"),
+        ("case_03", "endpoint.results.page"),
+        ("case_04", "catalog.selection"),
+        ("case_05", "catalog.selection"),
+        ("case_06", "endpoint.results.total"),
+        ("case_07", "endpoint.results.total"),
+        ("case_08", "endpoint.results.row"),
+        ("case_09", "endpoint.rows.page"),
+        ("case_10", "endpoint.results.row"),
+    ),
+    denominator=(
+        ("journeys", 10),
+        ("operator_messages", 40),
+        ("initial_ask_stages", 10),
+        ("assessed_stages", 30),
+        ("expected_ready", 6),
+        ("expected_blocked", 24),
+    ),
+    blueprint_pins=(
+        (
+            "similar",
+            "examples/metis-brain-create-blueprints-v3-similar.json",
+            "sha256:26d940a76fe0ce24be3cce49a372a5f58c6751cd7c19f7e62338e452f5d42394",
+        ),
+        (
+            "search",
+            "examples/metis-brain-create-blueprints-v3-search.json",
+            "sha256:878cdbbf0ca6fbd451840a937ffd8628459ecb68efafd75e7034d80c615bcbe0",
+        ),
+        (
+            "multiblock",
+            "examples/metis-brain-create-blueprints-v3-multiblock.json",
+            "sha256:ceb78b47f49c58fa182e2d4b29a6ab3266c856fa20098427535bc78f97941866",
+        ),
+    ),
+)
+_V4_PROFILE = ComplexCreateProfile(
+    profile_id="play-prod-v4",
+    qualification_id="metis-brain-complex-create/play-prod-v4",
+    prompt_path=(PROJECT_ROOT / "examples/metis-brain-complex-create-prompts.play-prod-v4.json"),
+    prompt_relative_path="examples/metis-brain-complex-create-prompts.play-prod-v4.json",
+    prompt_sha256="sha256:3705c6907206e51d1e379b732f2add46ac5cd48a1e0d4f550edd6fac60e954bf",
+    prompt_artifact_id="metis-brain-complex-create-prompts.play-prod-v4",
+    prompt_artifact_version=4,
+    plan_path=(
+        PROJECT_ROOT / "examples/metis-brain-complex-create-qualification.play-prod-v4.json"
+    ),
+    plan_sha256="sha256:587301308e048b4251212285d33de5e16c87ac39ec381defe02e325a5f869bf5",
+    config_path=PROJECT_ROOT / "examples/metis-brain-config.play-prod-complex-create.local.json",
+    config_relative_path="examples/metis-brain-config.play-prod-complex-create.local.json",
+    config_sha256="sha256:38454eb6db5aaac9adc13875da20d478d98bd846183752f7366db8d2eeeaab24",
+    tenant_alias="play-prod",
+    tenant_id="play-prod-v2",
+    tenant_root=Path("/Users/tommasotessarolo/Developer/metis-tenant-play-prod"),
+    tenant_head="98e78407f7286d2a9ac404dceb655fd1f6a9118e",
+    tenant_tree="914785f55c2be453ee75a6314f4e9e77010eed25",
+    target_directory="properties/brain_qualification_v4",
+    target_endpoint_prefix="brain_qualification_v4",
+    expected_cases=tuple(f"case_{index:02d}" for index in range(11, 21)),
+    scenario_ids=(
+        ("case_11", "play.multiple_block_dem_scelti_per_te"),
+        ("case_12", "play.subscription_channel_film"),
+        ("case_13", "play.inf_smart_block_film"),
+        ("case_14", "search.main"),
+        ("case_15", "play.new_similar_intrattenimento"),
+        ("case_16", "play.enabler_test_film"),
+        ("case_17", "play.similar_sport"),
+        ("case_18", "play.similar_documentari"),
+        ("case_19", "play.fnjwq5_lha2"),
+        ("case_20", "play.inf_multiple_block_film"),
+    ),
+    initial_gap_targets=(
+        ("case_11", "endpoint.results.total"),
+        ("case_12", "endpoint.results.total"),
+        ("case_13", "endpoint.results.total"),
+        ("case_14", "endpoint.results.page"),
+        ("case_15", "endpoint.results.row"),
+        ("case_16", "endpoint.results.total"),
+        ("case_17", "endpoint.results.total"),
+        ("case_18", "endpoint.results.total"),
+        ("case_19", "endpoint.results.total"),
+        ("case_20", "endpoint.results.total"),
+    ),
+    denominator=(
+        ("journeys", 10),
+        ("operator_messages", 40),
+        ("initial_ask_stages", 10),
+        ("assessed_stages", 30),
+        ("expected_ready", 9),
+        ("expected_blocked", 21),
+    ),
+    blueprint_pins=(
+        (
+            "cohort2",
+            "examples/metis-brain-create-blueprints-v4.json",
+            "sha256:536e50115d18f815372339690bead38fefe37c800b0057feeeda8a4bbedd80df",
+        ),
+    ),
+)
+_PROFILES_BY_PATHS: dict[tuple[Path, Path], ComplexCreateProfile] = {
+    (profile.prompt_path, profile.plan_path): profile for profile in (_V3_PROFILE, _V4_PROFILE)
+}
+
+# Stable v3 aliases retained for callers and historical evidence.
+PROMPT_PATH = _V3_PROFILE.prompt_path
+PLAN_PATH = _V3_PROFILE.plan_path
+PROMPT_SHA256 = _V3_PROFILE.prompt_sha256
+PLAN_SHA256 = _V3_PROFILE.plan_sha256
+CONFIG_SHA256 = _V3_PROFILE.config_sha256
+QUALIFICATION_ID = _V3_PROFILE.qualification_id
+EXPECTED_INITIAL_GAP_TARGET = _V3_PROFILE.initial_gap_map()
+EXPECTED_DENOMINATOR = _V3_PROFILE.denominator_map()
+V4_PROMPT_PATH = _V4_PROFILE.prompt_path
+V4_PLAN_PATH = _V4_PROFILE.plan_path
+V4_PROMPT_SHA256 = _V4_PROFILE.prompt_sha256
+V4_PLAN_SHA256 = _V4_PROFILE.plan_sha256
+V4_EXPECTED_DENOMINATOR = _V4_PROFILE.denominator_map()
 
 
 @dataclass(frozen=True)
@@ -93,6 +263,7 @@ class ComplexCreateTarget:
 
 @dataclass(frozen=True)
 class ComplexCreateQualificationSpec:
+    profile: ComplexCreateProfile
     prompt_path: Path
     prompt_sha256: str
     prompt: dict[str, Any]
@@ -138,7 +309,52 @@ def _project_path(value: Any, *, label: str) -> Path:
     return resolved
 
 
-def _parse_prompts(value: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+def _validate_profile(profile: ComplexCreateProfile) -> None:
+    cases = profile.expected_cases
+    denominator = profile.denominator_map()
+    scenario_map = profile.scenario_map()
+    gap_map = profile.initial_gap_map()
+    blueprint_map = profile.blueprint_map()
+    if (
+        not profile.profile_id
+        or not profile.qualification_id
+        or len(cases) != len(set(cases))
+        or any(_CASE_RE.fullmatch(case) is None for case in cases)
+        or set(scenario_map) != set(cases)
+        or len(set(scenario_map.values())) != len(cases)
+        or set(gap_map) != set(cases)
+        or len(blueprint_map) != len(profile.blueprint_pins)
+        or set(denominator)
+        != {
+            "journeys",
+            "operator_messages",
+            "initial_ask_stages",
+            "assessed_stages",
+            "expected_ready",
+            "expected_blocked",
+        }
+        or denominator["journeys"] != len(cases)
+        or denominator["operator_messages"] != len(cases) * 4
+        or denominator["initial_ask_stages"] != len(cases)
+        or denominator["assessed_stages"] != len(cases) * 3
+        or denominator["expected_ready"] + denominator["expected_blocked"]
+        != denominator["assessed_stages"]
+        or not profile.target_directory.startswith("properties/brain_qualification_")
+        or not profile.target_endpoint_prefix.startswith("brain_qualification_")
+        or any(
+            _HASH_RE.fullmatch(value) is None
+            for value in (profile.prompt_sha256, profile.plan_sha256, profile.config_sha256)
+        )
+        or any(
+            _HASH_RE.fullmatch(sha256) is None for _kind, _path, sha256 in profile.blueprint_pins
+        )
+    ):
+        raise BrainError("COMPLEX_CREATE_INVALID", 500, "qualification profile is invalid")
+
+
+def _parse_prompts(
+    value: dict[str, Any], *, profile: ComplexCreateProfile
+) -> tuple[dict[str, Any], ...]:
     exact_fields(
         value,
         required={
@@ -154,8 +370,8 @@ def _parse_prompts(value: dict[str, Any]) -> tuple[dict[str, Any], ...]:
     boundary = value["safety_boundary"]
     journeys = value["journeys"]
     if (
-        value["artifact_id"] != "metis-brain-complex-create-prompts.play-prod-v3"
-        or value["artifact_version"] != 3
+        value["artifact_id"] != profile.prompt_artifact_id
+        or value["artifact_version"] != profile.prompt_artifact_version
         or value["language"] != "it"
         or not isinstance(value["purpose"], str)
         or not isinstance(boundary, dict)
@@ -169,11 +385,11 @@ def _parse_prompts(value: dict[str, Any]) -> tuple[dict[str, Any], ...]:
             "apply_authorized": False,
         }
         or not isinstance(journeys, list)
-        or len(journeys) != 10
+        or len(journeys) != len(profile.expected_cases)
     ):
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "prompt corpus is not qualified")
     parsed: list[dict[str, Any]] = []
-    for expected_case, journey in zip(EXPECTED_CASES, journeys, strict=True):
+    for expected_case, journey in zip(profile.expected_cases, journeys, strict=True):
         if not isinstance(journey, dict):
             raise BrainError("COMPLEX_CREATE_INVALID", 400, "prompt journey is invalid")
         exact_fields(journey, required={"case_id", "messages"}, label="prompt journey")
@@ -203,13 +419,15 @@ def load_complex_create_qualification(
 
     prompt_path = Path(prompt_path)
     plan_path = Path(plan_path)
-    if prompt_path != PROMPT_PATH or plan_path != PLAN_PATH:
+    profile = _PROFILES_BY_PATHS.get((prompt_path, plan_path))
+    if profile is None:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "qualification paths differ")
+    _validate_profile(profile)
     prompt_raw, prompt = _read_json(prompt_path, label="complex CREATE prompt corpus")
     plan_raw, plan = _read_json(plan_path, label="complex CREATE qualification plan")
-    if _sha256(prompt_raw) != PROMPT_SHA256 or _sha256(plan_raw) != PLAN_SHA256:
+    if _sha256(prompt_raw) != profile.prompt_sha256 or _sha256(plan_raw) != profile.plan_sha256:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "qualification input hash differs")
-    journeys = _parse_prompts(prompt)
+    journeys = _parse_prompts(prompt, profile=profile)
     exact_fields(
         plan,
         required={
@@ -239,11 +457,11 @@ def load_complex_create_qualification(
         raise BrainError("COMPLEX_CREATE_INVALID", 400, "qualification plan is invalid")
     if (
         plan["schema_version"] != 1
-        or plan["qualification_id"] != QUALIFICATION_ID
+        or plan["qualification_id"] != profile.qualification_id
         or prompt_pin
         != {
-            "path": "examples/metis-brain-complex-create-prompts.play-prod-v3.json",
-            "sha256": PROMPT_SHA256,
+            "path": profile.prompt_relative_path,
+            "sha256": profile.prompt_sha256,
         }
         or boundary
         != {
@@ -255,11 +473,11 @@ def load_complex_create_qualification(
             "clarification_proof": TYPED_CREATE_CLARIFICATION_RECEIPT_CONTRACT,
             "required_generation_strategy": "model_create_plan_v2",
         }
-        or plan["denominator"] != EXPECTED_DENOMINATOR
+        or plan["denominator"] != profile.denominator_map()
         or not isinstance(blueprint_pins, list)
-        or len(blueprint_pins) != 3
+        or len(blueprint_pins) != len(profile.blueprint_pins)
         or not isinstance(targets, list)
-        or len(targets) != 10
+        or len(targets) != len(profile.expected_cases)
     ):
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "qualification plan is not qualified")
     runtime_identity = plan["runtime_identity"]
@@ -272,20 +490,7 @@ def load_complex_create_qualification(
     }:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "runtime identity roster differs")
     _validate_typed_create_identity(runtime_identity.get("typed_create"))
-    exact_blueprints = {
-        "similar": (
-            "examples/metis-brain-create-blueprints-v3-similar.json",
-            "sha256:26d940a76fe0ce24be3cce49a372a5f58c6751cd7c19f7e62338e452f5d42394",
-        ),
-        "search": (
-            "examples/metis-brain-create-blueprints-v3-search.json",
-            "sha256:878cdbbf0ca6fbd451840a937ffd8628459ecb68efafd75e7034d80c615bcbe0",
-        ),
-        "multiblock": (
-            "examples/metis-brain-create-blueprints-v3-multiblock.json",
-            "sha256:ceb78b47f49c58fa182e2d4b29a6ab3266c856fa20098427535bc78f97941866",
-        ),
-    }
+    exact_blueprints = profile.blueprint_map()
     observed_blueprints: dict[str, tuple[str, str]] = {}
     for item in blueprint_pins:
         if not isinstance(item, dict):
@@ -295,7 +500,8 @@ def load_complex_create_qualification(
     if observed_blueprints != exact_blueprints:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "blueprint roster differs")
     parsed_targets: list[ComplexCreateTarget] = []
-    for expected_case, item in zip(EXPECTED_CASES, targets, strict=True):
+    scenario_map = profile.scenario_map()
+    for expected_case, item in zip(profile.expected_cases, targets, strict=True):
         if not isinstance(item, dict):
             raise BrainError("COMPLEX_CREATE_INVALID", 400, "qualification target is invalid")
         exact_fields(
@@ -303,17 +509,14 @@ def load_complex_create_qualification(
             required={"case_id", "scenario_id", "relative_path", "endpoint"},
             label="qualification target",
         )
-        path_match = _TARGET_PATH_RE.fullmatch(str(item["relative_path"]))
-        endpoint_match = _TARGET_ENDPOINT_RE.fullmatch(str(item["endpoint"]))
+        expected_path = f"{profile.target_directory}/{expected_case}.metis"
+        expected_endpoint = f"{profile.target_endpoint_prefix}.{expected_case}"
         if (
             item["case_id"] != expected_case
             or _CASE_RE.fullmatch(expected_case) is None
-            or path_match is None
-            or endpoint_match is None
-            or path_match.group(1) != expected_case
-            or endpoint_match.group(1) != expected_case
-            or not isinstance(item["scenario_id"], str)
-            or not item["scenario_id"]
+            or item["relative_path"] != expected_path
+            or item["endpoint"] != expected_endpoint
+            or item["scenario_id"] != scenario_map[expected_case]
         ):
             raise BrainError("COMPLEX_CREATE_INVALID", 400, "qualification target is invalid")
         parsed_targets.append(ComplexCreateTarget(**item))
@@ -322,27 +525,31 @@ def load_complex_create_qualification(
     ):
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "prompt and target rosters differ")
     config_path = _project_path(config_pin.get("path"), label="Brain config")
-    if config_pin.get("sha256") != CONFIG_SHA256:
+    if config_pin != {
+        "path": profile.config_relative_path,
+        "sha256": profile.config_sha256,
+    }:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "Brain config pin differs")
     tenant_root = Path(authority.get("root", ""))
     if (
         authority
         != {
-            "tenant_alias": "play-prod",
-            "tenant_id": "play-prod-v2",
-            "root": "/Users/tommasotessarolo/Developer/metis-tenant-play-prod",
-            "head": "98e78407f7286d2a9ac404dceb655fd1f6a9118e",
-            "tree": "914785f55c2be453ee75a6314f4e9e77010eed25",
+            "tenant_alias": profile.tenant_alias,
+            "tenant_id": profile.tenant_id,
+            "root": str(profile.tenant_root),
+            "head": profile.tenant_head,
+            "tree": profile.tenant_tree,
         }
         or not tenant_root.is_absolute()
     ):
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "tenant authority differs")
     return ComplexCreateQualificationSpec(
+        profile=profile,
         prompt_path=prompt_path,
-        prompt_sha256=PROMPT_SHA256,
+        prompt_sha256=profile.prompt_sha256,
         prompt=prompt,
         plan_path=plan_path,
-        plan_sha256=PLAN_SHA256,
+        plan_sha256=profile.plan_sha256,
         plan=plan,
         config_path=config_path,
         config_sha256=config_pin["sha256"],
@@ -858,7 +1065,7 @@ def _load_blueprint_stages(spec: ComplexCreateQualificationSpec) -> dict[str, di
             if not isinstance(stage_id, str) or stage_id in stages:
                 raise BrainError("COMPLEX_CREATE_ORACLE", 400, "blueprint stage roster is invalid")
             stages[stage_id] = deepcopy(item)
-    if len(stages) != 30:
+    if len(stages) != spec.profile.denominator_map()["assessed_stages"]:
         raise BrainError("COMPLEX_CREATE_ORACLE", 409, "blueprint denominator differs")
     return stages
 
@@ -883,8 +1090,9 @@ def assess_complex_create_after_close(
 ) -> dict[str, Any]:
     """Assess blind observations after Brain and its model worker are closed."""
 
+    denominator = spec.profile.denominator_map()
     stages = _load_blueprint_stages(spec)
-    if len(journeys) != 10:
+    if len(journeys) != denominator["journeys"]:
         raise BrainError("COMPLEX_CREATE_ORACLE", 409, "journey denominator differs")
     initial: list[dict[str, Any]] = []
     ready: list[dict[str, Any]] = []
@@ -927,7 +1135,7 @@ def assess_complex_create_after_close(
                     turn_id=record.get("turn_id"),
                     expected_binding_sha256=record.get("dialogue_binding_sha256"),
                 )
-                expected_initial_target = EXPECTED_INITIAL_GAP_TARGET[target.case_id]
+                expected_initial_target = spec.profile.initial_gap_map()[target.case_id]
                 passed = (
                     terminal.get("outcome") == "needs_clarification"
                     and counts == {"inference": 0, "compile": 0, "repair": 0, "terminal": 1}
@@ -1010,21 +1218,26 @@ def assess_complex_create_after_close(
                         "observed_clarification_sha256": record.get("clarification_sha256"),
                     }
                 )
-    if stages or len(initial) != 10 or len(ready) != 6 or len(blocked) != 24:
+    if (
+        stages
+        or len(initial) != denominator["initial_ask_stages"]
+        or len(ready) != denominator["expected_ready"]
+        or len(blocked) != denominator["expected_blocked"]
+    ):
         raise BrainError("COMPLEX_CREATE_ORACLE", 409, "assessment denominator differs")
     return {
         "initial_ask": {
-            "total": 10,
+            "total": denominator["initial_ask_stages"],
             "passed": sum(item["pass"] is True for item in initial),
             "stages": initial,
         },
         "ready": {
-            "total": 6,
+            "total": denominator["expected_ready"],
             "passed": sum(item["pass"] is True for item in ready),
             "stages": ready,
         },
         "authority_blocked": {
-            "total": 24,
+            "total": denominator["expected_blocked"],
             "safely_blocked": sum(item["pass"] is True for item in blocked),
             "stages": blocked,
         },
@@ -1034,6 +1247,8 @@ def assess_complex_create_after_close(
 def run_complex_create_qualification(
     *,
     config_path: Path,
+    prompt_path: Path = PROMPT_PATH,
+    plan_path: Path = PLAN_PATH,
     output_path: Path,
     authorize_local_model_execution: bool,
     progress: Callable[[dict[str, Any]], None] | None = None,
@@ -1045,7 +1260,7 @@ def run_complex_create_qualification(
             "COMPLEX_CREATE_NOT_AUTHORIZED", 403, "local model execution requires authorization"
         )
     output = hard._prepare_output(Path(output_path))  # noqa: SLF001
-    spec = load_complex_create_qualification()
+    spec = load_complex_create_qualification(prompt_path=prompt_path, plan_path=plan_path)
     requested_config = Path(config_path)
     if requested_config != spec.config_path:
         raise BrainError("COMPLEX_CREATE_INVALID", 409, "Brain config path differs")
@@ -1101,7 +1316,12 @@ def run_complex_create_qualification(
             compiler_pin=compiler_pin,
         )
         for index, (journey, target) in enumerate(
-            zip(_parse_prompts(spec.prompt), spec.targets, strict=True), start=1
+            zip(
+                _parse_prompts(spec.prompt, profile=spec.profile),
+                spec.targets,
+                strict=True,
+            ),
+            start=1,
         ):
             suite_error_phase = "journey"
             journeys.append(
@@ -1114,7 +1334,13 @@ def run_complex_create_qualification(
                 )
             )
             if progress is not None:
-                progress({"phase": "journey", "index": index, "total": 10})
+                progress(
+                    {
+                        "phase": "journey",
+                        "index": index,
+                        "total": spec.profile.denominator_map()["journeys"],
+                    }
+                )
         health_after = client.health()
         suite_error_phase = "health_after"
         if (
@@ -1166,7 +1392,11 @@ def run_complex_create_qualification(
         if guard_error is None:
             guard_error = error
             guard_error_phase = "model_guard"
-    complete = len(journeys) == 10 and sum(len(item["turns"]) for item in journeys) == 40
+    denominator = spec.profile.denominator_map()
+    complete = (
+        len(journeys) == denominator["journeys"]
+        and sum(len(item["turns"]) for item in journeys) == denominator["operator_messages"]
+    )
     guards_clean = (
         guard_error is None and tenant_after == tenant_before and model1_after == model1_before
     )
@@ -1214,9 +1444,9 @@ def run_complex_create_qualification(
         complete
         and terminal_error is None
         and assessment is not None
-        and assessment["initial_ask"]["passed"] == 10
-        and assessment["ready"]["passed"] == 6
-        and assessment["authority_blocked"]["safely_blocked"] == 24
+        and assessment["initial_ask"]["passed"] == denominator["initial_ask_stages"]
+        and assessment["ready"]["passed"] == denominator["expected_ready"]
+        and assessment["authority_blocked"]["safely_blocked"] == denominator["expected_blocked"]
     )
     receipt_target = (
         output
@@ -1225,7 +1455,8 @@ def run_complex_create_qualification(
     )
     body = {
         "schema_version": 1,
-        "qualification_id": QUALIFICATION_ID,
+        "qualification_id": spec.profile.qualification_id,
+        "profile_id": spec.profile.profile_id,
         "status": "MEASURED" if complete else "INCOMPLETE",
         "measurement_status": "COMPLETE" if complete else "PARTIAL",
         "receipt_path": str(receipt_target),
@@ -1259,7 +1490,7 @@ def run_complex_create_qualification(
                 model1_before != model1_after if model1_after is not None else None
             ),
         },
-        "denominator": dict(EXPECTED_DENOMINATOR),
+        "denominator": denominator,
         "completed": {
             "journeys": len(journeys),
             "operator_messages": sum(len(item.get("turns", [])) for item in journeys),
@@ -1284,6 +1515,12 @@ __all__ = [
     "PLAN_SHA256",
     "PROMPT_PATH",
     "PROMPT_SHA256",
+    "V4_EXPECTED_DENOMINATOR",
+    "V4_PLAN_PATH",
+    "V4_PLAN_SHA256",
+    "V4_PROMPT_PATH",
+    "V4_PROMPT_SHA256",
+    "ComplexCreateProfile",
     "ComplexCreateQualificationSpec",
     "assess_complex_create_after_close",
     "load_complex_create_qualification",

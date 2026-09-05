@@ -1799,3 +1799,87 @@ grounding, compiler, tenant or no-Apply gate.
 - DONE [L0/L1116] — Final integrated frontier audit is GREEN, P0=0/P1=0: no
   coverage reduction, fail-open behavior, sensitive data or scope drift. No
   model, tenant, network or Apply operation occurred in this performance wave.
+
+### L0/L1118-L1120 — second complex CREATE cohort for demo (2026-09-05)
+
+- DECISION [L0] — Build a second, identity-disjoint cohort of exactly ten
+  complex endpoints from the pinned vendored `play-prod-v2` tenant. The first
+  roster (`similar_cinema`, `similar_serie_tv_fiction`, `filtered_search`,
+  `detail`, `multiple_block_compleanno`, `multiple_block_dem_titoli_momento`,
+  `tvod_multiple_block`, `multiple_block4_k`,
+  `inf_multiple_block_film_serie`, `similar_intrat_abtest`) is excluded.
+- FACT [L0] — Preflight is clean/aligned at Model 1 `50854f5`, Metis
+  `07f298d7a28704901f5df47f78b89b6881353cfb`, and vendored tenant provenance
+  `98e78407f7286d2a9ac404dceb655fd1f6a9118e`. The vendored source is the only
+  endpoint authority; live ARES/OpenSearch, VPN, credentials and raw payloads
+  are excluded.
+- DECISION [L0] — Selection must maximize distinct executable complexity, not
+  line count: multi-block/nested/parametric structure, smart or multi-stage
+  ordering, view-all, variants, context, output pipelines and fallback classes
+  receive explicit coverage. Each journey is an inspectable Italian sequence
+  of refinements; the model receives no hidden endpoint, IR, template or
+  golden. Missing operator authority must yield a clarification, never a
+  source-derived guess.
+- OPEN [L0] — L1118 performs the deterministic compiler/IR census; L1119 makes
+  an independent source-level diversity selection; L1120 audits the existing
+  headless profile and specifies the smallest safe successor plus the final
+  operator-facing prompt document. L0 owns the final roster, prompt semantics,
+  implementation, live local-model authorization, evaluation and Git closure.
+- DECISION [L0] — Writable scope is limited to Model 1 successor prompt/
+  qualification artifacts, focused tests, the demo prompt document and these
+  boards. No tenant or Metis write, Apply, training, adapter/weight change,
+  external network, credential access or persistent production data is
+  authorized. A later local Model 1 run is authorized only after static gates
+  and a clean commit, and remains Draft-only.
+- FACT [L1118] — The pinned tenant compiles with zero diagnostics and exposes
+  `170` endpoint IRs. After excluding the first ten, the census is exact at
+  `in=160 out=160 distinct=160 gaps=0`: `557` fetches, `143` instances,
+  `132` instance arguments, `95` view-all uses, `249` output steps, `34`
+  direct fallbacks and `15` materialized fallbacks. The complete-row census
+  digest is `0f2d9a7bc3605cb53d6dfec5d32259baccb4f69f28fd31d6fcee2c6148e708d4`.
+- FACT [L1119/L1120] — Independent source review confirms the strongest
+  semantic candidates and the runner audit finds that v3 is intentionally
+  single-profile. An arbitrary JSON-selected oracle is rejected: v4 requires
+  a second code-owned closed profile, exact path/hash pair, separate target
+  namespace and post-service-close blueprint loading.
+- DECISION [L0] — The final second cohort is:
+  `multiple_block_dem_scelti_per_te`, `subscription_channel_film`,
+  `inf_smart_block_film`, `search.main`, `new_similar_intrattenimento`,
+  `enabler_test_film`, `similar_sport`, `similar_documentari`, `fnjwq5_lha2`
+  and `inf_multiple_block_film`. It intersects the independent rankings while
+  deliberately covering parameterized multiblock and block smart-order,
+  subscription-conditioned pools, smart-index selection, search routing,
+  model-generable multi-stage similarity, content/block injection, all three
+  rare materialized fallback shapes, root on-error, twenty view-all rails and
+  a 26-instance/39-argument fan-out.
+- OPEN [L0/L1121] — Freeze the new prompt-only `10x4` corpus and byte-identical
+  operator document, then seal the clean-room stage oracle and closed v4
+  profile. No live model execution occurs before these inputs pass static
+  gates and are committed on a clean tree.
+- DONE [L1121/L0] — The operator corpus is frozen at `10/10` journeys and
+  `40/40` byte-identical Markdown/JSON messages, prompt SHA-256
+  `3705c6907206e51d1e379b732f2add46ac5cd48a1e0d4f550edd6fac60e954bf`.
+  Every journey starts from a realistic underspecified request, answers the
+  single typed T1 question naturally, and adds source-inspired complexity only
+  through visible operator words. Model-visible bytes contain no exemplar
+  identity, path, IR, blueprint, expected spec, credentials or live payloads.
+- DONE [L1122/L0] — A separate Frontier clean-room lane read only the frozen
+  prompts, CREATE contracts and prior reviewed family specs. Its v4 blueprint
+  is exact at `in=30 out=30 distinct=30 gaps=0`, with `9` prompt-authorized
+  exact Draft stages and `21` explicit authority gaps; all nine specs self-hash
+  and render. Raw blueprint SHA-256 is
+  `536e50115d18f815372339690bead38fefe37c800b0057feeeda8a4bbedd80df`.
+- FIX [L0] — The complex runner now selects only code-owned exact prompt/plan
+  pairs. Profile identity, artifacts and hashes, tenant guard, blueprint
+  roster, scenario roster, target namespace, T1 gaps and denominator are
+  code-owned; v3 remains byte-pinned and v4 cannot self-register through JSON.
+  The CLI requires both `--corpus` and `--plan`.
+- FACT [L0] — Independent recognizer replay matches every v4 stage and every
+  initial gap: `10/10` T1 Ask, `9/9` READY and `21/21` ASK. Focused profile and
+  historical-runner tests are `32/32`; scoped Ruff is GREEN. Live local Model 1
+  has not yet run.
+- FACT [L0] — The broader CREATE regression surface is GREEN before the live
+  run: `619/619` tests across every `test_brain_create_*` and complex-CREATE
+  module, scoped Ruff format/lint and `git diff --check` all pass. The prompt,
+  blueprint and plan raw digests independently recompute to the code-owned v4
+  pins with `10` journeys, `40` messages and `30 = 9 READY + 21 ASK` stages.

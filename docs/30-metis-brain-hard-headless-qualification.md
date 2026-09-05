@@ -166,3 +166,20 @@ promotion success. An interrupted measurement writes a distinct incomplete
 receipt and leaves the requested final path unused. Any retry remains an
 explicitly authorized local-model invocation and should use a distinct output
 name when preserving prior complete evidence.
+
+The typed-CREATE-only runner uses the same local boundary but requires an
+explicit closed profile pair. For the second, identity-disjoint demo cohort:
+
+```bash
+uv run metis-model1 brain-complex-create-qualification \
+  --config /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-config.play-prod-complex-create.local.json \
+  --corpus /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-complex-create-prompts.play-prod-v4.json \
+  --plan /Users/tommasotessarolo/Developer/metis-model-1/examples/metis-brain-complex-create-qualification.play-prod-v4.json \
+  --output /Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-hard-qualification/play-prod-complex-create-v4.json \
+  --authorize-local-model-execution
+```
+
+Neither `--corpus` nor `--plan` is an open plugin point. Only exact pairs in
+the code-owned registry are admitted; a mixed or unknown pair fails before its
+files are read. The v4 run still has no Apply capability and writes only a
+hash-redacted receipt after closing every session and the model worker.

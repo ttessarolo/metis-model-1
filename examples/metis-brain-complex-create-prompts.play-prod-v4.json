@@ -1,0 +1,106 @@
+{
+  "artifact_id": "metis-brain-complex-create-prompts.play-prod-v4",
+  "artifact_version": 4,
+  "language": "it",
+  "purpose": "Prompt-only, four-message journeys for a second blind demo cohort of typed CREATE.",
+  "safety_boundary": {
+    "contains_blueprints": false,
+    "contains_reference_endpoints": false,
+    "contains_expected_specs": false,
+    "contains_credentials": false,
+    "contains_raw_live_payloads": false,
+    "apply_authorized": false
+  },
+  "journeys": [
+    {
+      "case_id": "case_11",
+      "messages": [
+        "Voglio una riga di film simili per la sezione cinema.",
+        "Usa il catalogo video e dammi 30 risultati totali, usando il contenuto visto come seed.",
+        "Aggiungi una riga Perché hai visto con titolo dinamico, una riga Film che ti potrebbero piacere e una riga Serie TV del momento. Prepara inoltre un blocco parametrico obbligatorio per genere, con Vedi tutto, e istanzialo per Azione, Commedia/Comico, Drammatico, Animazione, Fantascienza, Thriller, Sentimentale, Horror, Avventura e Guerra; ogni riga di genere deve unire un take da 20 sul genere primario e un take da 130 sul genere generale, poi deduplicare e limitare a 150.",
+        "Usa il fingerprint storico sia per promuovere gli elementi sia per riordinare tutte le righe della pagina per affinità, quindi limita la pagina a quattro righe. Se la riga Film che ti potrebbero piacere è vuota, usa un blocco di fallback che unisce quattro take da 10, 5, 10 e 10 film, quindi deduplica, mescola e limita a 30; mostra la riga Perché hai visto solo quando esiste il seed e la riga personalizzata solo quando il fingerprint esiste e ci sono più di tre visioni."
+      ]
+    },
+    {
+      "case_id": "case_12",
+      "messages": [
+        "Voglio una riga di film simili per la sezione cinema.",
+        "Usa il catalogo video e dammi 50 risultati totali, usando il contenuto visto come seed.",
+        "Costruisci pool candidati separati per i film MediasetPlay, Infinity, MGM, MidnightFactory, InfAutore, InfComico, InfLight e InfNero e per le serie MediasetPlay, Infinity, MGM, HistoryPlayIt, BlazePlayIt e CiPlayIt. Mantieni per ciascuna famiglia i pool per le prime posizioni distinti dai pool principali.",
+        "Crea i blocchi Film del momento e Serie TV del momento, entrambi con Vedi tutto e due take: il primo da 15 combina i pool per le prime posizioni e il secondo da 50 combina i pool principali con alternative best-plus-near-full, poi deduplica e limita a 50. Nella variante mostra prima il blocco film e poi quello serie; attiva i pool opzionali solo quando la subscription include il canale, evita sovrapposizioni fra canali concorrenti e conserva il ranking a sette o ventiquattro ore appropriato a ciascun pool."
+      ]
+    },
+    {
+      "case_id": "case_13",
+      "messages": [
+        "Voglio una riga di film simili per la sezione cinema.",
+        "Usa il catalogo video e dammi 30 risultati totali, usando il contenuto visto come seed.",
+        "Aggiungi una riga Film del momento il cui titolo arriva dallo smart_index: prendi una sola riga dallo smart index, ordinala per similarità al fingerprint storico dell'utente e limita la risposta a 30. Se lo smart index non produce elementi, sostituisci la riga con Da non perdere.",
+        "Usa anche il catalogo users e definisci due varianti alternative: smart_page usa Film del momento solo se l'utente ha un fingerprint storico e più di tre contenuti visti, mentre fallback_page usa Da non perdere negli altri casi. Nel fallback unisci un take da 30 film recenti e un take da 10 film più visti, poi deduplica, mescola e limita a 30."
+      ]
+    },
+    {
+      "case_id": "case_14",
+      "messages": [
+        "Mi serve una ricerca dei contenuti del servizio.",
+        "Catalogo video, 20 risultati per pagina, con ricerca su testo e canale; normalizza il testo di ricerca prima di eseguire le query.",
+        "Deriva gli attributi has_search, has_channel e wants_infinity. Dichiara blocchi riusabili separati per programmi e serie, film, clip, episodi, video predefiniti e stagioni predefinite; nei blocchi con query usa alternative tra titolo, persone e genere, mentre nei blocchi predefiniti ordina per visualizzazioni nelle ultime 24 ore e deduplica prima del limite.",
+        "Instrada sei varianti mutuamente esclusive: ricerca senza canale, default Infinity, ricerca Infinity, ricerca su un altro canale, default di un altro canale e default generale. Applica i filtri HDR o SDR in base alla capacità 4K, abilita Vedi tutto sulle sezioni e usa le sezioni predefinite come fallback sostitutivo quando una ricerca non restituisce risultati."
+      ]
+    },
+    {
+      "case_id": "case_15",
+      "messages": [
+        "Vorrei una riga di intrattenimento simile al contenuto visto.",
+        "Catalogo video, una riga da 24 risultati totali usando il contenuto visto come seed.",
+        "Costruisci quattro pool candidati da 50 elementi ciascuno: episodi dello stesso programma, clip/extra, episodi di intrattenimento e clip di intrattenimento; usa una finestra di 18 mesi per gli episodi, 14 giorni per i contenuti recenti e raggruppa per programma.",
+        "Nel consumer usa un primo take da 4 e uno finale da 24, combina i pool con alternative best-plus-near-full, promuovi contenuti recenti, deduplica e limita a 24; se gli elementi piatti sono meno di uno aggiungi in coda il fallback intrat_recent."
+      ]
+    },
+    {
+      "case_id": "case_16",
+      "messages": [
+        "Crea una pagina con i titoli del momento.",
+        "Catalogo video, 20 risultati totali per la pagina, con film e serie TV recenti.",
+        "Prima della riga prepara due contenuti puntuali con identificativi Y311040301000901 e F310293901000501, un contenuto casuale preso dall'intero catalogo e un blocco Sport recenti da 30 elementi. Nella risposta inserisci il primo contenuto alla posizione 2, il secondo alla 3, un solo elemento del blocco Sport alla 4 e il contenuto casuale alla 5.",
+        "La selezione principale deve usare take page default 20, mentre dopo le quattro injection la risposta va limitata a page default 19. Il contenuto casuale deve essere scelto con ordinamento random, i tre producer di contenuti devono poter leggere tutto il catalogo e il blocco Sport deve restare lazy fino all'injection."
+      ]
+    },
+    {
+      "case_id": "case_17",
+      "messages": [
+        "Crea un nuovo endpoint con una riga di contenuti sportivi del catalogo video simili al contenuto visto.",
+        "Usa contentId come seed e restituisci 24 risultati; ricevi anche i canali della subscription e promuovi i contenuti pubblicati negli ultimi due giorni.",
+        "Aggiungi un percorso per seed provenienti da canali diversi da MediasetPlay, Infinity e UCL, mantenendo i canali del seed, e un percorso principale MediasetPlay. Nel percorso principale anteponi un take da 11 per la serie SE000000001535 quando il seed appartiene a quella serie, poi usa un take da 24 per clip e puntate complete simili, escludendo il seed e il prodotto padre.",
+        "Deduplica e limita la risposta a 24. Se gli elementi piatti uniti sono meno di uno, accoda un fallback sportivo materializzato; se invece l'esecuzione produce un errore, sostituisci l'intera pagina con un fallback di errore materializzato."
+      ]
+    },
+    {
+      "case_id": "case_18",
+      "messages": [
+        "Crea un nuovo endpoint con una riga di documentari del catalogo video simili al contenuto visto.",
+        "Usa contentId come seed e restituisci 24 risultati; ricevi anche i canali della subscription e conserva i canali disponibili sul seed.",
+        "Costruisci due pool da 150 documentari simili al fingerprint del seed, escludendo clip, stagioni, serie, il contenuto corrente e la stessa serie; raggruppa per serie, tieni un elemento per gruppo e ordina per conteggio. Usa un percorso per canali diversi da Infinity e MediasetPlay e un percorso generale, promuovendo corrispondenze su temi, sottotemi, epoca, ambientazione, genere e tematismi.",
+        "Nel percorso generale deduplica la riga e, se gli elementi piatti annidati sono meno di uno, accoda un fallback documentari materializzato. Se l'esecuzione della variante produce un errore, sostituisci l'intera risposta con una pagina di errore materializzata."
+      ]
+    },
+    {
+      "case_id": "case_19",
+      "messages": [
+        "Crea una pagina con i titoli del momento.",
+        "Catalogo video, 100 risultati totali per la pagina, con film e serie TV recenti.",
+        "Trasforma la pagina in venti righe tematiche: Famiglia, Cult anni 80 e 90, Misteri, Amori, Alto rischio, Divano e risate, Intrighi e inganni, Talenti, Amori tormentati, Detective, Attrazione, Medical, Storie commoventi, Rivali in amore, Altra epoca, Ricerche e scomparsi, Mafia, Storia vera, Religione e Famiglia in pericolo. Ogni riga deve mantenere il proprio take da 100, Vedi tutto e template POSTER.",
+        "Per ogni riga usa i metadati editoriali pertinenti fra basicplot, mood, generepatemico, generetematico, generediegetico, epoca e tematismi; quando una riga ammette due significati usa only best of. Escludi blacklist, formati 4K e contenuti non ammessi per geolocalizzazione; nelle righe familiari o comiche escludi anche soap opera e rating rossi quando appropriato."
+      ]
+    },
+    {
+      "case_id": "case_20",
+      "messages": [
+        "Voglio una riga di film simili per la sezione cinema.",
+        "Usa il catalogo video e dammi 30 risultati totali, usando il contenuto visto come seed.",
+        "Dichiara due blocchi parametrici: quello personalizzato riceve genere obbligatorio e scelta del Vedi tutto, applica il fingerprint storico quando esiste e usa POSTER; quello anonimo riceve il genere obbligatorio, usa il Vedi tutto standard e ordina per data. Crea 26 istanze complessive, tredici per blocco, per Azione, Commedia/Comico, Drammatico, Animazione, Fantascienza, Cinema italiano, Guerra, Thriller, Sentimentale, Family, Horror, Avventura e Musical/Musicale: sono 39 argomenti espliciti contando genere e scelta Vedi tutto nel percorso personalizzato.",
+        "Usa anche il catalogo users. La variante personalizzata deve attivarsi solo con fingerprint storico e più di tre visioni e deve riordinare le tredici righe per affinità al fingerprint; la variante anonima usa le altre tredici righe in ordine fisso. Mantieni distinti i due percorsi e non trasformare lo smart ordering delle righe in un ordinamento degli elementi interni."
+      ]
+    }
+  ]
+}

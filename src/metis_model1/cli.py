@@ -240,6 +240,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run the blind 10x4 typed-CREATE qualification without Apply.",
     )
     brain_complex_create.add_argument("--config", type=Path, required=True)
+    brain_complex_create.add_argument("--corpus", type=Path, required=True)
+    brain_complex_create.add_argument("--plan", type=Path, required=True)
     brain_complex_create.add_argument("--output", type=Path, required=True)
     brain_complex_create.add_argument(
         "--authorize-local-model-execution",
@@ -510,6 +512,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             receipt = run_complex_create_qualification(
                 config_path=args.config,
+                prompt_path=args.corpus,
+                plan_path=args.plan,
                 output_path=args.output,
                 authorize_local_model_execution=args.authorize_local_model_execution,
                 progress=lambda item: print(

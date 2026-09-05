@@ -87,6 +87,13 @@ sempre quattro livelli epistemici:
 30. [`29-metis-fast-trusted-runtime.md`](29-metis-fast-trusted-runtime.md) —
     gateway client attendibile, snapshot tenant volatile, preview e palinsesto
     temporaneo senza autorità di scrittura per Brain o per il browser.
+31. [`30-metis-brain-hard-headless-qualification.md`](30-metis-brain-hard-headless-qualification.md)
+    — protocollo headless locale, confini Draft-only e ricevute di qualifica.
+32. [`31-metis-brain-typed-create-authority.md`](31-metis-brain-typed-create-authority.md)
+    — autorità strutturale typed CREATE, ricette chiuse e oracle onesto.
+33. [`32-metis-brain-complex-create-demo-prompts.md`](32-metis-brain-complex-create-demo-prompts.md)
+    — seconda coorte di dieci conversazioni complesse, pronta da copiare nella
+    chat Metis per la prova operatore pre-demo.
 
 ## Tesi operativa
 
