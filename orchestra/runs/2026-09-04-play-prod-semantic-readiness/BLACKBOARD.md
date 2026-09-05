@@ -1883,3 +1883,37 @@ grounding, compiler, tenant or no-Apply gate.
   module, scoped Ruff format/lint and `git diff --check` all pass. The prompt,
   blueprint and plan raw digests independently recompute to the code-owned v4
   pins with `10` journeys, `40` messages and `30 = 9 READY + 21 ASK` stages.
+- DONE [L0] — Static v4 inputs/runner were committed and pushed clean on main at
+  `1dc347f7d4eddc6237eee1a83d6a5657104af251` before the one-shot local run.
+  Independent L1123 audit is GREEN with P0=0/P1=0/P2=0: closed registry,
+  prompt/plan/blueprint pins, v3 compatibility and post-close assessment were
+  all rechecked.
+- FACT [L0] — The authorized headless v4 measurement completed all `10/10`
+  independent sessions and `40/40` operator messages in `362930 ms`. Every
+  authorized Draft is exact and first-attempt compile-clean (`9/9`); all first
+  questions pass (`10/10`); bounded unsupported stages pass `20/21`. Receipt
+  `artifacts/metis-brain-hard-qualification/play-prod-complex-create-v4-1dc347f.json`
+  self-verifies at
+  `sha256:cefbccc525110cace645d429344f2fbcd77ee49d3445605bad4d7ac5c9482f50`.
+  Its raw file digest is
+  `6912eb3862a155197420b784585cfb22a7c6e0ed1a077c6a1dd9f7f27e33faf2`.
+- FACT [L0] — The one failed stage is `similar_documentari:T4`: T1 asks result
+  count, T2 asks content-family authority and T3 asks the structural contract;
+  T4 then discovers the distinct route-activation slot after the session has
+  spent its global three-round clarification budget. Brain terminates with
+  `CLARIFICATION_BUDGET_EXCEEDED`; there is no inference, compile, repair,
+  Apply, tenant drift or model-tree drift on that turn.
+- RISK [L0] — v4 is RED for functional coverage despite perfect admitted-Draft
+  quality. Only `new_similar_intrattenimento` reaches an exact compiling T4
+  endpoint (`1/10` final complex journeys). The other nine require additional
+  code-owned structural authority; the document must not present safe Ask as
+  endpoint completion. In particular, the three-round UX budget must be
+  reconciled with multi-slot unsupported requests without hiding the failure
+  in the benchmark.
+- DONE [L0] — The operator document now contains the exact `40/40` copyable
+  prompts plus a measured per-case table and an explicit Demo suitability
+  verdict. Prompt bytes remain unchanged; only outcome guidance was added.
+- DONE [L0] — Canonical repository gate after the measurement documentation is
+  GREEN: foundation `87/87`, Ruff lint/format GREEN, full harness `4213 passed,
+  2 skipped, 0 failed` in `1439.18 s`; `make check` exits `0`. The two skips are
+  expected and the `26` archive deprecation warnings are unchanged non-failures.

@@ -1,9 +1,38 @@
 # Metis Brain: seconda coorte di prompt complessi per la demo
 
-Status: **FROZEN — HEADLESS QUALIFICATION PENDING**. Questo documento raccoglie dieci journey
-indipendenti per creare da zero endpoint complessi in una chat Metis Brain.
-I prompt sono la superficie ispezionabile dall'operatore: non contengono
-endpoint di riferimento, blueprint, specifiche attese o dati live.
+Status: **FROZEN E MISURATO — COPERTURA DEMO PARZIALE**. Questo documento raccoglie
+dieci journey indipendenti per creare da zero endpoint complessi in una chat
+Metis Brain. I prompt sono la superficie ispezionabile dall'operatore: non
+contengono endpoint di riferimento, blueprint, specifiche attese o dati live.
+
+## Risultato headless del 5 settembre 2026
+
+La prova sul profilo congelato `play-prod-v4` ha completato `10/10` sessioni e
+`40/40` messaggi in 6 minuti e 3 secondi. Tutte le `9/9` bozze ammesse
+dall'autorità corrente sono risultate esatte e compilate al primo tentativo;
+`10/10` prime domande e `20/21` blocchi successivi sono stati gestiti come
+domande sicure. Nessun Apply è stato eseguito e tenant e modello sono rimasti
+immutati.
+
+| Caso | Esemplare strutturale play-prod | T1 | T2 | T3 | T4 | Stato per la demo |
+| --- | --- | --- | --- | --- | --- | --- |
+| 11 | `multiple_block_dem_scelti_per_te` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: manca il multiblocco parametrico |
+| 12 | `subscription_channel_film` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: mancano pool e attivazioni per subscription |
+| 13 | `inf_smart_block_film` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: manca lo smart index con variante/fallback |
+| 14 | `search.main` | Domanda | Domanda | Domanda | Domanda | Non pronta: manca il binding verificato del normalizzatore |
+| 15 | `new_similar_intrattenimento` | Domanda | Bozza esatta | Bozza esatta | Bozza esatta | **Completa: candidata alla demo** |
+| 16 | `enabler_test_film` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: manca il piano esatto di injection/take |
+| 17 | `similar_sport` | Domanda | Domanda | Domanda | Domanda | Non pronta: famiglia sport e struttura non sono autorizzate |
+| 18 | `similar_documentari` | Domanda | Domanda | Domanda | Errore budget | Non pronta: quarto slot oltre il tetto di tre domande |
+| 19 | `fnjwq5_lha2` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: manca il piano dei take delle venti righe |
+| 20 | `inf_multiple_block_film` | Domanda | Bozza esatta | Domanda | Domanda | Parziale: mancano istanze parametriche e smart ordering |
+
+Il verdetto complessivo è quindi **RED per copertura**, non per qualità delle
+bozze prodotte: soltanto il caso 15 arriva alla quarta richiesta con un endpoint
+completo. Gli altri nove casi restano ottimi test manuali di conversazione e
+fail-closed, ma non vanno presentati come generazione complessa conclusa finché
+le rispettive autorità strutturali non sono implementate. I turni che hanno
+prodotto una bozza hanno richiesto in media 21,7 secondi end-to-end.
 
 ## Prerequisiti e regole di prova
 

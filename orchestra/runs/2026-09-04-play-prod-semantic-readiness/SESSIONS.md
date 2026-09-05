@@ -651,3 +651,22 @@ push and did not run MLX, network, a live tenant or Apply.
   compiler/IR evidence with L1119 semantic review. L0 owns prompt review,
   clean-room oracle, profile integration, every gate and the local-model run.
 - Status: active. No model, tenant, network, Apply, commit or push is delegated.
+
+### L1123/L0 — v4 static audit and live headless measurement
+
+- L1123: independent read-only static audit of the closed v3/v4 registry,
+  digests, denominators, negative tamper paths, post-close assessment and v3
+  compatibility. Verdict GREEN, P0=0/P1=0/P2=0; no files changed.
+- L0: committed/pushed the static profile at `1dc347f`, then ran exactly one
+  authorized local Model 1 measurement over ten isolated sessions and forty
+  messages. Result: `9/9` exact first-attempt compiling Drafts, `10/10` initial
+  questions, `20/21` safe unsupported stages, total `362930 ms`.
+- L0: classified `similar_documentari:T4` as a real three-round clarification
+  budget failure, not a model/compiler error and not a benchmark exception.
+  Tenant and Model 1 guards are unchanged; no Apply occurred.
+- Status: measurement complete, qualification RED for coverage (`1/10` final
+  T4 complex endpoints), evidence/documentation and repository-wide gate in
+  progress.
+- Final gate: `make check` GREEN; foundation `87/87`, full harness `4213 passed,
+  2 skipped, 0 failed` in `1439.18 s`. Status: lane complete; final Git closure
+  owned by L0.
