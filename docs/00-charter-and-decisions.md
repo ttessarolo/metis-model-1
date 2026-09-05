@@ -69,6 +69,7 @@ adapter Metis.
 | D-014 | Grammatica e standard library Metis sono autorità accoppiate di primo livello | I soli esempi play-prod/play-demo non coprono tutto ciò che il linguaggio sa esprimere | Ogni wave di accuracy o manutenzione pinna entrambe, misura costrutti, membri, setting e interazioni; prova prima l'adapter esistente e ritara i pesi solo su fallimenti genuini |
 | D-015 | Sessioni tenant Metis Brain v1: alias server-side, snapshot immutabile, capability e TTL idle esatto di 20 minuti | VSIX e Metis Fast devono poter aprire N sessioni isolate sullo stesso tenant o su tenant diversi senza duplicare il modello e senza dare a Brain autorità di scrittura | Il core usa HTTP numerico loopback autenticato, revoca su close/expiry, stale guard e compiler pinnato; inferenza, retrieval progressivo, UI/app e packaging restano wave separate |
 | D-016 | Flash intent compiler interno, diretto MLX e sempre caldo | Un modello piccolo può segmentare rapidamente la richiesta naturale senza diventare una seconda autorità semantica o un server da distribuire | Gemma 4 E4B emette soltanto Intent IR vincolato; span esatti passano al retrieval solo dopo validazione host. Conteggio, cataloghi, campi, valori, DSL e compilazione restano alle autorità esistenti; Ollama non è nel serving path e la licenza Gemma resta un gate aperto di distribuzione |
+| D-017 | Generalità di Brain e conoscenza derivata dai descrittori | Un benchmark o una demo non devono trasformare la fotografia di un tenant in logica di prodotto | Il runtime conosce costrutti Metis e invarianti di sicurezza; la conoscenza di cataloghi, `@model`, campi, valori, alias e significati proviene soltanto dai descrittori `reviewed` dello snapshot tenant tramite le proiezioni del toolchain pinnato (Schema2 dove applicabile). Sono vietate scorciatoie per tenant, endpoint, nomi, literal, fallback o frasi note. I profili di qualifica restano isolati e non conferiscono autorità; rinomina isomorfa e invalidazione delle revisioni sono gate obbligatori |
 
 La direzione D-013 è specificata in
 [`19-local-companion-and-vscode-direction.md`](19-local-companion-and-vscode-direction.md).
@@ -78,6 +79,11 @@ autorizza distribuzione, fallback remoto o scritture autonome.
 La componente Flash ratificata da D-016 è specificata in
 [`28-metis-brain-flash-intent-compiler.md`](28-metis-brain-flash-intent-compiler.md)
 e non modifica i pesi o l'adapter di Model 1.
+La separazione ratificata da D-017 è specificata in
+[`33-metis-brain-generality-and-descriptor-authority.md`](33-metis-brain-generality-and-descriptor-authority.md).
+Se un ruolo operativo necessario non è attestato dalla superficie corrente,
+Brain chiede una decisione tipizzata o fallisce chiuso: non lo deduce dal nome
+del campo e non lo recupera da un endpoint noto.
 
 ## 4. Ipotesi da dimostrare
 

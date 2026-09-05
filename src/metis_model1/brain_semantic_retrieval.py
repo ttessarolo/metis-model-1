@@ -2102,6 +2102,9 @@ def _bounded_context(
         "context_revision": snapshot.revision,
         "semantic_source_revision": index["semantic_source_revision"],
         "toolchain_binding": snapshot.toolchain_binding,
+        "catalog_reference_roster": [
+            item["catalog"] for item in index["entries"] if item["node_kind"] == "catalog"
+        ],
         "catalog": {
             "name": selected_catalog,
             "file": catalog_entry["at"]["file"],

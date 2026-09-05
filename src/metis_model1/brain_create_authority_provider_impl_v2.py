@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections.abc import Mapping
@@ -29,14 +30,18 @@ from metis_model1.brain_create_capability_inventory_v2 import (
 )
 from metis_model1.brain_create_plan_v2 import initial_create_endpoint_skeleton
 from metis_model1.brain_create_structural_authority_v2 import (
+    ReviewedSemanticIndex,
     StructuralNeed,
     closed_structural_semantic_requirements,
+    filtered_collection_intent,
     initial_family_need,
     initial_ready_intent,
     presemantic_structural_need,
     refinement_ready_intent,
+    reviewed_descriptor_filter_index,
     reviewed_semantic_index,
 )
+from metis_model1.brain_create_surface import create_authority_history_revision
 from metis_model1.brain_dialogue_contract import (
     BoundChoice,
     BoundDecision,
@@ -55,6 +60,11 @@ _DECISION_KEY = "choice.endpoint.needs_time"
 _TARGET_KEY = "endpoint.needs_time"
 _ENABLE_KEY = "capability:endpoint.needs_time.enable"
 _DISABLE_KEY = "capability:endpoint.needs_time.disable"
+_DESCRIPTOR_FILTER_DECISION_KEY = "choice.structure.descriptor_filtered_collection"
+_DESCRIPTOR_FILTER_TARGET_KEY = "structure.descriptor_filtered_collection"
+_DESCRIPTOR_FILTER_ENABLE_KEY = "capability:descriptor.filtered_collection"
+_DESCRIPTOR_FILTER_DEFER_KEY = "clarification:descriptor.more_structure"
+_DESCRIPTOR_FILTER_COUNT_TARGET = "endpoint.results.total"
 CREATE_V2_AUTHORITY_PROVIDER_CONTRACT = (
     "metis-brain-create-authority-provider/production-structural-v2"
 )
@@ -215,6 +225,180 @@ def _choice_need(
         question="Vuoi abilitare o disabilitare il tempo corrente per questo endpoint?",
         choices=choices,
         supersedes=supersedes,
+    )
+
+
+def _descriptor_filter_revision(
+    inventory_revision: str, semantic: ReviewedSemanticIndex, count: int
+) -> str:
+    return canonical_sha256(
+        {
+            "contract": "metis-brain-descriptor-filter-confirmation/v1",
+            "inventory_revision": inventory_revision,
+            "semantic_proof_revision": semantic.proof_revision,
+            "count": count,
+            "logic": "include_all_fields_any_selected_value",
+        }
+    )
+
+
+def _descriptor_filter_slot(
+    inventory_revision: str,
+    semantic: ReviewedSemanticIndex,
+    count: int,
+    *,
+    supersedes: str | None = None,
+) -> QuestionSlot:
+    revision = _descriptor_filter_revision(inventory_revision, semantic, count)
+    filters = "; ".join(
+        f"{field} = " + " oppure ".join(json.dumps(value, ensure_ascii=False) for value in values)
+        for field, values in semantic.selected_values
+    )
+    summary = (
+        f"Catalogo {semantic.catalog}. {count} risultati totali. "
+        f"Includi soltanto elementi che soddisfano TUTTI i filtri: {filters}. "
+        "Un unico blocco, senza ordinamento aggiuntivo, paginazione o fallback."
+    )
+    if len(summary.encode("utf-8")) > 1024:
+        _unsupported("descriptor filter confirmation exceeds the readable bound")
+    choices = (
+        BoundChoice(
+            label="Un solo blocco filtrato",
+            authority_keys=(_DESCRIPTOR_FILTER_ENABLE_KEY,),
+            candidate_revision=revision,
+            required_roles=("scalar",),
+            description=summary,
+        ),
+        BoundChoice(
+            label="Serve una struttura più articolata",
+            authority_keys=(_DESCRIPTOR_FILTER_DEFER_KEY,),
+            candidate_revision=revision,
+            required_roles=("scalar",),
+            description=(
+                "Richiede dettagli per blocchi, similarità, paginazione, fallback o relazioni"
+            ),
+        ),
+    )
+    return QuestionSlot(
+        decision_key=_DESCRIPTOR_FILTER_DECISION_KEY,
+        target_key=_DESCRIPTOR_FILTER_TARGET_KEY,
+        kind="structural_choice",
+        question=(
+            "Confermi esattamente il blocco e i filtri di inclusione descritti nella prima opzione?"
+        ),
+        answer_kind="option_ref",
+        choices=choices,
+        supersedes=supersedes,
+    )
+
+
+def _latest_descriptor_filter_decision(dialogue: PrivateDialogueState) -> BoundDecision | None:
+    matches = tuple(
+        item
+        for item in dialogue.decisions
+        if item.decision_key == _DESCRIPTOR_FILTER_DECISION_KEY
+        and item.target_key == _DESCRIPTOR_FILTER_TARGET_KEY
+    )
+    return matches[-1] if matches else None
+
+
+def _descriptor_filter_choice(
+    dialogue: PrivateDialogueState,
+    *,
+    inventory_revision: str,
+    semantic: ReviewedSemanticIndex,
+    count: int,
+) -> str | None:
+    decision = _latest_descriptor_filter_decision(dialogue)
+    if decision is None:
+        return None
+    if (
+        decision.kind != "structural_choice"
+        or decision.answer_kind != "option_ref"
+        or decision.value_contract != "authority"
+        or len(decision.choices) != 1
+    ):
+        _invalid("descriptor collection decision is invalid")
+    if decision.binding.history_revision != dialogue.binding.history_revision:
+        # A pure natural-language selection of the captured label may add one
+        # utterance. Any new requirements must be confirmed afresh.
+        preceding = (
+            create_authority_history_revision(dialogue.messages[:-1])
+            if len(dialogue.messages) > 1
+            else None
+        )
+        if preceding != decision.binding.history_revision or _normalize_command(
+            dialogue.messages[-1].text
+        ) != _normalize_command(decision.choices[0].label):
+            return None
+    revision = _descriptor_filter_revision(inventory_revision, semantic, count)
+    matching = tuple(
+        choice
+        for choice in decision.choices
+        if len(choice.authority_keys) == 1
+        and choice.authority_keys[0]
+        in {_DESCRIPTOR_FILTER_ENABLE_KEY, _DESCRIPTOR_FILTER_DEFER_KEY}
+        and choice.candidate_revision == revision
+        and choice.required_roles == ("scalar",)
+    )
+    if len(matching) != 1:
+        _invalid("descriptor collection decision is invalid")
+    return matching[0].authority_keys[0]
+
+
+def _descriptor_filter_count(dialogue: PrivateDialogueState) -> int | None:
+    need = QuantityNeed(target_key=_DESCRIPTOR_FILTER_COUNT_TARGET, necessary=True)
+    decisions = tuple(item for item in dialogue.decisions if item.identity == need.identity)
+    latest = decisions[-1] if decisions else None
+    start = 0
+    if latest is not None:
+        if (
+            latest.kind != "result_count"
+            or latest.answer_kind != "integer"
+            or latest.value_contract != "total"
+            or type(latest.integer) is not int
+        ):
+            _invalid("descriptor collection count decision is invalid")
+        start = next(
+            index
+            for index in range(1, len(dialogue.messages) + 1)
+            if create_authority_history_revision(dialogue.messages[:index])
+            == latest.binding.history_revision
+        )
+    operator_values: set[int] = set()
+    for message in dialogue.messages[start:]:
+        surface = parse_create_quantity_surface(message.text)
+        if surface.status != "resolved":
+            continue
+        operator_values.update(
+            item.value
+            for item in surface.mentions
+            if item.kind == "result_count"
+            and item.scope == "total"
+            and item.mode == "total"
+            and item.qualifier is None
+            and type(item.value) is int
+        )
+    decided_values = {latest.integer} if latest is not None else set()
+    values = operator_values | decided_values
+    if len(values) > 1:
+        _unsupported("descriptor collection result count is ambiguous")
+    return next(iter(values)) if values else None
+
+
+def _has_descriptor_filter_selection(retrieved: RetrievalResult) -> bool:
+    grounding = retrieved.grounding
+    if not isinstance(grounding, Mapping) or grounding.get("status") != "resolved":
+        return False
+    selections = grounding.get("selections")
+    return (
+        isinstance(selections, list)
+        and bool(selections)
+        and all(
+            isinstance(item, Mapping)
+            and (isinstance(item.get("literal"), str) or isinstance(item.get("literals"), list))
+            for item in selections
+        )
     )
 
 
@@ -381,7 +565,13 @@ def _structural_slot(need: StructuralNeed, *, inventory_revision: str) -> Questi
 class PinnedCreateV2AuthorityProvider:
     """Production-safe structural provider; unknown structure is never guessed."""
 
-    __slots__ = ("_closed", "_exact_value_resolver", "_inventory", "_issuer")
+    __slots__ = (
+        "_closed",
+        "_exact_value_resolver",
+        "_inventory",
+        "_issuer",
+        "_legacy_closed_recipes",
+    )
 
     def __init__(
         self,
@@ -390,6 +580,7 @@ class PinnedCreateV2AuthorityProvider:
         toolchain_binding: str,
         exact_value_resolver: ExactReviewedValueResolver | None = None,
         inventory: PinnedCreateV2CapabilityInventory | None = None,
+        legacy_closed_recipes: bool = False,
     ) -> None:
         expected = (
             build_pinned_create_v2_capability_inventory(toolchain_binding=toolchain_binding)
@@ -405,6 +596,9 @@ class PinnedCreateV2AuthorityProvider:
         ):
             raise BrainError("CREATE_V2_CAPABILITY_INVALID", 500, "exact value resolver is invalid")
         self._exact_value_resolver = exact_value_resolver
+        if type(legacy_closed_recipes) is not bool:
+            raise BrainError("CREATE_V2_CAPABILITY_INVALID", 500, "legacy recipe mode is invalid")
+        self._legacy_closed_recipes = legacy_closed_recipes
         self._closed = False
 
     @property
@@ -591,72 +785,142 @@ class PinnedCreateV2AuthorityProvider:
         else:
             if any(token in latest for token in ("tempo corrente", "ora corrente", "current time")):
                 _unsupported("mixed current-time structure is not authorized")
-            if basis is None and len(dialogue.messages) == 1:
-                return AskCreateV2Authority((_initial_slot(dialogue, retrieved, lease),))
-            structural_need = presemantic_structural_need(dialogue.messages, generation=generation)
-            if structural_need is not None:
-                return AskCreateV2Authority(
-                    (
-                        _structural_slot(
-                            structural_need,
-                            inventory_revision=self.inventory_revision,
-                        ),
-                    )
-                )
-            raw_catalog = retrieved.context.get("catalog")
-            if not isinstance(raw_catalog, Mapping) or not isinstance(raw_catalog.get("name"), str):
-                _unsupported("one reviewed catalog context is required")
-            requirements = closed_structural_semantic_requirements(
-                dialogue.messages,
-                generation=generation,
-                catalog=raw_catalog["name"],
+            descriptor_mode = (
+                basis is None
+                and not self._legacy_closed_recipes
+                and _has_descriptor_filter_selection(retrieved)
             )
-            exact_value_authority: Mapping[str, Any] | None = None
-            if requirements.resolver_identities:
-                if self._exact_value_resolver is None:
-                    _unsupported("exact reviewed value resolver is unavailable")
-                try:
-                    exact_value_authority = (
-                        self._exact_value_resolver.resolve_exact_reviewed_values(
-                            lease=lease,
-                            identities=requirements.resolver_identities,
+            if descriptor_mode:
+                semantic = reviewed_descriptor_filter_index(
+                    retrieved=retrieved,
+                    context_revision=lease.snapshot.revision,
+                    semantic_revision=retrieved.semantic_source_revision,
+                    toolchain_binding=lease.snapshot.toolchain_binding,
+                )
+                count = _descriptor_filter_count(dialogue)
+                if count is None:
+                    return AskCreateV2Authority(
+                        (
+                            QuantityNeed(
+                                target_key=_DESCRIPTOR_FILTER_COUNT_TARGET,
+                                necessary=True,
+                                label="endpoint",
+                            ).slot(),
                         )
                     )
-                except BrainError as error:
-                    if error.code == "EXACT_REVIEWED_VALUE_UNAVAILABLE":
-                        _unsupported("an exact reviewed value is unavailable")
-                    raise
-            semantic = reviewed_semantic_index(
-                retrieved=retrieved,
-                context_revision=lease.snapshot.revision,
-                semantic_revision=retrieved.semantic_source_revision,
-                toolchain_binding=lease.snapshot.toolchain_binding,
-                dialogue_message_count=len(dialogue.messages),
-                expected_value_identities=requirements.resolver_identities,
-                expected_cumulative_identities=requirements.cumulative_identities,
-                exact_value_authority=exact_value_authority,
-            )
-            if basis is None:
-                structural = initial_ready_intent(
+                descriptor_choice = _descriptor_filter_choice(
+                    dialogue,
+                    inventory_revision=self.inventory_revision,
+                    semantic=semantic,
+                    count=count,
+                )
+                if descriptor_choice is None:
+                    prior = _latest_descriptor_filter_decision(dialogue)
+                    return AskCreateV2Authority(
+                        (
+                            _descriptor_filter_slot(
+                                self.inventory_revision,
+                                semantic,
+                                count,
+                                supersedes=None if prior is None else prior.decision_sha256,
+                            ),
+                        )
+                    )
+                if descriptor_choice == _DESCRIPTOR_FILTER_DEFER_KEY:
+                    _unsupported(
+                        "la struttura richiesta non ha ancora un contratto generale disponibile"
+                    )
+                structural = filtered_collection_intent(
+                    count=count,
                     messages=dialogue.messages,
                     semantic=semantic,
                     policy_revision=self._inventory.policy_revision,
                 )
             else:
-                structural = refinement_ready_intent(
-                    messages=dialogue.messages,
-                    base_spec=base_spec,
+                if not self._legacy_closed_recipes:
+                    if basis is None and retrieved.catalog_candidates:
+                        return AskCreateV2Authority(
+                            (
+                                _catalog_slot(
+                                    retrieved,
+                                    lease=lease,
+                                    semantic_revision=retrieved.semantic_source_revision,
+                                ),
+                            )
+                        )
+                    _unsupported("request needs a descriptor-native structural contract")
+                if basis is None and len(dialogue.messages) == 1:
+                    return AskCreateV2Authority((_initial_slot(dialogue, retrieved, lease),))
+                structural_need = presemantic_structural_need(
+                    dialogue.messages, generation=generation
+                )
+                if structural_need is not None:
+                    return AskCreateV2Authority(
+                        (
+                            _structural_slot(
+                                structural_need,
+                                inventory_revision=self.inventory_revision,
+                            ),
+                        )
+                    )
+                raw_catalog = retrieved.context.get("catalog")
+                if not isinstance(raw_catalog, Mapping) or not isinstance(
+                    raw_catalog.get("name"), str
+                ):
+                    _unsupported("one reviewed catalog context is required")
+                requirements = closed_structural_semantic_requirements(
+                    dialogue.messages,
                     generation=generation,
-                    semantic=semantic,
-                    policy_revision=self._inventory.policy_revision,
+                    catalog=raw_catalog["name"],
                 )
-            if isinstance(structural, StructuralNeed):
-                return AskCreateV2Authority(
-                    (_structural_slot(structural, inventory_revision=self.inventory_revision),)
+                exact_value_authority: Mapping[str, Any] | None = None
+                if requirements.resolver_identities:
+                    if self._exact_value_resolver is None:
+                        _unsupported("exact reviewed value resolver is unavailable")
+                    try:
+                        exact_value_authority = (
+                            self._exact_value_resolver.resolve_exact_reviewed_values(
+                                lease=lease,
+                                identities=requirements.resolver_identities,
+                            )
+                        )
+                    except BrainError as error:
+                        if error.code == "EXACT_REVIEWED_VALUE_UNAVAILABLE":
+                            _unsupported("an exact reviewed value is unavailable")
+                        raise
+                semantic = reviewed_semantic_index(
+                    retrieved=retrieved,
+                    context_revision=lease.snapshot.revision,
+                    semantic_revision=retrieved.semantic_source_revision,
+                    toolchain_binding=lease.snapshot.toolchain_binding,
+                    dialogue_message_count=len(dialogue.messages),
+                    expected_value_identities=requirements.resolver_identities,
+                    expected_cumulative_identities=requirements.cumulative_identities,
+                    exact_value_authority=exact_value_authority,
                 )
+                if basis is None:
+                    structural = initial_ready_intent(
+                        messages=dialogue.messages,
+                        semantic=semantic,
+                        policy_revision=self._inventory.policy_revision,
+                    )
+                else:
+                    structural = refinement_ready_intent(
+                        messages=dialogue.messages,
+                        base_spec=base_spec,
+                        generation=generation,
+                        semantic=semantic,
+                        policy_revision=self._inventory.policy_revision,
+                    )
+                if isinstance(structural, StructuralNeed):
+                    return AskCreateV2Authority(
+                        (_structural_slot(structural, inventory_revision=self.inventory_revision),)
+                    )
             issued = self._issuer.issue_structural_authority(
                 inventory=self._inventory,
                 intent=structural,
+                semantic_authority=semantic if descriptor_mode else None,
+                result_count=count if descriptor_mode else None,
                 session_id=lease.session_id,
                 conversation_id=dialogue.conversation_id,
                 request_fingerprint=dialogue.binding.parent_fingerprint,

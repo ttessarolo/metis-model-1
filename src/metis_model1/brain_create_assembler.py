@@ -572,7 +572,7 @@ def _domain_kind(value: Any) -> Literal["finite", "open", "none"]:
     if not isinstance(value, Mapping) or not isinstance(value.get("kind"), str):
         _fail("CREATE_SEMANTIC_DOMAIN_INVALID", "semantic domain is invalid")
     kind = value["kind"]
-    if kind in {"inline", "enum"}:
+    if kind in {"inline", "enum", "list"}:
         return "finite"
     if kind == "open":
         return "open"

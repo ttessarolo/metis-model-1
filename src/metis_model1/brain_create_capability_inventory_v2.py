@@ -74,12 +74,11 @@ _AUTHORITY_POLICY = {
         "metis-brain-dialogue-cumulative-grounding/v1:admitted_or_explicit_rejection"
     ),
     "structural_archetypes": [
-        "similar_seed_row",
-        "recent_catalog_page",
-        "entertainment_candidate_pools",
-        "entertainment_consumer_with_explicit_fallback",
+        "descriptor_filtered_collection",
     ],
-    "structural_authority": "cumulative_operator_dialogue_plus_reviewed_semantics",
+    "structural_authority": "original_reviewed_descriptor_index_plus_exact_count",
+    "structural_confirmation": "exact_filters_count_inventory_and_covered_history",
+    "legacy_closed_recipes": "explicit_compatibility_only_disabled_by_default",
     "refinement_basis": "exact_private_latest_head",
     "unknown_structure": "fail_closed",
     "unrequested_fallback": "do_not_add",

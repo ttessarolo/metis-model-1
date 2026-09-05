@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -58,6 +59,8 @@ SERIAL_TEST_FILES = frozenset(
     }
 )
 _SHARDED_PYTEST_ARGS = frozenset({"-q", "-qq", "-v", "-vv"})
+_BRAIN_REMOTE_REF = "refs/remotes/origin/main"
+_OID_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 class TestHarnessError(RuntimeError):
@@ -164,7 +167,8 @@ def _isolated_authority_identity(
     tree: str,
     modules_sha256: str,
     objects: Path,
-) -> tuple[str, str, str, str, str]:
+    remote_ref_revision: str | None,
+) -> tuple[str, str, str, str, str, str | None]:
     expected_alternate = (str(objects) + "\n").encode("utf-8")
     observed_alternate = _read_regular_file(
         root / ".git/objects/info/alternates",
@@ -176,6 +180,21 @@ def _isolated_authority_identity(
     observed_revision = _git_text(root, "rev-parse", "HEAD")
     observed_tree = _git_text(root, "rev-parse", "HEAD^{tree}")
     observed_branch = _git_text(root, "rev-parse", "--abbrev-ref", "HEAD")
+    observed_remote_ref_revision = None
+    if remote_ref_revision is not None:
+        observed_remote_ref_revision = _git_text(root, "rev-parse", _BRAIN_REMOTE_REF)
+        try:
+            _git_text(
+                root,
+                "merge-base",
+                "--is-ancestor",
+                revision,
+                observed_remote_ref_revision,
+            )
+        except catalog_pin.CatalogMaintenancePinError as error:
+            raise TestHarnessError(
+                "isolated Brain remote ref no longer contains its pin"
+            ) from error
     observed_status = _git_text(
         root,
         "status",
@@ -195,6 +214,7 @@ def _isolated_authority_identity(
         observed_revision != revision
         or observed_tree != tree
         or observed_branch != "HEAD"
+        or observed_remote_ref_revision != remote_ref_revision
         or observed_status
         or observed_modules != modules_sha256
     ):
@@ -205,6 +225,7 @@ def _isolated_authority_identity(
         observed_branch,
         observed_modules,
         observed_alternate.decode("utf-8"),
+        observed_remote_ref_revision,
     )
 
 
@@ -247,6 +268,7 @@ def isolated_metis_test_authority(
     tree: str = oracles.PINNED_METIS_TREE,
     modules_sha256: str = oracles.PINNED_NODE_MODULES_SHA256,
     runtime_modules: Path | None = None,
+    remote_ref_revision: str | None = None,
 ) -> Iterator[Path]:
     """Materialize a clean detached authority without writing the source repo."""
 
@@ -254,6 +276,18 @@ def isolated_metis_test_authority(
         root = Path(source_root).resolve(strict=True)
         if not root.is_dir():
             raise TestHarnessError("Metis source authority is not a directory")
+        if remote_ref_revision is not None:
+            if (
+                not isinstance(remote_ref_revision, str)
+                or _OID_RE.fullmatch(remote_ref_revision) is None
+            ):
+                raise TestHarnessError("isolated Brain remote ref revision is invalid")
+            try:
+                _git_text(root, "merge-base", "--is-ancestor", revision, remote_ref_revision)
+            except catalog_pin.CatalogMaintenancePinError as error:
+                raise TestHarnessError(
+                    "isolated Brain remote ref does not contain its pin"
+                ) from error
         before = _authority_identity(
             root,
             revision=revision,
@@ -296,12 +330,15 @@ def isolated_metis_test_authority(
                 _write_alternate(isolated / ".git/objects/info/alternates", objects)
                 _git_text(isolated, "update-ref", "--no-deref", "HEAD", revision)
                 _git_text(isolated, "read-tree", revision)
+                if remote_ref_revision is not None:
+                    _git_text(isolated, "update-ref", _BRAIN_REMOTE_REF, remote_ref_revision)
                 isolated_before = _isolated_authority_identity(
                     isolated,
                     revision=revision,
                     tree=tree,
                     modules_sha256=modules_sha256,
                     objects=objects,
+                    remote_ref_revision=remote_ref_revision,
                 )
                 try:
                     yield isolated
@@ -312,6 +349,7 @@ def isolated_metis_test_authority(
                         tree=tree,
                         modules_sha256=modules_sha256,
                         objects=objects,
+                        remote_ref_revision=remote_ref_revision,
                     )
                     if isolated_after != isolated_before:
                         raise TestHarnessError("isolated Metis authority changed during tests")
@@ -478,9 +516,12 @@ def _isolated_authority_pair(
     node_modules_sha256 = getattr(identity, "node_modules_sha256", None)
     revision = brain_receipt.get("revision")
     tree = brain_receipt.get("tree")
+    remote_ref_revision = brain_receipt.get("remote_ref_revision")
     if (
         type(revision) is not str
         or type(tree) is not str
+        or not isinstance(remote_ref_revision, str)
+        or _OID_RE.fullmatch(remote_ref_revision) is None
         or type(node_modules_sha256) is not str
         or not node_modules_sha256.removeprefix("sha256:")
     ):
@@ -495,6 +536,7 @@ def _isolated_authority_pair(
             revision=revision,
             tree=tree,
             modules_sha256=node_modules_sha256.removeprefix("sha256:"),
+            remote_ref_revision=remote_ref_revision,
         ) as brain_isolated,
     ):
         oracles.validate_pinned_metis(isolated)

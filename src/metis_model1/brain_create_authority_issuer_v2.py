@@ -29,6 +29,7 @@ from metis_model1.brain_create_plan_v2 import (
     validate_compact_authority_projection,
 )
 from metis_model1.brain_create_structural_authority_v2 import (
+    ReviewedSemanticIndex,
     StructuralIntent,
     validate_structural_intent,
 )
@@ -159,13 +160,20 @@ class CreateV2HostRefIssuer:
         parent_spec_sha256: str | None,
         parent_ir_sha256: str | None,
         parent_proposal_ref: str | None,
+        semantic_authority: ReviewedSemanticIndex | None = None,
+        result_count: int | None = None,
     ) -> IssuedCreateV2Authority:
         """Issue direct grants for one already-resolved generic structural intent."""
 
         inventory = validate_pinned_create_v2_inventory(inventory)
         if inventory.toolchain_binding != toolchain_binding:
             _fail("inventory toolchain differs", code="CREATE_V2_AUTHORITY_STALE")
-        validate_structural_intent(intent, policy_revision=inventory.policy_revision)
+        validate_structural_intent(
+            intent,
+            policy_revision=inventory.policy_revision,
+            semantic_authority=semantic_authority,
+            result_count=result_count,
+        )
         if (
             _HASH_RE.fullmatch(conversation_id or "") is None
             or _HASH_RE.fullmatch(request_fingerprint or "") is None

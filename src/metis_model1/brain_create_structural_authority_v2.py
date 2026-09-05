@@ -1,10 +1,11 @@
-"""Generic reviewed-semantic structural authority for typed CREATE v2.
+"""Reviewed-semantic structural authority for typed CREATE v2.
 
-The routines in this module translate a small, code-pinned roster of explicit
-operator contracts into detached endpoint-spec fragments.  They never inspect
-an endpoint implementation or model output.  Every
-catalog identifier, field and finite value used by a fragment must be present
-as reviewed schema-2 evidence from the current immutable session snapshot.
+The descriptor-native path translates reviewed selections from the active
+tenant into detached endpoint-spec fragments without naming a tenant, field or
+literal in Python.  A separate compatibility roster still supports previously
+sealed regression recipes; callers must opt into that legacy surface
+explicitly.  Neither path inspects an endpoint implementation or model output,
+and every executable semantic leaf is bound to the immutable session snapshot.
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ _STRUCTURAL_VALUE_ROSTERS = MappingProxyType(
 )
 _RECIPE_CONTRACTS = MappingProxyType(
     {
+        "filtered_collection": (("attach", "blocks", "many", "append", "container"),),
         "similar_row": (
             ("attach", "inputs", "many", "append", "input"),
             ("attach", "context", "many", "append", "contextBinding"),
@@ -263,10 +265,20 @@ class ReviewedSemanticIndex:
     fields: frozenset[str]
     values: frozenset[tuple[str, str]]
     proof_revision: str
+    selected_values: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     def __post_init__(self) -> None:
+        selected_values_shape_is_invalid = not isinstance(self.selected_values, tuple) or any(
+            not isinstance(item, tuple)
+            or len(item) != 2
+            or not isinstance(item[0], str)
+            or not isinstance(item[1], tuple)
+            for item in self.selected_values
+        )
         if (
-            _QUALIFIED_RE.fullmatch(self.catalog) is None
+            not isinstance(self.catalog, str)
+            or _QUALIFIED_RE.fullmatch(self.catalog) is None
+            or not isinstance(self.catalog_ref, str)
             or _IDENTIFIER_RE.fullmatch(self.catalog_ref) is None
             or self.catalog.rsplit(".", 1)[-1] != self.catalog_ref
             or not isinstance(self.fields, frozenset)
@@ -278,12 +290,27 @@ class ReviewedSemanticIndex:
             or any(
                 not isinstance(item, tuple)
                 or len(item) != 2
+                or not isinstance(item[0], str)
                 or item[0] not in self.fields
                 or not isinstance(item[1], str)
                 or not item[1]
                 for item in self.values
             )
+            or not isinstance(self.proof_revision, str)
             or re.fullmatch(r"sha256:[0-9a-f]{64}", self.proof_revision) is None
+            or selected_values_shape_is_invalid
+            or (
+                not selected_values_shape_is_invalid
+                and len({item[0] for item in self.selected_values}) != len(self.selected_values)
+            )
+            or any(
+                item[0] not in self.fields
+                or not item[1]
+                or any(not isinstance(literal, str) or not literal for literal in item[1])
+                or len(item[1]) != len(set(item[1]))
+                or any((item[0], literal) not in self.values for literal in item[1])
+                for item in (() if selected_values_shape_is_invalid else self.selected_values)
+            )
         ):
             _invalid("reviewed semantic index is invalid")
 
@@ -629,6 +656,219 @@ def reviewed_semantic_index(
     )
 
 
+def reviewed_descriptor_filter_index(
+    *,
+    retrieved: RetrievalResult,
+    context_revision: str,
+    semantic_revision: str,
+    toolchain_binding: str,
+) -> ReviewedSemanticIndex:
+    """Bind finite reviewed retrieval selections without a code-owned roster.
+
+    This is the descriptor-native authority seam.  It accepts only identities
+    already selected and resolved by Schema2 from the active snapshot.  It
+    cannot add a field or literal, cannot consume an open domain and cannot
+    infer an operational role from a familiar field name.
+    """
+
+    if not isinstance(retrieved, RetrievalResult):
+        _invalid("retrieval authority is invalid")
+    context, grounding = retrieved.context, retrieved.grounding
+    if not isinstance(context, Mapping) or not isinstance(grounding, Mapping):
+        _invalid("retrieval authority is invalid")
+    for value, label in (
+        (context_revision, "context revision"),
+        (semantic_revision, "semantic revision"),
+        (toolchain_binding, "toolchain binding"),
+    ):
+        if not isinstance(value, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
+            _invalid(f"{label} is invalid")
+    if (
+        context.get("semantic_schema") != 2
+        or context.get("context_revision") != context_revision
+        or context.get("semantic_source_revision") != semantic_revision
+        or context.get("toolchain_binding") != toolchain_binding
+        or retrieved.semantic_source_revision != semantic_revision
+    ):
+        raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "retrieval authority differs")
+    if (
+        grounding.get("status") != "resolved"
+        or grounding.get("candidates") not in (None, [])
+        or grounding.get("unresolved") not in (None, [])
+        or grounding.get("lookup") is not None
+        or grounding.get("lookups") not in (None, [])
+    ):
+        _unsupported("descriptor selections are unresolved")
+    catalogs = grounding.get("catalogs")
+    selections = grounding.get("selections")
+    resolutions = grounding.get("resolutions")
+    if (
+        not isinstance(catalogs, list)
+        or len(catalogs) != 1
+        or not isinstance(catalogs[0], str)
+        or _QUALIFIED_RE.fullmatch(catalogs[0]) is None
+        or not isinstance(selections, list)
+        or not selections
+        or not isinstance(resolutions, list)
+        or len(selections) != len(resolutions)
+    ):
+        _unsupported("one resolved descriptor catalog and selection roster are required")
+    catalog = catalogs[0]
+    reference_roster = context.get("catalog_reference_roster")
+    if (
+        not isinstance(reference_roster, list)
+        or not reference_roster
+        or any(
+            not isinstance(item, str) or _QUALIFIED_RE.fullmatch(item) is None
+            for item in reference_roster
+        )
+        or len(reference_roster) != len(set(reference_roster))
+        or [
+            item
+            for item in reference_roster
+            if item.rsplit(".", 1)[-1] == catalog.rsplit(".", 1)[-1]
+        ]
+        != [catalog]
+    ):
+        _unsupported("selected catalog has no unique compiler-derived short reference")
+    raw_catalog = context.get("catalog")
+    if (
+        not isinstance(raw_catalog, Mapping)
+        or raw_catalog.get("name") != catalog
+        or _semantic_state(raw_catalog.get("semantic")) != "reviewed"
+    ):
+        _unsupported("catalog descriptor is not reviewed")
+    raw_fields = context.get("fields")
+    if not isinstance(raw_fields, list):
+        _invalid("descriptor field context is invalid")
+    fields: dict[str, Mapping[str, Any]] = {}
+    for raw_field in raw_fields:
+        if (
+            not isinstance(raw_field, Mapping)
+            or not isinstance(raw_field.get("name"), str)
+            or _QUALIFIED_RE.fullmatch(raw_field["name"]) is None
+            or raw_field["name"] in fields
+        ):
+            _invalid("descriptor field roster is invalid")
+        fields[raw_field["name"]] = raw_field
+
+    selected: dict[str, list[str]] = {}
+    selected_order: list[str] = []
+    evidence: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for selection, resolution in zip(selections, resolutions, strict=True):
+        if not isinstance(selection, Mapping) or not isinstance(resolution, Mapping):
+            _invalid("descriptor selection evidence is invalid")
+        field = selection.get("field")
+        literal = selection.get("literal")
+        literals = selection.get("literals")
+        if (
+            selection.get("catalog") != catalog
+            or not isinstance(field, str)
+            or field not in fields
+            or (literal is not None) == (literals is not None)
+        ):
+            _invalid("descriptor selection identity is invalid")
+        if isinstance(literal, str) and literal:
+            chosen = (literal,)
+        elif (
+            isinstance(literals, list)
+            and literals
+            and selection.get("value_mode") == "any_of"
+            and all(isinstance(item, str) and item for item in literals)
+            and len(literals) == len(set(literals))
+        ):
+            chosen = tuple(literals)
+        else:
+            _invalid("descriptor selection value roster is invalid")
+        record = fields[field]
+        domain = record.get("domain")
+        if (
+            _IDENTIFIER_RE.fullmatch(field) is None
+            or not isinstance(record.get("modifiers"), list)
+            or any(not isinstance(item, str) for item in record["modifiers"])
+            or _semantic_state(record.get("semantic")) != "reviewed"
+            or record.get("type") != "keyword"
+            or not isinstance(domain, Mapping)
+            or domain.get("kind") not in {"inline", "enum", "list"}
+            or selection.get("type") != record.get("type")
+            or selection.get("modifiers") != record.get("modifiers")
+            or selection.get("domain") != domain
+        ):
+            _unsupported("selected descriptor is not a reviewed finite keyword field")
+        if (
+            resolution.get("catalog") != catalog
+            or resolution.get("field") != field
+            or resolution.get("literal") != literal
+            or resolution.get("review_state") != "reviewed"
+        ):
+            _invalid("descriptor resolution differs from its selection")
+        raw_values = record.get("values")
+        if not isinstance(raw_values, list):
+            _unsupported("selected finite descriptor values are not materialized")
+        value_records: dict[str, Mapping[str, Any]] = {}
+        for item in raw_values:
+            if (
+                not isinstance(item, Mapping)
+                or not isinstance(item.get("literal"), str)
+                or item["literal"] in value_records
+            ):
+                _invalid("materialized descriptor value roster is invalid or duplicated")
+            value_records[item["literal"]] = item
+        reviewed_values = {
+            literal
+            for literal, item in value_records.items()
+            if _semantic_state(item.get("semantic")) == "reviewed"
+        }
+        if any(item not in reviewed_values for item in chosen):
+            _unsupported("selected finite descriptor value is not reviewed")
+        if field in selected:
+            _unsupported("repeated field selections need explicit logical-group authority")
+        selected[field] = []
+        selected_order.append(field)
+        for item in chosen:
+            identity = (field, item)
+            if identity in seen:
+                _invalid("descriptor selection is duplicated")
+            seen.add(identity)
+            selected[field].append(item)
+        evidence.append(
+            {
+                "field": field,
+                "values": list(chosen),
+                "field_semantic": record.get("semantic"),
+                "value_semantics": [
+                    value_records[chosen_literal].get("semantic") for chosen_literal in chosen
+                ],
+                "type": record.get("type"),
+                "modifiers": record.get("modifiers"),
+                "domain": domain,
+            }
+        )
+
+    selected_values = tuple((field, tuple(selected[field])) for field in selected_order)
+    proof = canonical_sha256(
+        {
+            "contract_id": "metis-brain-reviewed-descriptor-filter-index/v1",
+            "context_revision": context_revision,
+            "semantic_revision": semantic_revision,
+            "toolchain_binding": toolchain_binding,
+            "catalog": catalog,
+            "catalog_reference_roster": reference_roster,
+            "catalog_semantic": raw_catalog.get("semantic"),
+            "selections": evidence,
+        }
+    )
+    return ReviewedSemanticIndex(
+        catalog=catalog,
+        catalog_ref=catalog.rsplit(".", 1)[-1],
+        fields=frozenset(selected),
+        values=frozenset(seen),
+        proof_revision=proof,
+        selected_values=selected_values,
+    )
+
+
 def _presentation() -> dict[str, Any]:
     return {"pinned": None, "view_all": None, "meta": [], "meta_per_item": False}
 
@@ -842,6 +1082,64 @@ def _mutation(
             force_basis=action == "remove",
         ),
         basis_path=basis_path,
+    )
+
+
+def _finite_descriptor_predicate(field: str, values: tuple[str, ...]) -> dict[str, Any]:
+    if len(values) == 1:
+        return _eq(field, _literal(values[0]))
+    return {
+        "op": "in",
+        "field": field,
+        "value": {"kind": "vals", "items": list(values)},
+    }
+
+
+def filtered_collection_intent(
+    *,
+    count: int,
+    messages: tuple[CreateAuthorityHistoryMessage, ...],
+    semantic: ReviewedSemanticIndex,
+    policy_revision: str,
+) -> StructuralIntent:
+    """Build one plain filtered block solely from reviewed descriptor selections."""
+
+    if type(count) is not int or not 1 <= count <= 1_000_000:
+        _invalid("filtered collection count is invalid")
+    if not semantic.selected_values:
+        _unsupported("filtered collection has no reviewed descriptor selections")
+    predicates: list[dict[str, Any]] = []
+    for field, values in semantic.selected_values:
+        semantic.require_field(field)
+        for literal in values:
+            semantic.require_value(field, literal)
+        predicates.append(_finite_descriptor_predicate(field, values))
+    block = _container(
+        "main",
+        fetches=(
+            _fetch(
+                catalog=semantic.catalog_ref,
+                count=count,
+                clauses=({"intent": "include", "where": predicates},),
+            ),
+        ),
+    )
+    mutation = _mutation(
+        action="attach",
+        member="blocks",
+        cardinality="many",
+        insertion="append",
+        fragment_type="container",
+        fragment=block,
+        label="Aggiungi collezione filtrata dai descrittori revisionati",
+        messages=messages,
+        semantic=semantic,
+        policy_revision=policy_revision,
+    )
+    return StructuralIntent(
+        "filtered_collection",
+        (mutation,),
+        semantic.proof_revision,
     )
 
 
@@ -1275,10 +1573,29 @@ def _policy_revision_from_intent(intent: StructuralIntent) -> str:
     return revision
 
 
-def _expected_intent(intent: StructuralIntent, policy_revision: str) -> StructuralIntent:
+def _expected_intent(
+    intent: StructuralIntent,
+    policy_revision: str,
+    semantic_authority: ReviewedSemanticIndex | None = None,
+    result_count: int | None = None,
+) -> StructuralIntent:
     """Rebuild the only admitted fragment from bounded variable leaves."""
 
     try:
+        if intent.family == "filtered_collection":
+            if (
+                type(semantic_authority) is not ReviewedSemanticIndex
+                or semantic_authority.proof_revision != intent.semantic_proof_revision
+            ):
+                _invalid("original reviewed descriptor authority is required")
+            # Reopen the independent host index, never derive permission from
+            # the candidate fragment or its self-reported leaf identities.
+            return filtered_collection_intent(
+                count=result_count,
+                messages=(),
+                semantic=semantic_authority,
+                policy_revision=policy_revision,
+            )
         if intent.family == "similar_row":
             row = intent.mutations[2].fragment
             fetch = row["fetches"][0]
@@ -1423,7 +1740,11 @@ def _validate_leaf_evidence(intent: StructuralIntent, *, policy_revision: str) -
 
 
 def validate_structural_intent(
-    intent: StructuralIntent, *, policy_revision: str
+    intent: StructuralIntent,
+    *,
+    policy_revision: str,
+    semantic_authority: ReviewedSemanticIndex | None = None,
+    result_count: int | None = None,
 ) -> StructuralIntent:
     """Reopen a detached intent against the exact code-owned recipe registry."""
 
@@ -1437,7 +1758,7 @@ def validate_structural_intent(
         _invalid("structural intent recipe differs")
     if _policy_revision_from_intent(intent) != policy_revision:
         _invalid("structural intent policy differs")
-    expected = _expected_intent(intent, policy_revision)
+    expected = _expected_intent(intent, policy_revision, semantic_authority, result_count)
     for actual_mutation, expected_mutation in zip(
         intent.mutations, expected.mutations, strict=True
     ):
@@ -1448,6 +1769,12 @@ def validate_structural_intent(
             or actual_mutation.requirement_label != expected_mutation.requirement_label
         ):
             _invalid("structural intent fragment differs from its code-owned recipe")
+        if intent.family == "filtered_collection":
+            actual_leaves = {item.json_pointer: item for item in actual_mutation.leaf_evidence}
+            for leaf in expected_mutation.leaf_evidence:
+                actual_leaf = actual_leaves.get(leaf.json_pointer)
+                if leaf.origin == "reviewed_semantic" and actual_leaf != leaf:
+                    _invalid("descriptor leaf differs from its original reviewed authority")
     _validate_leaf_evidence(intent, policy_revision=policy_revision)
     return intent
 
@@ -2129,6 +2456,20 @@ def _structural_intent_manifest(intent: StructuralIntent) -> dict[str, Any]:
 def _implementation_fragment_roster() -> list[dict[str, Any]]:
     semantic = _validation_semantic("video")
     policy = "sha256:" + "1" * 64
+    descriptor_semantic = ReviewedSemanticIndex(
+        catalog="synthetic.assets",
+        catalog_ref="assets",
+        fields=frozenset({"attribute_x"}),
+        values=frozenset({("attribute_x", "option_y")}),
+        proof_revision="sha256:" + "2" * 64,
+        selected_values=(("attribute_x", ("option_y",)),),
+    )
+    descriptor_collection = filtered_collection_intent(
+        count=7,
+        messages=(),
+        semantic=descriptor_semantic,
+        policy_revision=policy,
+    )
     similar_film = similar_row_intent(
         values=("Film",),
         count=24,
@@ -2178,6 +2519,7 @@ def _implementation_fragment_roster() -> list[dict[str, Any]]:
     return [
         _structural_intent_manifest(item)
         for item in (
+            descriptor_collection,
             similar_film,
             similar_series,
             similar_entertainment,
@@ -2223,12 +2565,14 @@ __all__ = [
     "StructuralNeed",
     "blocked_structure_need",
     "closed_structural_semantic_requirements",
+    "filtered_collection_intent",
     "initial_family_need",
     "initial_ready_intent",
     "normalize_operator_text",
     "presemantic_structural_need",
     "refinement_ready_intent",
     "reviewed_semantic_index",
+    "reviewed_descriptor_filter_index",
     "total_count_from_message",
     "validate_structural_intent",
 ]

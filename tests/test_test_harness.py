@@ -49,6 +49,7 @@ def _source_authority(tmp_path: Path) -> tuple[Path, str, str, str]:
 def test_isolated_authority_is_exact_clean_and_does_not_mutate_source(tmp_path: Path) -> None:
     source, revision, tree, modules_sha256 = _source_authority(tmp_path)
     source_head = _git(source, "rev-parse", "HEAD")
+    source_refs = _git(source, "for-each-ref", "--format=%(refname) %(objectname)")
     source_status = _git(source, "status", "--porcelain=v1", "--untracked-files=all")
 
     with test_harness.isolated_metis_test_authority(
@@ -61,6 +62,7 @@ def test_isolated_authority_is_exact_clean_and_does_not_mutate_source(tmp_path: 
         assert _git(isolated, "rev-parse", "HEAD") == revision
         assert _git(isolated, "rev-parse", "HEAD^{tree}") == tree
         assert _git(isolated, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
+        assert _git(isolated, "for-each-ref", "--format=%(refname) %(objectname)") == ""
         assert _git(isolated, "status", "--porcelain=v1", "--untracked-files=all") == ""
         assert (isolated / "tooling/node_modules/pkg/index.js").read_text(
             encoding="utf-8"
@@ -71,16 +73,47 @@ def test_isolated_authority_is_exact_clean_and_does_not_mutate_source(tmp_path: 
         )
 
     assert _git(source, "rev-parse", "HEAD") == source_head
+    assert _git(source, "for-each-ref", "--format=%(refname) %(objectname)") == source_refs
     assert _git(source, "status", "--porcelain=v1", "--untracked-files=all") == source_status
 
 
-@pytest.mark.parametrize("attack", ["tracked", "head", "modules", "alternate"])
+def test_isolated_authority_materializes_the_verified_brain_remote_ref(tmp_path: Path) -> None:
+    source, revision, tree, modules_sha256 = _source_authority(tmp_path)
+    source_head = _git(source, "rev-parse", "HEAD")
+    source_refs = _git(source, "for-each-ref", "--format=%(refname) %(objectname)")
+    source_status = _git(source, "status", "--porcelain=v1", "--untracked-files=all")
+
+    with test_harness.isolated_metis_test_authority(
+        source,
+        revision=revision,
+        tree=tree,
+        modules_sha256=modules_sha256,
+        remote_ref_revision=revision,
+    ) as isolated:
+        assert _git(isolated, "rev-parse", "refs/remotes/origin/main") == revision
+        _git(isolated, "merge-base", "--is-ancestor", revision, "refs/remotes/origin/main")
+
+    assert _git(source, "rev-parse", "HEAD") == source_head
+    assert _git(source, "for-each-ref", "--format=%(refname) %(objectname)") == source_refs
+    assert _git(source, "status", "--porcelain=v1", "--untracked-files=all") == source_status
+
+
+@pytest.mark.parametrize(
+    "attack", ["tracked", "head", "modules", "alternate", "remote", "remote_missing"]
+)
 def test_isolated_authority_detects_temporary_authority_mutation(
     tmp_path: Path,
     attack: str,
 ) -> None:
     source, revision, tree, modules_sha256 = _source_authority(tmp_path)
     retained: Path | None = None
+    remote_ref_revision = None
+    if attack in {"remote", "remote_missing"}:
+        (source / "remote-descendant.txt").write_text("remote descendant\n", encoding="utf-8")
+        _git(source, "add", "remote-descendant.txt")
+        _git(source, "commit", "--quiet", "-m", "remote descendant")
+        remote_ref_revision = _git(source, "rev-parse", "HEAD")
+    source_refs = _git(source, "for-each-ref", "--format=%(refname) %(objectname)")
 
     with (
         pytest.raises(test_harness.TestHarnessError),
@@ -89,6 +122,7 @@ def test_isolated_authority_detects_temporary_authority_mutation(
             revision=revision,
             tree=tree,
             modules_sha256=modules_sha256,
+            remote_ref_revision=remote_ref_revision,
         ) as isolated,
     ):
         retained = isolated
@@ -101,14 +135,80 @@ def test_isolated_authority_detects_temporary_authority_mutation(
                 "export default 2;\n",
                 encoding="utf-8",
             )
-        else:
+        elif attack == "alternate":
             (isolated / ".git/objects/info/alternates").write_text(
                 "/forged/objects\n",
                 encoding="utf-8",
             )
+        else:
+            if attack == "remote":
+                _git(isolated, "update-ref", "refs/remotes/origin/main", revision)
+            else:
+                _git(isolated, "update-ref", "-d", "refs/remotes/origin/main")
 
     assert retained is not None
     assert not retained.exists()
+    assert _git(source, "for-each-ref", "--format=%(refname) %(objectname)") == source_refs
+
+
+@pytest.mark.parametrize("remote_ref_revision", ["not-an-oid", "0" * 40, 7])
+def test_isolated_authority_rejects_invalid_or_missing_brain_remote_ref(
+    tmp_path: Path, remote_ref_revision: object
+) -> None:
+    source, revision, tree, modules_sha256 = _source_authority(tmp_path)
+
+    with (
+        pytest.raises(test_harness.TestHarnessError),
+        test_harness.isolated_metis_test_authority(
+            source,
+            revision=revision,
+            tree=tree,
+            modules_sha256=modules_sha256,
+            remote_ref_revision=remote_ref_revision,
+        ),
+    ):
+        pytest.fail("invalid Brain remote ref must fail before isolation")
+
+
+def test_isolated_authority_rejects_brain_remote_ref_that_does_not_contain_the_pin(
+    tmp_path: Path,
+) -> None:
+    source, old_revision, _old_tree, modules_sha256 = _source_authority(tmp_path)
+    (source / "pin-descendant.txt").write_text("new pin\n", encoding="utf-8")
+    _git(source, "add", "pin-descendant.txt")
+    _git(source, "commit", "--quiet", "-m", "new pin")
+    revision = _git(source, "rev-parse", "HEAD")
+    tree = _git(source, "rev-parse", "HEAD^{tree}")
+
+    with (
+        pytest.raises(test_harness.TestHarnessError, match="does not contain its pin"),
+        test_harness.isolated_metis_test_authority(
+            source,
+            revision=revision,
+            tree=tree,
+            modules_sha256=modules_sha256,
+            remote_ref_revision=old_revision,
+        ),
+    ):
+        pytest.fail("a Brain remote ref behind the pin must fail before isolation")
+
+
+def test_authority_pair_rejects_a_brain_receipt_without_remote_ref(tmp_path: Path) -> None:
+    source, revision, tree, modules_sha256 = _source_authority(tmp_path)
+
+    with (
+        pytest.raises(test_harness.TestHarnessError, match="authority identity is invalid"),
+        test_harness._isolated_authority_pair(
+            source_root=source,
+            oracle_node_modules=None,
+            brain_receipt={
+                "identity": SimpleNamespace(node_modules_sha256=f"sha256:{modules_sha256}"),
+                "revision": revision,
+                "tree": tree,
+            },
+        ),
+    ):
+        pytest.fail("a Brain receipt without a remote ref must fail before isolation")
 
 
 def test_isolated_authority_detects_source_runtime_change_during_use(tmp_path: Path) -> None:
@@ -316,9 +416,10 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
                 }.items()
             },
             "probes_executed": execute_probes,
-            "revision": "brain-revision",
-            "tree": "brain-tree",
-            "identity": SimpleNamespace(node_modules_sha256="brain-modules"),
+            "revision": "a" * 40,
+            "tree": "b" * 40,
+            "remote_ref_revision": "c" * 40,
+            "identity": SimpleNamespace(node_modules_sha256="sha256:" + "d" * 64),
             "brain_root": seen.setdefault("brain", Path(root)),
         },
     )
@@ -331,6 +432,7 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
         tree: str = test_harness.oracles.PINNED_METIS_TREE,
         modules_sha256: str = test_harness.oracles.PINNED_NODE_MODULES_SHA256,
         runtime_modules: Path | None = None,
+        remote_ref_revision: str | None = None,
     ):
         if runtime_modules is not None:
             seen["oracle_source"] = Path(root)
@@ -341,6 +443,8 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
         seen["brain_revision"] = Path(revision)
         seen["brain_tree"] = Path(tree)
         seen["brain_modules"] = Path(modules_sha256)
+        assert remote_ref_revision is not None
+        seen["brain_remote_ref"] = Path(remote_ref_revision)
         yield brain_isolated_root
 
     monkeypatch.setattr(test_harness, "isolated_metis_test_authority", isolated)
@@ -370,9 +474,10 @@ def test_run_tests_separates_current_brain_from_historical_oracle_runtime(
         "oracle_source": brain_root,
         "oracle_runtime": oracle_node_modules,
         "brain_source": brain_root,
-        "brain_revision": Path("brain-revision"),
-        "brain_tree": Path("brain-tree"),
-        "brain_modules": Path("brain-modules"),
+        "brain_revision": Path("a" * 40),
+        "brain_tree": Path("b" * 40),
+        "brain_modules": Path("d" * 64),
+        "brain_remote_ref": Path("c" * 40),
     }
 
 

@@ -4,6 +4,9 @@ Status: **IMPLEMENTATION ACTIVE**.  This document is the normative design for
 creating and refining complex endpoints without exposing a golden endpoint to a
 model, accepting arbitrary source as authority, or mutating the tenant.
 
+This document implements D-017: typed CREATE is a general Metis capability,
+not a collection of tenant- or benchmark-specific shortcuts.
+
 ## Why whole-source generation is not the product path
 
 The frozen complex corpus contains endpoints between 122 and 588 lines
@@ -36,6 +39,29 @@ operator messages plus typed clarification decisions
 The model never receives a filesystem path, raw reference endpoint, golden
 source, hidden template, compiler IR, bearer token or Apply capability.  A
 compiler-clean candidate is necessary but not sufficient.
+
+## D-017 — generalità e autorità dei descrittori
+
+Il runtime possiede grammatica, standard library, compilatore, diagnostica,
+limiti e orchestrazione. Non possiede la conoscenza del dominio. Catalogo,
+campo, valore, alias, mappatura fra cataloghi e lessico operativo devono
+provenire dalla proiezione Schema2 del tenant attivo, con stato `reviewed`,
+value-set/domain e revision binding verificabili. Il modello riceve soltanto
+riferimenti opachi e contesto bounded; il builder risolve quei riferimenti
+contro lo snapshot e non accetta stringhe di dominio come autorità.
+
+Sono vietati shortcut basati su nome del campo, tenant, endpoint, valore o
+frase italiana. Un nome familiare non autorizza alcuna scelta semantica. Se un
+ruolo strutturale — per esempio identità, similarità, recenza, grouping o
+relazione fra cataloghi — non è dichiarato dai descrittori o da un oracle
+tipizzato, la proposta deve produrre una decisione tipizzata dell'operatore o
+uno `STOP` fail-closed. Non è ammesso dedurlo dal nome né copiarlo da una
+recipe della demo.
+
+Le recipe legacy e i profili di qualifica restano strumenti di compatibilità e
+misurazione: possono fissare un test, ma non conferiscono autorità al prodotto.
+La loro presenza nel codice non dimostra generalità e deve essere ridotta con
+la migrazione dell'autorità verso il retrieval semantico del tenant.
 
 ## CreateDeltaPlan v1
 
@@ -119,7 +145,7 @@ One isolated compiler call returns an exact receipt containing:
 No HTTP route exposes this bridge.  Brain returns source only as a Draft; Apply
 remains a separate explicit capability and is excluded from qualification.
 
-## Closed recipes: explicit operands and canonical mappings
+## Closed recipes: explicit operands and compatibility boundary
 
 The closed structural recipes do not silently invent business operands.  The
 operator dialogue must explicitly bind the similarity seed, content family,
@@ -128,12 +154,15 @@ consumer strategy, recency promotion and fallback trigger, mode and target.
 An omission, negation, mixed family or swapped scope produces a bounded Ask
 before semantic authority or Model 1 can run.
 
-Only implementation details with one reviewed, code-pinned interpretation use
-canonical mappings: record similarity uses the catalog profile
-`content_fingerprint`; “programma” groups on the reviewed brand identity
-`id_brand`; recency orders on `publication_date` descending; and deduplication
-uses the catalog identity `video_content_id`.  `seed_id` and `seed` are private
-input/context names, not semantic assumptions about an unspecified target.
+During the migration, a qualification profile may exercise implementation
+details with one reviewed, code-pinned interpretation: record similarity uses
+the catalog profile `content_fingerprint`; “programma” groups on the reviewed
+brand identity `id_brand`; recency orders on `publication_date` descending; and
+deduplication uses the catalog identity `video_content_id`. These mappings are
+compatibility fixtures, not product authority. `seed_id` and `seed` are
+private input/context names, not semantic assumptions about an unspecified
+target. Product runtime must obtain equivalent roles from reviewed descriptors,
+or ask/stop when they are absent.
 
 Every mapped field and every finite literal is reopened against the exact
 schema-2 snapshot.  The host-only exact-value resolver admits only
@@ -141,6 +170,19 @@ schema-2 snapshot.  The host-only exact-value resolver admits only
 members fail closed.  Any change to these mappings changes the structural
 implementation and capability-inventory digests, so the runtime identity and
 qualification plan must be resealed before execution.
+
+The first general product slice is intentionally narrow: reviewed finite
+keyword inclusion filters plus an explicit result count, rendered and compiled from the
+active tenant descriptors. It must work with renamed synthetic tenants and
+must not depend on the legacy recipe roster. Pagination, fallback, multi-block
+and implicit structural roles follow only after their descriptor contracts are
+available; until then they remain explicit clarification/STOP cases.
+
+The server uses descriptor-native authority by default. Legacy recipes require
+the internal `legacy_closed_recipes=True` compatibility option, which is not a
+server configuration setting. Their historical qualification scores do not
+describe the new default. Physical removal of that compatibility surface and
+generalization of the complex capabilities remain G5.
 
 ## Honest oracle for the ten complex journeys
 

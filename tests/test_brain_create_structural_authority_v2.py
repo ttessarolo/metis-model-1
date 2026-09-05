@@ -193,6 +193,7 @@ def _provider(*, resolver: _ExactResolver | None = None) -> PinnedCreateV2Author
         hmac_key=b"p" * 32,
         toolchain_binding=TOOLCHAIN,
         exact_value_resolver=resolver or _ExactResolver(),
+        legacy_closed_recipes=True,
     )
 
 
@@ -1338,6 +1339,7 @@ def test_closed_recipe_without_host_exact_value_resolver_never_issues() -> None:
         hmac_key=b"p" * 32,
         toolchain_binding=TOOLCHAIN,
         exact_value_resolver=None,
+        legacy_closed_recipes=True,
     )
 
     with pytest.raises(BrainError) as caught:

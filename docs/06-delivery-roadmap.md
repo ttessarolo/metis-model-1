@@ -43,7 +43,7 @@ un micro-dataset non sensibile e non decide la semantica del benchmark.
 
 ### W0 — Foundation
 
-- decision log D-001…D-016;
+- decision log D-001…D-017;
 - source/model revision manifest;
 - repository structure e policy artifact;
 - open decision register.
@@ -125,6 +125,8 @@ remains open.
 - fallback remoto/tool-based esplicito, policy-controlled e auditabile;
 - launcher locale con adapter on/off;
 - context/compile loop fail-closed;
+- autorità di dominio derivata dai descrittori Schema2 `reviewed` del tenant,
+  con gate anti-tailoring su tenant sintetici rinominati;
 - model/data card;
 - operator runbook;
 - rollback test;
@@ -148,6 +150,12 @@ veto critico è aperto. `NO_TRAIN` è una chiusura valida.
 8. governance e licenze sono chiuse per l'uso previsto;
 9. failure mode e limiti sono documentati;
 10. un operatore può installare, verificare e fare rollback dal runbook.
+
+La qualifica su un tenant noto non dimostra generalità. Prima della chiusura
+del serving path, ogni capability CREATE deve superare il contratto D-017:
+stessa struttura su tenant isomorfi rinominati, nessun identificatore o literal
+di dominio richiesto dal codice di produzione e invalidazione fail-closed al
+cambio di descrittore, stato editoriale o revisione.
 
 Un run verde non equivale a un prodotto done se mancano benchmark, provenance o
 packaging.
