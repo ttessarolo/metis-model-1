@@ -1637,3 +1637,35 @@ grounding, compiler, tenant or no-Apply gate.
 - OPEN [L0] — Commit the reviewed implementation on clean `main`, execute the
   authorized immutable fifth `10x4` run, then run the single final `make check`
   and promote only on exact `10/10 + 6/6 + 24/24` with all guards unchanged.
+
+### L0 — fifth live measurement and promotion (2026-09-05)
+
+- FACT [L0] — Clean commit
+  `b6ce3d4` completed the fifth authorized local `10x4` run in `283261ms`;
+  all `10` journeys and `40` operator messages completed. Semantic receipt
+  identity is
+  `sha256:d2cd84a99de1fe9d4e73d743f1ddf2051041164ea1cb87d2a113e417209666ad`
+  and ignored receipt-file SHA-256 is
+  `699d5ed136614d2dd8a66435c78ba9df17a87b6cd5fc18ac658349cd5d13132e`.
+- DONE [L0] — The immutable assessment is GREEN at the exact closed
+  denominator: initial bounded questions `in=10 out=10 distinct=10 gaps=0`,
+  model/compiler-ready stages `in=6 out=6 distinct=6 gaps=0`, and incomplete
+  authority stages safely blocked `in=24 out=24 distinct=24 gaps=0`. The prior
+  nine `CLARIFICATION_REPEAT` terminals are absent; no wrong Draft was admitted.
+- DONE [L0] — Terminal gate is `PASSED`; blueprint load occurred only after
+  service close, transport remained numeric loopback HTTP, Apply capability
+  and calls remained false, and Model 1 plus the read-only tenant remained
+  unchanged. Tenant authority is still HEAD
+  `98e78407f7286d2a9ac404dceb655fd1f6a9118e`, tree
+  `914785f55c2be453ee75a6314f4e9e77010eed25`.
+- DONE [L0] — Final authoritative repository gate:
+  `make check PINNED_NODE=artifacts/metis-brain-runtime/node-v22.22.3/bin/node`.
+  Foundation is `passes=87 errors=0 files=688`; pilot contract and all five
+  pilot checks pass; Ruff passes; format-check covers `447` files; full harness
+  is `in=4162 out=4162 distinct=4162 gaps=0` with `4160 passed`, `2 skipped`,
+  `0 failed` in `1884.19s`. The reported W5 blockers are the declared historic
+  pilot state and do not alter this Brain qualification.
+- DONE [L0] — Complex CREATE dialogue authority is promoted for this wave:
+  multi-turn structural clarification preserves lineage, exact pending replay
+  spends neither authority nor round, and only verified advancement commits
+  the provisional answer. Remaining work is outside this closed gate.

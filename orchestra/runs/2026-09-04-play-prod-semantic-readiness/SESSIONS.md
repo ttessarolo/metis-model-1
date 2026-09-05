@@ -496,3 +496,23 @@ push and did not run MLX, network, a live tenant or Apply.
   whitespace gates.
 - Status: done. No delegated model/compiler/tenant/network/Apply/commit/push;
   L0 proceeds to the clean pre-live commit and authorized fifth qualification.
+
+### L0 — live run 5, full gate and promotion
+
+- Model / effort: frontier coordinator; live-model authority, semantic and
+  security acceptance, immutable receipt assessment, full gate and Git
+  promotion.
+- Live result: fifth `10x4` receipt GREEN at `10/10` initial Ask, `6/6` exact
+  Ready and `24/24` safely blocked incomplete stages; terminal gate passed,
+  Apply absent, tenant and model guards unchanged.
+- Evidence: semantic receipt
+  `sha256:d2cd84a99de1fe9d4e73d743f1ddf2051041164ea1cb87d2a113e417209666ad`;
+  ignored receipt-file SHA-256
+  `699d5ed136614d2dd8a66435c78ba9df17a87b6cd5fc18ac658349cd5d13132e`;
+  duration `283261ms`.
+- Final verification: foundation `87/87`; pilot contract plus five checks
+  pass; Ruff and `447`-file format-check pass; full harness `4160 passed`,
+  `2 skipped`, `0 failed` in `1884.19s`.
+- Status: done; promoted by L0. Next Git step is the evidence commit, push and
+  post-push equality/cleanliness check. No tenant write, Apply, training,
+  download or network-backed data access occurred.
