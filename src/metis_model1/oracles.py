@@ -9,6 +9,7 @@ Metis checkout.
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
@@ -1119,6 +1121,173 @@ def _build_isolated_snapshot(
         holder.cleanup()
         raise OracleError(f"cannot prepare the isolated Metis tooling: {error}") from error
     return holder, snapshot, snapshot_modules, snapshot_runner, snapshot_loader, snapshot_node
+
+
+_DIRECTORY_OPEN_FLAGS = (
+    os.O_RDONLY
+    | getattr(os, "O_DIRECTORY", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_CLOEXEC", 0)
+)
+_MAX_ORACLE_SESSION_ROSTER_ENTRIES = 65_536
+
+
+def _metadata_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    """Return every unprivileged mutation-sensitive field exposed by ``stat``."""
+
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_uid,
+        metadata.st_gid,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        int(getattr(metadata, "st_flags", 0)),
+        int(getattr(metadata, "st_gen", 0)),
+    )
+
+
+def _regular_file_metadata(path: Path, label: str) -> tuple[int, ...]:
+    try:
+        metadata = path.lstat()
+    except OSError as error:
+        raise OracleError(f"{label} is unavailable") from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise OracleError(f"{label} must remain a regular non-symlink file")
+    return _metadata_identity(metadata)
+
+
+def _open_metadata_directory(path: Path, label: str) -> int:
+    descriptor = -1
+    try:
+        descriptor = os.open(path, _DIRECTORY_OPEN_FLAGS)
+        if not _directory_fd_matches_path(descriptor, path):
+            raise OracleError(f"{label} identity changed while opening it")
+        return descriptor
+    except BaseException:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+        raise
+
+
+def _directory_metadata_roster(directory_fd: int) -> tuple[tuple[Any, ...], ...]:
+    """Inventory a tree through directory descriptors without following links."""
+
+    roster: list[tuple[Any, ...]] = []
+
+    def append(entry: tuple[Any, ...]) -> None:
+        if len(roster) >= _MAX_ORACLE_SESSION_ROSTER_ENTRIES:
+            raise OracleError("oracle session authority roster exceeds its bound")
+        roster.append(entry)
+
+    def visit(
+        parent_fd: int,
+        prefix: str,
+        expected_identity: tuple[int, ...] | None,
+    ) -> None:
+        try:
+            before = os.fstat(parent_fd)
+        except OSError as error:
+            raise OracleError("oracle session authority roster is unavailable") from error
+        if not stat.S_ISDIR(before.st_mode):
+            raise OracleError("oracle session authority roster root is not a directory")
+        before_identity = _metadata_identity(before)
+        if expected_identity is not None and before_identity != expected_identity:
+            raise OracleError("oracle session authority directory changed during traversal")
+        if not prefix:
+            append(("", "directory", *before_identity, None))
+        try:
+            names = sorted(os.listdir(parent_fd))
+        except OSError as error:
+            raise OracleError("oracle session authority roster is unavailable") from error
+        for name in names:
+            if not isinstance(name, str) or not name or "/" in name or name in {".", ".."}:
+                raise OracleError("oracle session authority roster contains an invalid name")
+            relative = name if not prefix else f"{prefix}/{name}"
+            try:
+                metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            except OSError as error:
+                raise OracleError(
+                    "oracle session authority roster changed during traversal"
+                ) from error
+            identity = _metadata_identity(metadata)
+            if stat.S_ISDIR(metadata.st_mode):
+                kind = "directory"
+                target: str | None = None
+            elif stat.S_ISREG(metadata.st_mode):
+                kind = "file"
+                target = None
+            elif stat.S_ISLNK(metadata.st_mode):
+                kind = "symlink"
+                try:
+                    target = os.readlink(name, dir_fd=parent_fd)
+                except OSError as error:
+                    raise OracleError(
+                        "oracle session authority symlink changed during traversal"
+                    ) from error
+            else:
+                raise OracleError("oracle session authority contains a non-regular entry")
+            append((relative, kind, *identity, target))
+            if kind != "directory":
+                continue
+            child_fd = -1
+            try:
+                child_fd = os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=parent_fd)
+                opened = os.fstat(child_fd)
+                if _metadata_identity(opened) != identity:
+                    raise OracleError("oracle session authority directory changed during traversal")
+                visit(child_fd, relative, identity)
+            finally:
+                if child_fd >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(child_fd)
+        try:
+            after_identity = _metadata_identity(os.fstat(parent_fd))
+        except OSError as error:
+            raise OracleError("oracle session authority roster is unavailable") from error
+        if after_identity != before_identity:
+            raise OracleError("oracle session authority directory changed during traversal")
+
+    visit(directory_fd, "", None)
+    return tuple(roster)
+
+
+def _oracle_session_global_identity() -> tuple[Any, ...]:
+    """Bind process globals which influence an old-oracle execution."""
+
+    return (
+        PINNED_METIS_REVISION,
+        PINNED_METIS_TREE,
+        PINNED_NODE_VERSION,
+        PINNED_TOOLING_PACKAGE_SHA256,
+        PINNED_TOOLING_LOCK_SHA256,
+        PINNED_NODE_MODULES_SHA256,
+        PINNED_RUNNER_SHA256,
+        PINNED_LOADER_SHA256,
+        PINNED_NODE_BINARY_SHA256,
+        PINNED_NODE_BYTES,
+        tuple(LOADER_FLAGS),
+        NODE_RUNTIME_IDENTITY,
+        NODE_RUNTIME_ENV,
+        str(SANDBOX_EXEC_PATH),
+        SANDBOX_EXEC_IDENTITY,
+        SANDBOX_POLICY,
+        SANDBOX_POLICY_SHA256,
+        SANDBOX_POLICY_VERSION,
+        _MAX_ORACLE_SESSION_ROSTER_ENTRIES,
+        tuple(sorted(STERILE_ENV.items())),
+        tuple(sorted(EXECUTION_MODES)),
+        LANGUAGE_VERSION,
+        SCHEMA_VERSION,
+        str(ARTIFACT_ROOT),
+        str(RUNNER_PATH),
+        str(LOADER_PATH),
+        str(SCHEMA_PATH),
+    )
 
 
 def _resolve_absolute(path: str | os.PathLike[str], label: str) -> Path:
@@ -2527,6 +2696,576 @@ def run_oracle_from_capsule(
     return envelope
 
 
+class OracleSession:
+    """Explicit process-private reuse of one fully pinned old-oracle snapshot."""
+
+    def __init__(
+        self,
+        *,
+        metis_root: str | os.PathLike[str],
+        runner_path: str | os.PathLike[str],
+        expected_revision: str = PINNED_METIS_REVISION,
+    ) -> None:
+        self._metis_root_argument = metis_root
+        self._runner_argument = runner_path
+        self._expected_revision = expected_revision
+        self._creator_pid: int | None = None
+        self._entered = False
+        self._closed = False
+        self._poisoned = False
+        self._poison_error: BaseException | None = None
+        self._run_lock = threading.Lock()
+        self._holder: tempfile.TemporaryDirectory[str] | None = None
+        self._root: Path | None = None
+        self._source_modules: Path | None = None
+        self._runner: Path | None = None
+        self._node: Path | None = None
+        self._snapshot: Path | None = None
+        self._snapshot_modules: Path | None = None
+        self._snapshot_runner: Path | None = None
+        self._snapshot_loader: Path | None = None
+        self._snapshot_node: Path | None = None
+        self._revision: str | None = None
+        self._tree: str | None = None
+        self._toolchain_runtime: dict[str, str] | None = None
+        self._runtime: dict[str, Any] | None = None
+        self._source_status: str | None = None
+        self._root_fd = -1
+        self._source_modules_fd = -1
+        self._snapshot_fd = -1
+        self._snapshot_modules_fd = -1
+        self._source_modules_roster: tuple[tuple[Any, ...], ...] | None = None
+        self._snapshot_roster: tuple[tuple[Any, ...], ...] | None = None
+        self._file_identities: tuple[tuple[Path, str, tuple[int, ...], str], ...] = ()
+        self._global_identity: tuple[Any, ...] | None = None
+        self._node_resolution_environment: tuple[str | None, str | None] | None = None
+
+    def __enter__(self) -> OracleSession:
+        if self._entered or self._closed:
+            raise OracleError("oracle session instances are single-use")
+        self._creator_pid = os.getpid()
+        try:
+            _assert_sandbox_policy()
+            root, revision, tree, toolchain_runtime = validate_pinned_metis(
+                self._metis_root_argument,
+                expected_revision=self._expected_revision,
+            )
+            runner = _validate_runner_path(self._runner_argument, root)
+            node, node_binary_sha256 = _resolve_pinned_node()
+            runtime = _runtime_identity(
+                PINNED_NODE_VERSION,
+                node_binary_sha256,
+                revision,
+                tree,
+                toolchain_runtime,
+            )
+            source_status = _git(root, "status", "--porcelain=v1", "--untracked-files=no")
+            if (
+                _git(root, "rev-parse", "HEAD") != revision
+                or _git(root, "rev-parse", "HEAD^{tree}") != tree
+            ):
+                raise OracleError("Metis checkout changed during validation")
+            source_modules = (root / "tooling" / "node_modules").resolve(strict=True)
+            (
+                holder,
+                snapshot,
+                snapshot_modules,
+                snapshot_runner,
+                snapshot_loader,
+                snapshot_node,
+            ) = _build_isolated_snapshot(
+                root,
+                revision,
+                tree,
+                toolchain_runtime,
+                runner,
+                node,
+            )
+            self._holder = holder
+            self._root = root
+            self._source_modules = source_modules
+            self._runner = runner
+            self._node = node
+            self._snapshot = snapshot
+            self._snapshot_modules = snapshot_modules
+            self._snapshot_runner = snapshot_runner
+            self._snapshot_loader = snapshot_loader
+            self._snapshot_node = snapshot_node
+            self._revision = revision
+            self._tree = tree
+            self._toolchain_runtime = toolchain_runtime
+            self._runtime = runtime
+            self._source_status = source_status
+            self._root_fd = _open_metadata_directory(root, "Metis root")
+            self._source_modules_fd = _open_metadata_directory(
+                source_modules, "Metis tooling runtime"
+            )
+            self._snapshot_fd = _open_metadata_directory(snapshot, "oracle snapshot")
+            self._snapshot_modules_fd = _open_metadata_directory(
+                snapshot_modules, "isolated tooling runtime"
+            )
+            self._source_modules_roster = _directory_metadata_roster(self._source_modules_fd)
+            self._snapshot_roster = _directory_metadata_roster(self._snapshot_fd)
+            if _node_modules_sha256(source_modules) != toolchain_runtime["node_modules_sha256"]:
+                raise OracleError("Metis tooling node_modules changed during session setup")
+            if _node_modules_sha256(snapshot_modules) != toolchain_runtime["node_modules_sha256"]:
+                raise OracleError("isolated tooling node_modules changed before execution")
+            guarded_files = (
+                (
+                    root / "tooling" / "package.json",
+                    "source tooling package",
+                    toolchain_runtime["package_sha256"],
+                    "Metis tooling package.json changed during session setup",
+                ),
+                (
+                    root / "tooling" / "package-lock.json",
+                    "source tooling lock",
+                    toolchain_runtime["lock_sha256"],
+                    "Metis tooling package-lock.json changed during session setup",
+                ),
+                (
+                    snapshot / "tooling" / "package.json",
+                    "isolated tooling package",
+                    toolchain_runtime["package_sha256"],
+                    "isolated tooling package.json changed before execution",
+                ),
+                (
+                    snapshot / "tooling" / "package-lock.json",
+                    "isolated tooling lock",
+                    toolchain_runtime["lock_sha256"],
+                    "isolated tooling package-lock.json changed before execution",
+                ),
+                (runner, "source oracle runner", PINNED_RUNNER_SHA256, "source runner changed"),
+                (
+                    LOADER_PATH,
+                    "source native loader",
+                    PINNED_LOADER_SHA256,
+                    "source native loader changed",
+                ),
+                (
+                    node,
+                    "source Node binary",
+                    PINNED_NODE_BINARY_SHA256,
+                    "source Node binary changed during session setup",
+                ),
+                (
+                    snapshot_runner,
+                    "isolated oracle runner",
+                    PINNED_RUNNER_SHA256,
+                    "isolated runner changed before execution",
+                ),
+                (
+                    snapshot_loader,
+                    "isolated native loader",
+                    PINNED_LOADER_SHA256,
+                    "isolated native loader changed before execution",
+                ),
+                (
+                    snapshot_node,
+                    "isolated Node binary",
+                    PINNED_NODE_BINARY_SHA256,
+                    "isolated Node binary changed before execution",
+                ),
+                (SANDBOX_EXEC_PATH, "sandbox executable", None, None),
+                (SCHEMA_PATH, "oracle result schema", None, None),
+            )
+            file_identities: list[tuple[Path, str, tuple[int, ...], str]] = []
+            for path, label, expected_digest, mismatch_message in guarded_files:
+                identity = _regular_file_metadata(path, label)
+                digest = _file_sha256(path)
+                if expected_digest is not None and digest != expected_digest:
+                    raise OracleError(mismatch_message or f"{label} changed")
+                file_identities.append((path, label, identity, digest))
+            self._file_identities = tuple(file_identities)
+            self._global_identity = _oracle_session_global_identity()
+            self._node_resolution_environment = (
+                os.environ.get(NODE_RUNTIME_ENV),
+                os.environ.get("PATH"),
+            )
+            self._entered = True
+            self._assert_metadata_unchanged()
+            return self
+        except BaseException:
+            self._cleanup()
+            raise
+
+    def _require_active(self) -> None:
+        if not self._entered or self._closed:
+            raise OracleError("oracle session is not active")
+        if os.getpid() != self._creator_pid:
+            raise OracleError("oracle session cannot cross a process boundary")
+        if self._poisoned:
+            raise OracleError("oracle session is poisoned by authority drift")
+
+    def _assert_process_binding(self) -> None:
+        if os.getpid() != self._creator_pid:
+            raise OracleError("oracle session cannot cross a process boundary")
+        if _oracle_session_global_identity() != self._global_identity:
+            raise OracleError("oracle session process authority changed")
+        if (
+            os.environ.get(NODE_RUNTIME_ENV),
+            os.environ.get("PATH"),
+        ) != self._node_resolution_environment:
+            raise OracleError("oracle session Node resolution environment changed")
+
+    def _assert_metadata_unchanged(self) -> None:
+        self._assert_process_binding()
+        if (
+            self._root is None
+            or self._source_modules is None
+            or self._snapshot is None
+            or self._snapshot_modules is None
+            or self._revision is None
+            or self._tree is None
+            or self._source_status is None
+            or self._source_modules_roster is None
+            or self._snapshot_roster is None
+        ):
+            raise OracleError("oracle session authority is incomplete")
+        directory_bindings = (
+            (self._root_fd, self._root, "Metis root"),
+            (self._source_modules_fd, self._source_modules, "Metis tooling runtime"),
+            (self._snapshot_fd, self._snapshot, "oracle snapshot"),
+            (
+                self._snapshot_modules_fd,
+                self._snapshot_modules,
+                "isolated tooling runtime",
+            ),
+        )
+        if any(
+            descriptor < 0 or not _directory_fd_matches_path(descriptor, path)
+            for descriptor, path, _label in directory_bindings
+        ):
+            raise OracleError("oracle session authority directory identity changed")
+        if _directory_metadata_roster(self._source_modules_fd) != self._source_modules_roster:
+            raise OracleError("oracle session source tooling metadata changed")
+        if _directory_metadata_roster(self._snapshot_fd) != self._snapshot_roster:
+            raise OracleError("oracle session isolated tooling metadata changed")
+        for path, label, identity, _digest in self._file_identities:
+            if _regular_file_metadata(path, label) != identity:
+                raise OracleError(f"oracle session {label} metadata changed")
+        if (
+            _git(self._root, "status", "--porcelain=v1", "--untracked-files=no")
+            != self._source_status
+            or _git(self._root, "rev-parse", "HEAD") != self._revision
+            or _git(self._root, "rev-parse", "HEAD^{tree}") != self._tree
+        ):
+            raise OracleError("oracle session Metis checkout identity changed")
+
+    def _guard_authority(self) -> None:
+        try:
+            self._assert_metadata_unchanged()
+        except BaseException as error:
+            self._poisoned = True
+            if self._poison_error is None:
+                self._poison_error = error
+            raise
+
+    def _assert_full_unchanged(self) -> None:
+        self._assert_metadata_unchanged()
+        if (
+            self._source_modules is None
+            or self._snapshot_modules is None
+            or self._toolchain_runtime is None
+        ):
+            raise OracleError("oracle session authority is incomplete")
+        modules_pin = self._toolchain_runtime["node_modules_sha256"]
+        if _node_modules_sha256(self._source_modules) != modules_pin:
+            raise OracleError("oracle session source tooling content changed")
+        if _node_modules_sha256(self._snapshot_modules) != modules_pin:
+            raise OracleError("oracle session isolated tooling content changed")
+        for path, label, _identity, digest in self._file_identities:
+            if _file_sha256(path) != digest:
+                raise OracleError(f"oracle session {label} content changed")
+        self._assert_metadata_unchanged()
+
+    def _guard_full_authority(self) -> None:
+        try:
+            self._assert_full_unchanged()
+        except BaseException as error:
+            self._poisoned = True
+            if self._poison_error is None:
+                self._poison_error = error
+            raise
+
+    def _cleanup(self) -> None:
+        for attribute in (
+            "_snapshot_modules_fd",
+            "_snapshot_fd",
+            "_source_modules_fd",
+            "_root_fd",
+        ):
+            descriptor = getattr(self, attribute)
+            setattr(self, attribute, -1)
+            if descriptor >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
+        holder = self._holder
+        self._holder = None
+        if holder is not None:
+            holder.cleanup()
+        self._closed = True
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: Any,
+    ) -> bool:
+        del exc_type, traceback
+        if self._closed:
+            return False
+        if os.getpid() != self._creator_pid:
+            raise OracleError("oracle session cannot be closed across a process boundary")
+        if not self._run_lock.acquire(blocking=False):
+            raise OracleError("oracle session cannot close during an active request")
+        close_error: BaseException | None = None
+        try:
+            try:
+                self._assert_full_unchanged()
+            except BaseException as error:
+                self._poisoned = True
+                if self._poison_error is None:
+                    self._poison_error = error
+                close_error = error
+        finally:
+            self._run_lock.release()
+            try:
+                self._cleanup()
+            except BaseException as error:
+                if close_error is None:
+                    close_error = error
+        if exc is not None:
+            if close_error is not None and hasattr(exc, "add_note"):
+                exc.add_note(f"oracle session close also failed: {close_error}")
+            return False
+        if close_error is not None:
+            raise close_error
+        if self._poison_error is not None:
+            raise self._poison_error
+        return False
+
+    def run(
+        self,
+        source: str,
+        *,
+        output_path: str | os.PathLike[str] | None = None,
+        output_dir: str | os.PathLike[str] | None = None,
+        filename: str = "oracle.metis",
+        execution_mode: str = "endpoint",
+        endpoint: str | None = None,
+        workspace_sources: dict[str, str] | None = None,
+        timeout: float = 60.0,
+    ) -> dict[str, Any]:
+        """Run through a fresh sandboxed Node process.
+
+        A result returned without an output target remains provisional until
+        this session closes cleanly.  A requested durable output is guarded by
+        a full content check immediately before publication.
+        """
+
+        self._require_active()
+        if not self._run_lock.acquire(blocking=False):
+            raise OracleError("oracle session requests must be sequential")
+        try:
+            try:
+                self._assert_process_binding()
+            except BaseException as error:
+                self._poisoned = True
+                if self._poison_error is None:
+                    self._poison_error = error
+                raise
+            if (
+                self._root is None
+                or self._snapshot is None
+                or self._snapshot_runner is None
+                or self._snapshot_loader is None
+                or self._snapshot_node is None
+                or self._revision is None
+                or self._tree is None
+                or self._toolchain_runtime is None
+                or self._runtime is None
+                or self._source_status is None
+            ):
+                raise OracleError("oracle session authority is incomplete")
+            build_oracle_request(
+                source,
+                filename=filename,
+                execution_mode=execution_mode,
+                endpoint=endpoint,
+                workspace_sources=workspace_sources,
+                revision=self._revision,
+                tree=self._tree,
+            )
+            if output_path is not None and output_dir is not None:
+                raise OracleError("provide output_path or output_dir, not both")
+            output: Path | None = None
+            if output_dir is not None:
+                directory = _resolve_absolute(output_dir or "", "output_dir")
+                if _contains(self._root, directory):
+                    raise OracleError("output_dir may not be inside the Metis checkout")
+                output = _validate_output_path(directory / "oracle-result.json", self._root)
+            elif output_path is not None:
+                output = _validate_output_path(output_path, self._root)
+            if output is not None:
+                output.parent.mkdir(parents=True, exist_ok=True)
+            request = build_oracle_request(
+                source,
+                filename=filename,
+                execution_mode=execution_mode,
+                endpoint=endpoint,
+                workspace_sources=workspace_sources,
+                revision=self._revision,
+                tree=self._tree,
+            )
+            request_bytes = _canonical(request)
+            self._guard_authority()
+            snapshot_identity = f"snapshot://{self._revision}/{self._tree}"
+            command = [
+                str(self._snapshot_node),
+                *LOADER_FLAGS,
+                str(self._snapshot_loader),
+                str(self._snapshot_runner),
+                "--metis-root",
+                str(self._snapshot),
+                "--metis-revision",
+                self._revision,
+                "--metis-tree",
+                self._tree,
+                "--loader-path",
+                str(self._snapshot_loader),
+                "--loader-sha256",
+                PINNED_LOADER_SHA256,
+                "--runtime-node-path",
+                self._runtime["node_path"],
+                "--node-actual-path",
+                str(self._snapshot_node.resolve()),
+                "--runtime-loader-path",
+                self._runtime["loader_path"],
+                "--runtime-loader-flags",
+                json.dumps(list(LOADER_FLAGS), separators=(",", ":")),
+                "--runtime-runner-path",
+                self._runtime["runner_path"],
+                "--runner-actual-path",
+                str(self._snapshot_runner),
+                "--snapshot-identity",
+                snapshot_identity,
+                "--node-modules-sha256",
+                self._toolchain_runtime["node_modules_sha256"],
+                "--runner-sha256",
+                PINNED_RUNNER_SHA256,
+                "--node-binary-sha256",
+                PINNED_NODE_BINARY_SHA256,
+                "--oracle-policy-version",
+                SANDBOX_POLICY_VERSION,
+                "--oracle-policy-sha256",
+                SANDBOX_POLICY_SHA256,
+                "--execution-policy-sha256",
+                SANDBOX_POLICY_SHA256,
+                "--tooling-package-sha256",
+                self._toolchain_runtime["package_sha256"],
+                "--tooling-lock-sha256",
+                self._toolchain_runtime["lock_sha256"],
+            ]
+            sandbox_command = [str(SANDBOX_EXEC_PATH), "-p", SANDBOX_POLICY, *command]
+            completed: subprocess.CompletedProcess[str] | None = None
+            launch_error: Exception | None = None
+            try:
+                try:
+                    completed = subprocess.run(
+                        sandbox_command,
+                        cwd=self._snapshot / "tooling",
+                        input=request_bytes.decode("utf-8"),
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        check=False,
+                        env=STERILE_ENV,
+                    )
+                except (OSError, subprocess.SubprocessError) as error:
+                    launch_error = error
+            finally:
+                self._guard_authority()
+            if launch_error is not None:
+                raise OracleError(
+                    f"oracle runner failed to start: {launch_error}"
+                ) from launch_error
+            if completed is None:
+                raise OracleError("oracle runner produced no process result")
+            if completed.returncode != 0:
+                raise OracleError(
+                    f"oracle runner exited {completed.returncode}: {completed.stderr.strip()[:500]}"
+                )
+            try:
+                result = json.loads(completed.stdout)
+            except json.JSONDecodeError as error:
+                raise OracleError("oracle runner emitted malformed JSON") from error
+            if completed.stdout.strip() != _canonical(result).decode("utf-8"):
+                raise OracleError("oracle runner output is not canonical JSON")
+            result = _check_response(
+                result,
+                self._revision,
+                self._tree,
+                expected_runtime=self._runtime,
+                expected_mode=execution_mode,
+            )
+            evidence = {
+                "input_sha256": _sha(request),
+                "diagnostics_sha256": _sha(result["diagnostics"]),
+                "ast_sha256": _sha(result["ast"]["inventory"]),
+                "ir_sha256": (
+                    None if result["ir"]["value"] is None else _sha(result["ir"]["value"])
+                ),
+                "toolchain_revision": self._revision,
+                "toolchain_tree": self._tree,
+                "runtime_sha256": _sha(self._runtime),
+                "runtime_identity": copy.deepcopy(self._runtime),
+                "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
+                "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
+                "tooling_package_sha256": ("sha256:" + self._toolchain_runtime["package_sha256"]),
+                "tooling_lock_sha256": "sha256:" + self._toolchain_runtime["lock_sha256"],
+                "node_modules_sha256": ("sha256:" + self._toolchain_runtime["node_modules_sha256"]),
+                "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
+                "oracle_policy_sha256": self._runtime["oracle_policy_sha256"],
+                "execution_policy_sha256": self._runtime["execution_policy_sha256"],
+                "metis_status_sha256": _sha(self._source_status),
+                "metis_status": self._source_status,
+            }
+            envelope: dict[str, Any] = {
+                "schema_version": SCHEMA_VERSION,
+                "result": result,
+                "evidence": evidence,
+            }
+            envelope["evidence"]["envelope_sha256"] = _sha(envelope)
+            verify_oracle_envelope(envelope, request=request)
+            if output is None:
+                return envelope
+            self._guard_full_authority()
+            payload = _canonical(envelope)
+            with tempfile.NamedTemporaryFile(
+                "wb", dir=output.parent, prefix=f".{output.name}.", delete=False
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temporary = Path(tmp.name)
+            try:
+                os.replace(temporary, output)
+                directory_fd = -1
+                try:
+                    directory_fd = os.open(output.parent, os.O_RDONLY)
+                    os.fsync(directory_fd)
+                finally:
+                    if directory_fd >= 0:
+                        with contextlib.suppress(OSError):
+                            os.close(directory_fd)
+            finally:
+                temporary.unlink(missing_ok=True)
+            return envelope
+        finally:
+            self._run_lock.release()
+
+
 def run_oracle(
     source: str,
     *,
@@ -2541,7 +3280,7 @@ def run_oracle(
     timeout: float = 60.0,
     expected_revision: str = PINNED_METIS_REVISION,
 ) -> dict[str, Any]:
-    """Execute the self-contained source without writing the Metis checkout."""
+    """Execute one request through an isolated one-shot :class:`OracleSession`."""
 
     build_oracle_request(
         source,
@@ -2554,214 +3293,32 @@ def run_oracle(
         raise OracleError("provide output_path or output_dir, not both")
     if output_path is None and output_dir is None:
         raise OracleError("an output path is required")
-
-    _assert_sandbox_policy()
-    root, revision, tree, toolchain_runtime = validate_pinned_metis(
-        metis_root, expected_revision=expected_revision
-    )
-    runner = _validate_runner_path(runner_path, root)
+    try:
+        output_root = _resolve_absolute(metis_root, "metis_root").resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise OracleError("metis_root must be an existing directory") from error
+    if not output_root.is_dir():
+        raise OracleError("metis_root must be an existing directory")
     if output_path is None:
         directory = _resolve_absolute(output_dir or "", "output_dir")
-        if _contains(root, directory):
+        if _contains(output_root, directory):
             raise OracleError("output_dir may not be inside the Metis checkout")
         output_path = directory / "oracle-result.json"
-    output = _validate_output_path(output_path, root)
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    node, node_binary_sha256 = _resolve_pinned_node()
-    runtime = _runtime_identity(
-        PINNED_NODE_VERSION, node_binary_sha256, revision, tree, toolchain_runtime
-    )
-    request = build_oracle_request(
-        source,
-        filename=filename,
-        execution_mode=execution_mode,
-        endpoint=endpoint,
-        workspace_sources=workspace_sources,
-        revision=revision,
-        tree=tree,
-    )
-    request_bytes = _canonical(request)
-    before_status = _git(root, "status", "--porcelain=v1", "--untracked-files=no")
-    before_revision = _git(root, "rev-parse", "HEAD")
-    before_tree = _git(root, "rev-parse", "HEAD^{tree}")
-    if before_revision != revision or before_tree != tree:
-        raise OracleError("Metis checkout changed during validation")
-    source_modules = root / "tooling" / "node_modules"
-    source_modules_before = _node_modules_sha256(source_modules)
-    (
-        holder,
-        snapshot,
-        snapshot_modules,
-        snapshot_runner,
-        snapshot_loader,
-        snapshot_node,
-    ) = _build_isolated_snapshot(root, revision, tree, toolchain_runtime, runner, node)
-    try:
-        snapshot_modules_before = _node_modules_sha256(snapshot_modules)
-        snapshot_modules_pin = toolchain_runtime["node_modules_sha256"]
-        if snapshot_modules_before != snapshot_modules_pin:
-            raise OracleError("isolated tooling node_modules changed before execution")
-        if _file_sha256(snapshot_runner) != PINNED_RUNNER_SHA256:
-            raise OracleError("isolated runner changed before execution")
-        if _file_sha256(snapshot_loader) != PINNED_LOADER_SHA256:
-            raise OracleError("isolated native loader changed before execution")
-        if _file_sha256(snapshot_node) != PINNED_NODE_BINARY_SHA256:
-            raise OracleError("isolated Node binary changed before execution")
-        snapshot_identity = f"snapshot://{revision}/{tree}"
-        command = [
-            str(snapshot_node),
-            *LOADER_FLAGS,
-            str(snapshot_loader),
-            str(snapshot_runner),
-            "--metis-root",
-            str(snapshot),
-            "--metis-revision",
-            revision,
-            "--metis-tree",
-            tree,
-            "--loader-path",
-            str(snapshot_loader),
-            "--loader-sha256",
-            PINNED_LOADER_SHA256,
-            "--runtime-node-path",
-            runtime["node_path"],
-            "--node-actual-path",
-            str(snapshot_node.resolve()),
-            "--runtime-loader-path",
-            runtime["loader_path"],
-            "--runtime-loader-flags",
-            json.dumps(list(LOADER_FLAGS), separators=(",", ":")),
-            "--runtime-runner-path",
-            runtime["runner_path"],
-            "--runner-actual-path",
-            str(snapshot_runner),
-            "--snapshot-identity",
-            snapshot_identity,
-            "--node-modules-sha256",
-            snapshot_modules_pin,
-            "--runner-sha256",
-            PINNED_RUNNER_SHA256,
-            "--node-binary-sha256",
-            PINNED_NODE_BINARY_SHA256,
-            "--oracle-policy-version",
-            SANDBOX_POLICY_VERSION,
-            "--oracle-policy-sha256",
-            SANDBOX_POLICY_SHA256,
-            "--execution-policy-sha256",
-            SANDBOX_POLICY_SHA256,
-            "--tooling-package-sha256",
-            toolchain_runtime["package_sha256"],
-            "--tooling-lock-sha256",
-            toolchain_runtime["lock_sha256"],
-        ]
-        sandbox_command = [str(SANDBOX_EXEC_PATH), "-p", SANDBOX_POLICY, *command]
-        completed: subprocess.CompletedProcess[str] | None = None
-        launch_error: Exception | None = None
-        try:
-            completed = subprocess.run(
-                sandbox_command,
-                cwd=snapshot / "tooling",
-                input=request_bytes.decode("utf-8"),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-                env=STERILE_ENV,
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            launch_error = error
-        snapshot_modules_after = _node_modules_sha256(snapshot_modules)
-        if snapshot_modules_after != snapshot_modules_before:
-            raise OracleError("oracle runner changed isolated tooling node_modules")
-        if _file_sha256(snapshot_runner) != PINNED_RUNNER_SHA256:
-            raise OracleError("oracle runner changed isolated runner")
-        if _file_sha256(snapshot_loader) != PINNED_LOADER_SHA256:
-            raise OracleError("oracle runner changed isolated native loader")
-        if _file_sha256(snapshot_node) != PINNED_NODE_BINARY_SHA256:
-            raise OracleError("oracle runner changed isolated Node binary")
-        after_status = _git(root, "status", "--porcelain=v1", "--untracked-files=no")
-        after_revision = _git(root, "rev-parse", "HEAD")
-        after_tree = _git(root, "rev-parse", "HEAD^{tree}")
-        source_modules_after = _node_modules_sha256(source_modules)
-        if (
-            after_status != before_status
-            or after_revision != before_revision
-            or after_tree != before_tree
-            or source_modules_after != source_modules_before
-        ):
-            raise OracleError("oracle runner changed the read-only Metis checkout")
-        if launch_error is not None:
-            raise OracleError(f"oracle runner failed to start: {launch_error}") from launch_error
-        if completed is None:
-            raise OracleError("oracle runner produced no process result")
-        if completed.returncode != 0:
-            raise OracleError(
-                f"oracle runner exited {completed.returncode}: {completed.stderr.strip()[:500]}"
-            )
-        try:
-            result = json.loads(completed.stdout)
-        except json.JSONDecodeError as error:
-            raise OracleError("oracle runner emitted malformed JSON") from error
-        if completed.stdout.strip() != _canonical(result).decode("utf-8"):
-            raise OracleError("oracle runner output is not canonical JSON")
-        result = _check_response(
-            result,
-            revision,
-            tree,
-            expected_runtime=runtime,
-            expected_mode=execution_mode,
+    prevalidated_output = _validate_output_path(output_path, output_root)
+    with OracleSession(
+        metis_root=metis_root,
+        runner_path=runner_path,
+        expected_revision=expected_revision,
+    ) as session:
+        return session.run(
+            source,
+            output_path=prevalidated_output,
+            filename=filename,
+            execution_mode=execution_mode,
+            endpoint=endpoint,
+            workspace_sources=workspace_sources,
+            timeout=timeout,
         )
-        evidence = {
-            "input_sha256": _sha(request),
-            "diagnostics_sha256": _sha(result["diagnostics"]),
-            "ast_sha256": _sha(result["ast"]["inventory"]),
-            "ir_sha256": None if result["ir"]["value"] is None else _sha(result["ir"]["value"]),
-            "toolchain_revision": revision,
-            "toolchain_tree": tree,
-            "runtime_sha256": _sha(runtime),
-            "runtime_identity": runtime,
-            "runner_sha256": "sha256:" + PINNED_RUNNER_SHA256,
-            "loader_sha256": "sha256:" + PINNED_LOADER_SHA256,
-            "tooling_package_sha256": "sha256:" + toolchain_runtime["package_sha256"],
-            "tooling_lock_sha256": "sha256:" + toolchain_runtime["lock_sha256"],
-            "node_modules_sha256": "sha256:" + toolchain_runtime["node_modules_sha256"],
-            "node_binary_sha256": "sha256:" + PINNED_NODE_BINARY_SHA256,
-            "oracle_policy_sha256": runtime["oracle_policy_sha256"],
-            "execution_policy_sha256": runtime["execution_policy_sha256"],
-            "metis_status_sha256": _sha(before_status),
-            "metis_status": before_status,
-        }
-        envelope: dict[str, Any] = {
-            "schema_version": SCHEMA_VERSION,
-            "result": result,
-            "evidence": evidence,
-        }
-        envelope["evidence"]["envelope_sha256"] = _sha(envelope)
-        verify_oracle_envelope(envelope, request=request)
-        payload = _canonical(envelope)
-        with tempfile.NamedTemporaryFile(
-            "wb", dir=output.parent, prefix=f".{output.name}.", delete=False
-        ) as tmp:
-            tmp.write(payload)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temporary = Path(tmp.name)
-        try:
-            os.replace(temporary, output)
-            directory_fd = -1
-            try:
-                directory_fd = os.open(output.parent, os.O_RDONLY)
-                os.fsync(directory_fd)
-            finally:
-                if directory_fd >= 0:
-                    with contextlib.suppress(OSError):
-                        os.close(directory_fd)
-        finally:
-            temporary.unlink(missing_ok=True)
-        return envelope
-    finally:
-        holder.cleanup()
 
 
 run_metis_oracle = run_oracle

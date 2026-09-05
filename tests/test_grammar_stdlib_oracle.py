@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -210,12 +211,138 @@ def test_session_fails_closed_when_external_checkout_changes(
         [
             ("", "a" * 40, "b" * 40),
             ("", "c" * 40, "b" * 40),
+            ("", "c" * 40, "b" * 40),
         ]
     )
     monkeypatch.setattr(oracle, "_external_checkout_identity", lambda _root: next(observed))
 
     with (
         pytest.raises(oracle.GrammarStdlibOracleError, match="changed the external Metis checkout"),
+        oracle.grammar_stdlib_oracle_session(
+            metis_root=tmp_path / "metis", node_path=tmp_path / "node"
+        ),
+    ):
+        pass
+
+
+@pytest.mark.parametrize("mutation", ("add", "remove", "replace", "symlink"))
+def test_session_request_roster_rejects_persistent_topology_mutations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    counts, tooling = _fake_session_runtime(tmp_path, monkeypatch)
+    target = tooling / "compiler.ts"
+    session = oracle.GrammarStdlibOracleSession(
+        metis_root=tmp_path / "metis", node_path=tmp_path / "node"
+    )
+    session.__enter__()
+    try:
+        if mutation == "add":
+            (tooling / "added.ts").write_text("export {};\n", encoding="utf-8")
+        elif mutation == "remove":
+            target.unlink()
+        elif mutation == "replace":
+            replacement = tooling / "replacement.ts"
+            replacement.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+            os.replace(replacement, target)
+        else:
+            target.unlink()
+            target.symlink_to("node_modules", target_is_directory=True)
+
+        with pytest.raises(
+            oracle.GrammarStdlibOracleError, match="modified the isolated snapshot filesystem"
+        ):
+            session.run(source="metis 0.43\n", filename="candidate.metis")
+        assert counts["run"] == 0
+    finally:
+        session._close_snapshot(None, None, None)
+
+
+def test_session_request_roster_detects_content_write_after_mtime_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counts, tooling = _fake_session_runtime(tmp_path, monkeypatch)
+    target = tooling / "compiler.ts"
+    before = target.stat()
+    session = oracle.GrammarStdlibOracleSession(
+        metis_root=tmp_path / "metis", node_path=tmp_path / "node"
+    )
+    session.__enter__()
+    try:
+        target.write_text("export 1;\n", encoding="utf-8")
+        os.utime(target, ns=(before.st_atime_ns, before.st_mtime_ns))
+        after = target.stat()
+        assert after.st_mtime_ns == before.st_mtime_ns
+        assert after.st_ctime_ns != before.st_ctime_ns
+
+        with pytest.raises(
+            oracle.GrammarStdlibOracleError, match="modified the isolated snapshot filesystem"
+        ):
+            session.run(source="metis 0.43\n", filename="candidate.metis")
+        assert counts["run"] == 0
+    finally:
+        session._close_snapshot(None, None, None)
+
+
+def test_session_request_roster_checks_again_after_the_runner_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counts, tooling = _fake_session_runtime(tmp_path, monkeypatch)
+    target = tooling / "compiler.ts"
+    session = oracle.GrammarStdlibOracleSession(
+        metis_root=tmp_path / "metis", node_path=tmp_path / "node"
+    )
+    session.__enter__()
+    original_run = oracle.subprocess.run
+
+    def mutating_run(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        target.write_text("tampered\n", encoding="utf-8")
+        return original_run(*args, **kwargs)
+
+    monkeypatch.setattr(oracle.subprocess, "run", mutating_run)
+    try:
+        with pytest.raises(
+            oracle.GrammarStdlibOracleError, match="modified the isolated snapshot filesystem"
+        ):
+            session.run(source="metis 0.43\n", filename="candidate.metis")
+        assert counts["run"] == 1
+    finally:
+        session._close_snapshot(None, None, None)
+
+
+def test_session_remains_poisoned_after_a_detected_identity_drift_is_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counts, tooling = _fake_session_runtime(tmp_path, monkeypatch)
+    added = tooling / "added.ts"
+    session = oracle.GrammarStdlibOracleSession(
+        metis_root=tmp_path / "metis", node_path=tmp_path / "node"
+    )
+    session.__enter__()
+    try:
+        added.write_text("export {};\n", encoding="utf-8")
+        with pytest.raises(
+            oracle.GrammarStdlibOracleError, match="modified the isolated snapshot filesystem"
+        ):
+            session.run(source="metis 0.43\n", filename="candidate.metis")
+        added.unlink()
+        with pytest.raises(oracle.GrammarStdlibOracleError, match="session is poisoned"):
+            session.run(source="metis 0.43\n", filename="candidate.metis")
+        assert counts["run"] == 0
+    finally:
+        session._close_snapshot(None, None, None)
+
+
+def test_session_exit_rechecks_the_full_node_modules_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _counts, _tooling = _fake_session_runtime(tmp_path, monkeypatch)
+    hashes = iter(("f" * 64, "e" * 64))
+    monkeypatch.setattr(oracle.catalog_pin, "_node_modules_sha256", lambda _root: next(hashes))
+
+    with (
+        pytest.raises(
+            oracle.GrammarStdlibOracleError, match="modified the isolated tooling runtime"
+        ),
         oracle.grammar_stdlib_oracle_session(
             metis_root=tmp_path / "metis", node_path=tmp_path / "node"
         ),

@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -36,6 +37,7 @@ MAX_SOURCE_BYTES = 512 * 1024
 MAX_WORKSPACE_SOURCES = 64
 MAX_STDOUT_BYTES = 8 * 1024 * 1024
 MAX_STDERR_BYTES = 128 * 1024
+MAX_SESSION_FILESYSTEM_ENTRIES = 64 * 1024
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 _SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -530,6 +532,89 @@ def _tooling_sha256(tooling: Path) -> str:
     return "sha256:" + digest.hexdigest()
 
 
+def _filesystem_stat_identity(value: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    """Return only the metadata fields bound by the session filesystem contract."""
+
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _filesystem_identity_roster(root: Path, label: str) -> tuple[tuple[object, ...], ...]:
+    """Return a bounded, deterministic metadata identity for an immutable tree.
+
+    The session uses this inexpensive roster around every oracle request.  It is
+    deliberately not a content hash: entry and exit retain the full tooling and
+    dependency hashes.  ``lstat`` metadata makes persistent writes, restored
+    mtimes, replacement, link changes, and directory membership changes visible
+    without rereading every dependency payload for every request.
+    """
+
+    rows: list[tuple[object, ...]] = []
+
+    def stable_lstat(path: Path) -> os.stat_result:
+        try:
+            return path.lstat()
+        except OSError as error:
+            raise GrammarStdlibOracleError(f"{label} is unavailable") from error
+
+    def append(path: Path, relative: str) -> None:
+        if len(rows) >= MAX_SESSION_FILESYSTEM_ENTRIES:
+            raise GrammarStdlibOracleError(f"{label} exceeds the filesystem entry bound")
+        before_stat = stable_lstat(path)
+        before = _filesystem_stat_identity(before_stat)
+        mode = before_stat.st_mode
+        if stat.S_ISREG(mode):
+            kind = "file"
+            target: str | None = None
+        elif stat.S_ISDIR(mode):
+            kind = "directory"
+            target = None
+        elif stat.S_ISLNK(mode):
+            kind = "symlink"
+            try:
+                target = os.readlink(path)
+            except OSError as error:
+                raise GrammarStdlibOracleError(f"{label} changed while it was read") from error
+        else:
+            raise GrammarStdlibOracleError(f"{label} contains a special file")
+
+        rows.append(
+            (
+                relative,
+                kind,
+                *before,
+                target,
+            )
+        )
+        if kind != "directory":
+            if _filesystem_stat_identity(stable_lstat(path)) != before:
+                raise GrammarStdlibOracleError(f"{label} changed while it was read")
+            return
+
+        try:
+            with os.scandir(path) as stream:
+                children = sorted(stream, key=lambda entry: entry.name)
+        except OSError as error:
+            raise GrammarStdlibOracleError(f"{label} is unavailable") from error
+        if len(rows) + len(children) > MAX_SESSION_FILESYSTEM_ENTRIES:
+            raise GrammarStdlibOracleError(f"{label} exceeds the filesystem entry bound")
+        for child in children:
+            child_relative = child.name if relative == "." else f"{relative}/{child.name}"
+            append(Path(child.path), child_relative)
+        if _filesystem_stat_identity(stable_lstat(path)) != before:
+            raise GrammarStdlibOracleError(f"{label} changed while it was read")
+
+    append(root, ".")
+    return tuple(rows)
+
+
 def _request(
     *,
     source: str,
@@ -583,8 +668,10 @@ class GrammarStdlibOracleSession:
         self._external_identity: tuple[str, str, str] | None = None
         self._modules_sha256: str | None = None
         self._tooling_sha256: str | None = None
+        self._filesystem_roster: tuple[tuple[object, ...], ...] | None = None
         self._snapshot_policy_sha256: str | None = None
         self._entered = False
+        self._poisoned = False
 
     @property
     def pin_identity(self) -> Mapping[str, Any]:
@@ -624,6 +711,9 @@ class GrammarStdlibOracleSession:
                 self._snapshot.tooling / "node_modules"
             )
             self._tooling_sha256 = _tooling_sha256(self._snapshot.tooling)
+            self._filesystem_roster = _filesystem_identity_roster(
+                self._snapshot.root, "isolated oracle snapshot"
+            )
             return self
         except (
             catalog_pin.CatalogMaintenancePinError,
@@ -635,7 +725,35 @@ class GrammarStdlibOracleSession:
             self._close_snapshot(None, None, None)
             raise
 
-    def _assert_unchanged(self) -> None:
+    def _assert_request_unchanged(self) -> None:
+        if self._poisoned:
+            raise GrammarStdlibOracleError("oracle session is poisoned after an identity drift")
+        if (
+            self._snapshot is None
+            or self._filesystem_roster is None
+            or self._external_identity is None
+        ):
+            raise GrammarStdlibOracleError("oracle session is not active")
+        try:
+            roster = _filesystem_identity_roster(self._snapshot.root, "isolated oracle snapshot")
+            external_identity = _external_checkout_identity(self._metis_root)
+        except (GrammarStdlibOracleError, catalog_pin.CatalogMaintenancePinError) as error:
+            self._poisoned = True
+            if isinstance(error, GrammarStdlibOracleError):
+                raise
+            raise GrammarStdlibOracleError(
+                "oracle session identity cannot be revalidated"
+            ) from error
+        if roster != self._filesystem_roster:
+            self._poisoned = True
+            raise GrammarStdlibOracleError(
+                "oracle runner modified the isolated snapshot filesystem"
+            )
+        if external_identity != self._external_identity:
+            self._poisoned = True
+            raise GrammarStdlibOracleError("oracle execution changed the external Metis checkout")
+
+    def _assert_final_unchanged(self) -> None:
         if (
             self._snapshot is None
             or self._modules_sha256 is None
@@ -643,13 +761,27 @@ class GrammarStdlibOracleSession:
             or self._external_identity is None
         ):
             raise GrammarStdlibOracleError("oracle session is not active")
-        if catalog_pin._node_modules_sha256(
-            self._snapshot.tooling / "node_modules"
-        ) != self._modules_sha256.removeprefix("sha256:"):
+        try:
+            modules_sha256 = catalog_pin._node_modules_sha256(
+                self._snapshot.tooling / "node_modules"
+            )
+            tooling_sha256 = _tooling_sha256(self._snapshot.tooling)
+            external_identity = _external_checkout_identity(self._metis_root)
+        except (GrammarStdlibOracleError, catalog_pin.CatalogMaintenancePinError) as error:
+            self._poisoned = True
+            if isinstance(error, GrammarStdlibOracleError):
+                raise
+            raise GrammarStdlibOracleError(
+                "oracle session identity cannot be revalidated"
+            ) from error
+        if modules_sha256 != self._modules_sha256.removeprefix("sha256:"):
+            self._poisoned = True
             raise GrammarStdlibOracleError("oracle runner modified the isolated tooling runtime")
-        if _tooling_sha256(self._snapshot.tooling) != self._tooling_sha256:
+        if tooling_sha256 != self._tooling_sha256:
+            self._poisoned = True
             raise GrammarStdlibOracleError("oracle runner modified isolated tooling")
-        if _external_checkout_identity(self._metis_root) != self._external_identity:
+        if external_identity != self._external_identity:
+            self._poisoned = True
             raise GrammarStdlibOracleError("oracle execution changed the external Metis checkout")
 
     def _close_snapshot(
@@ -663,6 +795,7 @@ class GrammarStdlibOracleSession:
         self._snapshot = None
         self._runner = None
         self._loader = None
+        self._filesystem_roster = None
         if context is not None:
             context.__exit__(exc_type, exc, traceback)
 
@@ -672,8 +805,15 @@ class GrammarStdlibOracleSession:
         exc: BaseException | None,
         traceback: Any,
     ) -> bool:
+        request_identity_error: BaseException | None = None
         try:
-            self._assert_unchanged()
+            try:
+                self._assert_request_unchanged()
+            except BaseException as error:
+                request_identity_error = error
+            self._assert_final_unchanged()
+            if request_identity_error is not None:
+                raise request_identity_error
         finally:
             self._close_snapshot(exc_type, exc, traceback)
         return False
@@ -698,6 +838,8 @@ class GrammarStdlibOracleSession:
             or self._snapshot_policy_sha256 is None
         ):
             raise GrammarStdlibOracleError("oracle session is not active")
+        if self._poisoned:
+            raise GrammarStdlibOracleError("oracle session is poisoned after an identity drift")
         request = _request(
             source=source,
             filename=filename,
@@ -753,38 +895,41 @@ class GrammarStdlibOracleSession:
             "--loader-path",
             str(self._loader),
         ]
+        self._assert_request_unchanged()
         try:
-            completed = subprocess.run(
-                [str(catalog_pin.SANDBOX_EXEC), "-p", self._snapshot.policy, *command],
-                cwd=self._snapshot.tooling,
-                input=_canonical(request),
-                capture_output=True,
-                timeout=catalog_pin.PROBE_TIMEOUT_SECONDS,
-                check=False,
-                env=catalog_pin._probe_process_environment(),
+            try:
+                completed = subprocess.run(
+                    [str(catalog_pin.SANDBOX_EXEC), "-p", self._snapshot.policy, *command],
+                    cwd=self._snapshot.tooling,
+                    input=_canonical(request),
+                    capture_output=True,
+                    timeout=catalog_pin.PROBE_TIMEOUT_SECONDS,
+                    check=False,
+                    env=catalog_pin._probe_process_environment(),
+                )
+            except OSError as error:
+                raise GrammarStdlibOracleError("oracle runner could not be executed") from error
+            if len(completed.stdout) > MAX_STDOUT_BYTES or len(completed.stderr) > MAX_STDERR_BYTES:
+                raise GrammarStdlibOracleError("oracle runner output exceeds its byte cap")
+            if completed.returncode != 0:
+                raise GrammarStdlibOracleError(
+                    "oracle runner failed: "
+                    f"returncode={completed.returncode} stderr={_bytes_sha(completed.stderr)}"
+                )
+            try:
+                result = json.loads(completed.stdout.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise GrammarStdlibOracleError("oracle runner emitted invalid JSON") from error
+            if completed.stdout != _canonical(result):
+                raise GrammarStdlibOracleError("oracle runner output is not canonical JSON")
+            result = _validated_result(
+                result,
+                identity=self._identity,
+                mode=execution_mode,
+                requested_endpoint=endpoint,
             )
-        except OSError as error:
-            raise GrammarStdlibOracleError("oracle runner could not be executed") from error
-        if len(completed.stdout) > MAX_STDOUT_BYTES or len(completed.stderr) > MAX_STDERR_BYTES:
-            raise GrammarStdlibOracleError("oracle runner output exceeds its byte cap")
-        if completed.returncode != 0:
-            raise GrammarStdlibOracleError(
-                "oracle runner failed: "
-                f"returncode={completed.returncode} stderr={_bytes_sha(completed.stderr)}"
-            )
-        try:
-            result = json.loads(completed.stdout.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise GrammarStdlibOracleError("oracle runner emitted invalid JSON") from error
-        if completed.stdout != _canonical(result):
-            raise GrammarStdlibOracleError("oracle runner output is not canonical JSON")
-        result = _validated_result(
-            result,
-            identity=self._identity,
-            mode=execution_mode,
-            requested_endpoint=endpoint,
-        )
-        self._assert_unchanged()
+        finally:
+            self._assert_request_unchanged()
         evidence = {
             "request_sha256": _sha(request),
             "diagnostics_sha256": _sha(result["diagnostics"]),

@@ -412,6 +412,14 @@ def test_ontology_jsonl_rejects_duplicate_concept_ids() -> None:
         (b'"\\ud800"\n', "JSONL_UNICODE_INVALID"),
         (b"{}\n" * (MAX_JSONL_RECORDS + 1), "JSONL_RECORD_LIMIT"),
     ],
+    ids=(
+        "payload-too-large",
+        "line-too-large",
+        "surrogate-text",
+        "surrogate-utf8",
+        "surrogate-json-escape",
+        "record-limit",
+    ),
 )
 def test_ontology_jsonl_has_deterministic_input_limits_and_unicode_rejection(payload, code) -> None:
     manifest = _private_manifest()

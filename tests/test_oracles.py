@@ -19,6 +19,7 @@ import metis_model1.oracles as oracle_module
 from metis_model1.oracles import (
     ARTIFACT_ROOT,
     OracleError,
+    OracleSession,
     run_oracle,
     verify_oracle_envelope,
 )
@@ -368,11 +369,16 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
     else:
         root = tmp_path / "run-oracle-root"
         root.mkdir(mode=0o700)
+        modules = root / "tooling/node_modules"
+        modules.mkdir(parents=True)
+        (root / "tooling/package.json").write_text("{}\n", encoding="utf-8")
+        (root / "tooling/package-lock.json").write_text("{}\n", encoding="utf-8")
         runner = tmp_path / "runner.ts"
         runner.write_text("runner", encoding="utf-8")
         loader = tmp_path / "native_ts_loader.mjs"
         loader.write_text("loader", encoding="utf-8")
-        output = root / "results" / "oracle.json"
+        node = Path(sys.executable).resolve()
+        output = tmp_path / "run-oracle-results" / "oracle.json"
         result = {"diagnostics": {}, "ast": {"inventory": {}}, "ir": {"value": None}}
 
         class Holder:
@@ -399,7 +405,7 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
         monkeypatch.setattr(
             oracle_module,
             "_resolve_pinned_node",
-            lambda: (Path("/bin/true"), oracle_module.PINNED_NODE_BINARY_SHA256),
+            lambda: (node, oracle_module.PINNED_NODE_BINARY_SHA256),
         )
         monkeypatch.setattr(
             oracle_module,
@@ -419,7 +425,11 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
             "_file_sha256",
             lambda path: (
                 oracle_module.PINNED_NODE_BINARY_SHA256
-                if Path(path).name == "true"
+                if Path(path) == node
+                else oracle_module.PINNED_TOOLING_PACKAGE_SHA256
+                if Path(path).name == "package.json"
+                else oracle_module.PINNED_TOOLING_LOCK_SHA256
+                if Path(path).name == "package-lock.json"
                 else oracle_module.PINNED_LOADER_SHA256
                 if Path(path).name == "native_ts_loader.mjs"
                 else oracle_module.PINNED_RUNNER_SHA256
@@ -439,7 +449,7 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
         monkeypatch.setattr(
             oracle_module,
             "_build_isolated_snapshot",
-            lambda *_args: (Holder(), root, root, runner, loader, Path("/bin/true")),
+            lambda *_args: (Holder(), root, modules, runner, loader, node),
         )
         monkeypatch.setattr(
             oracle_module,
@@ -454,12 +464,12 @@ def test_oracle_fd_transfer_windows_are_baseexception_safe(
                 args=[], returncode=0, stdout=oracle_module._canonical(result).decode(), stderr=""
             ),
         )
-        function = oracle_module.run_oracle
+        function = oracle_module.OracleSession.run
         needle = "directory_fd = os.open(output.parent, os.O_RDONLY)"
         target_needle = "os.fsync(directory_fd)"
 
         def invoke() -> None:
-            function(
+            oracle_module.run_oracle(
                 VALID,
                 metis_root=root,
                 runner_path=runner,
@@ -531,7 +541,21 @@ def artifact_tmp() -> Iterator[Path]:
         shutil.rmtree(path)
 
 
-def execute(output_dir: Path, source: str = VALID, **kwargs: object) -> dict:
+@pytest.fixture(scope="module")
+def reusable_oracle_session() -> Iterator[OracleSession]:
+    with OracleSession(metis_root=METIS_ROOT, runner_path=RUNNER) as session:
+        yield session
+
+
+def execute(
+    output_dir: Path,
+    source: str = VALID,
+    *,
+    session: OracleSession | None = None,
+    **kwargs: object,
+) -> dict:
+    if session is not None:
+        return session.run(source, **kwargs)
     return run_oracle(
         source,
         metis_root=METIS_ROOT,
@@ -541,6 +565,427 @@ def execute(output_dir: Path, source: str = VALID, **kwargs: object) -> dict:
     )
 
 
+@pytest.fixture
+def synthetic_session_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    """A tiny authority that exercises session lifecycle without the real runtime."""
+
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    root = tmp_path / "metis"
+    modules = root / "tooling/node_modules/pkg"
+    modules.mkdir(parents=True)
+    module_file = modules / "value.js"
+    module_file.write_bytes(b"safe")
+    package = root / "tooling/package.json"
+    lock = root / "tooling/package-lock.json"
+    package.write_text('{"name":"fixture"}\n', encoding="utf-8")
+    lock.write_text('{"lockfileVersion":3}\n', encoding="utf-8")
+    runner = tmp_path / "runner.ts"
+    loader = tmp_path / "native_ts_loader.mjs"
+    node = tmp_path / "node"
+    sandbox = tmp_path / "sandbox-exec"
+    schema = tmp_path / "oracle-result.schema.json"
+    runner.write_text("runner\n", encoding="utf-8")
+    loader.write_text("loader\n", encoding="utf-8")
+    node.write_bytes(b"node")
+    node.chmod(0o755)
+    sandbox.write_bytes(b"sandbox")
+    sandbox.chmod(0o755)
+    schema.write_text("{}\n", encoding="utf-8")
+
+    modules_digest = oracle_module._node_modules_sha256(root / "tooling/node_modules")
+    package_digest = oracle_module._file_sha256(package)
+    lock_digest = oracle_module._file_sha256(lock)
+    runner_digest = oracle_module._file_sha256(runner)
+    loader_digest = oracle_module._file_sha256(loader)
+    node_digest = oracle_module._file_sha256(node)
+    state: dict[str, object] = {
+        "builds": 0,
+        "runs": 0,
+        "snapshots": [],
+        "status": "",
+        "on_run": None,
+    }
+
+    monkeypatch.setattr(oracle_module, "ARTIFACT_ROOT", artifact_root)
+    monkeypatch.setattr(oracle_module, "RUNNER_PATH", runner.resolve())
+    monkeypatch.setattr(oracle_module, "LOADER_PATH", loader.resolve())
+    monkeypatch.setattr(oracle_module, "SCHEMA_PATH", schema.resolve())
+    monkeypatch.setattr(oracle_module, "SANDBOX_EXEC_PATH", sandbox.resolve())
+    monkeypatch.setattr(oracle_module, "PINNED_TOOLING_PACKAGE_SHA256", package_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_TOOLING_LOCK_SHA256", lock_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_NODE_MODULES_SHA256", modules_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_RUNNER_SHA256", runner_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_LOADER_SHA256", loader_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_NODE_BINARY_SHA256", node_digest)
+    monkeypatch.setattr(oracle_module, "PINNED_NODE_BYTES", len(node.read_bytes()))
+    monkeypatch.setattr(oracle_module, "_assert_sandbox_policy", lambda: None)
+    monkeypatch.setattr(
+        oracle_module, "_resolve_pinned_node", lambda: (node.resolve(), node_digest)
+    )
+
+    def validate(*_args: object, **_kwargs: object):
+        return (
+            root.resolve(),
+            oracle_module.PINNED_METIS_REVISION,
+            oracle_module.PINNED_METIS_TREE,
+            {
+                "package_sha256": package_digest,
+                "lock_sha256": lock_digest,
+                "node_modules_sha256": modules_digest,
+            },
+        )
+
+    monkeypatch.setattr(oracle_module, "validate_pinned_metis", validate)
+
+    def build(*_args: object):
+        state["builds"] = int(state["builds"]) + 1
+        holder = tempfile.TemporaryDirectory(prefix="session-fixture-", dir=tmp_path)
+        snapshot = Path(holder.name)
+        shutil.copytree(root, snapshot, dirs_exist_ok=True)
+        snapshot_runner = snapshot / ".metis-oracle/runner.ts"
+        snapshot_loader = snapshot / ".metis-oracle/native_ts_loader.mjs"
+        snapshot_node = snapshot / ".metis-oracle/node"
+        snapshot_runner.parent.mkdir()
+        shutil.copyfile(runner, snapshot_runner)
+        shutil.copyfile(loader, snapshot_loader)
+        shutil.copyfile(node, snapshot_node)
+        shutil.copymode(node, snapshot_node)
+        snapshots = state["snapshots"]
+        assert isinstance(snapshots, list)
+        snapshots.append(snapshot)
+        return (
+            holder,
+            snapshot,
+            snapshot / "tooling/node_modules",
+            snapshot_runner,
+            snapshot_loader,
+            snapshot_node,
+        )
+
+    monkeypatch.setattr(oracle_module, "_build_isolated_snapshot", build)
+
+    def git(_root: Path, *args: str) -> str:
+        if args == ("status", "--porcelain=v1", "--untracked-files=no"):
+            return str(state["status"])
+        if args == ("rev-parse", "HEAD"):
+            return oracle_module.PINNED_METIS_REVISION
+        if args == ("rev-parse", "HEAD^{tree}"):
+            return oracle_module.PINNED_METIS_TREE
+        raise AssertionError(args)
+
+    monkeypatch.setattr(oracle_module, "_git", git)
+
+    result = {"diagnostics": {}, "ast": {"inventory": {}}, "ir": {"value": None}}
+
+    def run(*_args: object, **_kwargs: object):
+        state["runs"] = int(state["runs"]) + 1
+        callback = state["on_run"]
+        if callback is not None:
+            assert callable(callback)
+            callback()
+        return subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=oracle_module._canonical(result).decode("utf-8"),
+            stderr="",
+        )
+
+    monkeypatch.setattr(oracle_module.subprocess, "run", run)
+    monkeypatch.setattr(oracle_module, "_check_response", lambda value, *_args, **_kwargs: value)
+    monkeypatch.setattr(
+        oracle_module,
+        "verify_oracle_envelope",
+        lambda envelope, **_kwargs: envelope,
+    )
+    return {
+        "artifact_root": artifact_root,
+        "root": root.resolve(),
+        "modules": root / "tooling/node_modules",
+        "module_file": module_file,
+        "runner": runner.resolve(),
+        "state": state,
+    }
+
+
+def _synthetic_session(authority: dict) -> OracleSession:
+    return OracleSession(
+        metis_root=authority["root"],
+        runner_path=authority["runner"],
+    )
+
+
+def test_oracle_session_reuses_one_snapshot_and_is_byte_equal_to_one_shot(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    artifacts = authority["artifact_root"]
+    with _synthetic_session(authority) as session:
+        first = session.run(VALID, output_path=artifacts / "session-one.json")
+        second = session.run(VALID, output_path=artifacts / "session-two.json")
+    one_shot = run_oracle(
+        VALID,
+        metis_root=authority["root"],
+        runner_path=authority["runner"],
+        output_path=artifacts / "one-shot.json",
+    )
+
+    state = authority["state"]
+    assert state["builds"] == 2
+    assert state["runs"] == 3
+    assert first == second == one_shot
+    assert (artifacts / "session-one.json").read_bytes() == (
+        artifacts / "session-two.json"
+    ).read_bytes()
+    assert (artifacts / "session-one.json").read_bytes() == (
+        artifacts / "one-shot.json"
+    ).read_bytes()
+
+
+def test_oracle_session_returned_envelope_cannot_mutate_private_runtime_identity(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    artifacts = authority["artifact_root"]
+    with _synthetic_session(authority) as session:
+        first = session.run(VALID, output_path=artifacts / "first.json")
+        first_runtime = first["evidence"]["runtime_identity"]
+        first_runtime["loader_path"] = "snapshot://forged/loader"
+        first_runtime["loader_flags"].append("--forged")
+
+        second = session.run(VALID, output_path=artifacts / "second.json")
+
+    second_runtime = second["evidence"]["runtime_identity"]
+    assert (
+        second_runtime["loader_path"]
+        == oracle_module._runtime_identity_policy(
+            oracle_module.PINNED_METIS_REVISION,
+            oracle_module.PINNED_METIS_TREE,
+            {
+                "package_sha256": oracle_module.PINNED_TOOLING_PACKAGE_SHA256,
+                "lock_sha256": oracle_module.PINNED_TOOLING_LOCK_SHA256,
+                "node_modules_sha256": oracle_module.PINNED_NODE_MODULES_SHA256,
+            },
+        )["loader_path"]
+    )
+    assert second_runtime["loader_flags"] == list(oracle_module.LOADER_FLAGS)
+
+
+def test_oracle_session_roster_root_metadata_is_guarded(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    output = authority["artifact_root"] / "blocked.json"
+    session = _synthetic_session(authority)
+    with pytest.raises(OracleError, match="isolated tooling metadata changed"), session:
+        assert session._snapshot_modules is not None
+        session._snapshot_modules.chmod(0o700)
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+def test_oracle_session_roster_detects_topology_change_during_traversal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "roster-race"
+    root.mkdir()
+    descriptor = oracle_module._open_metadata_directory(root, "test roster")
+    original_listdir = oracle_module.os.listdir
+    changed = False
+
+    def mutate_after_listing(directory_fd: int) -> list[str]:
+        nonlocal changed
+        names = original_listdir(directory_fd)
+        if not changed:
+            changed = True
+            (root / "late-entry").write_bytes(b"late")
+        return names
+
+    monkeypatch.setattr(oracle_module.os, "listdir", mutate_after_listing)
+    try:
+        with pytest.raises(OracleError, match="changed during traversal"):
+            oracle_module._directory_metadata_roster(descriptor)
+    finally:
+        oracle_module.os.close(descriptor)
+    assert changed
+
+
+def test_oracle_session_roster_has_explicit_entry_bound(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "bounded-roster"
+    root.mkdir()
+    (root / "one").write_bytes(b"1")
+    (root / "two").write_bytes(b"2")
+    descriptor = oracle_module._open_metadata_directory(root, "test roster")
+    monkeypatch.setattr(oracle_module, "_MAX_ORACLE_SESSION_ROSTER_ENTRIES", 2)
+    try:
+        with pytest.raises(OracleError, match="roster exceeds its bound"):
+            oracle_module._directory_metadata_roster(descriptor)
+    finally:
+        oracle_module.os.close(descriptor)
+
+
+@pytest.mark.parametrize("attack", ("add", "remove", "symlink"))
+def test_oracle_session_snapshot_roster_drift_poisoned_before_publication(
+    synthetic_session_authority: dict,
+    attack: str,
+) -> None:
+    authority = synthetic_session_authority
+    output = authority["artifact_root"] / "blocked.json"
+    session = _synthetic_session(authority)
+    with pytest.raises(OracleError, match="isolated tooling metadata changed"), session:
+        assert session._snapshot_modules is not None
+        target = session._snapshot_modules / "pkg/value.js"
+        if attack == "add":
+            (session._snapshot_modules / "added.js").write_bytes(b"added")
+        elif attack == "remove":
+            target.unlink()
+        else:
+            target.unlink()
+            target.symlink_to("/etc/passwd")
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+    with pytest.raises(OracleError, match="not active"):
+        session.run(VALID, output_path=output)
+
+
+def test_oracle_session_source_same_size_mtime_restore_is_detected_by_ctime(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    target = authority["module_file"]
+    before = target.stat()
+    output = authority["artifact_root"] / "blocked.json"
+    session = _synthetic_session(authority)
+    with pytest.raises(OracleError, match="source tooling metadata changed"), session:
+        target.write_bytes(b"evil")
+        os.utime(target, ns=(before.st_atime_ns, before.st_mtime_ns))
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+def test_oracle_session_detects_runtime_mutation_during_child_before_publication(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    output = authority["artifact_root"] / "blocked.json"
+    session = _synthetic_session(authority)
+
+    def attack() -> None:
+        assert session._snapshot_modules is not None
+        (session._snapshot_modules / "pkg/value.js").write_bytes(b"evil")
+
+    authority["state"]["on_run"] = attack
+    with pytest.raises(OracleError, match="isolated tooling metadata changed"), session:
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("binding", ("policy", "path"))
+def test_oracle_session_process_binding_drift_is_fail_closed(
+    synthetic_session_authority: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    binding: str,
+) -> None:
+    authority = synthetic_session_authority
+    output = authority["artifact_root"] / "blocked.json"
+    session = _synthetic_session(authority)
+    pattern = "process authority" if binding == "policy" else "Node resolution environment"
+    with pytest.raises(OracleError, match=pattern), session:
+        if binding == "policy":
+            monkeypatch.setattr(oracle_module, "SANDBOX_POLICY_VERSION", "drift")
+        else:
+            monkeypatch.setenv("PATH", "/drift")
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+def test_oracle_session_is_pid_bound_and_non_reentrant(
+    synthetic_session_authority: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authority = synthetic_session_authority
+    session = _synthetic_session(authority)
+    original_getpid = os.getpid
+    with session:
+        creator_pid = original_getpid()
+        monkeypatch.setattr(oracle_module.os, "getpid", lambda: creator_pid + 1)
+        with pytest.raises(OracleError, match="process boundary"):
+            session.run(VALID, output_path=authority["artifact_root"] / "pid.json")
+        monkeypatch.setattr(oracle_module.os, "getpid", original_getpid)
+        assert session._run_lock.acquire(blocking=False)
+        try:
+            with pytest.raises(OracleError, match="sequential"):
+                session.run(VALID, output_path=authority["artifact_root"] / "locked.json")
+        finally:
+            session._run_lock.release()
+
+
+def test_oracle_session_git_drift_poisoning_blocks_reuse(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    session = _synthetic_session(authority)
+    output = authority["artifact_root"] / "blocked.json"
+    with pytest.raises(OracleError, match="Metis checkout identity changed"), session:
+        authority["state"]["status"] = " M tooling/package.json"
+        with pytest.raises(OracleError, match="Metis checkout identity changed"):
+            session.run(VALID, output_path=output)
+        with pytest.raises(OracleError, match="poisoned"):
+            session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+def test_oracle_session_full_exit_hash_rejects_metadata_baseline_laundering(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    session = _synthetic_session(authority)
+    with pytest.raises(OracleError, match="isolated tooling content changed"), session:
+        assert session._snapshot_modules is not None
+        target = session._snapshot_modules / "pkg/value.js"
+        target.write_bytes(b"evil")
+        session._snapshot_roster = oracle_module._directory_metadata_roster(session._snapshot_fd)
+
+
+def test_oracle_session_full_hash_blocks_publication_after_roster_laundering(
+    synthetic_session_authority: dict,
+) -> None:
+    authority = synthetic_session_authority
+    output = authority["artifact_root"] / "must-not-exist.json"
+    session = _synthetic_session(authority)
+    with pytest.raises(OracleError, match="isolated tooling content changed"), session:
+        assert session._snapshot_modules is not None
+        target = session._snapshot_modules / "pkg/value.js"
+        target.write_bytes(b"evil")
+        session._snapshot_roster = oracle_module._directory_metadata_roster(session._snapshot_fd)
+        session.run(VALID, output_path=output)
+    assert not output.exists()
+
+
+def test_oracle_session_entry_baseexception_cleans_snapshot_and_descriptors(
+    synthetic_session_authority: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authority = synthetic_session_authority
+
+    def interrupt(_descriptor: int):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(oracle_module, "_directory_metadata_roster", interrupt)
+    session = _synthetic_session(authority)
+    with pytest.raises(KeyboardInterrupt):
+        session.__enter__()
+    snapshots = authority["state"]["snapshots"]
+    assert isinstance(snapshots, list) and len(snapshots) == 1
+    assert not snapshots[0].exists()
+    assert session._root_fd == session._source_modules_fd == -1
+    assert session._snapshot_fd == session._snapshot_modules_fd == -1
+
+
 def write_unqualified_node(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("#!/bin/sh\nprintf 'v0.0.0\\n'\n", encoding="utf-8")
@@ -548,8 +993,11 @@ def write_unqualified_node(path: Path) -> Path:
     return path
 
 
-def test_valid_source_has_structural_evidence_and_schema(artifact_tmp: Path) -> None:
-    envelope = execute(artifact_tmp)
+def test_valid_source_has_structural_evidence_and_schema(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
+    envelope = execute(artifact_tmp, session=reusable_oracle_session)
     assert envelope["result"]["status"] == "ok"
     assert envelope["result"]["diagnostics"] == {
         "all": [],
@@ -574,40 +1022,69 @@ def test_repeat_is_byte_deterministic(artifact_tmp: Path) -> None:
     ).read_bytes()
 
 
-def test_syntax_error_is_fail_closed(artifact_tmp: Path) -> None:
-    result = execute(artifact_tmp, 'metis 0.43\nendpoint play.test as "test" { variant v {\n')
+def test_oracle_session_repeat_is_byte_deterministic(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
+    first = execute(artifact_tmp / "session-one", session=reusable_oracle_session)
+    second = execute(artifact_tmp / "session-two", session=reusable_oracle_session)
+    assert first == second
+    assert oracle_module._canonical(first) == oracle_module._canonical(second)
+
+
+def test_syntax_error_is_fail_closed(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
+    result = execute(
+        artifact_tmp,
+        'metis 0.43\nendpoint play.test as "test" { variant v {\n',
+        session=reusable_oracle_session,
+    )
     assert result["result"]["status"] == "invalid"
     assert result["result"]["failure"]["kind"] == "parse"
     assert result["result"]["diagnostics"]["parser"]
 
 
-def test_unknown_reference_is_link_error(artifact_tmp: Path) -> None:
+def test_unknown_reference_is_link_error(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
     source = (
         'metis 0.43\nendpoint play.test as "test" {'
         ' take 1 from @video { include where @missing is "x" } }\n'
     )
-    result = execute(artifact_tmp, source)
+    result = execute(artifact_tmp, source, session=reusable_oracle_session)
     assert result["result"]["status"] == "invalid"
     assert result["result"]["failure"]["kind"] == "link"
     assert result["result"]["diagnostics"]["link"]
 
 
-def test_ambiguous_endpoint_is_rejected(artifact_tmp: Path) -> None:
+def test_ambiguous_endpoint_is_rejected(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
     source = (
         "metis 0.43\n"
         'endpoint play.a as "a" { variant v { empty } }\n'
         'endpoint play.b as "b" { variant v { empty } }\n'
     )
-    result = execute(artifact_tmp, source)
+    result = execute(artifact_tmp, source, session=reusable_oracle_session)
     assert result["result"]["failure"]["kind"] == "endpoint_ambiguous"
     assert result["result"]["endpoint"]["count"] == 2
 
 
 def test_source_mode_validates_a_non_endpoint_document_without_compiling(
     artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
 ) -> None:
     source = "metis 0.43\ncatalog video { fields { title keyword } }\n"
-    envelope = execute(artifact_tmp, source, execution_mode="source")
+    envelope = execute(
+        artifact_tmp,
+        source,
+        session=reusable_oracle_session,
+        execution_mode="source",
+    )
     result = envelope["result"]
     assert result["status"] == "ok"
     assert result["endpoint"] == {"count": 0, "name": None}
@@ -767,7 +1244,10 @@ def test_explicit_unqualified_node_is_rejected(
         execute(artifact_tmp)
 
 
-def test_multi_file_workspace_resolves_candidate_dependency(artifact_tmp: Path) -> None:
+def test_multi_file_workspace_resolves_candidate_dependency(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
     candidate = (
         'metis 0.43\nendpoint play.test as "test" {\n'
         '  variant v { take 1 from @video { include where @title is "x" } }\n}\n'
@@ -776,6 +1256,7 @@ def test_multi_file_workspace_resolves_candidate_dependency(artifact_tmp: Path) 
     envelope = execute(
         artifact_tmp,
         candidate,
+        session=reusable_oracle_session,
         workspace_sources={"catalogs/video.metis": dependency},
     )
     assert envelope["result"]["status"] == "ok"
@@ -800,8 +1281,11 @@ def test_isolated_node_modules_mutation_between_validation_and_execution_is_reje
         execute(artifact_tmp)
 
 
-def test_forged_runtime_path_is_rejected_even_with_rehashed_envelope(artifact_tmp: Path) -> None:
-    envelope = execute(artifact_tmp)
+def test_forged_runtime_path_is_rejected_even_with_rehashed_envelope(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
+    envelope = execute(artifact_tmp, session=reusable_oracle_session)
     envelope["result"]["runtime"]["loader_path"] = "snapshot://forged/loader"
     envelope["evidence"]["runtime_identity"]["loader_path"] = "snapshot://forged/loader"
     envelope["evidence"]["runtime_sha256"] = oracle_module._sha(
@@ -859,24 +1343,29 @@ def test_broadened_sandbox_policy_fails_network_canary(
 
 
 def test_hostile_node_options_are_not_inherited(
-    artifact_tmp: Path, monkeypatch: pytest.MonkeyPatch
+    artifact_tmp: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reusable_oracle_session: OracleSession,
 ) -> None:
     monkeypatch.setenv("NODE_OPTIONS", "--require=/definitely/missing/preload.js")
-    envelope = execute(artifact_tmp)
+    envelope = execute(artifact_tmp, session=reusable_oracle_session)
     assert envelope["result"]["status"] == "ok"
     assert envelope["evidence"]["runtime_identity"]["node_binary_sha256"] == (
         "sha256:" + oracle_module.PINNED_NODE_BINARY_SHA256
     )
 
 
-def test_metis_checkout_status_is_unchanged_after_isolated_execution(artifact_tmp: Path) -> None:
+def test_metis_checkout_status_is_unchanged_after_isolated_execution(
+    artifact_tmp: Path,
+    reusable_oracle_session: OracleSession,
+) -> None:
     before = subprocess.run(
         ["git", "-C", str(METIS_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
-    execute(artifact_tmp)
+    execute(artifact_tmp, session=reusable_oracle_session)
     after = subprocess.run(
         ["git", "-C", str(METIS_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
         check=True,

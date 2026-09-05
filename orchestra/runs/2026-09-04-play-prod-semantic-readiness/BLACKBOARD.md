@@ -1669,3 +1669,133 @@ grounding, compiler, tenant or no-Apply gate.
   multi-turn structural clarification preserves lineage, exact pending replay
   spends neither authority nor round, and only verified advancement commits
   the provisional answer. Remaining work is outside this closed gate.
+
+### L0/L1103/L1104/L1105 — repository-suite wall-time wave (2026-09-05)
+
+- FACT [L0] — The authoritative post-CREATE gate is the immutable baseline for
+  this wave: `4160 passed`, `2 skipped`, `0 failed` in `1884.19s`, with
+  foundation `87/87`, pilot contract plus five checks, Ruff and the `447`-file
+  format gate all green. Coverage or denominator reduction is forbidden.
+- DECISION [L0] — Optimize only duplicated setup, hashing/copying, subprocess
+  construction or safely isolated execution. Exact authority pins, pre/post
+  drift checks, test outcomes, failure visibility and the single final
+  repository gate remain mandatory. No model, tenant, network or Apply is
+  authorized.
+- FACT [L0] — Read-only live observation of the baseline's slow region showed
+  the pytest child at `97.9-100%` CPU rather than deadlocked. Optimization must
+  therefore be based on per-test evidence, not silence between progress marks.
+- OPEN [L0] — L1103 audits the harness/setup path; L1104 maps collection order
+  and bounded timings; L1105 audits parallel-safety and shared-state hazards.
+  L0 owns profiling design, implementation, adversarial acceptance, the
+  before/after measurement, commit and push.
+- FACT [L1103/L1104] — Canonical collection is `4162` node IDs. Harness setup
+  repeats full runtime hashes but one 199 MiB / 17,334-entry digest measured
+  about `1.18s`; it cannot explain the `1884.19s` pytest wall. The canonical
+  isolated QLoRA+oracle probe is `174 passed` in `247.72s`; fifteen old-oracle
+  cases account for `226.66s`, led by deterministic replay at `29.58s` and
+  fourteen cases at roughly `9.5-16.3s`.
+- FACT [L0] — A single profiled `validate_foundation` remained semantically
+  green (`87` passes, `0` errors, `688` files) and attributed `213.76s` profiled
+  wall to the T30-v3 successor contract. Its 40 source candidates invoked 40
+  sandboxed Node processes and triggered 43 complete dependency-tree hashes
+  plus 42 complete tooling hashes; cProfile recorded `655,183,110` calls.
+- DECISION [L0/L1105] — Naive xdist is rejected. L1106 may replace only
+  per-request full-content rehashing with a complete stat/link identity check,
+  retaining full content hashes at session entry and exit. L1107 may prototype
+  two deterministic whole-file workers only with independent authority roots,
+  private basetemps, disabled pytest cache and exact ledgers; timing-sensitive
+  and external-resource tests stay serial. L1108 remains a read-only go/no-go
+  audit for the old oracle cache.
+- FACT [L1106/L1110] — The grammar/stdlib session optimization is focused-green:
+  `17 passed` in `0.34s`, scoped Ruff/format/whitespace green, and an independent
+  security review found zero P0/P1. Every request now compares a bounded complete
+  `lstat` roster (path, kind, device/inode, mode, links, size, mtime, ctime and
+  symlink target), poisons on first drift, and retains full cryptographic tooling
+  plus dependency hashes at session entry and exit.
+- FACT [L1106] — A current-byte Foundation run remains exact at
+  `passes=87 errors=0 files=690` and completed in `53.25s`. The earlier observed
+  unprofiled Foundation test took `104.70s` under concurrent diagnostic load;
+  L0 will therefore report the current absolute wall and will not overstate that
+  noisy comparison as a controlled speedup.
+- DECISION [L1108/L0] — Sharding alone is insufficient: the fifteen measured
+  old-oracle cases can at most halve their `226.66s` subset, roughly six percent
+  of the old full-suite wall before overhead. L1109 is authorized to build an
+  explicit process-private, PID-bound and non-reentrant old-oracle session with
+  fresh sandboxed Node per request, metadata drift checks per call, permanent
+  poison on drift and full content verification at exit. Global caches and a
+  persistent Node worker remain forbidden.
+- FACT [L1107/L1111/L1112] — The opt-in deterministic two-worker harness is
+  independently GREEN with zero P0/P1. Focused harness/ledger coverage is
+  `35 passed`; a real mini-project produced the identical four-node roster and
+  outcome map in serial and sharded execution (`2 passed`, `1 skipped`,
+  `1 xpassed`, gaps `0`). Separate real subprocess probes also preserve an
+  expected `xfail` and a teardown error with process/ledger exit-status parity.
+- FACT [L1107] — Sharding performs one scrubbed canonical collection, partitions
+  whole test files deterministically, constructs two historical+Brain authority
+  pairs sequentially before concurrency, assigns private basetemps with pytest
+  cache disabled, and executes a conservative 20-file serial quarantine in its
+  own authority pair. Canonical 0600 SHA-bound ledgers in 0700 directories fail
+  closed on crash, truncation, symlink, mode, hash, collection or roster drift.
+- OPEN [L0] — `workers=2` remains opt-in. Promotion to the Makefile default
+  requires an L0-run full serial gate and full sharded gate with equal node-id
+  denominator and outcomes, plus a measured wall-time improvement.
+- FACT [L1109/L1113] — The reusable historical `OracleSession` is independently
+  GREEN after closing one P1 found by review. No-output batch results are
+  explicitly provisional until clean session close; any durable output runs a
+  full content check immediately before publication. A content mutation with a
+  deliberately laundered metadata roster raises and leaves no output file.
+- FACT [L1109] — On the same two-request roster, one-shot execution took
+  `37.76s`; one reusable session took `15.81s` including `9.31s` setup,
+  `2.50s` for both calls and `4.00s` full exit. This is `2.39x` faster
+  (`-58.1%`) inside the targeted oracle block; the outer harness preflight is
+  intentionally excluded from that comparison.
+- FACT [L0] — Independent focused integration is GREEN: grammar/harness/shard
+  roster `52/52`, scoped Ruff/format/whitespace green; the complete historical
+  oracle file is `93/93` in `143.79s` pytest wall and `249.01s` including
+  harness preflight/cleanup. A fresh Foundation run is exact at
+  `passes=87 errors=0 files=690` in `61.63s`.
+- OPEN [L0] — Full serial and full two-worker gates remain the only acceptance
+  evidence still required before choosing the default and promoting this wave.
+- FACT [L0/L1114] — The first current-byte serial run physically reached the
+  final test module and terminated after roughly `1613s` of pytest-body wall,
+  but its terminal summary was lost and the serial path persists no ledger.
+  Its exit status is therefore deliberately not accepted as evidence. A fresh
+  canonical collection is exact at `4208` tests.
+- FIX [L0/L1117] — The first full sharded collection correctly failed closed:
+  three automatically generated pytest IDs embedded boundary payloads of
+  `524396`, `16777346` and `131207` bytes and exceeded the private ledger's
+  intentional `65536`-byte per-node bound. The four Intent and six JSONL cases
+  now have short explicit one-to-one IDs; payloads, assertions and denominator
+  are unchanged. Independent recomputation is `4208/4208` distinct, maximum
+  node ID `16485` bytes and canonical ledger `476003` bytes. The security bound
+  was not relaxed.
+- DONE [L0] — The current-byte full two-worker path is GREEN:
+  `in=4208 out=4208 distinct=4208 gaps=0`, `4206 passed`, `2 skipped`, zero
+  failed/error/xfail/xpass in `1504.64s` wall. This already improves on the
+  immutable `1884.19s` baseline by `379.55s` (`20.14%`) while adding `46`
+  tests. Parallel files use two isolated authority pairs; the conservative
+  shared-state roster ran afterward in its independent serial quarantine.
+- DECISION [L0] — Configure `make test/check` for two workers by default while
+  preserving `TEST_WORKERS=1` as the exact serial reproduction switch. The
+  Python harness remains serial by default for direct callers. Promotion still
+  waits for one fresh same-byte serial `make check TEST_WORKERS=1` and final
+  diff/Git verification.
+- DONE [L0] — Same-byte serial parity and the mandatory repository gate are
+  GREEN. `make check ... TEST_WORKERS=1` reports Foundation
+  `passes=87 errors=0 files=690`, the pilot contract plus five checks GREEN,
+  Ruff GREEN, format-check `449` files, and full pytest `4206 passed`, `2`
+  skipped, zero failed in `1452.50s`; whole Make wall is `1688.37s`.
+- DONE [L0] — Against the immutable full-pytest baseline, execution decreased
+  from `1884.19s` to `1452.50s`: `431.69s` less (`22.91%`, `1.30x`) while the
+  denominator increased from `4162` to `4208`. Outcome parity with the sharded
+  path is exact: both produce `4206 passed + 2 skipped` and no failures.
+- DECISION [L0] — Supersede the provisional two-worker default. The full
+  two-worker route remains available as `TEST_WORKERS=2`, but its first exact
+  end-to-end harness wall (`1504.64s`) does not establish a sufficiently clear
+  additional benefit over the warmed serial measurement to justify making the
+  more complex scheduler canonical. `TEST_WORKERS=1` is therefore the Makefile
+  default; the measured oracle/session optimizations deliver the accepted
+  speedup without concurrency.
+- DONE [L0/L1116] — Final integrated frontier audit is GREEN, P0=0/P1=0: no
+  coverage reduction, fail-open behavior, sensitive data or scope drift. No
+  model, tenant, network or Apply operation occurred in this performance wave.

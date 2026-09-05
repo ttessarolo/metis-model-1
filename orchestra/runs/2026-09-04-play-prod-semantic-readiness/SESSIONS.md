@@ -516,3 +516,95 @@ push and did not run MLX, network, a live tenant or Apply.
 - Status: done; promoted by L0. Next Git step is the evidence commit, push and
   post-push equality/cleanliness check. No tenant write, Apply, training,
   download or network-backed data access occurred.
+
+### L1103/L1104/L1105 — full-suite performance diagnosis
+
+- Models / effort: `gpt-5.6-terra` high for harness/authority audit and
+  parallel-safety; `gpt-5.6-sol` high for collection/hotspot mapping; L0
+  frontier owns architecture, semantic/security acceptance and promotion.
+- Ownership: diagnosis only. L1103 inspects test-harness construction and
+  authority setup; L1104 reconstructs collection order and bounded per-file
+  timing; L1105 inventories shared files, environment, ports, processes and
+  ordering constraints relevant to sharding/parallel execution.
+- Baseline: exact full gate `4160 passed`, `2 skipped`, `0 failed` in
+  `1884.19s`; no denominator or coverage reduction is permitted.
+- Exclusions: delegated lanes may not edit, run the full suite, invoke MLX,
+  access network/tenant, Apply, commit, push or write the board.
+- Status: active; L0 will integrate only measured, fail-closed optimizations.
+
+### L1106/L1107/L1108 — bounded implementation lanes
+
+- L1106: `gpt-5.6-terra` high; owns grammar/stdlib session identity checks and
+  dedicated tests. Full cryptographic entry/exit hashes remain mandatory.
+- L1107: `gpt-5.6-terra` high; owns opt-in deterministic harness sharding,
+  private ledger plugin and dedicated tests. Independent authority roots and a
+  serial quarantine are mandatory; xdist and implicit scheduling are excluded.
+- L1108: `gpt-5.6-sol` high, read-only; decides whether old-oracle reusable
+  authority is both necessary and safe after sharding. It cannot edit.
+- L0: owns cross-lane review, Makefile/default decision, serial/sharded parity,
+  final full gate, boards, commit and push.
+- Status: active. No delegated model, tenant, network, Apply, commit or push.
+
+### L1109/L1110 — old-oracle implementation and independent review
+
+- L1109: `gpt-5.6-sol` high; owns only `oracles.py` and its tests. It implements
+  the explicit reusable session approved by L1108 while retaining the one-shot
+  wrapper, fresh sandboxed process per request and byte-compatible evidence.
+- L1110: `gpt-5.6-terra` high, read-only; independently reviewed the L1106
+  grammar/stdlib optimization. Verdict GREEN, zero P0/P1; focused gate `17/17`.
+- L0: independently reviews both implementations, reruns adversarial gates and
+  measures serial/sharded parity before any Makefile default or promotion.
+- Status: active. No model, tenant, network, Apply, commit or push is delegated.
+
+### L1111/L1112 — sharding review and terminal-outcome hardening
+
+- L1111: `gpt-5.6-terra` high, read-only; independent security/parity review of
+  the sharded harness and private pytest ledger. Verdict GREEN, zero P0/P1.
+- L1112: `gpt-5.6-terra` high; added real subprocess coverage for expected xfail
+  and teardown-error mapping. Focused combined harness gate is `35/35`.
+- Status: bounded work done; sharding remains opt-in pending L0 serial/sharded
+  full-suite parity and wall measurement. No model, tenant, network or Apply.
+
+### L1109/L1113 — reusable historical oracle closeout
+
+- L1109: explicit process-private old-oracle session, fresh sandboxed Node per
+  request, FD-bound complete metadata roster, PID/lock/poison, deep-copied
+  evidence and full entry/exit content authority. Two-request measured speedup
+  is `37.76s -> 15.81s` (`2.39x`).
+- L1113: independent review initially RED on durable publication preceding the
+  final content check. L1109 separated provisional no-output batch calls from
+  durable calls and added a full pre-publication guard; re-review is GREEN.
+- L0: independently ran `52/52` focused tests, `93/93` complete old-oracle
+  tests through the isolated harness, scoped static gates and Foundation
+  `87/87`. Full-suite parity remains active.
+- Status: implementation/review done; no model, tenant, network or Apply.
+
+### L1114/L1116/L1117 — terminal parity recovery and sharded acceptance
+
+- L1114: read-only recovery proved a `4208`-node canonical denominator and
+  physical completion of the prior serial run, but correctly rejected it as a
+  formal gate because its exit summary was not persisted.
+- L1116: frontier read-only audit of the integrated diff is GREEN, P0=0/P1=0;
+  no coverage reduction, fail-open path, secret or scope drift was found.
+- L1117: read-only diagnosis found three oversized automatic pytest node IDs;
+  explicit compact IDs preserve all ten boundary payloads and assertions.
+  Independent collection is `4208/4208`, max node ID `16485` bytes.
+- L0: full two-worker execution is exact and GREEN at `4206 passed`, `2`
+  skipped, gaps `0`, in `1504.64s`. Default promotion is conditional on the
+  fresh same-byte serial Make gate now owned by L0.
+- Status: delegated work done; L0 serial parity/final Git closure active. No
+  model, tenant, network or Apply was used.
+
+### L0 — repository-suite performance promotion
+
+- Exact serial repository gate: Foundation `87/87`, pilot checks GREEN, Ruff
+  GREEN, format `449` files, pytest `4206 passed + 2 skipped` in `1452.50s`;
+  whole `make check` wall `1688.37s`.
+- Exact sharded gate: `in=4208 out=4208 distinct=4208 gaps=0`, identical
+  `4206 + 2` outcome map, wall `1504.64s` including sharded harness work.
+- Decision: serial remains default because the warmed measurements do not
+  prove a material incremental sharding win. `TEST_WORKERS=2` remains an
+  explicit diagnostic/measurement option; `TEST_WORKERS=1` is canonical.
+- Accepted improvement: full pytest `1884.19s -> 1452.50s`, `-431.69s`
+  (`-22.91%`) despite `46` additional tests. Status: GREEN, ready for L0 Git
+  closure; no model, tenant, network or Apply.

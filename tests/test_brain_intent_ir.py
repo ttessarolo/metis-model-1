@@ -107,6 +107,12 @@ def test_strict_json_object_rejects_non_objects_malformed_and_non_json_numbers(r
         ("crea film", "unknown", "create"),
         ("crea film", "create", "invalid"),
     ],
+    ids=(
+        "blank-instruction",
+        "oversized-instruction",
+        "unknown-intent",
+        "invalid-target-mode",
+    ),
 )
 def test_intent_compile_request_rejects_invalid_admitted_request(
     instruction: str, intent: str, target_mode: str
