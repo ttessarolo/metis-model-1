@@ -192,7 +192,12 @@ class _Model:
     def plan_create_v2(self, request: Any) -> Any:
         self.plan_calls += 1
         payload = request.authority_projection.model_projection_payload()
-        self.safe_payloads.append(payload)
+        self.safe_payloads.append(
+            {
+                "projection": payload,
+                "decoder_constraint": request.decoder_constraint.payload(),
+            }
+        )
         if self.on_plan is not None:
             self.on_plan()
         if self.mutate_request:

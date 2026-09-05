@@ -328,3 +328,96 @@ push and did not run MLX, network, a live tenant or Apply.
 - Focused verification: `132/132` green plus Ruff, format and diff-check.
 - Status: active. Next: clean repair commit, fresh live run, final full gate,
   closure evidence commit and push.
+
+### L1085 — free-form clarification adjudication audit
+
+- Model / effort: inherited frontier read-only semantic audit; L0 retains
+  remediation and promotion authority.
+- Scope: replay the four repeated-question cases through the production pure
+  resolver; no tenant, MLX, compiler, network, file edit, commit or push.
+- Result: resolver wiring is correct; four message-global filters were proven
+  over-broad. Slot/clause-scoped repair roster and negative fail-closed tests
+  supplied to L0.
+- Status: done.
+
+### L1087 — refinement private-authority audit
+
+- Model / effort: inherited frontier read-only lifecycle audit; L0 retains
+  remediation and promotion authority.
+- Scope: trace provider Ask through TurnStore staging/publication and reproduce
+  the error with a pure probe; no tenant, model, compiler, edit, commit or push.
+- Result: root cause proven in outcome-unaware private-state validation; minimal
+  exact-outcome repair and adversarial test plan supplied to L0.
+- Status: done.
+
+### L1088/L1089/L1090 — convergence lanes
+
+- Models / effort: `gpt-5.6-terra` high for two bounded implementation lanes;
+  `gpt-5.6-sol` high for read-only decoder architecture. L0 owns integration,
+  semantic/security judgment, live qualification, full gate and promotion.
+- Ownership: L1088 only `brain_turns.py` plus one new dedicated test; L1089 only
+  `brain_dialogue_planner.py` plus one new dedicated test; L1090 read-only.
+  Boards are L0-only during concurrent work.
+- Exclusions: tenant/model/network/credentials/Apply/training/download and all
+  external repositories.
+- Status: active.
+
+### L1088 — exact clarification-only refinement publication
+
+- Model / effort: `gpt-5.6-terra` / high; bounded lifecycle repair. L0 owns
+  integration, live evidence, full gate and promotion.
+- Ownership: `src/metis_model1/brain_turns.py` and
+  `tests/test_brain_refinement_clarification_authority.py` only.
+- Result: exact pending schema-2 CREATE clarification may retain its immutable
+  basis without a candidate; all stale, mismatched, attachment-bearing or
+  non-clarification variants fail closed. Focused lane `191/191`; scoped Ruff,
+  format and diff-check green.
+- Status: done; no model/compiler/network/tenant/Apply/commit/push.
+
+### L1089 — clause-scoped free-form answer adjudication
+
+- Model / effort: `gpt-5.6-terra` / high; bounded semantic parser repair. L0
+  owns integration and promotion.
+- Ownership: `src/metis_model1/brain_dialogue_planner.py` and
+  `tests/test_brain_complex_freeform_adjudication.py` only.
+- Result: real case 04/05/08/09 answers resolve without message-global false
+  negatives; negated, alternative, injected and genuinely conditional answers
+  remain fail-closed. Focused lane `50/50`; scoped Ruff, format and diff-check
+  green.
+- Status: done; no model/compiler/network/tenant/Apply/commit/push.
+
+### L1090/L1091 — projection-derived CREATE-v2 decoder constraint
+
+- Models / effort: `gpt-5.6-sol` / high read-only architecture audit followed
+  by `gpt-5.6-terra` / high bounded core implementation. L0 owns architecture
+  acceptance, worker integration, pins, live evidence and promotion.
+- L1091 ownership: `src/metis_model1/brain_create_plan_v2.py` and
+  `tests/test_brain_create_decoder_constraint_v2.py` only.
+- Result: canonical private projection derives exact direct-operation tuples
+  and bounded expansion role descriptors without source/private content;
+  case-06 canonical roles pass and role swaps or unknown handles fail.
+  Focused lane `51/51`; scoped Ruff, format and diff-check green.
+- Status: done; no model/compiler/network/tenant/Apply/commit/push.
+
+### L1092 — CREATE-v2 dynamic decoder successor pin
+
+- Model / effort: `gpt-5.6-terra` / high; bounded integrity pin and adversarial
+  verifier. L0 retains v1 reseal, integration, live execution and promotion.
+- Ownership: new-only v2 manifest, verifier module and dedicated tests; no v1
+  file was changed by the lane.
+- Result: wire `6`, static/dynamic/bound schemas, prefix, worker, host guards,
+  package roster, network denial and cache cap are fail-closed and pinned.
+  Focused combined lane `60/60`; scoped Ruff, format and diff-check green.
+- Status: done; no model/tenant/network/Apply/training/commit/push.
+
+### L0 — pre-live convergence integration
+
+- Model / effort: frontier coordinator; semantic/security review, combined
+  integration, pin reseal, live qualification, full gate and Git authority.
+- Integrated: L1088/L1089/L1091/L1092, blueprint selector oracle correction,
+  MLX wire `6`, request-specific llguidance schema cache and independent host
+  membership/admission/permit chain.
+- Verification: combined focused roster `407/407`; both decoder pins, Ruff,
+  format and diff-check green. No live model or tenant write in this stage.
+- Status: active. Next: clean pre-live commit, authorized immutable `10x4`
+  qualification, final `make check`, measured evidence commit and push.

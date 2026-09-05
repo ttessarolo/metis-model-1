@@ -492,17 +492,72 @@ _CATALOG_CLAUSE_END = re.compile(r"[,;\n.!?]")
 _CATALOG_CONJUNCTION = re.compile(r"^(?:e|ed|and)\s+", re.I)
 _CATALOG_TRAILING_ACTION = re.compile(
     r"^(?:dammi|mostra|restituisci|fammi|voglio|vorrei|desidero|"
-    r"seleziona|crea|aggiungi|[0-9])\b",
+    r"seleziona|crea|aggiungi|ricevi|[0-9])\b",
     re.I,
 )
-_UNSAFE_ANSWER_TEXT = re.compile(
-    r"\b(?:non|not|no|senza|oppure|or|ignore|ignora|istruzioni|instructions|"
-    r"system|assistant|override|option_ref|authority_keys)\b",
+# An instruction-shaped token is unsafe anywhere in an answer.  Ordinary
+# negation, on the other hand, must be evaluated in the clause that purports
+# to answer a particular slot: a later product requirement such as ``non
+# applicare ancora un limite globale`` does not negate an earlier catalog
+# roster.
+_UNSAFE_INJECTION_TEXT = re.compile(
+    r"\b(?:ignore|ignora|istruzioni|instructions|system|assistant|override|"
+    r"option_ref|authority_keys)\b",
     re.I,
 )
+_UNSAFE_ASSERTION_TEXT = re.compile(
+    r"\b(?:non|not|no|senza|oppure|or)\b",
+    re.I,
+)
+_CONDITIONAL_ASSERTION_TEXT = re.compile(r"\b(?:se|if|forse|anzich[eé]|invece)\b", re.I)
+_STATEMENT_BOUNDARY = re.compile(r"[;.!?\n]")
 _QUANTITY_DECISION_KEY = re.compile(
     r"^qty\.(\w+)\.(\w+)\.(\w+)\.(any|first|second|final|each)(?:\.m\d+\.s\d+\.e\d+)?$"
 )
+
+
+def _statement_for_span(message: str, start: int, end: int) -> str:
+    """Return the semicolon/sentence-scoped assertion owning one source span.
+
+    Commas deliberately stay inside the scope: they often separate a catalog
+    roster from its ordinary parameters.  A later semicolon starts a new
+    requirement and cannot retroactively negate a preceding explicit answer.
+    """
+    if not 0 <= start <= end <= len(message):
+        invalid("answer span is outside its message")
+    before = message[:start]
+    after = message[end:]
+    left = max((match.end() for match in _STATEMENT_BOUNDARY.finditer(before)), default=0)
+    right_match = _STATEMENT_BOUNDARY.search(after)
+    right = end + right_match.start() if right_match is not None else len(message)
+    return message[left:right]
+
+
+def _safe_assertion_statement(statement: str, *, allow_conditional: bool = False) -> bool:
+    """Whether one answer-bearing statement has no negation/alternative.
+
+    This is intentionally narrower than a message-wide word blacklist.  It
+    admits independent later requirements while still refusing a selection or
+    count stated under negation, alternatives or a conditional.
+    """
+    return _UNSAFE_ASSERTION_TEXT.search(statement) is None and (
+        allow_conditional or _CONDITIONAL_ASSERTION_TEXT.search(statement) is None
+    )
+
+
+def _quantity_slot_matches_mention(
+    *, kind: str, scope: str, mode: str, qualifier: str | None, mention: CreateQuantityMention
+) -> bool:
+    """Match an exact quantity fact to one unambiguous pending target.
+
+    ``any`` is a slot-local target marker, not a claim that an ``each`` fact
+    is weaker.  A statement such as ``20 risultati totali per riga`` is exact
+    evidence for an otherwise-unqualified row-total question.  The caller also
+    requires that no competing pending slot can consume that same fact.
+    """
+    if (mention.kind, mention.scope, mention.mode) != (kind, scope, mode):
+        return False
+    return mention.qualifier == qualifier or (qualifier is None and mention.qualifier == "each")
 
 
 def _catalog_phrase_matches(
@@ -524,6 +579,13 @@ def _catalog_phrase_matches(
                 )
     matches: dict[str, list[str]] = {}
     for introducer in _CATALOG_INTRODUCER.finditer(message):
+        # A catalog introducer is answer authority only within its own
+        # semicolon/sentence statement.  This catches ``non usare il
+        # catalogo`` and ``Video oppure Users`` without treating an unrelated
+        # later product constraint as a negation of the selected roster.
+        statement = _statement_for_span(message, introducer.start(), introducer.end())
+        if not _safe_assertion_statement(statement):
+            continue
         tail = message[introducer.end() :]
         ending = _CATALOG_CLAUSE_END.search(tail)
         if ending is not None:
@@ -585,7 +647,7 @@ def adjudicate_dialogue_answer(
         invalid("answer binding is stale")
     choice_slots = tuple(slot for slot in group.slots if slot.answer_kind != "integer")
     catalog_slots = tuple(slot for slot in choice_slots if slot.kind == "catalog")
-    unsafe_answer_text = bool(_UNSAFE_ANSWER_TEXT.search(message))
+    unsafe_answer_text = bool(_UNSAFE_INJECTION_TEXT.search(message))
     labels: dict[str, list[tuple[QuestionSlot, BoundChoice]]] = {}
     for slot in choice_slots:
         if slot.kind == "catalog":
@@ -598,6 +660,8 @@ def adjudicate_dialogue_answer(
     matches = {} if unsafe_answer_text else _catalog_phrase_matches(message, catalog_slots)
     if not unsafe_answer_text:
         for clause in re.split(r"[;,\n]", message):
+            if not _safe_assertion_statement(clause):
+                continue
             value = _CHOICE_PREFIX.sub("", clause.strip().rstrip(".!"))
             chunks = (
                 [value]
@@ -611,9 +675,6 @@ def adjudicate_dialogue_answer(
                 matches.setdefault(slot.question_ref, []).append(choice.option_ref)
     numeric = tuple(slot for slot in group.slots if slot.answer_kind == "integer")
     parsed = parse_create_quantity_surface(message)
-    numeric_is_asserted = not unsafe_answer_text and not re.search(
-        r"\b(?:se|if|forse|anzich[eé]|invece)\b", message, re.I
-    )
     answers = []
     for slot in group.slots:
         if slot.answer_kind != "integer":
@@ -630,22 +691,45 @@ def adjudicate_dialogue_answer(
             continue
         values = set()
         key = _QUANTITY_DECISION_KEY.fullmatch(slot.decision_key)
-        if key and parsed.status == "resolved" and numeric_is_asserted:
+        if key and parsed.status == "resolved" and not unsafe_answer_text:
             kind, scope, mode, qualifier = key.groups()
             signature = (kind, scope, mode, None if qualifier == "any" else qualifier)
-            same_scope = sum(
-                bool(
-                    _QUANTITY_DECISION_KEY.fullmatch(other.decision_key)
-                    and _QUANTITY_DECISION_KEY.fullmatch(other.decision_key).groups()
-                    == key.groups()
+            matching_mentions = tuple(
+                item
+                for item in parsed.mentions
+                if _quantity_slot_matches_mention(
+                    kind=kind,
+                    scope=scope,
+                    mode=mode,
+                    qualifier=signature[3],
+                    mention=item,
                 )
-                for other in numeric
+                and _safe_assertion_statement(_statement_for_span(message, item.start, item.end))
             )
-            if same_scope == 1:
+            # A source fact may answer this slot only when it cannot also be
+            # consumed by another pending quantity target.  In particular, an
+            # ``each`` fact does not fan out into both an ``any`` and an
+            # explicit ``each`` question.
+            if matching_mentions and all(
+                sum(
+                    bool(
+                        (other_key := _QUANTITY_DECISION_KEY.fullmatch(other.decision_key))
+                        and _quantity_slot_matches_mention(
+                            kind=other_key.group(1),
+                            scope=other_key.group(2),
+                            mode=other_key.group(3),
+                            qualifier=None if other_key.group(4) == "any" else other_key.group(4),
+                            mention=item,
+                        )
+                    )
+                    for other in numeric
+                )
+                == 1
+                for item in matching_mentions
+            ):
                 values = {
                     item.factor if kind == "over_fetch" else item.value
-                    for item in parsed.mentions
-                    if (item.kind, item.scope, item.mode, item.qualifier) == signature
+                    for item in matching_mentions
                 }
         if len(numeric) == 1 and re.fullmatch(
             r"\s*(?:[0-9]+|[A-Za-zÀ-ÖØ-öø-ÿ]+)\s*[.!]?\s*", message

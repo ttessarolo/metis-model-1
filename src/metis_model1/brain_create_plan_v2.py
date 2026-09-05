@@ -47,6 +47,13 @@ MAX_FRAGMENT_BYTES = 16_384
 MAX_FRAGMENT_DEPTH = 24
 MAX_FRAGMENT_NODES = 1_024
 MAX_LEAF_BINDINGS = 256
+# The decoder constraint is deliberately much smaller than the full private
+# authority projection.  It contains only local integer handles and is an
+# optional *pre-admission* guard; the full reciprocal/order proof below stays
+# the final authority.
+MAX_DECODER_DIRECT_ALTERNATIVES = 256
+MAX_DECODER_EXPANSION_DESCRIPTORS = 128
+MAX_DECODER_CONSTRAINT_BYTES = 32_768
 
 _FORBIDDEN_KEYS = frozenset(
     {
@@ -634,6 +641,73 @@ class CompactProjectionIndex:
     rows_by_handle: Mapping[int, ExpansionRow]
 
 
+@dataclass(frozen=True, slots=True)
+class CreatePlanV2DirectOperationConstraint:
+    """One exact, model-safe direct operation available to the decoder.
+
+    The object intentionally carries handles only.  Private refs, evidence,
+    fragments, labels and tenant state never enter this constraint.
+    """
+
+    kind: Literal["a", "s", "d"]
+    requirement_handles: tuple[int, ...]
+    slot_handle: int | None
+    node_handle: int
+
+    def body(self) -> dict[str, Any]:
+        output: dict[str, Any] = {
+            "k": self.kind,
+            "q": list(self.requirement_handles),
+        }
+        if self.slot_handle is not None:
+            output["s"] = self.slot_handle
+        output["n" if self.kind in {"a", "d"} else "v"] = self.node_handle
+        return output
+
+
+@dataclass(frozen=True, slots=True)
+class CreatePlanV2ExpansionDescriptor:
+    """A bounded role-safe expansion descriptor, with no private content."""
+
+    slot_handle: int
+    recipe_handle: int
+    row_handles: tuple[int, ...]
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "s": self.slot_handle,
+            "r": self.recipe_handle,
+            "w": list(self.row_handles),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CreatePlanV2DecoderConstraint:
+    """Immutable projection-derived grammar guard for a CREATE-v2 decoder.
+
+    ``payload()`` is the sole model-visible representation.  Its exact wire
+    shape is intentionally compact and contains no tenant values, labels,
+    host references, source fragments or evidence:
+
+    ``{"v":1,"p":...,"a":[...],"d":[...],"x":[...]}``
+    """
+
+    projection_revision: str
+    active_requirement_handles: tuple[int, ...]
+    direct_operations: tuple[CreatePlanV2DirectOperationConstraint, ...]
+    expansion_descriptors: tuple[CreatePlanV2ExpansionDescriptor, ...]
+    constraint_sha256: str
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "v": 1,
+            "p": self.projection_revision,
+            "a": list(self.active_requirement_handles),
+            "d": [item.body() for item in self.direct_operations],
+            "x": [item.payload() for item in self.expansion_descriptors],
+        }
+
+
 def _leaf_manifest(binding: FragmentLeafBinding) -> dict[str, Any]:
     return {
         "json_pointer": binding.json_pointer,
@@ -1148,6 +1222,306 @@ def _row_target_slots(
         raise _invalid("expansion row targets an unknown slot") from error
 
 
+def _decoder_active_requirement_handles(
+    index: CompactProjectionIndex, active_requirement_handles: Sequence[int] | None
+) -> tuple[int, ...]:
+    """Resolve a canonical active roster without accepting an ambient default."""
+
+    if active_requirement_handles is None:
+        handles = tuple(sorted(index.requirements_by_handle))
+    else:
+        if isinstance(active_requirement_handles, (str, bytes)) or not isinstance(
+            active_requirement_handles, Sequence
+        ):
+            raise _invalid("active requirement roster is invalid")
+        handles = tuple(
+            _strict_handle(
+                item, label="active requirement handle", upper=MAX_REQUIREMENT_HANDLES - 1
+            )
+            for item in active_requirement_handles
+        )
+    if not handles or len(handles) != len(set(handles)):
+        raise _invalid("active requirement roster is invalid")
+    if any(handle not in index.requirements_by_handle for handle in handles):
+        raise _invalid("active requirement roster contains an unknown requirement")
+    return tuple(sorted(handles))
+
+
+def _decoder_constraint_digest_payload(
+    *,
+    projection_revision: str,
+    active_requirement_handles: tuple[int, ...],
+    direct_operations: tuple[CreatePlanV2DirectOperationConstraint, ...],
+    expansion_descriptors: tuple[CreatePlanV2ExpansionDescriptor, ...],
+) -> dict[str, Any]:
+    return {
+        "v": 1,
+        "p": projection_revision,
+        "a": list(active_requirement_handles),
+        "d": [item.body() for item in direct_operations],
+        "x": [item.payload() for item in expansion_descriptors],
+    }
+
+
+def _validate_create_plan_v2_decoder_constraint(
+    constraint: CreatePlanV2DecoderConstraint,
+) -> None:
+    """Validate the immutable, handle-only decoder constraint itself."""
+
+    if not isinstance(constraint, CreatePlanV2DecoderConstraint):
+        raise _invalid("CREATE decoder constraint is invalid")
+    _strict_hash(constraint.projection_revision, label="CREATE decoder constraint projection")
+    active = constraint.active_requirement_handles
+    if not isinstance(active, tuple) or not active or len(active) > MAX_REQUIREMENT_HANDLES:
+        raise _invalid("CREATE decoder constraint active roster is invalid")
+    if tuple(sorted(active)) != active or len(set(active)) != len(active):
+        raise _invalid("CREATE decoder constraint active roster is not canonical")
+    for handle in active:
+        _strict_handle(
+            handle,
+            label="CREATE decoder constraint active requirement handle",
+            upper=MAX_REQUIREMENT_HANDLES - 1,
+        )
+    direct = constraint.direct_operations
+    if not isinstance(direct, tuple) or len(direct) > MAX_DECODER_DIRECT_ALTERNATIVES:
+        raise _invalid("CREATE decoder direct alternatives exceed their bound")
+    direct_bodies: list[dict[str, Any]] = []
+    for item in direct:
+        if not isinstance(item, CreatePlanV2DirectOperationConstraint):
+            raise _invalid("CREATE decoder direct alternative is invalid")
+        if item.kind not in {"a", "s", "d"}:
+            raise _invalid("CREATE decoder direct alternative kind is invalid")
+        handles = item.requirement_handles
+        if (
+            not isinstance(handles, tuple)
+            or not handles
+            or len(handles) > MAX_REQUIREMENTS_PER_OPERATION
+            or tuple(sorted(handles)) != handles
+            or len(set(handles)) != len(handles)
+            or any(handle not in active for handle in handles)
+        ):
+            raise _invalid("CREATE decoder direct requirement roster is invalid")
+        for handle in handles:
+            _strict_handle(
+                handle,
+                label="CREATE decoder direct requirement handle",
+                upper=MAX_REQUIREMENT_HANDLES - 1,
+            )
+        _strict_handle(item.node_handle, label="CREATE decoder direct node handle")
+        if item.kind == "d":
+            if item.slot_handle is not None:
+                raise _invalid("CREATE decoder remove alternative has a slot")
+        else:
+            if item.slot_handle is None:
+                raise _invalid("CREATE decoder direct alternative lacks a slot")
+            _strict_handle(item.slot_handle, label="CREATE decoder direct slot handle")
+        direct_bodies.append(item.body())
+    if direct_bodies != sorted(direct_bodies, key=canonical_json):
+        raise _invalid("CREATE decoder direct alternatives are not canonical")
+    if len({canonical_json(item) for item in direct_bodies}) != len(direct_bodies):
+        raise _invalid("CREATE decoder direct alternatives are duplicated")
+
+    expansions = constraint.expansion_descriptors
+    if not isinstance(expansions, tuple) or len(expansions) > MAX_DECODER_EXPANSION_DESCRIPTORS:
+        raise _invalid("CREATE decoder expansion descriptors exceed their bound")
+    expansion_payloads: list[dict[str, Any]] = []
+    for item in expansions:
+        if not isinstance(item, CreatePlanV2ExpansionDescriptor):
+            raise _invalid("CREATE decoder expansion descriptor is invalid")
+        _strict_handle(item.slot_handle, label="CREATE decoder expansion slot handle")
+        _strict_handle(item.recipe_handle, label="CREATE decoder expansion recipe handle")
+        rows = item.row_handles
+        if (
+            not isinstance(rows, tuple)
+            or not rows
+            or len(rows) > MAX_EXPANSION_ROWS
+            or tuple(sorted(rows)) != rows
+            or len(set(rows)) != len(rows)
+        ):
+            raise _invalid("CREATE decoder expansion row roster is invalid")
+        for handle in rows:
+            _strict_handle(handle, label="CREATE decoder expansion row handle")
+        expansion_payloads.append(item.payload())
+    if expansion_payloads != sorted(expansion_payloads, key=canonical_json):
+        raise _invalid("CREATE decoder expansion descriptors are not canonical")
+    if len({canonical_json(item) for item in expansion_payloads}) != len(expansion_payloads):
+        raise _invalid("CREATE decoder expansion descriptors are duplicated")
+    if not direct and not expansions:
+        raise _invalid("CREATE decoder constraint has no alternatives")
+
+    payload = _decoder_constraint_digest_payload(
+        projection_revision=constraint.projection_revision,
+        active_requirement_handles=active,
+        direct_operations=direct,
+        expansion_descriptors=expansions,
+    )
+    raw = canonical_json(payload)
+    if len(raw) > MAX_DECODER_CONSTRAINT_BYTES:
+        raise _invalid("CREATE decoder constraint exceeds its byte bound")
+    if not hmac.compare_digest(
+        bytes_sha256(raw), _strict_hash(constraint.constraint_sha256, label="CREATE decoder digest")
+    ):
+        raise _invalid("CREATE decoder constraint digest differs")
+
+
+def derive_create_plan_v2_decoder_constraint(
+    projection: CompactAuthorityProjection,
+    active_requirement_handles: Sequence[int] | None = None,
+) -> CreatePlanV2DecoderConstraint:
+    """Derive the smallest model-safe pre-admission grammar from one projection.
+
+    Direct operations are enumerated only when all role and reciprocal leaf
+    evidence checks already hold.  Expansion rows are described by bounded
+    role-safe triples instead: their exact requirement reciprocity, ordering
+    and virtual-slot lifecycle remain deliberately enforced by full admission.
+    """
+
+    index = validate_compact_authority_projection(projection)
+    active = _decoder_active_requirement_handles(index, active_requirement_handles)
+    active_set = frozenset(active)
+    requirement_handles_by_ref = {
+        item.ref: handle for handle, item in index.requirements_by_handle.items()
+    }
+
+    def node_requirements(node: NodeGrant) -> tuple[int, ...] | None:
+        refs = _node_requirements(node, index)
+        handles = tuple(sorted(requirement_handles_by_ref[ref] for ref in refs))
+        if not handles or not frozenset(handles).issubset(active_set):
+            return None
+        return handles
+
+    def authorized(kind: str, handles: tuple[int, ...]) -> bool:
+        return all(kind in index.requirements_by_handle[handle].allowed_ops for handle in handles)
+
+    direct: list[CreatePlanV2DirectOperationConstraint] = []
+    for slot in index.slots_by_handle.values():
+        for node in index.nodes_by_handle.values():
+            handles = node_requirements(node)
+            if handles is None or node.fragment_type not in slot.accepts:
+                continue
+            if (
+                node.state == "new"
+                and "attach" in slot.mutations
+                and node.parent_slot_ref == slot.ref
+                and authorized("attach", handles)
+            ):
+                direct.append(
+                    CreatePlanV2DirectOperationConstraint("a", handles, slot.handle, node.handle)
+                )
+            if (
+                "set" in slot.mutations
+                and node.parent_slot_ref == slot.ref
+                and authorized("set", handles)
+            ):
+                direct.append(
+                    CreatePlanV2DirectOperationConstraint("s", handles, slot.handle, node.handle)
+                )
+    for node in index.nodes_by_handle.values():
+        handles = node_requirements(node)
+        if (
+            handles is not None
+            and node.state == "basis"
+            and node.removable
+            and authorized("remove", handles)
+        ):
+            direct.append(CreatePlanV2DirectOperationConstraint("d", handles, None, node.handle))
+
+    # Each expansion descriptor names only a role-compatible slot/recipe pair
+    # and that recipe's verified row-handle roster.  Selecting rows remains
+    # bounded by the schema and this descriptor; execution/admission verifies
+    # the private expansion semantics again.
+    expansions: list[CreatePlanV2ExpansionDescriptor] = []
+    for slot in index.slots_by_handle.values():
+        if "expand" not in slot.mutations:
+            continue
+        for recipe in index.recipes_by_handle.values():
+            if slot.member not in recipe.scope_members:
+                continue
+            rows = tuple(
+                sorted(
+                    row.handle
+                    for row in index.rows_by_handle.values()
+                    if row.recipe_id == recipe.recipe_id and row.row_type == recipe.row_type
+                )
+            )
+            if rows:
+                expansions.append(CreatePlanV2ExpansionDescriptor(slot.handle, recipe.handle, rows))
+
+    direct_tuple = tuple(sorted(direct, key=lambda item: canonical_json(item.body())))
+    expansions_tuple = tuple(sorted(expansions, key=lambda item: canonical_json(item.payload())))
+    if len(direct_tuple) > MAX_DECODER_DIRECT_ALTERNATIVES:
+        raise _invalid("CREATE decoder direct alternatives exceed their bound")
+    if len(expansions_tuple) > MAX_DECODER_EXPANSION_DESCRIPTORS:
+        raise _invalid("CREATE decoder expansion descriptors exceed their bound")
+    payload = _decoder_constraint_digest_payload(
+        projection_revision=projection.projection_revision,
+        active_requirement_handles=active,
+        direct_operations=direct_tuple,
+        expansion_descriptors=expansions_tuple,
+    )
+    if len(canonical_json(payload)) > MAX_DECODER_CONSTRAINT_BYTES:
+        raise _invalid("CREATE decoder constraint exceeds its byte bound")
+    constraint = CreatePlanV2DecoderConstraint(
+        projection.projection_revision,
+        active,
+        direct_tuple,
+        expansions_tuple,
+        bytes_sha256(canonical_json(payload)),
+    )
+    _validate_create_plan_v2_decoder_constraint(constraint)
+    return constraint
+
+
+def validate_create_plan_v2_decoder_constraint_membership(
+    body: Any, constraint: CreatePlanV2DecoderConstraint
+) -> None:
+    """Reject a body outside its exact direct/role-safe expansion grammar.
+
+    This is intentionally a pre-admission filter.  A passing body must still
+    go through :func:`admit_create_delta_plan_v2`, which owns execution order,
+    expansion reciprocity and complete active-roster coverage.
+    """
+
+    _validate_create_plan_v2_decoder_constraint(constraint)
+    shape_errors = validate_create_delta_plan_v2_body_shape(body)
+    if shape_errors:
+        raise _invalid(shape_errors[0])
+    direct = {canonical_json(item.body()) for item in constraint.direct_operations}
+    expansion_by_pair = {
+        (item.slot_handle, item.recipe_handle): frozenset(item.row_handles)
+        for item in constraint.expansion_descriptors
+    }
+    active = frozenset(constraint.active_requirement_handles)
+    for operation in body["o"]:
+        kind = operation["k"]
+        if kind in {"a", "s", "d"}:
+            if canonical_json(operation) not in direct:
+                raise _invalid("CREATE decoder body is outside its direct authority grammar")
+            continue
+        if kind != "x":  # schema currently makes this unreachable; keep the boundary explicit.
+            raise _invalid("CREATE decoder body operation kind is invalid")
+        handles = operation["q"]
+        if (
+            not isinstance(handles, list)
+            or not handles
+            or len(set(handles)) != len(handles)
+            or any(handle not in active for handle in handles)
+        ):
+            raise _invalid("CREATE decoder expansion requirements are outside the active roster")
+        try:
+            allowed_rows = expansion_by_pair[(operation["s"], operation["r"])]
+        except KeyError as error:
+            raise _invalid("CREATE decoder expansion is outside its role grammar") from error
+        rows = operation["w"]
+        if (
+            not isinstance(rows, list)
+            or not rows
+            or len(set(rows)) != len(rows)
+            or not frozenset(rows).issubset(allowed_rows)
+        ):
+            raise _invalid("CREATE decoder expansion rows are outside their role grammar")
+
+
 def _admit_operation(
     operation: Mapping[str, Any],
     ordinal: int,
@@ -1399,6 +1773,9 @@ __all__ = [
     "CREATE_V2_NEW_FRAGMENT_TYPES",
     "CompactAuthorityProjection",
     "CompactProjectionIndex",
+    "CreatePlanV2DecoderConstraint",
+    "CreatePlanV2DirectOperationConstraint",
+    "CreatePlanV2ExpansionDescriptor",
     "CreateDeltaOperationV2",
     "CreateDeltaPlanV2",
     "CreateDeltaPlanV2Error",
@@ -1406,6 +1783,9 @@ __all__ = [
     "ExpansionRow",
     "FragmentLeafBinding",
     "MAX_AUTHORITY_HANDLES",
+    "MAX_DECODER_CONSTRAINT_BYTES",
+    "MAX_DECODER_DIRECT_ALTERNATIVES",
+    "MAX_DECODER_EXPANSION_DESCRIPTORS",
     "MAX_EXPANSION_ROWS",
     "MAX_JSON_BYTES",
     "MAX_OPERATIONS",
@@ -1418,8 +1798,10 @@ __all__ = [
     "SlotGrant",
     "admit_create_delta_plan_v2",
     "compact_authority_projection_revision",
+    "derive_create_plan_v2_decoder_constraint",
     "initial_create_endpoint_skeleton",
     "parse_create_delta_plan_v2_json",
     "validate_compact_authority_projection",
+    "validate_create_plan_v2_decoder_constraint_membership",
     "validate_create_delta_plan_v2_body_shape",
 ]

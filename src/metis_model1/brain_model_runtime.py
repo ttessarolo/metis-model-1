@@ -20,6 +20,8 @@ from metis_model1.brain_create_plan import validate_create_delta_plan_shape
 from metis_model1.brain_create_plan_v2 import (
     MAX_REQUIREMENT_HANDLES,
     CompactAuthorityProjection,
+    CreatePlanV2DecoderConstraint,
+    derive_create_plan_v2_decoder_constraint,
     validate_create_delta_plan_v2_body_shape,
 )
 from metis_model1.brain_protocol import BrainError, bounded_source, canonical_json
@@ -333,6 +335,11 @@ class CreatePlanV2Request:
     active_requirement_handles: tuple[int, ...]
     authority_projection: CompactAuthorityProjection
     cancellation: threading.Event | None = field(default=None, repr=False, compare=False)
+    decoder_constraint: CreatePlanV2DecoderConstraint = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         if (
@@ -388,7 +395,12 @@ class CreatePlanV2Request:
             raise BrainError(
                 "MODEL_INPUT_TOO_LARGE", 413, "CREATE v2 authority projection exceeds its bound"
             )
+        constraint = derive_create_plan_v2_decoder_constraint(
+            projection,
+            self.active_requirement_handles,
+        )
         object.__setattr__(self, "authority_projection", projection)
+        object.__setattr__(self, "decoder_constraint", constraint)
 
 
 @dataclass(frozen=True)

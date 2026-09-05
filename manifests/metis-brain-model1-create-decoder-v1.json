@@ -40,7 +40,7 @@
   },
   "worker": {
     "path": "src/metis_model1/initial_local_qlora_runtime.py",
-    "sha256": "sha256:56599f07d2a03768e11d1159666553a6fbc06d36c3402e2bdbf9e62b88c2e851"
+    "sha256": "sha256:742954b6297620ad75f204d6872151e93c03d9f8c6c3aff34563952137185ca6"
   },
   "policy": {
     "authoritative_host_validation_required": true,

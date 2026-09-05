@@ -1436,3 +1436,78 @@ grounding, compiler, tenant or no-Apply gate.
 - OPEN [L0] — Commit the worker repair to obtain a clean guard, rerun the live
   qualification to a fresh receipt, then run the final repository gate and
   push measured closure evidence.
+
+### L0 — second live measurement and convergence repairs (2026-09-05)
+
+- FACT [L0] — Repair commit `1a20fddc1621640ff992244ccc19cb3139ebad77`
+  restored the structured CREATE-v2 worker. A second immutable headless run
+  completed all `10` journeys / `40` operator messages in `97118ms`; receipt
+  `sha256:ee9a957e4e088d4b397a842d78090ae278979beb6a3e71a1bc12d249f143af87`.
+  All `10/10` initial bounded questions passed and `5/6` model/compiler-ready
+  stages produced the exact expected proposal. The run stayed RED because
+  authority-blocked refinements repeated `21/24` questions or failed before
+  compilation, and case 06 had one schema-valid but role-invalid compact plan.
+- FACT [L1087] — Provider replay proved case 01/02 T3/T4 correctly return
+  `routes.activation_contract`; TurnStore then erased the candidate for the
+  non-proposed outcome and rejected `basis present + candidate absent` as
+  `COMPILER_FAILED` before any model/compiler call. This is a private-state
+  publication defect, not a compiler defect.
+- FACT [L1085] — Pure adjudicator replay proved the chat wire and resolver hook
+  are active. Four real answers were rejected by message-global syntax filters:
+  ordinary prose after a catalog roster, a later Apply veto, `each` versus the
+  question's bounded `any`, and a later unrelated conditional. The fix remains
+  slot- and clause-scoped and preserves fail-closed treatment of negation,
+  alternatives, injection and genuinely conditional quantities.
+- FACT [L1086] — Case 06's compact body passed the fixed JSON schema but failed
+  host admission because one operation used an authority handle in an invalid
+  role. A repeated isolated call produced a valid plan, so the fixed decoder
+  does not reliably exclude this class; host admission correctly remained the
+  final authority.
+- OPEN [L0] — Integrate the two proven dialogue/state repairs, bind constrained
+  decoding to projection-valid operations without weakening host admission,
+  rerun focused gates and the complete `10x4` headless qualification, then run
+  one final repository gate and push clean `main`.
+
+### L0/L1088/L1089/L1091/L1092 — convergence repairs sealed before live rerun (2026-09-05)
+
+- FIX [L1088] — TurnStore now permits `basis present + candidate absent` only
+  for an exact schema-2 CREATE `needs_clarification` result whose live pending
+  clarification, dialogue binding, immutable revisions and cumulative history
+  all match and whose candidate attachment roster is empty. Every other
+  missing-candidate or tampered variant continues to fail closed.
+- FIX [L1089] — Free-form answer adjudication now scopes ordinary negation,
+  alternatives and conditionals to the statement that carries the catalog or
+  quantity fact. Prompt-control vocabulary remains message-global fail-closed;
+  one `each` fact may satisfy an otherwise unqualified quantity slot only when
+  no competing pending slot can consume it.
+- FIX [L0] — The independent blueprint-gap normalizer now removes only the
+  wildcard selector `[*]`; literal selectors such as `[genre]` and bounded
+  rosters remain semantic path components. Reassessment of the immutable
+  second-run receipt makes case 07 T2/T3/T4 pass without changing production
+  behavior or opening the hidden blueprint before terminal success.
+- FIX [L1091/L0] — CREATE-v2 requests derive a closed, handle-only decoder
+  constraint from the exact private authority projection. Direct operations
+  are enumerated as exact role-valid tuples; bounded expansion descriptors
+  expose only permitted slot/recipe/row handles. The worker instantiates and
+  caches a request-specific llguidance schema, while the host independently
+  rechecks membership, full reciprocal admission and the delta permit. The
+  runtime remains one model call plus one compile, with no retry added.
+- DONE [L1092/L0] — Successor pin
+  `metis-brain-model1-create-decoder/2026-09-05-v2` seals wire `6`, static body
+  schema, dynamic constraint sample, instantiated decoder schema, CREATE-v2
+  prefix, worker, host guard chain, package roster, network denial and cache
+  cap `32`. Worker SHA-256 is
+  `742954b6297620ad75f204d6872151e93c03d9f8c6c3aff34563952137185ca6`;
+  v2 manifest file SHA-256 is
+  `409f53e1faaf73470d1f4bc5c5c7ad7b7a31707067e636ecb2459b0ccfd387b1`.
+  The shared worker identity was also resealed in the immutable v1 contract;
+  the resealed v1 manifest file SHA-256 is
+  `716415e48c8ded03de79d58624c2835d26b640d9556be2ca61b779d86dde36b8`.
+- DONE [L0] — Combined focused roster for both decoder pins, refinement state,
+  free-form adjudication, dynamic constraint, MLX wire, typed pipeline,
+  qualification, dialogue, provider, authority, issuer, executor and
+  combinators: `in=407 out=407 distinct=407 gaps=0`. Scoped Ruff check,
+  Ruff format-check and `git diff --check` pass.
+- OPEN [L0] — Commit the exact clean pre-live implementation, execute the
+  authorized immutable `10x4` qualification, then run the final repository
+  gate and promote only on a green receipt plus unchanged tenant guards.

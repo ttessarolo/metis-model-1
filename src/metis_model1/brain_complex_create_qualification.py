@@ -79,7 +79,7 @@ _HASH_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _CASE_RE = re.compile(r"case_[0-9]{2}\Z")
 _TARGET_PATH_RE = re.compile(r"properties/brain_qualification_v3/(case_[0-9]{2})\.metis\Z")
 _TARGET_ENDPOINT_RE = re.compile(r"brain_qualification_v3\.(case_[0-9]{2})\Z")
-_GAP_SELECTOR_RE = re.compile(r"\[[^\]\r\n]{1,96}\]")
+_GAP_SELECTOR_RE = re.compile(r"\[([^\]\r\n]{1,96})\]")
 _GAP_SEPARATOR_RE = re.compile(r"[^a-z0-9_.:-]+")
 
 
@@ -438,7 +438,16 @@ def _normalized_gap_key(value: Any) -> str | None:
 
     if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 512:
         return None
-    normalized = _GAP_SELECTOR_RE.sub("", value.casefold())
+
+    def selector(match: re.Match[str]) -> str:
+        members = tuple(item.strip() for item in match.group(1).split(","))
+        if members == ("*",):
+            return ""
+        if not members or any(re.fullmatch(r"[a-z0-9_:-]+", item) is None for item in members):
+            return ""
+        return "." + ".".join(members)
+
+    normalized = _GAP_SELECTOR_RE.sub(selector, value.casefold())
     normalized = _GAP_SEPARATOR_RE.sub(".", normalized)
     normalized = re.sub(r"\.{2,}", ".", normalized).strip(".")
     return normalized or None

@@ -1010,11 +1010,12 @@ class TurnStore:
         record: TurnRecord,
         basis: _PrivateCreateState | None,
         candidate: _PrivateCreateState | None,
+        allow_clarification_without_candidate: bool = False,
     ) -> None:
         """Require the exact cumulative operator lineage for a typed CREATE stage."""
 
         if candidate is None:
-            if basis is not None:
+            if basis is not None and not allow_clarification_without_candidate:
                 raise BrainError(
                     "COMPILER_FAILED",
                     503,
@@ -1211,10 +1212,97 @@ class TurnStore:
             raise BrainError("PROPOSAL_STALE", 409, "typed CREATE proposal head differs")
         self._proposal_heads[key] = candidate
 
+    @staticmethod
+    def _candidate_attachments_are_empty(staged: _OrchestratorTurnRecord) -> bool:
+        """Reject any proposal authority on a clarification-only refinement."""
+
+        return all(
+            getattr(staged, name) is None
+            for name in (
+                "candidate_proposal_ref",
+                "candidate_source",
+                "candidate_source_sha256",
+                "candidate_manifest",
+                "candidate_manifest_sha256",
+                "candidate_create_spec",
+                "candidate_create_spec_sha256",
+                "candidate_create_ir",
+                "candidate_create_ir_sha256",
+                "candidate_create_proof",
+                "candidate_create_generation",
+                "candidate_create_history",
+                "candidate_create_history_revision",
+            )
+        )
+
+    def _is_exact_pending_create_clarification(
+        self,
+        *,
+        record: TurnRecord,
+        basis: _PrivateCreateState,
+        result: dict[str, Any] | None,
+    ) -> bool:
+        """Accept a missing refined candidate only for its issued v2 question.
+
+        A typed CREATE refinement may legitimately need one more operator
+        decision.  Its predecessor remains private authority while the issued
+        clarification is pending; no source, manifest or proposal head may be
+        attached to that intermediate turn.
+        """
+
+        if (
+            not isinstance(result, dict)
+            or record.request.target.get("mode") != "create"
+            or record.request.schema_version != 2
+            or result.get("schema_version") != 2
+            or result.get("turn_id") != record.turn_id
+            or result.get("request_id") != record.request.request_id
+            or result.get("status") != "completed"
+            or result.get("outcome") != "needs_clarification"
+            or result.get("route") != "local"
+            or not isinstance(result.get("clarification"), dict)
+        ):
+            return False
+        clarification = result["clarification"]
+        try:
+            clarification_id = clarification_reference(
+                clarification.get("clarification_id"), name="clarification_id"
+            )
+            pending = self.clarifications.pending_v2(
+                session_id=record.session_id,
+                clarification_id=clarification_id,
+            )
+        except BrainError:
+            return False
+        dialogue = record.dialogue_state
+        if (
+            type(dialogue) is not PrivateDialogueState
+            or not dialogue.messages
+            or dialogue.binding.history_revision
+            != create_authority_history_revision(dialogue.messages)
+            or dialogue.messages[: len(basis.history)] != basis.history
+            or clarification != pending.payload()
+            or pending.session_id != record.session_id
+            or pending.conversation_id != record.conversation_id
+            or pending.binding != dialogue.binding
+            or pending.binding.context_revision != record.request.expected_context_revision
+            or pending.binding.semantic_revision != record.request.expected_semantic_source_revision
+        ):
+            return False
+        attached_pending = record.dialogue_pending
+        if attached_pending is not None:
+            return attached_pending == pending
+        return (
+            pending.parent_turn_id == record.turn_id
+            and pending.binding.parent_fingerprint == record.request.request_fingerprint
+        )
+
     def _publish_private_attachments(
         self,
         record: TurnRecord,
         staged: _OrchestratorTurnRecord,
+        *,
+        result: dict[str, Any] | None = None,
     ) -> bool:
         """Publish staged manifests only to the exact still-live turn record."""
 
@@ -1272,10 +1360,21 @@ class TurnStore:
                     503,
                     "typed CREATE authority cannot attach to an existing target",
                 )
+            allow_clarification_without_candidate = (
+                staged_basis_create is not None
+                and candidate_create is None
+                and self._candidate_attachments_are_empty(staged)
+                and self._is_exact_pending_create_clarification(
+                    record=record,
+                    basis=staged_basis_create,
+                    result=result,
+                )
+            )
             self._validate_candidate_create_history(
                 record=record,
                 basis=staged_basis_create,
                 candidate=candidate_create,
+                allow_clarification_without_candidate=allow_clarification_without_candidate,
             )
             candidate_proposal_ref = staged.candidate_proposal_ref
             if candidate_proposal_ref is not None and (
@@ -2412,7 +2511,7 @@ class TurnStore:
             else:
                 result = dialogue_terminal
             self._stage_candidate_source(staged_record, result)
-            self._publish_private_attachments(record, staged_record)
+            self._publish_private_attachments(record, staged_record, result=result)
             if record.cancellation.is_set():
                 self._clear_private_if_current(record)
             with record.condition:

@@ -27,7 +27,10 @@ from typing import Any
 from metis_model1 import initial_local_qlora_runtime as qualified_runtime
 from metis_model1.brain_candidate_grounding import take_contract
 from metis_model1.brain_create_plan import CREATE_DELTA_PLAN_SCHEMA_SHA256
-from metis_model1.brain_create_plan_v2 import CREATE_DELTA_PLAN_BODY_V2_SCHEMA_SHA256
+from metis_model1.brain_create_plan_v2 import (
+    CREATE_DELTA_PLAN_BODY_V2_SCHEMA_SHA256,
+    validate_create_plan_v2_decoder_constraint_membership,
+)
 from metis_model1.brain_model_runtime import (
     MAX_GENERATION_TOKENS,
     MAX_PEAK_METAL_GB,
@@ -51,7 +54,7 @@ MAX_STDERR_BYTES = 128 * 1024
 MAX_REQUESTS_PER_PROCESS = 120
 MODEL_WIRE_VERSION = 3
 CREATE_PLAN_WIRE_VERSION = 4
-CREATE_PLAN_V2_WIRE_VERSION = 5
+CREATE_PLAN_V2_WIRE_VERSION = 6
 PREFIX_CACHE_WIRE_VERSION = 2
 DEFAULT_CACHE_SCOPE = "model1-prefix-v1"
 MAX_CACHE_SCOPE_BYTES = 128
@@ -61,7 +64,7 @@ KILL_WAIT_SECONDS = 5.0
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_PATH = PROJECT_ROOT / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md"
 REFERENCE_SHA256 = "ca2f7fc354e75a5c9367f6c934e67a04f7e44fd1615e26a8f19be6cde444194b"
-WORKER_SHA256 = "sha256:56599f07d2a03768e11d1159666553a6fbc06d36c3402e2bdbf9e62b88c2e851"
+WORKER_SHA256 = "sha256:742954b6297620ad75f204d6872151e93c03d9f8c6c3aff34563952137185ca6"
 _RUNTIME_REFERENCE_SECTIONS = (
     "## Output discipline",
     "### Catalog, fields, and value domains",
@@ -207,7 +210,10 @@ def _create_plan_v2_prefix_messages() -> list[dict[str, str]]:
                 '{"o":[...]}. Each operation uses projection-local integer handles: '
                 "attach {k:a,q,s,n}, set {k:s,q,s,v}, remove {k:d,q,n}, or expand "
                 "{k:x,q,s,r,w}. Use only handles present in AUTHORITY_PROJECTION_JSON and "
-                "only with their declared roles and allowed operations. `q` must bind every "
+                "only with their declared roles and allowed operations. The embedded "
+                "decoder_constraint.d roster contains the exact permitted direct-operation "
+                "objects: copy selected objects without changing any handle. Its x roster "
+                "contains only permitted expansion slot/recipe/row roles. `q` must bind every "
                 "active requirement exactly; do not add unsupported work. Never return prose, "
                 "Markdown, executable text, opaque server references, private fragments, row "
                 "arguments, evidence or filesystem data. The host revalidates and expands the "
@@ -405,6 +411,7 @@ def serialize_create_plan_v2_messages(request: CreatePlanV2Request) -> list[dict
         "semantic_revision": request.semantic_revision,
         "active_requirement_handles": list(request.active_requirement_handles),
         "authority_projection": request.authority_projection.model_projection_payload(),
+        "decoder_constraint": request.decoder_constraint.payload(),
     }
     try:
         encoded = canonical_json(envelope).decode("utf-8")
@@ -839,6 +846,15 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         """Generate one EOS-complete compact CREATE v2 body on the warm worker."""
 
         messages = serialize_create_plan_v2_messages(request)
+        decoder_constraint = request.decoder_constraint.payload()
+        decoder_constraint_sha256 = request.decoder_constraint.constraint_sha256
+        instantiated_decoder_schema = qualified_runtime._create_plan_v2_bound_decoder_schema(
+            qualified_runtime._json(qualified_runtime.CREATE_PLAN_V2_SCHEMA),
+            decoder_constraint,
+        )
+        instantiated_decoder_schema_sha256 = qualified_runtime._canonical_hash(
+            instantiated_decoder_schema
+        )
         request_id = str(uuid.uuid4())
         payload = {
             "schema_version": CREATE_PLAN_V2_WIRE_VERSION,
@@ -850,6 +866,9 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             "adapter_sha256": self._adapter_sha256,
             "schema_sha256": CREATE_DELTA_PLAN_BODY_V2_SCHEMA_SHA256,
             "decoder_schema_sha256": qualified_runtime.CREATE_PLAN_V2_DECODER_SCHEMA_SHA256,
+            "decoder_constraint": decoder_constraint,
+            "decoder_constraint_sha256": decoder_constraint_sha256,
+            "instantiated_decoder_schema_sha256": instantiated_decoder_schema_sha256,
             "decoder": qualified_runtime.CREATE_PLAN_V2_DECODER,
         }
         raw = canonical_json(payload) + b"\n"
@@ -879,7 +898,16 @@ class MlxBrainModelRuntime(BrainModelRuntime):
                     "MODEL_RUNTIME_DIED", 503, "local Model 1 worker stopped"
                 ) from error
             try:
-                response = self._parse_create_plan_v2_response(line, request_id)
+                response = self._parse_create_plan_v2_response(
+                    line,
+                    request_id,
+                    decoder_constraint_sha256=decoder_constraint_sha256,
+                    instantiated_decoder_schema_sha256=instantiated_decoder_schema_sha256,
+                )
+                validate_create_plan_v2_decoder_constraint_membership(
+                    response["body"],
+                    request.decoder_constraint,
+                )
                 metrics = {
                     key: response[key]
                     for key in (
@@ -1420,7 +1448,14 @@ class MlxBrainModelRuntime(BrainModelRuntime):
         }
         return value
 
-    def _parse_create_plan_v2_response(self, line: bytes, request_id: str) -> dict[str, Any]:
+    def _parse_create_plan_v2_response(
+        self,
+        line: bytes,
+        request_id: str,
+        *,
+        decoder_constraint_sha256: str,
+        instantiated_decoder_schema_sha256: str,
+    ) -> dict[str, Any]:
         def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
             parsed: dict[str, Any] = {}
             for key, item in items:
@@ -1447,6 +1482,8 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             "adapter_sha256",
             "schema_sha256",
             "decoder_schema_sha256",
+            "decoder_constraint_sha256",
+            "instantiated_decoder_schema_sha256",
             "decoder",
         }
         metric_fields = {
@@ -1480,6 +1517,8 @@ class MlxBrainModelRuntime(BrainModelRuntime):
             or value.get("schema_sha256") != CREATE_DELTA_PLAN_BODY_V2_SCHEMA_SHA256
             or value.get("decoder_schema_sha256")
             != qualified_runtime.CREATE_PLAN_V2_DECODER_SCHEMA_SHA256
+            or value.get("decoder_constraint_sha256") != decoder_constraint_sha256
+            or value.get("instantiated_decoder_schema_sha256") != instantiated_decoder_schema_sha256
             or value.get("decoder") != qualified_runtime.CREATE_PLAN_V2_DECODER
             or not isinstance(value.get("body"), dict)
             or value.get("finish_reason") != "stop"

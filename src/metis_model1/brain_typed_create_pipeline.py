@@ -37,6 +37,7 @@ from metis_model1.brain_create_plan_v2 import (
     admit_create_delta_plan_v2,
     initial_create_endpoint_skeleton,
     validate_compact_authority_projection,
+    validate_create_plan_v2_decoder_constraint_membership,
 )
 from metis_model1.brain_create_surface import (
     CreateAuthorityHistoryMessage,
@@ -597,6 +598,13 @@ def run_typed_create_pipeline_v2(
     ):
         _fail("CREATE_TYPED_RUNTIME_DRIFT", 409, "typed CREATE authority changed after planning")
 
+    # The worker grammar is projection-derived, but its response is still
+    # untrusted.  Recheck exact direct-operation membership on the host before
+    # the fuller private admission/permit boundary below.
+    validate_create_plan_v2_decoder_constraint_membership(
+        copy.deepcopy(candidate.body),
+        request.decoder_constraint,
+    )
     plan = admit_create_delta_plan_v2(
         copy.deepcopy(candidate.body),
         projection=projection_copy,

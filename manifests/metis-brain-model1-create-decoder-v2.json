@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "pin_id": "metis-brain-model1-create-decoder/2026-09-05-v2",
+  "status": "runtime_contract_ready",
+  "role": "metis_brain_model1_create_delta_planner_v2",
+  "wire": {
+    "schema_version": 6,
+    "operation": "plan_create_v2"
+  },
+  "runtime": {
+    "python": "3.12.10",
+    "qualification_lock": {
+      "path": "qualification/uv.lock",
+      "sha256": "sha256:e5a39821599ac1f4eba46b3f5ae04040bd4973f3518351bd75f48677f6c9a340"
+    },
+    "packages": {
+      "llguidance": "1.8.0",
+      "mlx": "0.32.1",
+      "mlx-metal": "0.32.1",
+      "mlx-vlm": "0.6.15",
+      "numpy": "2.5.2",
+      "transformers": "5.14.0"
+    },
+    "decoder": "llguidance-1.8.0",
+    "network": "denied"
+  },
+  "authoritative_schema": {
+    "path": "schemas/metis-brain-create-delta-plan-body-v2.schema.json",
+    "sha256": "sha256:5473bb7b38be889caa9e8fd9b23c88cdbc0b2e8e352921470f9a4a621bf35271"
+  },
+  "decoder_projection": {
+    "implementation": "metis_model1.initial_local_qlora_runtime._create_plan_v2_decoder_schema",
+    "canonical_sha256": "sha256:72b23e48f9d0b49b38c1787eae6eaeaea6b47a3756a81a24cc3a2ed5addedadb"
+  },
+  "decoder_constraint": {
+    "implementation": "metis_model1.brain_create_plan_v2.derive_create_plan_v2_decoder_constraint",
+    "payload": {
+      "v": 1,
+      "p": "sha256:e213e2b80e8d6f3597a910fec260d5df46d893f096f87f39ba4c03ab4952955d",
+      "a": [0, 1],
+      "d": [
+        {"k": "a", "q": [0], "s": 10, "n": 11},
+        {"k": "d", "q": [0], "n": 14},
+        {"k": "s", "q": [1], "s": 12, "v": 13}
+      ],
+      "x": [{"s": 10, "r": 20, "w": [30]}]
+    },
+    "canonical_sha256": "sha256:cd6ec83e75374d62ae5ac660ec69ff75d2dfe947754b04eeae2d7f90cd41f5c1"
+  },
+  "bound_decoder_schema": {
+    "implementation": "metis_model1.initial_local_qlora_runtime._create_plan_v2_bound_decoder_schema",
+    "sample_constraint_sha256": "sha256:cd6ec83e75374d62ae5ac660ec69ff75d2dfe947754b04eeae2d7f90cd41f5c1",
+    "canonical_sha256": "sha256:a803f3a368891fd985963b2a8d46a48a9ae62c283a08a1d43cbd3bc6b0216e8f"
+  },
+  "create_prefix": {
+    "implementation": "metis_model1.brain_mlx_runtime._create_plan_v2_prefix_messages",
+    "canonical_sha256": "sha256:51502082203122f5528b788c441572ebd87227d74e2637704689537183b05076",
+    "message_count": 2
+  },
+  "worker": {
+    "path": "src/metis_model1/initial_local_qlora_runtime.py",
+    "sha256": "sha256:742954b6297620ad75f204d6872151e93c03d9f8c6c3aff34563952137185ca6"
+  },
+  "decoder_cache": {
+    "implementation": "metis_model1.initial_local_qlora_runtime.MAX_CREATE_PLAN_V2_DECODER_CACHE",
+    "maximum_entries": 32
+  },
+  "host_guards": {
+    "implementation": "metis_model1.brain_typed_create_pipeline.run_typed_create_pipeline_v2",
+    "path": "src/metis_model1/brain_typed_create_pipeline.py",
+    "sha256": "sha256:729e5af118c8d129a619c4120842d3e14ebd85fa919fc63fbb04c1d3ac3bcd06",
+    "membership": "metis_model1.brain_create_plan_v2.validate_create_plan_v2_decoder_constraint_membership",
+    "admission": "metis_model1.brain_create_plan_v2.admit_create_delta_plan_v2",
+    "permit": "metis_model1.brain_create_plan_v2.issue_create_delta_plan_v2_permit"
+  },
+  "policy": {
+    "authoritative_host_membership_required": true,
+    "authoritative_host_admission_required": true,
+    "delta_permit_required": true,
+    "source_generation_forbidden": true,
+    "private_authority_forbidden": true,
+    "network_denied": true
+  },
+  "nonclaims": [
+    "no_accuracy_claim",
+    "not_model_qualified",
+    "no_model_invocation",
+    "no_tenant_authority",
+    "no_training_authority",
+    "no_distribution_claim",
+    "no_source_authority",
+    "no_private_authority_exposure"
+  ]
+}

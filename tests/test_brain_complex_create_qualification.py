@@ -41,6 +41,21 @@ def test_ready_prompt_contracts_name_the_seed_and_series_tv_without_implicit_sem
     assert "film e serie TV recenti" in journeys["case_06"][1]
 
 
+def test_gap_normalization_preserves_literal_selectors_and_drops_only_wildcards() -> None:
+    assert (
+        qualification._normalized_gap_key(  # noqa: SLF001
+            "endpoint.blocks[genre].fetches[*].clauses.genre"
+        )
+        == "endpoint.blocks.genre.fetches.clauses.genre"
+    )
+    assert (
+        qualification._normalized_gap_key(  # noqa: SLF001
+            "endpoint.variants[personalizzata,anonima].uses[*].block"
+        )
+        == "endpoint.variants.personalizzata.anonima.uses.block"
+    )
+
+
 def test_loader_does_not_open_blueprints_before_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

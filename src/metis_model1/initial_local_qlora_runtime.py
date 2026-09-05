@@ -85,7 +85,7 @@ CONFIG = {
 LIMITS = {"hours": 4, "metal_gb": 110, "new_artifacts_gb": 8, "checkpoints": 4}
 MODEL_WIRE_VERSION = 3
 CREATE_PLAN_WIRE_VERSION = 4
-CREATE_PLAN_V2_WIRE_VERSION = 5
+CREATE_PLAN_V2_WIRE_VERSION = 6
 PREFIX_CACHE_WIRE_VERSION = 2
 CREATE_PLAN_SCHEMA = PROJECT_ROOT / "schemas/metis-brain-create-delta-plan.schema.json"
 CREATE_PLAN_SCHEMA_SHA256 = (
@@ -107,6 +107,9 @@ MAX_CACHE_SCOPE_BYTES = 128
 MAX_PREFIX_CACHE_TOKENS = 4096
 MAX_PREFIX_CACHE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_CREATE_PLAN_PROMPT_TOKENS = 8192
+MAX_CREATE_PLAN_V2_CONSTRAINT_BYTES = 32 * 1024
+MAX_CREATE_PLAN_V2_CONSTRAINT_ALTERNATIVES = 384
+MAX_CREATE_PLAN_V2_DECODER_CACHE = 32
 VERDICTS = {"LOCAL_ADAPTER_UPLIFT", "LOCAL_ADAPTER_EXPERIMENTAL"}
 PACKAGE_FILES = {
     "CARD.md",
@@ -424,6 +427,163 @@ def _create_plan_v2_decoder_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
         "required": ["o"],
         "properties": {"o": projected["properties"]["o"]},
         "$defs": projected["$defs"],
+    }
+
+
+def _create_plan_v2_decoder_constraint(value: Any) -> dict[str, Any]:
+    """Validate the closed, handle-only constraint supplied by Brain.
+
+    This is deliberately not an arbitrary JSON Schema boundary.  The worker
+    accepts only the compact projection revision, active requirement handles,
+    exact direct-operation tuples and bounded expansion handle rosters.  Full
+    reciprocal authority admission remains host-owned after generation.
+    """
+
+    def handle(item: Any, *, maximum: int = 255) -> int:
+        if type(item) is not int or not 0 <= item <= maximum:
+            _fail("CREATE v2 decoder constraint handle is invalid")
+        return item
+
+    def encoded(item: Any) -> bytes:
+        return json.dumps(
+            item,
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+    if not isinstance(value, Mapping) or set(value) != {"v", "p", "a", "d", "x"}:
+        _fail("CREATE v2 decoder constraint shape differs")
+    if value["v"] != 1:
+        _fail("CREATE v2 decoder constraint version differs")
+    projection = value["p"]
+    if (
+        not isinstance(projection, str)
+        or len(projection) != 71
+        or not projection.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in projection[7:])
+    ):
+        _fail("CREATE v2 decoder constraint projection is invalid")
+    active = value["a"]
+    direct = value["d"]
+    expansions = value["x"]
+    if (
+        not isinstance(active, list)
+        or not 1 <= len(active) <= 64
+        or active != sorted(active)
+        or len(active) != len(set(active))
+        or any(handle(item, maximum=63) != item for item in active)
+        or not isinstance(direct, list)
+        or not isinstance(expansions, list)
+        or len(direct) + len(expansions) == 0
+        or len(direct) + len(expansions) > MAX_CREATE_PLAN_V2_CONSTRAINT_ALTERNATIVES
+    ):
+        _fail("CREATE v2 decoder constraint roster is invalid")
+    active_set = frozenset(active)
+    canonical_direct: list[dict[str, Any]] = []
+    for operation in direct:
+        if not isinstance(operation, Mapping):
+            _fail("CREATE v2 decoder direct operation is invalid")
+        kind = operation.get("k")
+        expected = {
+            "a": {"k", "q", "s", "n"},
+            "s": {"k", "q", "s", "v"},
+            "d": {"k", "q", "n"},
+        }.get(kind)
+        if expected is None or set(operation) != expected:
+            _fail("CREATE v2 decoder direct operation shape differs")
+        requirements = operation["q"]
+        if (
+            not isinstance(requirements, list)
+            or not 1 <= len(requirements) <= 4
+            or requirements != sorted(requirements)
+            or len(requirements) != len(set(requirements))
+            or any(handle(item, maximum=63) not in active_set for item in requirements)
+        ):
+            _fail("CREATE v2 decoder direct requirements are invalid")
+        for key in expected - {"k", "q"}:
+            handle(operation[key])
+        canonical_direct.append(copy.deepcopy(dict(operation)))
+    canonical_expansions: list[dict[str, Any]] = []
+    for descriptor in expansions:
+        if not isinstance(descriptor, Mapping) or set(descriptor) != {"s", "r", "w"}:
+            _fail("CREATE v2 decoder expansion descriptor shape differs")
+        rows = descriptor["w"]
+        if (
+            not isinstance(rows, list)
+            or not 1 <= len(rows) <= 12
+            or rows != sorted(rows)
+            or len(rows) != len(set(rows))
+            or any(handle(item) != item for item in rows)
+        ):
+            _fail("CREATE v2 decoder expansion rows are invalid")
+        handle(descriptor["s"])
+        handle(descriptor["r"])
+        canonical_expansions.append(copy.deepcopy(dict(descriptor)))
+    if len({encoded(item) for item in canonical_direct}) != len(canonical_direct) or len(
+        {encoded(item) for item in canonical_expansions}
+    ) != len(canonical_expansions):
+        _fail("CREATE v2 decoder constraint contains duplicate alternatives")
+    result = {
+        "v": 1,
+        "p": projection,
+        "a": list(active),
+        "d": canonical_direct,
+        "x": canonical_expansions,
+    }
+    if len(encoded(result)) > MAX_CREATE_PLAN_V2_CONSTRAINT_BYTES:
+        _fail("CREATE v2 decoder constraint exceeds its byte bound")
+    return result
+
+
+def _create_plan_v2_bound_decoder_schema(
+    schema: Mapping[str, Any], constraint: Any
+) -> dict[str, Any]:
+    """Instantiate the decoder grammar from a validated closed constraint."""
+
+    base = _create_plan_v2_decoder_schema(schema)
+    admitted = _create_plan_v2_decoder_constraint(constraint)
+    alternatives: list[dict[str, Any]] = []
+    if admitted["d"]:
+        alternatives.append({"enum": admitted["d"]})
+    for descriptor in admitted["x"]:
+        alternatives.append(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["k", "q", "s", "r", "w"],
+                "properties": {
+                    "k": {"const": "x"},
+                    "q": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 4,
+                        "items": {"enum": admitted["a"]},
+                    },
+                    "s": {"const": descriptor["s"]},
+                    "r": {"const": descriptor["r"]},
+                    "w": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": len(descriptor["w"]),
+                        "items": {"enum": descriptor["w"]},
+                    },
+                },
+            }
+        )
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["o"],
+        "properties": {
+            "o": {
+                "type": "array",
+                "minItems": base["properties"]["o"]["minItems"],
+                "maxItems": base["properties"]["o"]["maxItems"],
+                "items": {"anyOf": alternatives},
+            }
+        },
     }
 
 
@@ -2322,7 +2482,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     prefix_tokens_by_scope: dict[str, int] = {}
     create_plan_grammar: str | None = None
     create_plan_tokenizer: Any = None
-    create_plan_v2_grammar: str | None = None
+    create_plan_v2_grammars: dict[str, str] = {}
     create_plan_v2_tokenizer: Any = None
 
     def create_plan_decoder() -> tuple[Any, str]:
@@ -2364,10 +2524,13 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             _fail("CREATE plan constrained grammar failed validation")
         return create_plan_tokenizer, create_plan_grammar
 
-    def create_plan_v2_decoder() -> tuple[Any, str]:
-        nonlocal create_plan_v2_grammar, create_plan_v2_tokenizer
-        if create_plan_v2_grammar is not None and create_plan_v2_tokenizer is not None:
-            return create_plan_v2_tokenizer, create_plan_v2_grammar
+    def create_plan_v2_decoder(
+        constraint: Any,
+        *,
+        constraint_sha256: str,
+        instantiated_schema_sha256: str,
+    ) -> tuple[Any, str]:
+        nonlocal create_plan_v2_tokenizer
         try:
             decoder_version = package_version("llguidance")
         except PackageNotFoundError as error:
@@ -2380,28 +2543,42 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         constrained_schema = _create_plan_v2_decoder_schema(schema)
         if _canonical_hash(constrained_schema) != CREATE_PLAN_V2_DECODER_SCHEMA_SHA256:
             _fail("CREATE v2 plan decoder schema differs")
+        admitted_constraint = _create_plan_v2_decoder_constraint(constraint)
+        if _canonical_hash(admitted_constraint) != constraint_sha256:
+            _fail("CREATE v2 plan decoder constraint differs")
+        bound_schema = _create_plan_v2_bound_decoder_schema(schema, admitted_constraint)
+        if _canonical_hash(bound_schema) != instantiated_schema_sha256:
+            _fail("CREATE v2 instantiated decoder schema differs")
+        cache_key = constraint_sha256 + ":" + instantiated_schema_sha256
         from llguidance import LLMatcher
         from llguidance.hf import from_tokenizer
 
         tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
         if not getattr(tokenizer, "is_fast", False):
             _fail("CREATE v2 plan tokenizer is not grammar compatible")
-        create_plan_v2_tokenizer = from_tokenizer(
-            tokenizer,
-            n_vocab=len(tokenizer),
-            eos_token=tokenizer.eos_token_id,
-            slices=[],
-        )
-        create_plan_v2_grammar = LLMatcher.grammar_from_json_schema(
-            constrained_schema,
+        if create_plan_v2_tokenizer is None:
+            create_plan_v2_tokenizer = from_tokenizer(
+                tokenizer,
+                n_vocab=len(tokenizer),
+                eos_token=tokenizer.eos_token_id,
+                slices=[],
+            )
+        cached = create_plan_v2_grammars.get(cache_key)
+        if cached is not None:
+            return create_plan_v2_tokenizer, cached
+        grammar = LLMatcher.grammar_from_json_schema(
+            bound_schema,
             overrides={"whitespace_flexible": False},
         )
         grammar_error, warnings = LLMatcher.validate_grammar_with_warnings(
-            create_plan_v2_grammar, create_plan_v2_tokenizer
+            grammar, create_plan_v2_tokenizer
         )
         if grammar_error or warnings:
             _fail("CREATE v2 plan constrained grammar failed validation")
-        return create_plan_v2_tokenizer, create_plan_v2_grammar
+        if len(create_plan_v2_grammars) >= MAX_CREATE_PLAN_V2_DECODER_CACHE:
+            create_plan_v2_grammars.pop(next(iter(create_plan_v2_grammars)))
+        create_plan_v2_grammars[cache_key] = grammar
+        return create_plan_v2_tokenizer, grammar
 
     def prefill_prefix(messages: Any) -> tuple[PromptCacheState | None, int]:
         if not isinstance(messages, list) or not messages or len(messages) > 4:
@@ -2611,7 +2788,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 "adapter_sha256",
                 "prefix_sha256",
             }
-        elif version in {CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}:
+        elif version == CREATE_PLAN_WIRE_VERSION:
             expected_request = {
                 "schema_version",
                 "request_id",
@@ -2622,6 +2799,22 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 "adapter_sha256",
                 "schema_sha256",
                 "decoder_schema_sha256",
+                "decoder",
+            }
+        elif version == CREATE_PLAN_V2_WIRE_VERSION:
+            expected_request = {
+                "schema_version",
+                "request_id",
+                "operation",
+                "messages",
+                "max_tokens",
+                "model_revision",
+                "adapter_sha256",
+                "schema_sha256",
+                "decoder_schema_sha256",
+                "decoder_constraint",
+                "decoder_constraint_sha256",
+                "instantiated_decoder_schema_sha256",
                 "decoder",
             }
         else:
@@ -2654,6 +2847,11 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     or request["adapter_sha256"] != adapter_sha256
                     or request["schema_sha256"] != CREATE_PLAN_V2_SCHEMA_SHA256
                     or request["decoder_schema_sha256"] != CREATE_PLAN_V2_DECODER_SCHEMA_SHA256
+                    or not isinstance(request["decoder_constraint"], Mapping)
+                    or not _is_hash(request["decoder_constraint_sha256"])
+                    or _canonical_hash(request["decoder_constraint"])
+                    != request["decoder_constraint_sha256"]
+                    or not _is_hash(request["instantiated_decoder_schema_sha256"])
                     or request["decoder"] != CREATE_PLAN_V2_DECODER
                 )
             )
@@ -2778,7 +2976,13 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     if version == CREATE_PLAN_WIRE_VERSION:
                         decoder_tokenizer, decoder_grammar = create_plan_decoder()
                     else:
-                        decoder_tokenizer, decoder_grammar = create_plan_v2_decoder()
+                        decoder_tokenizer, decoder_grammar = create_plan_v2_decoder(
+                            request["decoder_constraint"],
+                            constraint_sha256=request["decoder_constraint_sha256"],
+                            instantiated_schema_sha256=request[
+                                "instantiated_decoder_schema_sha256"
+                            ],
+                        )
                     create_plan_processor = _CreatePlanGrammarProcessor(
                         tokenizer=decoder_tokenizer,
                         grammar=decoder_grammar,
@@ -2877,6 +3081,10 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     "adapter_sha256": adapter_sha256,
                     "schema_sha256": CREATE_PLAN_V2_SCHEMA_SHA256,
                     "decoder_schema_sha256": CREATE_PLAN_V2_DECODER_SCHEMA_SHA256,
+                    "decoder_constraint_sha256": request["decoder_constraint_sha256"],
+                    "instantiated_decoder_schema_sha256": request[
+                        "instantiated_decoder_schema_sha256"
+                    ],
                     "decoder": CREATE_PLAN_V2_DECODER,
                 }
             )
