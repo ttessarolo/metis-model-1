@@ -1511,3 +1511,71 @@ grounding, compiler, tenant or no-Apply gate.
 - OPEN [L0] — Commit the exact clean pre-live implementation, execute the
   authorized immutable `10x4` qualification, then run the final repository
   gate and promote only on a green receipt plus unchanged tenant guards.
+
+### L0 — third live measurement, exact residual defects (2026-09-05)
+
+- FACT [L0] — Clean commit
+  `4ce647f5a4e9bc5b0c6dbe649dc36060702661a4` completed the authorized local
+  `10x4` run in `249096ms`; all `10` journeys and `40` operator messages
+  completed. Semantic receipt identity is
+  `sha256:137c9810e7eb0e5663765cb088fa72b020eaeda8a5a3d114a9c6aa7817b95903`
+  and receipt-file SHA-256 is
+  `2f4c6a9d4b69c666b29235452d40ed02787d755abade954ae15ccd8e8d25f9d6`.
+- DONE [L0] — Dynamic decoding closed the prior role-swap defect: all `6/6`
+  model/compiler-ready stages produced the exact expected spec, each with one
+  inference and one compile, zero repair. Initial bounded questions remain
+  `10/10`. In particular case 06 T2 is now exact and compile-clean.
+- FACT [L0] — The receipt remains RED at `15/24` safely blocked refinement
+  stages. Exact residual roster: case 01 T4, case 02 T4 and case 06 T4 stop
+  before model/compiler with `COMPILER_FAILED`; case 04 T2 exposes
+  `CREATE_TYPED_AUTHORITY_INVALID` followed by two fail-closed cascades; case
+  05 T2/T3/T4 repeats `catalog.selection`. No wrong Draft was admitted.
+- DONE [L0] — Terminal guard itself passed; blueprint load occurred only after
+  service close, Apply capability/calls remained false, and both Model 1 and
+  tenant guards remained unchanged at tenant HEAD
+  `98e78407f7286d2a9ac404dceb655fd1f6a9118e`, tree
+  `914785f55c2be453ee75a6314f4e9e77010eed25`.
+- FACT [L1094/L1095] — Two pure audits found exact catalog-contract defects:
+  the producer emits target `catalog.selection` while the pre-retrieval
+  extractor required obsolete `target.catalogs`; and the real reviewed label
+  `Utenti` could not match the explicit stable catalog suffix `users` because
+  the resolver indexed labels only. Repairs must keep the target exact and may
+  derive the suffix only from the bound `catalog:<qualified>` authority key,
+  rejecting collisions.
+- OPEN [L0] — Close free-form structural-question continuation for the three
+  T4 paths without granting structure, integrate the two exact catalog fixes,
+  rerun deterministic gates and a fresh immutable qualification. Promotion is
+  still forbidden until `10/10 + 6/6 + 24/24`.
+
+### L0/L1093/L1094/L1095/L1096 — run3 residual repairs integrated (2026-09-05)
+
+- FIX [L1094] — Pre-retrieval catalog extraction now requires the exact
+  producer-owned target `catalog.selection`; obsolete `target.catalogs` and
+  arbitrary targets remain rejected. Catalog kind, one-decision cardinality,
+  nonempty choice roster, exact `catalog:<qualified>` key, catalog role and
+  deduplication guards are unchanged.
+- FIX [L1095] — Catalog answer matching accepts the reviewed UI label and the
+  exact terminal catalog segment derived solely from one valid bound
+  `catalog:<qualified>` authority key. Both surfaces resolve back to the same
+  sealed option reference; invalid keys and suffix collisions abstain. This
+  binds operator `users` to reviewed label `Utenti` without inventing aliases.
+- FIX [L1093/L1095] — A free-form response to one exact provider-owned
+  `clarification:structure:<digest>:{specify,reduce}` pair may select only the
+  procedural `specify` option. The pair must have exact slot kind, choice
+  count, scalar roles, digest, decision key and candidate revision. Empty,
+  injected, multi-slot, malformed or ambiguous answers abstain; `reduce`
+  remains explicit. The choice grants no mutation: the provider re-evaluates
+  the complete new operator message under structural and semantic authority.
+- DONE [L1096] — Full zero-model/zero-compiler TurnStore integration proves a
+  proposed typed basis can issue a structural Ask, consume a free-form answer,
+  retire the old pending clarification, deliver the updated cumulative history
+  to the provider and return a fresh bounded Ask without `COMPILER_FAILED`.
+  Three malformed procedural rosters fail closed.
+- DONE [L0] — Combined convergence roster covering decoder pins, dialogue,
+  TurnStore, catalog extraction, real free-form surfaces, dynamic MLX wire,
+  typed provider/authority/issuer/executor/combinators and qualification:
+  `in=416 out=416 distinct=416 gaps=0`. Repository-wide Ruff check and format
+  check (`293` files) plus `git diff --check` are green.
+- OPEN [L0] — Seal the deterministic repairs on a clean commit and run the
+  fresh authorized immutable `10x4` qualification. No promotion before its
+  exact post-close assessment is green.

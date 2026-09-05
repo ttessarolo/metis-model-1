@@ -495,6 +495,12 @@ _CATALOG_TRAILING_ACTION = re.compile(
     r"seleziona|crea|aggiungi|ricevi|[0-9])\b",
     re.I,
 )
+_CATALOG_CHOICE_AUTHORITY = re.compile(
+    r"^catalog:([A-Za-z_][A-Za-z0-9_-]{0,95}(?:\.[A-Za-z_][A-Za-z0-9_-]{0,95})*)$"
+)
+_STRUCTURAL_PROCEDURAL_AUTHORITY = re.compile(
+    r"^clarification:structure:([0-9a-f]{16}):(specify|reduce)$"
+)
 # An instruction-shaped token is unsafe anywhere in an answer.  Ordinary
 # negation, on the other hand, must be evaluated in the clause that purports
 # to answer a particular slot: a later product requirement such as ``non
@@ -560,23 +566,70 @@ def _quantity_slot_matches_mention(
     return mention.qualifier == qualifier or (qualifier is None and mention.qualifier == "each")
 
 
+def _catalog_choice_surfaces(choice: BoundChoice) -> tuple[str, ...]:
+    """Return only server-bound, collision-checkable surfaces for one catalog.
+
+    The reviewed label remains the primary UI surface.  A production catalog
+    choice also owns exactly one validated ``catalog:<qualified>`` authority
+    key; its terminal segment is the canonical technical spelling operators
+    already see in Metis source (for example ``users`` beside label
+    ``Utenti``).  The caller still resolves solely to the sealed option ref.
+    """
+    surfaces = [_normalize(choice.label).removeprefix("@")] if _safe_label(choice.label) else []
+    if len(choice.authority_keys) == 1 and choice.required_roles == ("catalog",):
+        matched = _CATALOG_CHOICE_AUTHORITY.fullmatch(choice.authority_keys[0])
+        if matched is not None:
+            short = matched.group(1).rsplit(".", 1)[-1]
+            if _safe_label(short):
+                surfaces.append(_normalize(short).removeprefix("@"))
+    return tuple(dict.fromkeys(surfaces))
+
+
+def _procedural_structural_specify(slot: QuestionSlot) -> BoundChoice | None:
+    """Recognize only the exact provider-owned specify/reduce procedure pair."""
+    if (
+        slot.kind != "structural_choice"
+        or slot.answer_kind != "option_ref"
+        or len(slot.choices) != 2
+    ):
+        return None
+    choices: dict[str, tuple[str, BoundChoice]] = {}
+    for choice in slot.choices:
+        if len(choice.authority_keys) != 1 or choice.required_roles != ("scalar",):
+            return None
+        matched = _STRUCTURAL_PROCEDURAL_AUTHORITY.fullmatch(choice.authority_keys[0])
+        if matched is None or matched.group(2) in choices:
+            return None
+        choices[matched.group(2)] = (matched.group(1), choice)
+    if set(choices) != {"specify", "reduce"}:
+        return None
+    specify_digest, specify = choices["specify"]
+    reduce_digest, reduce = choices["reduce"]
+    if (
+        specify_digest != reduce_digest
+        or slot.decision_key != f"choice.structure.{specify_digest}"
+        or specify.candidate_revision != reduce.candidate_revision
+    ):
+        return None
+    return specify
+
+
 def _catalog_phrase_matches(
     message: str, catalog_slots: tuple[QuestionSlot, ...]
 ) -> dict[str, list[str]]:
     """Resolve exact catalog labels only after an explicit catalog introducer.
 
-    A label is not a general-language alias for a catalog: it may be selected
-    only as the complete next item in ``catalogo/cataloghi ...``.  Text after a
-    completed roster is admitted solely for a small set of answer continuations
-    (for example, ``e dammi 24 risultati``), never as another inferred choice.
+    A general-language phrase is not a catalog alias: only a reviewed label or
+    the terminal spelling sealed in ``catalog:<qualified>`` may be selected as
+    the complete next item in ``catalogo/cataloghi ...``. Text after a completed
+    roster is admitted solely for a small set of answer continuations (for
+    example, ``e dammi 24 risultati``), never as another inferred choice.
     """
     labels: dict[str, list[tuple[QuestionSlot, BoundChoice]]] = {}
     for slot in catalog_slots:
         for choice in slot.choices:
-            if _safe_label(choice.label):
-                labels.setdefault(_normalize(choice.label).removeprefix("@"), []).append(
-                    (slot, choice)
-                )
+            for surface in _catalog_choice_surfaces(choice):
+                labels.setdefault(surface, []).append((slot, choice))
     matches: dict[str, list[str]] = {}
     for introducer in _CATALOG_INTRODUCER.finditer(message):
         # A catalog introducer is answer authority only within its own
@@ -679,6 +732,20 @@ def adjudicate_dialogue_answer(
     for slot in group.slots:
         if slot.answer_kind != "integer":
             refs = tuple(dict.fromkeys(matches.get(slot.question_ref, ())))
+            if (
+                not refs
+                and not unsafe_answer_text
+                and len(group.slots) == 1
+                and message.strip()
+                and not any(
+                    _normalize(choice.label) in _normalize(message) for choice in slot.choices
+                )
+                and (specify := _procedural_structural_specify(slot)) is not None
+            ):
+                # ``specify`` is procedural only: it clears the pending choice
+                # so the provider can validate this same free-form message. It
+                # grants no structural operation or semantic authority.
+                refs = (specify.option_ref,)
             if refs and (
                 (slot.answer_kind == "option_ref" and len(refs) == 1)
                 or (slot.answer_kind == "option_refs" and slot.minimum <= len(refs) <= slot.maximum)

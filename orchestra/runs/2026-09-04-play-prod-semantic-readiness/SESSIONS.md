@@ -421,3 +421,40 @@ push and did not run MLX, network, a live tenant or Apply.
   format and diff-check green. No live model or tenant write in this stage.
 - Status: active. Next: clean pre-live commit, authorized immutable `10x4`
   qualification, final `make check`, measured evidence commit and push.
+
+### L1094/L1095 — run3 catalog-contract audits and bounded repairs
+
+- Models / effort: `gpt-5.6-terra` high for target-contract audit/repair;
+  `gpt-5.6-sol` high for label/suffix parser audit/repair. L0 owns integration,
+  live rerun, full gate and promotion.
+- Ownership: L1094 only provider-v2 catalog extractor plus orchestrator tests;
+  L1095 only dialogue planner plus complex free-form adjudication tests.
+- Findings: canonical producer target `catalog.selection` was rejected by an
+  obsolete extractor spelling; explicit technical suffix `users` did not match
+  reviewed label `Utenti` although its exact bound authority key identified the
+  same catalog. Both are deterministic pre-model defects.
+- Exclusions: no model/compiler/tenant/network/Apply/training/board/commit/push.
+- Result: canonical target fix and collision-safe reviewed-label/technical-key
+  matching integrated; L1094 `11/11`, L1095 `54/54` focused gates green.
+- Status: done; L0 independently reran the combined gate.
+
+### L1093/L1096 — structural free-form continuation audit and integration gate
+
+- Models / effort: `gpt-5.6-terra` high read-only lifecycle/semantic audits;
+  L1096 owned only one new integration-test file. L0 owns source acceptance,
+  live rerun, full gate and promotion.
+- Result: no TurnStore weakening is needed. A single exact procedural
+  specify/reduce pair can consume a safe free-form continuation by selecting
+  only `specify`; the provider still validates the new text from scratch.
+  Full TurnStore/provider lifecycle passes with zero model/compiler calls and
+  retired old pending authority; malformed rosters abstain. L1096 `4/4`.
+- Status: done; no tenant/model/compiler/network/Apply/commit/push.
+
+### L0 — post-run3 deterministic integration
+
+- Model / effort: frontier coordinator; cross-lane security/semantics review,
+  combined gates, live qualification and promotion authority.
+- Verification: `416/416` focused, Ruff repository check, Ruff format-check
+  across `293` files and whitespace gate all green.
+- Status: active. Next: clean commit, fresh `10x4`, final full repository gate,
+  evidence commit and push.

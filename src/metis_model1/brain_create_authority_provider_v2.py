@@ -43,6 +43,7 @@ _CATALOG_KEY_RE = re.compile(
     r"^catalog:(?P<catalog>[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*)$"
 )
 _HOST_REF_RE = re.compile(r"^hostref:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_CATALOG_SELECTION_TARGET = "catalog.selection"
 
 
 def _fail(code: str, status: int, message: str) -> None:
@@ -267,7 +268,11 @@ def selected_catalogs_from_dialogue(dialogue: PrivateDialogueState | None) -> tu
     if len(catalog_decisions) != 1:
         _fail("CREATE_TYPED_AUTHORITY_INVALID", 500, "catalog decision is ambiguous")
     decision = catalog_decisions[0]
-    if decision.target_key != "target.catalogs" or not decision.choices:
+    # The target is part of the server-issued clarification identity.  It must
+    # match the production catalog slot exactly: accepting the historical
+    # internal spelling here would turn a target-key drift into retrieval
+    # authority.
+    if decision.target_key != _CATALOG_SELECTION_TARGET or not decision.choices:
         _fail("CREATE_TYPED_AUTHORITY_INVALID", 500, "catalog decision is invalid")
     selected: list[str] = []
     for choice in decision.choices:

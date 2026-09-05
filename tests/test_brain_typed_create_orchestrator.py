@@ -131,7 +131,7 @@ def _dialogue(
     snapshot: ContextSnapshot,
     *,
     choices: tuple[BoundChoice, ...] = (),
-    target_key: str = "target.catalogs",
+    target_key: str = "catalog.selection",
 ) -> PrivateDialogueState:
     history = _history("Crea un endpoint video con l'orario corrente.")
     semantic = snapshot.semantic_source_revision()
@@ -765,12 +765,15 @@ def test_selected_catalogs_uses_only_the_latest_exact_replacement() -> None:
     assert selected_catalogs_from_dialogue(dialogue) == ("demo.users",)
 
 
-def test_selected_catalogs_rejects_target_key_drift_before_retrieval() -> None:
+@pytest.mark.parametrize("target_key", ("target.catalogs", "target.untrusted_catalogs"))
+def test_selected_catalogs_rejects_legacy_or_untrusted_target_key_before_retrieval(
+    target_key: str,
+) -> None:
     snapshot = _snapshot()
     drifted = _dialogue(
         snapshot,
         choices=(_catalog_choice(),),
-        target_key="target.untrusted_catalogs",
+        target_key=target_key,
     )
     with pytest.raises(BrainError) as raised:
         selected_catalogs_from_dialogue(drifted)
