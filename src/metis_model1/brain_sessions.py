@@ -97,7 +97,9 @@ class _Session:
     in_flight: int = 0
     cancellation: threading.Event = field(default_factory=threading.Event)
     cleanup_started: bool = False
-    listeners_notified: bool = False
+    listener_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    listeners_completed: set[int] = field(default_factory=set, repr=False)
+    listeners_in_progress: set[int] = field(default_factory=set, repr=False)
 
 
 class SessionManager:
@@ -561,7 +563,14 @@ class SessionManager:
         # Volatile conversation state follows logical revocation, not the
         # success of best-effort filesystem removal.  A stuck overlay must
         # never retain prompts, proposals or clarification decisions in RAM.
-        self._notify_cleanup_listeners(session)
+        if not self._notify_cleanup_listeners(session):
+            with self._lock:
+                session.cleanup_started = False
+            raise BrainError(
+                "CLEANUP_FAILED",
+                500,
+                "session observer cleanup failed",
+            )
         overlay = session.overlay
         try:
             if overlay.parent != self._runtime_root or not overlay.name.startswith("session-"):
@@ -599,21 +608,48 @@ class SessionManager:
             session.state = "CLOSED"
             self._sessions.pop(session.session_id, None)
 
-    def _notify_cleanup_listeners(self, session: _Session) -> None:
-        with self._lock:
-            if session.listeners_notified:
-                return
-            session.listeners_notified = True
-            listeners = tuple(self._cleanup_listeners)
-        for listener in listeners:
-            try:
-                listener(session.session_id)
-            except Exception:
-                # Session revocation and filesystem cleanup are authoritative.
-                # An internal observer must not resurrect or make a revoked
-                # session externally available.
+    def _notify_cleanup_listeners(self, session: _Session) -> bool:
+        """Run each volatile-state eraser to completion, retrying failures later.
+
+        Callbacks run without the manager lock, while a per-session reentrant
+        lock serializes competing close/TTL/stale paths.  Successful callbacks
+        are never replayed; a failing callback remains pending and prevents the
+        revoked session from being finalized, so the regular sweep can retry it.
+        """
+
+        attempted: set[int] = set()
+        with session.listener_lock:
+            while True:
                 with self._lock:
-                    self._cleanup_failures += 1
+                    pending = [
+                        (index, listener)
+                        for index, listener in enumerate(self._cleanup_listeners)
+                        if index not in session.listeners_completed
+                        and index not in session.listeners_in_progress
+                        and index not in attempted
+                    ]
+                    for index, _listener in pending:
+                        session.listeners_in_progress.add(index)
+                if not pending:
+                    with self._lock:
+                        return len(session.listeners_completed) == len(self._cleanup_listeners)
+                for index, listener in pending:
+                    attempted.add(index)
+                    succeeded = False
+                    try:
+                        listener(session.session_id)
+                        succeeded = True
+                    except Exception:
+                        # Keep this callback pending.  Revocation has already
+                        # won, and cleanup will not remove the session until a
+                        # later retry confirms every eraser completed.
+                        with self._lock:
+                            self._cleanup_failures += 1
+                    finally:
+                        with self._lock:
+                            session.listeners_in_progress.discard(index)
+                            if succeeded:
+                                session.listeners_completed.add(index)
 
     def _revoke_stale(self, session: _Session, *, release_operation: bool) -> None:
         """Revoke a stale snapshot and erase volatile observers immediately."""

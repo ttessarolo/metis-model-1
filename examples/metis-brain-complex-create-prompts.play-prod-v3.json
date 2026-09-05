@@ -1,0 +1,106 @@
+{
+  "artifact_id": "metis-brain-complex-create-prompts.play-prod-v3",
+  "artifact_version": 3,
+  "language": "it",
+  "purpose": "Prompt-only, four-message journeys for blind headless qualification of typed CREATE.",
+  "safety_boundary": {
+    "contains_blueprints": false,
+    "contains_reference_endpoints": false,
+    "contains_expected_specs": false,
+    "contains_credentials": false,
+    "contains_raw_live_payloads": false,
+    "apply_authorized": false
+  },
+  "journeys": [
+    {
+      "case_id": "case_01",
+      "messages": [
+        "Voglio una riga di film simili per la sezione cinema.",
+        "Usa il catalogo video e dammi 24 risultati totali, usando il contenuto visto come seed.",
+        "Aggiungi una riga principale e quattro rami separati per HDR, SDR, Infinity e Noleggio; distribuisci complessivamente dieci take di endpoint fra la riga principale e i quattro rami, usa per ogni ramo candidati simili al seed e ordina la riga principale per data.",
+        "Se la riga principale è vuota usa il blocco most_recent_film_2; nei rami con candidati combina le alternative e limita il risultato finale a 24."
+      ]
+    },
+    {
+      "case_id": "case_02",
+      "messages": [
+        "Crea una riga con serie TV e fiction simili a quello che sta guardando l'utente.",
+        "Catalogo video, 24 risultati totali, usando il contenuto visto come seed.",
+        "Prevedi tre percorsi: Infinity, canali diversi da Infinity/MediasetPlay/Noleggio e una variante generale; usa similarità al seed, mantieni una riga per episodi recenti e distribuisci complessivamente nove take di endpoint nei tre percorsi.",
+        "Nei rami che possono restare vuoti usa sempre la riga degli episodi più recenti; per il percorso principale aggiungi una sequenza 24 per 2 e fai shuffle solo sulla riga clip da 5."
+      ]
+    },
+    {
+      "case_id": "case_03",
+      "messages": [
+        "Mi serve una ricerca dei contenuti del servizio.",
+        "Catalogo video, 50 risultati per pagina, con ricerca su testo e canale; normalizza il testo di ricerca prima di eseguire le query.",
+        "Aggiungi sette percorsi distinti: tutti, programmi/serie, film, video, gratis per te, Mediaset Italia senza query e default; distribuisci quattordici take fra i percorsi e, in quelli con query, combina le alternative di titolo, persone e genere mantenendo il ranking.",
+        "Per ogni percorso abilita Vedi tutto; usa fallback sostitutivi quando una pagina è vuota e, nel default, aggiungi il fallback in coda quando gli elementi piatti sono meno di uno."
+      ]
+    },
+    {
+      "case_id": "case_04",
+      "messages": [
+        "Crea la pagina di dettaglio per la ricerca dei contenuti.",
+        "Usa il catalogo video e ricevi query, variante, canale e capacità 4K; deriva esplicitamente gli attributi has_query, has_channel e inf_channel.",
+        "Separa tre blocchi riusabili: video predefiniti, serie/programmi e stagioni; ogni blocco deve avere i suoi take condizionati per canale e query e deduplicare la risposta.",
+        "Instrada nove varianti: searchedVideo, brand, clip, fep, movie, tre percorsi Infinity e default, verso i blocchi corretti; per clip/fep/movie conserva template e searchDetailParams dedicati."
+      ]
+    },
+    {
+      "case_id": "case_05",
+      "messages": [
+        "Voglio una homepage personalizzata con contenuti per il compleanno dell'utente.",
+        "Usa insieme i cataloghi video e users, la paginazione snapshot e il seed dell'utente; non applicare ancora un limite globale, perché i conteggi saranno definiti nei singoli blocchi.",
+        "Aggiungi undici ruoli separati e ventisei take complessivi: film recenti, fallback cinema, film simili al cluster, intrattenimento recente, programmi TV, documentari, fiction/serie scelte, soap simili al cluster, kids, informazione recente e informazione/sport simili; riusa i blocchi con Vedi tutto, combina le alternative dove esiste un profilo simile e ordina ogni riga secondo il suo criterio.",
+        "Quando una riga clusterizzata è vuota usa la riga più recente della stessa area; aggiungi i rami ciak e statico, con un limite finale distinto per ciascuno."
+      ]
+    },
+    {
+      "case_id": "case_06",
+      "messages": [
+        "Crea una pagina con i titoli del momento.",
+        "Catalogo video, 30 risultati totali per la pagina, con film e serie TV recenti.",
+        "Dividi la pagina in almeno dieci blocchi e ventisette take complessivi: fallback cinema, film recenti, serie/fiction recenti, fiction e serie per te, originali, documentari più visti, programmi TV, soap e tre righe rese movibili; ciascuno deve avere Vedi tutto.",
+        "Aggiungi un ramo clusterizzato e uno default; passa prima dalla personalizzazione e poi dal clustering. Nel ramo clusterizzato usa una riga 20 per 2 e un fallback sulla riga più recente, mentre il risultato finale riordina per affinità al profilo."
+      ]
+    },
+    {
+      "case_id": "case_07",
+      "messages": [
+        "Voglio una pagina TVOD con film consigliati.",
+        "Catalogo video, 30 risultati totali e sezioni per genere.",
+        "Crea undici istanze del blocco, una per famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo; conserva cinque take nel blocco condiviso, aggiungi una riga Perché hai visto con risposta expanded e usa alternative per selezionare i titoli migliori.",
+        "Riordina le sezioni per affinità alla storia dell'utente e, in caso di errore, usa la pagina TVOD di errore; conserva i take interni, Vedi tutto e la paginazione snapshot."
+      ]
+    },
+    {
+      "case_id": "case_08",
+      "messages": [
+        "Crea una pagina con film e serie disponibili in 4K.",
+        "Usa insieme i cataloghi video e users, la paginazione snapshot e 20 risultati totali per riga; distingui HDR e SDR in base alla capacità del dispositivo.",
+        "Distribuisci sei take complessivi nei rami: ciascuna riga principale da 20 deve avere un secondo take di ampliamento a 50; usa Vedi tutto, ordina i film per anno di produzione e riusa un blocco parametrico per genere con righe per azione/thriller, commedie, drammatico e classici.",
+        "Se non c'è una capacità 4K lascia la variante vuota; conserva anche la riga di serie/documentari e riordina il risultato finale per affinità alla storia."
+      ]
+    },
+    {
+      "case_id": "case_09",
+      "messages": [
+        "Crea una homepage con film e serie divisi per genere.",
+        "Usa insieme i cataloghi video e users, la paginazione snapshot e sei righe per la pagina; ricava dal catalogo users il contesto utente e l'attributo has_fingerprint: se l'utente ha storia usa la personalizzazione, altrimenti una pagina anonima.",
+        "Dichiara quattro blocchi parametrici riusabili, film e serie per il percorso personalizzato e film e serie per quello anonimo, tutti con genere obbligatorio; crea dodici istanze complessive usando commedia, drammatico, azione, drama, comedy e crime in ciascun percorso.",
+        "Ogni riga deve avere Vedi tutto; nella pagina personalizzata ordina le righe per affinità al fingerprint e lascia quella anonima in ordine fisso."
+      ]
+    },
+    {
+      "case_id": "case_10",
+      "messages": [
+        "Vorrei una riga di intrattenimento simile al contenuto visto.",
+        "Catalogo video, una riga da 24 risultati totali usando il contenuto visto come seed.",
+        "Costruisci quattro pool candidati da 50 elementi ciascuno: episodi dello stesso programma, clip/extra, episodi di intrattenimento e clip di intrattenimento; usa una finestra di 18 mesi per gli episodi, 14 giorni per i contenuti recenti e raggruppa per programma.",
+        "Nel consumer usa un primo take da 4 e uno finale da 24, combina i pool con alternative best-plus-near-full, promuovi contenuti recenti, deduplica e limita a 24; se gli elementi piatti sono meno di uno aggiungi in coda il fallback intrat_recent."
+      ]
+    }
+  ]
+}

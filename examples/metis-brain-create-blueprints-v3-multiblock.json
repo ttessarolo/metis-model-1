@@ -1,0 +1,919 @@
+{
+  "schema_version": 3,
+  "contract_id": "metis-brain-create-stage-blueprints/v3",
+  "scenarios": [
+    {
+      "scenario_id": "play.multiple_block_compleanno",
+      "stages": [
+        {
+          "stage_id": "T2",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.variants[*].fetches[*].clauses.birthday",
+              "reason": "Il tema compleanno non identifica un criterio di selezione dei contenuti o un segnale di attivazione. Il catalogo users descrive affinità e storia, senza un campo compleanno: occorre un criterio esplicito, senza dedurre dati personali dal profilo.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Voglio una homepage personalizzata con contenuti per il compleanno dell'utente."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "Occorre il binding che risolve l'identificatore composito users.user_id e il seed utente. Il tenant espone userId, mentre il catalogo definisce user_id come chiave composita; la richiesta non stabilisce il resolver. Snapshot è esplicito e il limite globale è intenzionalmente assente, quindi non sono slot mancanti.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e il seed dell'utente; non applicare ancora un limite globale, perché i conteggi saranno definiti nei singoli blocchi."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T3",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.variants[*].fetches[*].clauses.birthday",
+              "reason": "Il tema compleanno non identifica un criterio di selezione dei contenuti o un segnale di attivazione. Il catalogo users descrive affinità e storia, senza un campo compleanno: occorre un criterio esplicito, senza dedurre dati personali dal profilo.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Voglio una homepage personalizzata con contenuti per il compleanno dell'utente."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "Occorre il binding che risolve l'identificatore composito users.user_id e il seed utente. Il tenant espone userId, mentre il catalogo definisce user_id come chiave composita; la richiesta non stabilisce il resolver. Snapshot è esplicito e il limite globale è intenzionalmente assente, quindi non sono slot mancanti.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e il seed dell'utente; non applicare ancora un limite globale, perché i conteggi saranno definiti nei singoli blocchi."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches.take_plan",
+              "reason": "Sono espliciti 11 ruoli e 26 take complessivi. Mancano l'assegnazione dei take ai ruoli, i conteggi interni, i predicati distintivi e il criterio di ordinamento di ogni take; ripetere query identiche per raggiungere 26 inventerebbe il piano.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Aggiungi undici ruoli separati e ventisei take complessivi: film recenti, fallback cinema, film simili al cluster, intrattenimento recente, programmi TV, documentari, fiction/serie scelte, soap simili al cluster, kids, informazione recente e informazione/sport simili;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.cluster_seed",
+              "reason": "users.cluster_id è un identificatore, non il profilo di similarità di un cluster. Occorrono la sorgente e il binding del profilo da usare nei ruoli film, soap e informazione/sport, inclusa la condizione in cui quel profilo esiste.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "film simili al cluster"
+                },
+                {
+                  "turn": 3,
+                  "quote": "soap simili al cluster"
+                },
+                {
+                  "turn": 3,
+                  "quote": "combina le alternative dove esiste un profilo simile"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches[*].clauses.alternatives",
+              "reason": "La richiesta impone alternative condizionate alla presenza di un profilo simile, ma non identifica i predicati candidati e come combinarli. Il renderer offre strategie differenti: non si possono aggiungere pesi, profili o alternative arbitrarie.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "combina le alternative dove esiste un profilo simile"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Mancano i riferimenti delle destinazioni Vedi tutto per gli 11 ruoli e i relativi eventuali argomenti. Il nome di un ruolo non autorizza a indovinare un endpoint esterno.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "riusa i blocchi con Vedi tutto"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T4",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.variants[*].fetches[*].clauses.birthday",
+              "reason": "Il tema compleanno non identifica un criterio di selezione dei contenuti o un segnale di attivazione. Il catalogo users descrive affinità e storia, senza un campo compleanno: occorre un criterio esplicito, senza dedurre dati personali dal profilo.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Voglio una homepage personalizzata con contenuti per il compleanno dell'utente."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "Occorre il binding che risolve l'identificatore composito users.user_id e il seed utente. Il tenant espone userId, mentre il catalogo definisce user_id come chiave composita; la richiesta non stabilisce il resolver. Snapshot è esplicito e il limite globale è intenzionalmente assente, quindi non sono slot mancanti.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e il seed dell'utente; non applicare ancora un limite globale, perché i conteggi saranno definiti nei singoli blocchi."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches.take_plan",
+              "reason": "Sono espliciti 11 ruoli e 26 take complessivi. Mancano l'assegnazione dei take ai ruoli, i conteggi interni, i predicati distintivi e il criterio di ordinamento di ogni take; ripetere query identiche per raggiungere 26 inventerebbe il piano.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Aggiungi undici ruoli separati e ventisei take complessivi: film recenti, fallback cinema, film simili al cluster, intrattenimento recente, programmi TV, documentari, fiction/serie scelte, soap simili al cluster, kids, informazione recente e informazione/sport simili;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.cluster_seed",
+              "reason": "users.cluster_id è un identificatore, non il profilo di similarità di un cluster. Occorrono la sorgente e il binding del profilo da usare nei ruoli film, soap e informazione/sport, inclusa la condizione in cui quel profilo esiste.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "film simili al cluster"
+                },
+                {
+                  "turn": 3,
+                  "quote": "soap simili al cluster"
+                },
+                {
+                  "turn": 3,
+                  "quote": "combina le alternative dove esiste un profilo simile"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches[*].clauses.alternatives",
+              "reason": "La richiesta impone alternative condizionate alla presenza di un profilo simile, ma non identifica i predicati candidati e come combinarli. Il renderer offre strategie differenti: non si possono aggiungere pesi, profili o alternative arbitrarie.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "combina le alternative dove esiste un profilo simile"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Mancano i riferimenti delle destinazioni Vedi tutto per gli 11 ruoli e i relativi eventuali argomenti. Il nome di un ruolo non autorizza a indovinare un endpoint esterno.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "riusa i blocchi con Vedi tutto"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].output.fallbacks.target",
+              "reason": "Il trigger riga clusterizzata vuota e la sostituzione con una riga recente della stessa area sono espliciti. Manca la mappa completa ruolo clusterizzato -> ruolo recente, soprattutto per soap e informazione/sport; non basta una corrispondenza inventata fra etichette.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "Quando una riga clusterizzata è vuota usa la riga più recente della stessa area;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[ciak,statico].activation_and_uses",
+              "reason": "Sono richiesti i rami ciak e statico, ma mancano le loro condizioni di attivazione e la composizione di righe. L'esistenza di una lista dal nome simile nella libreria non autorizza a selezionarla come contenuto del ramo.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "aggiungi i rami ciak e statico, con un limite finale distinto per ciascuno."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[ciak,statico].output.steps[max].count",
+              "reason": "Occorrono due valori numerici distinti per i limiti finali dei rami ciak e statico. Nessun numero è fornito e non si può riutilizzare come limite il totale di 26 take, che conta operazioni.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "con un limite finale distinto per ciascuno."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "play.multiple_block_dem_titoli_momento",
+      "stages": [
+        {
+          "stage_id": "T2",
+          "status": "ready",
+          "spec": {
+            "schema_version": 1,
+            "contract_id": "metis-brain-create-endpoint-spec/v1",
+            "endpoint": {
+              "name": "play.multiple_block_dem_titoli_momento",
+              "reference": null,
+              "params": {
+                "timeout": null,
+                "expires": null,
+                "paginate": null
+              },
+              "inputs": [],
+              "needs_time": false,
+              "attributes": [],
+              "input_pipeline": [],
+              "output_pipeline": [],
+              "inheritance": {
+                "without_input": [],
+                "without_output": []
+              },
+              "context": [],
+              "blocks": [],
+              "variants": [
+                {
+                  "name": "default",
+                  "title": null,
+                  "activation": null,
+                  "empty": false,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "fetches": [
+                    {
+                      "from": {
+                        "kind": "catalog",
+                        "catalog": "video"
+                      },
+                      "cardinality": {
+                        "mode": "total",
+                        "value": 30
+                      },
+                      "over_fetch": null,
+                      "alias": null,
+                      "title": null,
+                      "activation": null,
+                      "presentation": {
+                        "pinned": null,
+                        "view_all": null,
+                        "meta": [],
+                        "meta_per_item": false
+                      },
+                      "clauses": [
+                        {
+                          "intent": "include",
+                          "where": [
+                            {
+                              "op": "in",
+                              "field": "tipologia",
+                              "value": {
+                                "kind": "vals",
+                                "items": [
+                                  "Film",
+                                  "Serie TV"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "group_by": null,
+                      "order": [
+                        {
+                          "by": "field",
+                          "direction": "descending",
+                          "field": "publication_date"
+                        }
+                      ],
+                      "output": null
+                    }
+                  ],
+                  "blocks": [],
+                  "uses": [],
+                  "output": null
+                }
+              ],
+              "output": {
+                "projection": "default",
+                "steps": [
+                  {
+                  "kind": "max",
+                    "count": 30
+                  }
+                ],
+                "fallbacks": []
+              }
+            }
+          },
+          "spec_sha256": "sha256:b48cdc3735c7af32a7dd95b20168c96a6c7fe10ed9d48eff3969908f197386f9",
+          "missing": []
+        },
+        {
+          "stage_id": "T3",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.blocks[*].fetches.take_plan",
+              "reason": "Sono richiesti almeno 10 blocchi e 27 take, ma non la distribuzione dei take, i conteggi interni e tutti i predicati distintivi. Non è specificato se le 3 righe movibili siano ruoli aggiuntivi o riusi dei ruoli elencati. Film e serie recenti e il tetto pagina di 30 restano vincoli acquisiti, senza inventare una topologia per soddisfare il totale.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Catalogo video, 30 risultati totali per la pagina, con film e serie recenti."
+                },
+                {
+                  "turn": 3,
+                  "quote": "Dividi la pagina in almeno dieci blocchi e ventisette take complessivi: fallback cinema, film recenti, serie/fiction recenti, fiction e serie per te, originali, documentari più visti, programmi TV, soap e tre righe rese movibili;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.user_profile",
+              "reason": "Il ruolo fiction e serie per te richiede il binding del profilo dell'utente. La richiesta non indica come ottenere il record o i token di affinità; non si può introdurre una sorgente o un transformer implicito.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "fiction e serie per te"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[documentari_piu_visti].fetches[*].order",
+              "reason": "Il catalogo distingue visualizzazioni generali a 24 ore, a 7 giorni e visualizzazioni Infinity a 24 ore. Più visti non seleziona una finestra o un servizio, quindi occorre il campo di ordinamento autorizzato.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "documentari più visti"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Occorre la destinazione Vedi tutto di ogni blocco. La richiesta stabilisce la presenza del collegamento, senza nominare alcun target esterno.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "ciascuno deve avere Vedi tutto."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T4",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.blocks[*].fetches.take_plan",
+              "reason": "Sono richiesti almeno 10 blocchi e 27 take, ma non la distribuzione dei take, i conteggi interni e tutti i predicati distintivi. Non è specificato se le 3 righe movibili siano ruoli aggiuntivi o riusi dei ruoli elencati. Film e serie recenti e il tetto pagina di 30 restano vincoli acquisiti, senza inventare una topologia per soddisfare il totale.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Catalogo video, 30 risultati totali per la pagina, con film e serie recenti."
+                },
+                {
+                  "turn": 3,
+                  "quote": "Dividi la pagina in almeno dieci blocchi e ventisette take complessivi: fallback cinema, film recenti, serie/fiction recenti, fiction e serie per te, originali, documentari più visti, programmi TV, soap e tre righe rese movibili;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.user_profile",
+              "reason": "Il ruolo fiction e serie per te richiede il binding del profilo dell'utente. La richiesta non indica come ottenere il record o i token di affinità; non si può introdurre una sorgente o un transformer implicito.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "fiction e serie per te"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[documentari_piu_visti].fetches[*].order",
+              "reason": "Il catalogo distingue visualizzazioni generali a 24 ore, a 7 giorni e visualizzazioni Infinity a 24 ore. Più visti non seleziona una finestra o un servizio, quindi occorre il campo di ordinamento autorizzato.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "documentari più visti"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Occorre la destinazione Vedi tutto di ogni blocco. La richiesta stabilisce la presenza del collegamento, senza nominare alcun target esterno.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "ciascuno deve avere Vedi tutto."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.input_pipeline",
+              "reason": "È esplicito l'ordine personalizzazione -> clustering. Mancano i nomi e i contratti dei due transformer da richiamare; la sola etichetta funzionale non è un riferimento risolto.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "passa prima dalla personalizzazione e poi dal clustering."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[clusterizzato].activation",
+              "reason": "Occorre il binding del profilo clusterizzato e la condizione che lo rende utilizzabile. users.cluster_id identifica un cluster ma non ne fornisce il profilo; il ramo default è richiesto senza autorizzare una guardia inventata.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "Aggiungi un ramo clusterizzato e uno default;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[clusterizzato].uses.row_20_per_2_and_fallback",
+              "reason": "La richiesta fissa una riga 20 per 2 e il fallback sulla riga più recente, ma non identifica il ruolo cui applicare questa composizione né la riga recente di destinazione. Anche il riordino finale per affinità dipende dal binding del profilo già mancante.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "Nel ramo clusterizzato usa una riga 20 per 2 e un fallback sulla riga più recente, mentre il risultato finale riordina per affinità al profilo."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "play.tvod_multiple_block",
+      "stages": [
+        {
+          "stage_id": "T2",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.blocks[genre].fetches[*].clauses.genre",
+              "reason": "Il catalogo distingue genere patemico, tematico, diegetico e aggregato legacy MCM, senza autorizzarne l'equivalenza. Occorre il campo o la mappa semantica con cui costruire le sezioni per genere; il totale pagina di 30 è già esplicito.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Catalogo video, 30 risultati totali e sezioni per genere."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.recommendation_seed",
+              "reason": "Film consigliati non identifica il profilo o il criterio della raccomandazione. Occorre un binding del seed o una politica di selezione esplicita; non si può sostituire la raccomandazione con una metrica di popolarità scelta arbitrariamente.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Voglio una pagina TVOD con film consigliati."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T3",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.blocks[genre].fetches[*].clauses.genre",
+              "reason": "Il catalogo distingue genere patemico, tematico, diegetico e aggregato legacy MCM, senza autorizzarne l'equivalenza. Occorre il campo o la mappa semantica con cui costruire le sezioni per genere; il totale pagina di 30 è già esplicito.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Catalogo video, 30 risultati totali e sezioni per genere."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.recommendation_seed",
+              "reason": "Film consigliati non identifica il profilo o il criterio della raccomandazione. Occorre un binding del seed o una politica di selezione esplicita; non si può sostituire la raccomandazione con una metrica di popolarità scelta arbitrariamente.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Voglio una pagina TVOD con film consigliati."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[genre].fetches.take_plan",
+              "reason": "Sono espliciti 11 riusi del blocco e 5 take nella definizione condivisa. Mancano i conteggi di ciascun take e le selezioni alternative dei titoli migliori. Le categorie sono famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo, ma le parole non risolvono da sole i distinti campi editoriali.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Crea undici istanze del blocco, una per famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo; conserva cinque take nel blocco condiviso,"
+                },
+                {
+                  "turn": 3,
+                  "quote": "usa alternative per selezionare i titoli migliori."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[perche_hai_visto].fetches.seed_and_selection",
+              "reason": "La riga Perché hai visto e la sua risposta expanded sono richieste. Mancano quale evento o contenuto visto usare come seme, come ottenerlo e quali candidati selezionare; expanded non definisce questi elementi.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "aggiungi una riga Perché hai visto con risposta expanded"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T4",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.blocks[genre].fetches[*].clauses.genre",
+              "reason": "Il catalogo distingue genere patemico, tematico, diegetico e aggregato legacy MCM, senza autorizzarne l'equivalenza. Occorre il campo o la mappa semantica con cui costruire le sezioni per genere; il totale pagina di 30 è già esplicito.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Catalogo video, 30 risultati totali e sezioni per genere."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.context.recommendation_seed",
+              "reason": "Il T4 risolve il criterio finale come affinità alla storia dell'utente; users.video_historical_fingerprint è la superficie dichiarata per tale affinità. Rimane da risolvere il binding del profilo utente e della sua chiave composita, senza inventare un transformer o una sorgente di storia.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "Riordina le sezioni per affinità alla storia dell'utente"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[genre].fetches.take_plan",
+              "reason": "Sono espliciti 11 riusi del blocco e 5 take nella definizione condivisa. Mancano i conteggi di ciascun take e le selezioni alternative dei titoli migliori. Le categorie sono famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo, ma le parole non risolvono da sole i distinti campi editoriali.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Crea undici istanze del blocco, una per famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo; conserva cinque take nel blocco condiviso,"
+                },
+                {
+                  "turn": 3,
+                  "quote": "usa alternative per selezionare i titoli migliori."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[perche_hai_visto].fetches.seed_and_selection",
+              "reason": "La riga Perché hai visto e la sua risposta expanded sono richieste. Mancano quale evento o contenuto visto usare come seme, come ottenerlo e quali candidati selezionare; expanded non definisce questi elementi.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "aggiungi una riga Perché hai visto con risposta expanded"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.output.fallbacks[error].target",
+              "reason": "Il trigger errore è esplicito, ma pagina TVOD di errore non è un identificatore di endpoint. Occorre il riferimento esatto della destinazione; non è consentito recuperarlo da sorgenti endpoint nascoste.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "in caso di errore, usa la pagina TVOD di errore;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Vedi tutto è esplicito dal T4 insieme alla paginazione snapshot, ma mancano i target dei collegamenti delle sezioni e della riga Perché hai visto. Snapshot e i 5 take interni non richiedono valori inventati per colmare i target.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "conserva i take interni, Vedi tutto e la paginazione snapshot."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "play.multiple_block4_k",
+      "stages": [
+        {
+          "stage_id": "T2",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "L'uso congiunto di video e users è esplicito, ma manca il binding che identifica il record users mediante user_id, dichiarato come chiave composita. Non si può aggiungere una lettura indiscriminata di users per soddisfare la sola presenza del catalogo.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e 20 risultati totali per riga;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.inputs.device_capability",
+              "reason": "Occorrono il contratto della capacità dispositivo e i valori che attivano HDR e SDR. Il catalogo distingue correttamente 4K HDR e 4K SDR; un esempio HDR nella configurazione tenant non definisce un contratto completo per i due rami.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "distingui HDR e SDR in base alla capacità del dispositivo."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T3",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "L'uso congiunto di video e users è esplicito, ma manca il binding che identifica il record users mediante user_id, dichiarato come chiave composita. Non si può aggiungere una lettura indiscriminata di users per soddisfare la sola presenza del catalogo.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e 20 risultati totali per riga;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.inputs.device_capability",
+              "reason": "Occorrono il contratto della capacità dispositivo e i valori che attivano HDR e SDR. Il catalogo distingue correttamente 4K HDR e 4K SDR; un esempio HDR nella configurazione tenant non definisce un contratto completo per i due rami.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "distingui HDR e SDR in base alla capacità del dispositivo."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks_and_variants.fetches.take_plan",
+              "reason": "Sono espliciti 6 take complessivi e coppie composte da un take principale a 20 e un ampliamento a 50. Manca l'assegnazione delle coppie ai rami HDR/SDR e alle definizioni riusabili; le 4 istanze di genere non autorizzano a clonare take per raggiungere 6.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Distribuisci sei take complessivi nei rami: ciascuna riga principale da 20 deve avere un secondo take di ampliamento a 50;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[genre].fetches[*].clauses.genre",
+              "reason": "Occorre la mappa dai gruppi azione/thriller, commedie, drammatico e classici ai campi e literal editoriali. Classici non autorizza un anno soglia; Comico, Comico Commedia e le etichette legacy non sono sinonimi dichiarati. L'ordinamento dei film su annoproduzione è invece identificato dalla richiesta.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "ordina i film per anno di produzione e riusa un blocco parametrico per genere con righe per azione/thriller, commedie, drammatico e classici."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "La presenza di Vedi tutto è esplicita, ma nessun riferimento delle destinazioni è fornito.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "usa Vedi tutto"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T4",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "La storia richiesta per il riordino finale trova una superficie semantica in users.video_historical_fingerprint. Resta il binding del record utente mediante la chiave composita users.user_id; il campo di affinità non risolve l'identità del profilo.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users"
+                },
+                {
+                  "turn": 4,
+                  "quote": "riordina il risultato finale per affinità alla storia."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.inputs.device_capability",
+              "reason": "La variante vuota in assenza di capacità 4K è esplicita. Restano da definire il contratto del segnale e i valori HDR/SDR, necessari anche per rendere esaustiva la guardia della variante vuota; non vengono introdotti codici dispositivo arbitrari.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "distingui HDR e SDR in base alla capacità del dispositivo."
+                },
+                {
+                  "turn": 4,
+                  "quote": "Se non c'è una capacità 4K lascia la variante vuota;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks_and_variants.fetches.take_plan",
+              "reason": "Devono coesistere 6 take, le coppie principale 20/ampliamento 50, i riusi per genere e la riga serie/documentari. Manca la loro assegnazione alle definizioni e ai rami: il T4 non autorizza ad aggiungere take oltre il totale o a eliminare la riga serie/documentari.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Distribuisci sei take complessivi nei rami: ciascuna riga principale da 20 deve avere un secondo take di ampliamento a 50;"
+                },
+                {
+                  "turn": 4,
+                  "quote": "conserva anche la riga di serie/documentari"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[genre].fetches[*].clauses.genre",
+              "reason": "Occorre la mappa dai gruppi azione/thriller, commedie, drammatico e classici ai campi e literal editoriali. Classici non autorizza un anno soglia; Comico, Comico Commedia e le etichette legacy non sono sinonimi dichiarati. L'ordinamento dei film su annoproduzione è invece identificato dalla richiesta.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "ordina i film per anno di produzione e riusa un blocco parametrico per genere con righe per azione/thriller, commedie, drammatico e classici."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "La presenza di Vedi tutto è esplicita, ma nessun riferimento delle destinazioni è fornito.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "usa Vedi tutto"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario_id": "play.inf_multiple_block_film_serie",
+      "stages": [
+        {
+          "stage_id": "T2",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "Il catalogo users fornisce video_historical_fingerprint per l'affinità e consente di derivare has_fingerprint dalla sua presenza. Manca però il binding per risolvere il profilo tramite users.user_id, chiave composita: l'input tenant userId da solo non prova tale equivalenza. Non occorre inventare un attributo demografico.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "ricava dal catalogo users il contesto utente e l'attributo has_fingerprint: se l'utente ha storia usa la personalizzazione, altrimenti una pagina anonima."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches[*].clauses.genre",
+              "reason": "La richiesta fissa 6 righe per pagina e due percorsi, ma non la tassonomia con cui dividere film e serie per genere. Il catalogo distingue campi editoriali specifici e aggregato MCM: occorre una mappa dei generi, senza scegliere l'aggregato come equivalenza implicita.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Crea una homepage con film e serie divisi per genere."
+                },
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e sei righe per la pagina;"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T3",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "Il catalogo users fornisce video_historical_fingerprint per l'affinità e consente di derivare has_fingerprint dalla sua presenza. Manca però il binding per risolvere il profilo tramite users.user_id, chiave composita: l'input tenant userId da solo non prova tale equivalenza. Non occorre inventare un attributo demografico.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "ricava dal catalogo users il contesto utente e l'attributo has_fingerprint: se l'utente ha storia usa la personalizzazione, altrimenti una pagina anonima."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches[*].clauses.genre",
+              "reason": "La richiesta fissa 6 righe per pagina e due percorsi, ma non la tassonomia con cui dividere film e serie per genere. Il catalogo distingue campi editoriali specifici e aggregato MCM: occorre una mappa dei generi, senza scegliere l'aggregato come equivalenza implicita.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Crea una homepage con film e serie divisi per genere."
+                },
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e sei righe per la pagina;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[personalizzata,anonima].uses[*].block",
+              "reason": "Sono esplicite 4 definizioni parametriche, genere obbligatorio, 12 istanze complessive e 6 categorie in ciascun percorso. Manca l'assegnazione delle categorie commedia, drammatico, azione, drama, comedy e crime al blocco film oppure serie: la lingua del nome non autorizza quella scelta. Non si possono creare 12 istanze per percorso.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Dichiara quattro blocchi parametrici riusabili, film e serie per il percorso personalizzato e film e serie per quello anonimo, tutti con genere obbligatorio; crea dodici istanze complessive usando commedia, drammatico, azione, drama, comedy e crime in ciascun percorso."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stage_id": "T4",
+          "status": "needs_clarification",
+          "spec": null,
+          "spec_sha256": null,
+          "missing": [
+            {
+              "slot": "endpoint.context.user.fetch.clauses",
+              "reason": "L'ordinamento delle righe personalizzate per affinità al fingerprint è esplicito; users.video_historical_fingerprint è semanticamente dichiarato. Resta da risolvere il record utente tramite la chiave composita. Il percorso anonimo deve mantenere ordine fisso e non ricevere ordinamento per similarità.",
+              "evidence": [
+                {
+                  "turn": 2,
+                  "quote": "ricava dal catalogo users il contesto utente e l'attributo has_fingerprint"
+                },
+                {
+                  "turn": 4,
+                  "quote": "nella pagina personalizzata ordina le righe per affinità al fingerprint e lascia quella anonima in ordine fisso."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].fetches[*].clauses.genre",
+              "reason": "La richiesta fissa 6 righe per pagina e due percorsi, ma non la tassonomia con cui dividere film e serie per genere. Il catalogo distingue campi editoriali specifici e aggregato MCM: occorre una mappa dei generi, senza scegliere l'aggregato come equivalenza implicita.",
+              "evidence": [
+                {
+                  "turn": 1,
+                  "quote": "Crea una homepage con film e serie divisi per genere."
+                },
+                {
+                  "turn": 2,
+                  "quote": "Usa insieme i cataloghi video e users, la paginazione snapshot e sei righe per la pagina;"
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.variants[personalizzata,anonima].uses[*].block",
+              "reason": "Sono esplicite 4 definizioni parametriche, genere obbligatorio, 12 istanze complessive e 6 categorie in ciascun percorso. Manca l'assegnazione delle categorie commedia, drammatico, azione, drama, comedy e crime al blocco film oppure serie: la lingua del nome non autorizza quella scelta. Non si possono creare 12 istanze per percorso.",
+              "evidence": [
+                {
+                  "turn": 3,
+                  "quote": "Dichiara quattro blocchi parametrici riusabili, film e serie per il percorso personalizzato e film e serie per quello anonimo, tutti con genere obbligatorio; crea dodici istanze complessive usando commedia, drammatico, azione, drama, comedy e crime in ciascun percorso."
+                }
+              ]
+            },
+            {
+              "slot": "endpoint.blocks[*].presentation.view_all",
+              "reason": "Ogni riga richiede Vedi tutto, ma mancano i riferimenti di destinazione e gli eventuali binding di genere per i 4 blocchi riusabili. Non si possono inferire nomi di endpoint dai nomi dei blocchi.",
+              "evidence": [
+                {
+                  "turn": 4,
+                  "quote": "Ogni riga deve avere Vedi tutto;"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

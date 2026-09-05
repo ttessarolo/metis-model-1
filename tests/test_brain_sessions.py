@@ -452,6 +452,51 @@ def test_cleanup_failure_keeps_revoked_session_and_reaper_retries(
     assert manager.aggregate_metrics()["sessions"] == 0
 
 
+@pytest.mark.parametrize("lifecycle", ["close", "ttl"])
+def test_cleanup_listener_exception_remains_retryable_without_replaying_successes(
+    tmp_path: Path,
+    lifecycle: str,
+) -> None:
+    clock = FakeClock()
+    manager, _tenant_root = _manager(tmp_path, clock)
+    completed: list[str] = []
+    flaky_calls: list[str] = []
+    allow_flaky = False
+
+    def completed_listener(session_id: str) -> None:
+        # Callbacks run outside the manager lock and may safely inspect metrics.
+        manager.aggregate_metrics()
+        completed.append(session_id)
+
+    def flaky_listener(session_id: str) -> None:
+        flaky_calls.append(session_id)
+        if not allow_flaky:
+            raise RuntimeError("injected erasure failure")
+
+    manager.register_cleanup_listener(completed_listener)
+    manager.register_cleanup_listener(flaky_listener)
+    opened = _open(manager)
+
+    with pytest.raises(BrainError) as raised:
+        if lifecycle == "close":
+            manager.close(session_id=opened.session_id, token=opened.token)
+        else:
+            clock.advance(1200)
+            manager.status(session_id=opened.session_id, token=opened.token)
+    assert raised.value.code == "CLEANUP_FAILED"
+    assert completed == [opened.session_id]
+    assert manager.aggregate_metrics()["sessions"] == 1
+    with pytest.raises(BrainError) as unavailable:
+        manager.status(session_id=opened.session_id, token=opened.token)
+    assert unavailable.value.code == "SESSION_UNAVAILABLE"
+
+    allow_flaky = True
+    assert manager.sweep_expired() == 1
+    assert completed == [opened.session_id]
+    assert flaky_calls.count(opened.session_id) >= 2
+    assert manager.aggregate_metrics()["sessions"] == 0
+
+
 def test_brain_error_from_operation_body_preserves_public_error(tmp_path: Path) -> None:
     clock = FakeClock()
     manager, _tenant_root = _manager(tmp_path, clock)

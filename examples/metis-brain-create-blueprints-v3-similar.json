@@ -1,0 +1,1710 @@
+{
+  "contract_id": "metis-brain-create-stage-blueprints/v3",
+  "derivation": "operator-prompts-plus-reviewed-catalog-stdlib",
+  "stages": [
+    {
+      "stage_id": "play.similar_cinema:T2",
+      "status": "ready",
+      "spec": {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {
+          "name": "play.similar_cinema",
+          "reference": null,
+          "params": {
+            "timeout": null,
+            "expires": null,
+            "paginate": null
+          },
+          "inputs": [
+            {
+              "name": "seed_id",
+              "type": "text",
+              "required": true,
+              "not_empty": true,
+              "default": null
+            }
+          ],
+          "needs_time": false,
+          "attributes": [],
+          "input_pipeline": [],
+          "output_pipeline": [],
+          "inheritance": {
+            "without_input": [],
+            "without_output": []
+          },
+          "context": [
+            {
+              "kind": "fetch",
+              "name": "seed",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 1
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "video_content_id",
+                        "value": {
+                          "kind": "input",
+                          "name": "seed_id"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": null,
+                "order": [],
+                "output": null
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "name": "main",
+              "parameters": [],
+              "title": null,
+              "activation": null,
+              "presentation": {
+                "pinned": null,
+                "view_all": null,
+                "meta": [],
+                "meta_per_item": false
+              },
+              "fetches": [
+                {
+                  "from": {
+                    "kind": "catalog",
+                    "catalog": "video"
+                  },
+                  "cardinality": {
+                    "mode": "total",
+                    "value": 24
+                  },
+                  "over_fetch": null,
+                  "alias": null,
+                  "title": null,
+                  "activation": null,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "clauses": [
+                    {
+                      "intent": "include",
+                      "where": [
+                        {
+                          "op": "eq",
+                          "field": "tipologia",
+                          "value": {
+                            "kind": "lit",
+                            "lexical": "text",
+                            "value": "Film"
+                          }
+                        },
+                        {
+                          "op": "similar",
+                          "form": "record",
+                          "profile": "content_fingerprint",
+                          "target": {
+                            "kind": "ctx",
+                            "segments": [
+                              "seed"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "group_by": null,
+                  "order": [],
+                  "output": null
+                }
+              ],
+              "blocks": [],
+              "uses": [],
+              "output": null
+            }
+          ],
+          "variants": [],
+          "output": null
+        }
+      },
+      "spec_sha256": "sha256:b3b6b583e54800e97274d740de3939af9ad65d2256c27d5af0ddb6441d0d08da",
+      "missing": []
+    },
+    {
+      "stage_id": "play.similar_cinema:T3",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "missing": [
+        {
+          "slot": "routes.activation_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "quattro rami separati per HDR, SDR, Infinity e Noleggio",
+          "reason": "I nomi dei quattro rami non definiscono da soli le condizioni di attivazione. Serve una guardia verificata per ciascun percorso; dedurla dal nome renderebbe la prima variante una default sempre attiva e le successive irraggiungibili."
+        }
+      ]
+    },
+    {
+      "stage_id": "play.similar_cinema:T4",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "missing": [
+        {
+          "slot": "routes.activation_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "quattro rami separati per HDR, SDR, Infinity e Noleggio",
+          "reason": "I nomi dei quattro rami non definiscono da soli le condizioni di attivazione. Serve una guardia verificata per ciascun percorso."
+        },
+        {
+          "slot": "fallback.most_recent_film_2_binding",
+          "introduced_turn": 4,
+          "prompt_excerpt": "usa il blocco most_recent_film_2",
+          "reason": "Il nome esplicito non risolve un NamedBlock disponibile nello snapshot completo. Serve un blocco locale o un target condiviso verificato; non e ammesso ricostruirlo da un endpoint nascosto."
+        }
+      ]
+    },
+    {
+      "stage_id": "play.similar_serie_tv_fiction:T2",
+      "status": "ready",
+      "spec": {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {
+          "name": "play.similar_serie_tv_fiction",
+          "reference": null,
+          "params": {
+            "timeout": null,
+            "expires": null,
+            "paginate": null
+          },
+          "inputs": [
+            {
+              "name": "seed_id",
+              "type": "text",
+              "required": true,
+              "not_empty": true,
+              "default": null
+            }
+          ],
+          "needs_time": false,
+          "attributes": [],
+          "input_pipeline": [],
+          "output_pipeline": [],
+          "inheritance": {
+            "without_input": [],
+            "without_output": []
+          },
+          "context": [
+            {
+              "kind": "fetch",
+              "name": "seed",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 1
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "video_content_id",
+                        "value": {
+                          "kind": "input",
+                          "name": "seed_id"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": null,
+                "order": [],
+                "output": null
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "name": "main",
+              "parameters": [],
+              "title": null,
+              "activation": null,
+              "presentation": {
+                "pinned": null,
+                "view_all": null,
+                "meta": [],
+                "meta_per_item": false
+              },
+              "fetches": [
+                {
+                  "from": {
+                    "kind": "catalog",
+                    "catalog": "video"
+                  },
+                  "cardinality": {
+                    "mode": "total",
+                    "value": 24
+                  },
+                  "over_fetch": null,
+                  "alias": null,
+                  "title": null,
+                  "activation": null,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "clauses": [
+                    {
+                      "intent": "include",
+                      "where": [
+                        {
+                          "op": "group",
+                          "strategy": "any",
+                          "items": [
+                            {
+                              "op": "eq",
+                              "field": "tipologia",
+                              "value": {
+                                "kind": "lit",
+                                "lexical": "text",
+                                "value": "Serie TV"
+                              }
+                            },
+                            {
+                              "op": "eq",
+                              "field": "tipologia",
+                              "value": {
+                                "kind": "lit",
+                                "lexical": "text",
+                                "value": "Fiction"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "op": "similar",
+                          "form": "record",
+                          "profile": "content_fingerprint",
+                          "target": {
+                            "kind": "ctx",
+                            "segments": [
+                              "seed"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "group_by": null,
+                  "order": [],
+                  "output": null
+                }
+              ],
+              "blocks": [],
+              "uses": [],
+              "output": null
+            }
+          ],
+          "variants": [],
+          "output": null
+        }
+      },
+      "spec_sha256": "sha256:42bb39d2b45e4f20605c5ecd31f63547d8b32946a9a92056420816bb02054dea",
+      "missing": []
+    },
+    {
+      "stage_id": "play.similar_serie_tv_fiction:T3",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "missing": [
+        {
+          "slot": "routes.activation_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "tre percorsi: Infinity, canali diversi da Infinity/MediasetPlay/Noleggio e una variante generale",
+          "reason": "I tre percorsi richiedono condizioni di attivazione verificabili. Senza guardie la prima variante e una default sempre attiva e rende irraggiungibili le successive."
+        }
+      ]
+    },
+    {
+      "stage_id": "play.similar_serie_tv_fiction:T4",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "missing": [
+        {
+          "slot": "routes.activation_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "tre percorsi: Infinity, canali diversi da Infinity/MediasetPlay/Noleggio e una variante generale",
+          "reason": "I tre percorsi richiedono condizioni di attivazione verificabili. Il refinement del fallback non autorizza Brain a inventare le guardie mancanti."
+        }
+      ]
+    },
+    {
+      "stage_id": "play.similar_intrat_abtest:T2",
+      "status": "ready",
+      "spec": {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {
+          "name": "play.similar_intrat_abtest",
+          "reference": null,
+          "params": {
+            "timeout": null,
+            "expires": null,
+            "paginate": null
+          },
+          "inputs": [
+            {
+              "name": "seed_id",
+              "type": "text",
+              "required": true,
+              "not_empty": true,
+              "default": null
+            }
+          ],
+          "needs_time": false,
+          "attributes": [],
+          "input_pipeline": [],
+          "output_pipeline": [],
+          "inheritance": {
+            "without_input": [],
+            "without_output": []
+          },
+          "context": [
+            {
+              "kind": "fetch",
+              "name": "seed",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 1
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "video_content_id",
+                        "value": {
+                          "kind": "input",
+                          "name": "seed_id"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": null,
+                "order": [],
+                "output": null
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "name": "main",
+              "parameters": [],
+              "title": null,
+              "activation": null,
+              "presentation": {
+                "pinned": null,
+                "view_all": null,
+                "meta": [],
+                "meta_per_item": false
+              },
+              "fetches": [
+                {
+                  "from": {
+                    "kind": "catalog",
+                    "catalog": "video"
+                  },
+                  "cardinality": {
+                    "mode": "total",
+                    "value": 24
+                  },
+                  "over_fetch": null,
+                  "alias": null,
+                  "title": null,
+                  "activation": null,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "clauses": [
+                    {
+                      "intent": "include",
+                      "where": [
+                        {
+                          "op": "eq",
+                          "field": "tipologia",
+                          "value": {
+                            "kind": "lit",
+                            "lexical": "text",
+                            "value": "Intrattenimento"
+                          }
+                        },
+                        {
+                          "op": "similar",
+                          "form": "record",
+                          "profile": "content_fingerprint",
+                          "target": {
+                            "kind": "ctx",
+                            "segments": [
+                              "seed"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "group_by": null,
+                  "order": [],
+                  "output": null
+                }
+              ],
+              "blocks": [],
+              "uses": [],
+              "output": null
+            }
+          ],
+          "variants": [],
+          "output": null
+        }
+      },
+      "spec_sha256": "sha256:01fe186337db6a374d13cc41969b02dd311899a4a8dda82fc41f79f6116de46a",
+      "missing": []
+    },
+    {
+      "stage_id": "play.similar_intrat_abtest:T3",
+      "status": "ready",
+      "spec": {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {
+          "name": "play.similar_intrat_abtest",
+          "reference": null,
+          "params": {
+            "timeout": null,
+            "expires": null,
+            "paginate": null
+          },
+          "inputs": [
+            {
+              "name": "seed_id",
+              "type": "text",
+              "required": true,
+              "not_empty": true,
+              "default": null
+            }
+          ],
+          "needs_time": true,
+          "attributes": [],
+          "input_pipeline": [],
+          "output_pipeline": [],
+          "inheritance": {
+            "without_input": [],
+            "without_output": []
+          },
+          "context": [
+            {
+              "kind": "fetch",
+              "name": "seed",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 1
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "video_content_id",
+                        "value": {
+                          "kind": "input",
+                          "name": "seed_id"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": null,
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_same_program",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "programtype",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Episode"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "id_brand",
+                        "value": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed",
+                            "id_brand"
+                          ]
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "18M"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_clips_extra",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "group",
+                        "strategy": "any",
+                        "items": [
+                          {
+                            "op": "eq",
+                            "field": "editorial_type",
+                            "value": {
+                              "kind": "lit",
+                              "lexical": "text",
+                              "value": "Clip"
+                            }
+                          },
+                          {
+                            "op": "eq",
+                            "field": "editorial_type",
+                            "value": {
+                              "kind": "lit",
+                              "lexical": "text",
+                              "value": "Extra"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "14d"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_entertainment_episodes",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "programtype",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Episode"
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "18M"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_entertainment_clips",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "editorial_type",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Clip"
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "14d"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "name": "main",
+              "parameters": [],
+              "title": null,
+              "activation": null,
+              "presentation": {
+                "pinned": null,
+                "view_all": null,
+                "meta": [],
+                "meta_per_item": false
+              },
+              "fetches": [
+                {
+                  "from": {
+                    "kind": "catalog",
+                    "catalog": "video"
+                  },
+                  "cardinality": {
+                    "mode": "total",
+                    "value": 24
+                  },
+                  "over_fetch": null,
+                  "alias": null,
+                  "title": null,
+                  "activation": null,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "clauses": [
+                    {
+                      "intent": "include",
+                      "where": [
+                        {
+                          "op": "eq",
+                          "field": "tipologia",
+                          "value": {
+                            "kind": "lit",
+                            "lexical": "text",
+                            "value": "Intrattenimento"
+                          }
+                        },
+                        {
+                          "op": "similar",
+                          "form": "record",
+                          "profile": "content_fingerprint",
+                          "target": {
+                            "kind": "ctx",
+                            "segments": [
+                              "seed"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "group_by": null,
+                  "order": [],
+                  "output": null
+                }
+              ],
+              "blocks": [],
+              "uses": [],
+              "output": null
+            }
+          ],
+          "variants": [],
+          "output": null
+        }
+      },
+      "spec_sha256": "sha256:2e57aebf0727f48e48e9e3a4c367f5d053159e53abf14bca82bc1d2d1632252e",
+      "missing": []
+    },
+    {
+      "stage_id": "play.similar_intrat_abtest:T4",
+      "status": "ready",
+      "spec": {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {
+          "name": "play.similar_intrat_abtest",
+          "reference": null,
+          "params": {
+            "timeout": null,
+            "expires": null,
+            "paginate": null
+          },
+          "inputs": [
+            {
+              "name": "seed_id",
+              "type": "text",
+              "required": true,
+              "not_empty": true,
+              "default": null
+            }
+          ],
+          "needs_time": true,
+          "attributes": [],
+          "input_pipeline": [],
+          "output_pipeline": [],
+          "inheritance": {
+            "without_input": [],
+            "without_output": []
+          },
+          "context": [
+            {
+              "kind": "fetch",
+              "name": "seed",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 1
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "video_content_id",
+                        "value": {
+                          "kind": "input",
+                          "name": "seed_id"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": null,
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_same_program",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "programtype",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Episode"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "id_brand",
+                        "value": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed",
+                            "id_brand"
+                          ]
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "18M"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_clips_extra",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "group",
+                        "strategy": "any",
+                        "items": [
+                          {
+                            "op": "eq",
+                            "field": "editorial_type",
+                            "value": {
+                              "kind": "lit",
+                              "lexical": "text",
+                              "value": "Clip"
+                            }
+                          },
+                          {
+                            "op": "eq",
+                            "field": "editorial_type",
+                            "value": {
+                              "kind": "lit",
+                              "lexical": "text",
+                              "value": "Extra"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "14d"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_entertainment_episodes",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "programtype",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Episode"
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "18M"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            },
+            {
+              "kind": "fetch",
+              "name": "pool_entertainment_clips",
+              "fetch": {
+                "from": {
+                  "kind": "catalog",
+                  "catalog": "video"
+                },
+                "cardinality": {
+                  "mode": "total",
+                  "value": 50
+                },
+                "over_fetch": null,
+                "alias": null,
+                "title": null,
+                "activation": null,
+                "presentation": {
+                  "pinned": null,
+                  "view_all": null,
+                  "meta": [],
+                  "meta_per_item": false
+                },
+                "clauses": [
+                  {
+                    "intent": "include",
+                    "where": [
+                      {
+                        "op": "eq",
+                        "field": "tipologia",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Intrattenimento"
+                        }
+                      },
+                      {
+                        "op": "eq",
+                        "field": "editorial_type",
+                        "value": {
+                          "kind": "lit",
+                          "lexical": "text",
+                          "value": "Clip"
+                        }
+                      },
+                      {
+                        "op": "within",
+                        "field": "publication_date",
+                        "amount": {
+                          "kind": "lit",
+                          "lexical": "duration",
+                          "value": "14d"
+                        },
+                        "target": {
+                          "kind": "lit",
+                          "lexical": "time",
+                          "value": "now"
+                        }
+                      },
+                      {
+                        "op": "similar",
+                        "form": "record",
+                        "profile": "content_fingerprint",
+                        "target": {
+                          "kind": "ctx",
+                          "segments": [
+                            "seed"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "group_by": {
+                  "fields": [
+                    "id_brand"
+                  ],
+                  "member_order": [],
+                  "member_limit": null,
+                  "having": null
+                },
+                "order": [],
+                "output": null
+              }
+            }
+          ],
+          "blocks": [],
+          "variants": [
+            {
+              "name": "default",
+              "title": null,
+              "activation": null,
+              "empty": false,
+              "presentation": {
+                "pinned": null,
+                "view_all": null,
+                "meta": [],
+                "meta_per_item": false
+              },
+              "fetches": [],
+              "blocks": [
+                {
+                  "name": "main",
+                  "parameters": [],
+                  "title": null,
+                  "activation": null,
+                  "presentation": {
+                    "pinned": null,
+                    "view_all": null,
+                    "meta": [],
+                    "meta_per_item": false
+                  },
+                  "fetches": [
+                    {
+                      "from": {
+                        "kind": "catalog",
+                        "catalog": "video"
+                      },
+                      "cardinality": {
+                        "mode": "total",
+                        "value": 4
+                      },
+                      "over_fetch": null,
+                      "alias": "consumer_first",
+                      "title": null,
+                      "activation": null,
+                      "presentation": {
+                        "pinned": null,
+                        "view_all": null,
+                        "meta": [],
+                        "meta_per_item": false
+                      },
+                      "clauses": [
+                        {
+                          "intent": "include",
+                          "where": [
+                            {
+                              "op": "group",
+                              "strategy": "best_plus",
+                              "coefficient": "near_full",
+                              "items": [
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_same_program"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_clips_extra"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_entertainment_episodes"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_entertainment_clips"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "intent": "promote",
+                          "where": [
+                            {
+                              "op": "within",
+                              "field": "publication_date",
+                              "amount": {
+                                "kind": "lit",
+                                "lexical": "duration",
+                                "value": "14d"
+                              },
+                              "target": {
+                                "kind": "lit",
+                                "lexical": "time",
+                                "value": "now"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "group_by": null,
+                      "order": [],
+                      "output": null
+                    },
+                    {
+                      "from": {
+                        "kind": "catalog",
+                        "catalog": "video"
+                      },
+                      "cardinality": {
+                        "mode": "total",
+                        "value": 24
+                      },
+                      "over_fetch": null,
+                      "alias": "consumer_final",
+                      "title": null,
+                      "activation": null,
+                      "presentation": {
+                        "pinned": null,
+                        "view_all": null,
+                        "meta": [],
+                        "meta_per_item": false
+                      },
+                      "clauses": [
+                        {
+                          "intent": "include",
+                          "where": [
+                            {
+                              "op": "group",
+                              "strategy": "best_plus",
+                              "coefficient": "near_full",
+                              "items": [
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_same_program"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_clips_extra"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_entertainment_episodes"
+                                  ]
+                                },
+                                {
+                                  "op": "ids",
+                                  "segments": [
+                                    "pool_entertainment_clips"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "intent": "promote",
+                          "where": [
+                            {
+                              "op": "within",
+                              "field": "publication_date",
+                              "amount": {
+                                "kind": "lit",
+                                "lexical": "duration",
+                                "value": "14d"
+                              },
+                              "target": {
+                                "kind": "lit",
+                                "lexical": "time",
+                                "value": "now"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "group_by": null,
+                      "order": [],
+                      "output": null
+                    }
+                  ],
+                  "blocks": [],
+                  "uses": [],
+                  "output": {
+                    "projection": "default",
+                    "steps": [
+                      {
+                        "kind": "deduplicate",
+                        "field": "video_content_id"
+                      },
+                      {
+                        "kind": "max",
+                        "count": 24
+                      }
+                    ],
+                    "fallbacks": [
+                      {
+                        "kind": "materialized",
+                        "target": "intrat_recent",
+                        "trigger": "nested_flat_items_below",
+                        "threshold": 1,
+                        "mode": "append"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "uses": [],
+              "output": null
+            }
+          ],
+          "output": null
+        }
+      },
+      "spec_sha256": "sha256:a38b66d4106e3d145828a625622a1ede86c14c5c446e292776e7940b10be8242",
+      "missing": []
+    }
+  ]
+}

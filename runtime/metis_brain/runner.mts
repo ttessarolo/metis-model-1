@@ -1540,6 +1540,9 @@ const MAX_MANIFEST_FETCHES = 512;
 const MAX_MANIFEST_PREDICATES = 8192;
 const MAX_MANIFEST_CONTEXT_NODES = 512;
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
+const MAX_CANDIDATE_IR_BYTES = 4 * 1024 * 1024;
+const MAX_CANDIDATE_IR_DEPTH = 128;
+const MAX_CANDIDATE_IR_NODES = 100_000;
 
 class CandidateManifestError extends Error {
   constructor(
@@ -1894,6 +1897,95 @@ function candidateManifest(
   return manifest;
 }
 
+function candidateIr(endpoint: IrEndpoint, requestedEndpoint: string): unknown {
+  const normalized = stripProvenance(endpoint);
+  if (
+    normalized === null ||
+    typeof normalized !== "object" ||
+    Array.isArray(normalized)
+  ) {
+    throw new CandidateManifestError(
+      "BRAIN_MANIFEST_LIMIT",
+      "candidate normalized IR root is invalid",
+    );
+  }
+  const root = normalized as Record<string, unknown>;
+  if (
+    root.node !== "Endpoint" ||
+    root.name !== requestedEndpoint ||
+    typeof root.irVersion !== "string" ||
+    root.irVersion.length === 0 ||
+    root.irVersion.length > 32 ||
+    Object.hasOwn(root, "provenance")
+  ) {
+    throw new CandidateManifestError(
+      "BRAIN_MANIFEST_LIMIT",
+      "candidate normalized IR identity is invalid",
+    );
+  }
+
+  let nodeCount = 0;
+  const stack: Array<{ value: unknown; depth: number }> = [
+    { value: normalized, depth: 0 },
+  ];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    nodeCount += 1;
+    if (
+      nodeCount > MAX_CANDIDATE_IR_NODES ||
+      current.depth > MAX_CANDIDATE_IR_DEPTH
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate normalized IR exceeds its structure limit",
+      );
+    }
+    if (Array.isArray(current.value)) {
+      for (const member of current.value) {
+        stack.push({ value: member, depth: current.depth + 1 });
+      }
+      continue;
+    }
+    if (current.value !== null && typeof current.value === "object") {
+      for (const member of Object.values(
+        current.value as Record<string, unknown>,
+      )) {
+        stack.push({ value: member, depth: current.depth + 1 });
+      }
+      continue;
+    }
+    if (
+      current.value !== null &&
+      typeof current.value !== "string" &&
+      typeof current.value !== "boolean" &&
+      (typeof current.value !== "number" || !Number.isFinite(current.value))
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate normalized IR contains a non-JSON value",
+      );
+    }
+    if (
+      typeof current.value === "number" &&
+      Number.isInteger(current.value) &&
+      !Number.isSafeInteger(current.value)
+    ) {
+      throw new CandidateManifestError(
+        "BRAIN_MANIFEST_LIMIT",
+        "candidate normalized IR contains an unsafe integer",
+      );
+    }
+  }
+  const canonical = canonicalJson(normalized);
+  if (Buffer.byteLength(canonical, "utf8") > MAX_CANDIDATE_IR_BYTES) {
+    throw new CandidateManifestError(
+      "BRAIN_MANIFEST_LIMIT",
+      "candidate normalized IR exceeds its byte limit",
+    );
+  }
+  return JSON.parse(canonical) as unknown;
+}
+
 function invalidCandidateCompile(
   code: string,
   message: string,
@@ -1908,6 +2000,8 @@ function invalidCandidateCompile(
     runtime_context_sha256: null,
     manifest: null,
     manifest_sha256: null,
+    ir: null,
+    ir_sha256: null,
   };
 }
 
@@ -1943,6 +2037,7 @@ async function compileCandidate(
       );
     }
     const manifest = candidateManifest(endpoint, endpointSource);
+    const ir = candidateIr(endpoint, requestedEndpoint);
     const runtimeContext = JSON.stringify(buildRuntimeCtx(docs, tenantRoot));
     return {
       schema_version: 1,
@@ -1954,6 +2049,8 @@ async function compileCandidate(
       runtime_context_sha256: sha256(runtimeContext),
       manifest,
       manifest_sha256: canonicalHash(manifest),
+      ir,
+      ir_sha256: canonicalHash(ir),
     };
   } catch (error: unknown) {
     if (error instanceof CandidateManifestError) {

@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Literal
 
 _EXPLICIT_COUNT_RE = re.compile(
     r"(?<!\w)([1-9][0-9]{0,3})\s+(?:risultat[io]|contenut[io]|element[io]|film|video)(?!\w)",
@@ -433,4 +434,696 @@ def parse_output_request(instruction: str) -> OutputRequestSurface:
         ambiguous_count=bool(ambiguous_matches),
         invalid_numeric_pagination=invalid_numeric_pagination,
         invalid_numeric_output=invalid_numeric_output,
+    )
+
+
+# CREATE uses a richer quantity surface than the legacy output parser above.
+# Keep the two parsers separate: existing retrieval/orchestration callers retain
+# their exact legacy behavior while CREATE can bind each operator-owned fact to
+# a typed, host-issued requirement grant.
+CreateQuantityStatus = Literal["absent", "resolved", "ambiguous", "conflict", "invalid"]
+CreateQuantityKind = Literal[
+    "result_count",
+    "row_count",
+    "fetch_occurrences",
+    "block_count",
+    "instance_count",
+    "branch_count",
+    "pool_count",
+    "role_count",
+    "over_fetch",
+]
+CreateQuantityScope = Literal[
+    "total",
+    "page",
+    "row",
+    "pool",
+    "fetch",
+    "final_output",
+    "block",
+    "instance",
+    "branch",
+    "variant",
+    "path",
+    "role",
+]
+CreateQuantityMode = Literal[
+    "total",
+    "page",
+    "page_default",
+    "exact",
+    "deferred",
+    "multiplier",
+]
+CreateQuantityQualifier = Literal["first", "second", "final", "each"]
+CreateQuantityContract = tuple[
+    CreateQuantityKind,
+    CreateQuantityScope,
+    CreateQuantityMode,
+    CreateQuantityQualifier | None,
+    int | None,
+    int | None,
+]
+
+_CREATE_MAX_QUANTITY = 10_000
+_CREATE_MIN_MULTIPLIER = 2
+_CREATE_MAX_MULTIPLIER = 16
+_CREATE_NUMBER_WORD_VALUES = {
+    "un": 1,
+    "uno": 1,
+    "una": 1,
+    "due": 2,
+    "tre": 3,
+    "quattro": 4,
+    "cinque": 5,
+    "sei": 6,
+    "sette": 7,
+    "otto": 8,
+    "nove": 9,
+    "dieci": 10,
+    "undici": 11,
+    "dodici": 12,
+    "tredici": 13,
+    "quattordici": 14,
+    "quindici": 15,
+    "sedici": 16,
+    "diciassette": 17,
+    "diciotto": 18,
+    "diciannove": 19,
+    "venti": 20,
+    "ventuno": 21,
+    "ventidue": 22,
+    "ventitre": 23,
+    "ventiquattro": 24,
+    "venticinque": 25,
+    "ventisei": 26,
+    "ventisette": 27,
+    "ventotto": 28,
+    "ventinove": 29,
+    "trenta": 30,
+    "quaranta": 40,
+    "cinquanta": 50,
+    "sessanta": 60,
+    "settanta": 70,
+    "ottanta": 80,
+    "novanta": 90,
+    "cento": 100,
+}
+_CREATE_NUMBER_WORD_PATTERN = "|".join(
+    sorted(
+        (re.escape(word) for word in (*_CREATE_NUMBER_WORD_VALUES, "ventitré")),
+        key=len,
+        reverse=True,
+    )
+)
+_CREATE_NUMBER = rf"(?:[0-9]+|{_CREATE_NUMBER_WORD_PATTERN})"
+_CREATE_RESULT_NOUN = r"(?:risultat[io]|contenut[io]|element[io]|titol[io]|film|video)"
+_CREATE_STRUCTURAL_NOUN = (
+    r"(?:rig(?:a|he)|blocch[io]|istanz[ae]|ram[io]|variant[aei]|percors[io]|pool|ruol[io])"
+)
+_CREATE_COUNTED_NOUN = rf"(?:{_CREATE_RESULT_NOUN}|{_CREATE_STRUCTURAL_NOUN}|take)"
+_CREATE_LABEL_WORD = r"[A-Za-zÀ-ÖØ-öø-ÿ0-9_/-]+"
+
+_CREATE_MULTIPLIER_RE = re.compile(
+    rf"(?<!\w)(?P<subject>sequenza|riga|take)\s+"
+    rf"(?P<value>{_CREATE_NUMBER})\s*(?:per|\*)\s*(?P<factor>{_CREATE_NUMBER})(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_PAGE_DEFAULT_RE = re.compile(
+    rf"(?:(?<!\w)(?P<value>{_CREATE_NUMBER})\s+"
+    rf"(?:{_CREATE_RESULT_NOUN}\s*)?(?:total[ie]\s*)?per\s+pagina(?!\w)|"
+    rf"(?<!\w)pagina\s+(?:da|di|con)\s+(?P<after>{_CREATE_NUMBER})(?!\w)|"
+    rf"(?<!\w)(?:take\s+)?page\s+default\s+(?P<dsl>{_CREATE_NUMBER})(?!\w))",
+    re.IGNORECASE,
+)
+_CREATE_PAGE_MODE_RE = re.compile(
+    r"(?<!\w)(?:paginazione(?:\s+snapshot)?|pagina\s+snapshot)(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_PER_ROW_RE = re.compile(
+    rf"(?<!\w)(?P<value>{_CREATE_NUMBER})\s+{_CREATE_RESULT_NOUN}"
+    r"(?:\s+total[ie])?\s+per\s+(?:ogni\s+|ciascun[ao]\s+)?riga(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_ROW_RESULT_RE = re.compile(
+    rf"(?<!\w)(?:(?P<determiner>ciascun[ao]|ogni|una?|la)\s+)?riga"
+    rf"(?P<label>(?:\s+(?!(?:da|di|con)\b){_CREATE_LABEL_WORD}){{0,4}})"
+    rf"\s+(?:da|di|con)\s+(?P<value>{_CREATE_NUMBER})(?!\w)"
+    rf"(?:\s+{_CREATE_RESULT_NOUN})?(?:\s+total[ie])?",
+    re.IGNORECASE,
+)
+_CREATE_POOL_RESULT_RE = re.compile(
+    rf"(?:(?<!\w)pool"
+    rf"(?P<label>(?:\s+(?!(?:da|di|con)\b){_CREATE_LABEL_WORD}){{0,4}})"
+    rf"\s+(?:da|di|con)\s+(?P<after>{_CREATE_NUMBER})(?!\w)"
+    rf"(?:\s+{_CREATE_RESULT_NOUN})?(?:\s+ciascun[oi]?)?|"
+    rf"(?<!\w)(?P<before>{_CREATE_NUMBER})\s+{_CREATE_RESULT_NOUN}"
+    r"\s+per\s+(?:ogni\s+|ciascun[oa]\s+)?pool(?!\w))",
+    re.IGNORECASE,
+)
+_CREATE_FETCH_RESULT_RE = re.compile(
+    rf"(?<!\w)(?:(?P<qualifier>primo|secondo|finale|ultimo)\s+)?take"
+    rf"(?:\s+(?!(?:da|a|con)\b){_CREATE_LABEL_WORD}){{0,4}}"
+    rf"\s+(?:da|a|con)\s+(?P<value>{_CREATE_NUMBER})(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_FETCH_CONTINUATION_RE = re.compile(
+    rf"(?<!\w)(?:un|uno)\s+(?P<qualifier>secondo|finale|ultimo)\s+"
+    rf"da\s+(?P<value>{_CREATE_NUMBER})(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_FETCH_OCCURRENCES_RE = re.compile(
+    rf"(?<!\w)(?P<value>{_CREATE_NUMBER})\s+take"
+    r"(?:\s+di\s+endpoint)?(?:\s+(?:complessiv[ioe]|total[ie]))?(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_FINAL_OUTPUT_RE = re.compile(
+    rf"(?:(?<!\w)(?:limita|limito|fissa|imposta)\s+"
+    rf"(?:il\s+)?(?:risultat[io]|limite)\s+finale\s+(?:a|su)\s+"
+    rf"(?P<explicit>{_CREATE_NUMBER})(?!\w)|"
+    rf"(?<!\w)limita\s+(?:il\s+)?(?:tutto\s+)?a\s+"
+    rf"(?P<implicit>{_CREATE_NUMBER})(?!\w))",
+    re.IGNORECASE,
+)
+_CREATE_DEFERRED_TOTAL_RE = re.compile(
+    r"(?<!\w)(?:"
+    r"non\s+(?:applicare|applica|impostare|imposta|usare|usa|mettere|metti)"
+    r"(?:\s+ancora)?\s+(?:un\s+)?limite\s+globale|"
+    r"senza\s+(?:un\s+)?limite\s+globale"
+    r")(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_STRUCTURAL_COUNT_RE = re.compile(
+    rf"(?<!\w)(?P<value>{_CREATE_NUMBER})\s+"
+    rf"(?P<noun>{_CREATE_STRUCTURAL_NOUN})(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_TOTAL_RE = re.compile(
+    rf"(?<!\w)(?P<value>{_CREATE_NUMBER})\s+{_CREATE_RESULT_NOUN}"
+    r"(?:\s+(?:total[ie]|complessiv[ioe]))?(?!\w)",
+    re.IGNORECASE,
+)
+
+_CREATE_VAGUE_QUANTITY_RE = re.compile(
+    rf"(?<!\w)(?:alcuni|alcune|qualche|pochi|poche|molti|molte|tanti|tante)\s+"
+    rf"{_CREATE_COUNTED_NOUN}(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_APPROXIMATE_QUANTITY_RE = re.compile(
+    rf"(?<!\w)(?:circa|almeno|al\s+massimo|massimo|minimo|oltre|entro|"
+    rf"approssimativamente|indicativamente|pi[uù]\s+o\s+meno)\s+"
+    rf"{_CREATE_NUMBER}\s+{_CREATE_COUNTED_NOUN}(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_APPROXIMATE_SCOPED_RE = re.compile(
+    rf"(?<!\w)(?:riga|pool|take|pagina)(?:\s+{_CREATE_LABEL_WORD}){{0,4}}\s+"
+    rf"(?:da|a|con)\s+(?:circa|almeno|massimo|minimo|oltre|entro)\s+"
+    rf"{_CREATE_NUMBER}(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_RANGE_OR_CHOICE_RE = re.compile(
+    rf"(?<!\w)(?:(?:tra|fra)\s+(?P<first>{_CREATE_NUMBER})\s+e\s+"
+    rf"(?P<second>{_CREATE_NUMBER})|da\s+(?P<from>{_CREATE_NUMBER})\s+a\s+"
+    rf"(?P<to>{_CREATE_NUMBER})|(?P<left>{_CREATE_NUMBER})\s*"
+    rf"(?:o|oppure|/|[-\u2010-\u2015])\s*(?P<right>{_CREATE_NUMBER}))\s+"
+    rf"{_CREATE_COUNTED_NOUN}(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_MISSING_LIMIT_RE = re.compile(
+    r"(?<!\w)limite\s+(?:globale|finale)"
+    r"(?:\s+(?:distinto|diverso|specifico))?(?:\s+per\s+ciascun[oa])?(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_SIGNED_OR_DECIMAL = (
+    r"(?:[+\-\u2010\u2011\u2012\u2013\u2014\u2015\u207b\u208b\ufe63\uff0d\u2212\uff0b]"
+    r"\s*[0-9]+|[.,][0-9]+|[0-9]+[.,][0-9]+)"
+)
+_CREATE_INVALID_NUMBER_BEFORE_RE = re.compile(
+    rf"(?<!\w){_CREATE_SIGNED_OR_DECIMAL}\s+{_CREATE_COUNTED_NOUN}(?!\w)",
+    re.IGNORECASE,
+)
+_CREATE_INVALID_NUMBER_AFTER_RE = re.compile(
+    rf"(?<!\w)(?:riga|pool|take|pagina|risultato\s+finale|limite\s+finale)"
+    rf"(?:\s+{_CREATE_LABEL_WORD}){{0,4}}\s+(?:da|a|con|su)\s+"
+    rf"{_CREATE_SIGNED_OR_DECIMAL}(?!\w)",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CreateQuantityMention:
+    """One exact, source-spanned CREATE quantity fact owned by the operator."""
+
+    kind: CreateQuantityKind
+    scope: CreateQuantityScope
+    mode: CreateQuantityMode
+    value: int | None
+    factor: int | None
+    qualifier: CreateQuantityQualifier | None
+    start: int
+    end: int
+
+    @property
+    def contract(self) -> CreateQuantityContract:
+        return (
+            self.kind,
+            self.scope,
+            self.mode,
+            self.qualifier,
+            self.value,
+            self.factor,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CreateQuantitySurface:
+    """Fail-closed CREATE interpretation; unresolved surfaces grant no facts."""
+
+    instruction: str
+    semantic_instruction: str
+    status: CreateQuantityStatus
+    mentions: tuple[CreateQuantityMention, ...]
+    issues: tuple[str, ...]
+
+    @property
+    def contracts(self) -> tuple[CreateQuantityContract, ...]:
+        result: list[CreateQuantityContract] = []
+        for mention in self.mentions:
+            if mention.contract not in result:
+                result.append(mention.contract)
+        return tuple(result)
+
+    @property
+    def requires_clarification(self) -> bool:
+        return self.status in {"ambiguous", "conflict", "invalid"}
+
+
+def _create_plain_number(token: str) -> int | None:
+    if token.isascii() and token.isdecimal():
+        value = int(token)
+        return value if 1 <= value <= _CREATE_MAX_QUANTITY else None
+    normalized = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", token.casefold())
+        if not unicodedata.combining(character)
+    )
+    return _CREATE_NUMBER_WORD_VALUES.get(normalized)
+
+
+def _create_qualifier(token: str | None) -> CreateQuantityQualifier | None:
+    if token is None:
+        return None
+    normalized = token.casefold()
+    if normalized == "primo":
+        return "first"
+    if normalized == "secondo":
+        return "second"
+    if normalized in {"finale", "ultimo"}:
+        return "final"
+    if normalized.startswith("ciascun") or normalized == "ogni":
+        return "each"
+    if normalized in {"un", "una", "la"}:
+        return None
+    raise AssertionError("unknown CREATE quantity qualifier")
+
+
+def _create_structural_contract(
+    noun: str,
+) -> tuple[CreateQuantityKind, CreateQuantityScope]:
+    normalized = noun.casefold()
+    if normalized.startswith("rig"):
+        return "row_count", "page"
+    if normalized.startswith("blocc"):
+        return "block_count", "block"
+    if normalized.startswith("istanz"):
+        return "instance_count", "instance"
+    if normalized.startswith("ram"):
+        return "branch_count", "branch"
+    if normalized.startswith("variant"):
+        return "branch_count", "variant"
+    if normalized.startswith("percors"):
+        return "branch_count", "path"
+    if normalized == "pool":
+        return "pool_count", "pool"
+    if normalized.startswith("ruol"):
+        return "role_count", "role"
+    raise AssertionError("unknown CREATE structural quantity noun")
+
+
+def _create_unquoted_matches(
+    pattern: re.Pattern[str],
+    instruction: str,
+    quoted_spans: list[tuple[int, int]],
+) -> list[re.Match[str]]:
+    return [
+        match
+        for match in pattern.finditer(instruction)
+        if not _overlaps(*match.span(), quoted_spans)
+    ]
+
+
+def _create_masked_instruction(
+    instruction: str,
+    mentions: list[CreateQuantityMention],
+) -> str:
+    masked = list(instruction)
+    replacements: list[tuple[int, str]] = []
+    for mention in mentions:
+        noun = _semantic_noun(instruction[mention.start : mention.end])
+        if noun is not None:
+            replacements.append((mention.start, noun))
+        for index in range(mention.start, mention.end):
+            masked[index] = " "
+    for start, noun in replacements:
+        masked[start : start + len(noun)] = noun
+    return " ".join("".join(masked).split())
+
+
+def _create_has_conflict(mentions: list[CreateQuantityMention]) -> bool:
+    """Detect contracts that cannot safely identify distinct local targets."""
+
+    strict_groups: dict[
+        tuple[CreateQuantityKind, CreateQuantityScope, CreateQuantityQualifier | None],
+        set[tuple[CreateQuantityMode, int | None, int | None]],
+    ] = {}
+    for mention in mentions:
+        strict = (
+            mention.scope in {"total", "page", "final_output"}
+            or mention.kind
+            in {
+                "row_count",
+                "fetch_occurrences",
+                "block_count",
+                "instance_count",
+                "branch_count",
+                "pool_count",
+                "role_count",
+            }
+            or mention.qualifier in {"first", "second", "final", "each"}
+        )
+        if not strict:
+            continue
+        key = (mention.kind, mention.scope, mention.qualifier)
+        strict_groups.setdefault(key, set()).add((mention.mode, mention.value, mention.factor))
+    if any(len(values) > 1 for values in strict_groups.values()):
+        return True
+
+    deferred = any(
+        mention.kind == "result_count" and mention.scope == "total" and mention.mode == "deferred"
+        for mention in mentions
+    )
+    explicit_global = any(
+        mention.kind == "result_count"
+        and mention.scope in {"total", "final_output"}
+        and mention.mode != "deferred"
+        for mention in mentions
+    )
+    return deferred and explicit_global
+
+
+def parse_create_quantity_surface(instruction: str) -> CreateQuantitySurface:
+    """Parse operator-owned CREATE quantities without guessing missing values.
+
+    Ambiguous, conflicting or invalid prose returns no mentions at all.  This is
+    intentional: downstream authority code may issue value/slot grants only
+    when the entire turn's quantity surface is resolved.
+    """
+
+    if not isinstance(instruction, str):
+        raise TypeError("instruction must be a string")
+
+    quoted_spans = _quoted_spans(instruction)
+    mentions: list[CreateQuantityMention] = []
+    issues: list[str] = []
+
+    def issue(value: str) -> None:
+        if value not in issues:
+            issues.append(value)
+
+    def add(
+        match: re.Match[str],
+        *,
+        kind: CreateQuantityKind,
+        scope: CreateQuantityScope,
+        mode: CreateQuantityMode,
+        token: str | None,
+        factor_token: str | None = None,
+        qualifier: CreateQuantityQualifier | None = None,
+    ) -> None:
+        value = _create_plain_number(token) if token is not None else None
+        factor = _create_plain_number(factor_token) if factor_token is not None else None
+        if token is not None and value is None:
+            issue("invalid_quantity")
+            return
+        if factor_token is not None and (
+            factor is None or not _CREATE_MIN_MULTIPLIER <= factor <= _CREATE_MAX_MULTIPLIER
+        ):
+            issue("invalid_multiplier")
+            return
+        mentions.append(
+            CreateQuantityMention(
+                kind=kind,
+                scope=scope,
+                mode=mode,
+                value=value,
+                factor=factor,
+                qualifier=qualifier,
+                start=match.start(),
+                end=match.end(),
+            )
+        )
+
+    ambiguous_spans: list[tuple[int, int]] = []
+    for pattern in (
+        _CREATE_VAGUE_QUANTITY_RE,
+        _CREATE_APPROXIMATE_QUANTITY_RE,
+        _CREATE_APPROXIMATE_SCOPED_RE,
+        _CREATE_RANGE_OR_CHOICE_RE,
+    ):
+        for match in _create_unquoted_matches(pattern, instruction, quoted_spans):
+            ambiguous_spans.append(match.span())
+            issue("ambiguous_quantity")
+
+    invalid_spans: list[tuple[int, int]] = []
+    for pattern in (_CREATE_INVALID_NUMBER_BEFORE_RE, _CREATE_INVALID_NUMBER_AFTER_RE):
+        for match in _create_unquoted_matches(pattern, instruction, quoted_spans):
+            invalid_spans.append(match.span())
+            issue("invalid_quantity")
+
+    blocked_spans = quoted_spans + ambiguous_spans + invalid_spans
+    owned_spans: list[tuple[int, int]] = []
+
+    for match in _CREATE_MULTIPLIER_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans):
+            continue
+        subject = match.group("subject").casefold()
+        add(
+            match,
+            kind="over_fetch",
+            scope="row" if subject == "riga" else "fetch",
+            mode="multiplier",
+            token=match.group("value"),
+            factor_token=match.group("factor"),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_PAGE_DEFAULT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="page",
+            mode="page_default",
+            token=match.group("value") or match.group("after") or match.group("dsl"),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_PER_ROW_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="row",
+            mode="total",
+            token=match.group("value"),
+            qualifier="each",
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_ROW_RESULT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        qualifier = _create_qualifier(match.group("determiner"))
+        add(
+            match,
+            kind="result_count",
+            scope="row",
+            mode="total",
+            token=match.group("value"),
+            qualifier=qualifier,
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_POOL_RESULT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="pool",
+            mode="total",
+            token=match.group("after") or match.group("before"),
+            qualifier="each",
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_FETCH_RESULT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="fetch",
+            mode="total",
+            token=match.group("value"),
+            qualifier=_create_qualifier(match.group("qualifier")),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_FETCH_CONTINUATION_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        preceding = instruction[max(0, match.start() - 96) : match.start()]
+        if re.search(r"(?<!\w)take(?!\w)", preceding, re.IGNORECASE) is None:
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="fetch",
+            mode="total",
+            token=match.group("value"),
+            qualifier=_create_qualifier(match.group("qualifier")),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_FETCH_OCCURRENCES_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="fetch_occurrences",
+            scope="fetch",
+            mode="exact",
+            token=match.group("value"),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_FINAL_OUTPUT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="final_output",
+            mode="total",
+            token=match.group("explicit") or match.group("implicit"),
+            qualifier="final",
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_DEFERRED_TOTAL_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="total",
+            mode="deferred",
+            token=None,
+        )
+        owned_spans.append(match.span())
+
+    # Structural counts are independent of nested row/pool result counts, so
+    # this pass deliberately permits those overlaps.
+    for match in _CREATE_STRUCTURAL_COUNT_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans):
+            continue
+        kind, scope = _create_structural_contract(match.group("noun"))
+        add(
+            match,
+            kind=kind,
+            scope=scope,
+            mode="exact",
+            token=match.group("value"),
+        )
+
+    for match in _CREATE_TOTAL_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="total",
+            mode="total",
+            token=match.group("value"),
+        )
+        owned_spans.append(match.span())
+
+    for match in _CREATE_PAGE_MODE_RE.finditer(instruction):
+        if _overlaps(*match.span(), blocked_spans + owned_spans):
+            continue
+        add(
+            match,
+            kind="result_count",
+            scope="page",
+            mode="page",
+            token=None,
+        )
+        owned_spans.append(match.span())
+
+    # A positive request for a global/final cap without a number is unresolved.
+    # Exact/deferred matches own their span and are therefore exempt.
+    for match in _create_unquoted_matches(_CREATE_MISSING_LIMIT_RE, instruction, quoted_spans):
+        if not _overlaps(*match.span(), owned_spans):
+            issue("missing_quantity")
+
+    mentions.sort(
+        key=lambda mention: (
+            mention.start,
+            mention.end,
+            mention.kind,
+            mention.scope,
+            mention.mode,
+        )
+    )
+    if _create_has_conflict(mentions):
+        issue("conflicting_quantity")
+
+    if any(value in issues for value in ("invalid_quantity", "invalid_multiplier")):
+        status: CreateQuantityStatus = "invalid"
+    elif "conflicting_quantity" in issues:
+        status = "conflict"
+    elif issues:
+        status = "ambiguous"
+    elif mentions:
+        status = "resolved"
+    else:
+        status = "absent"
+
+    if status != "resolved":
+        return CreateQuantitySurface(
+            instruction=instruction,
+            semantic_instruction=instruction,
+            status=status,
+            mentions=(),
+            issues=tuple(issues),
+        )
+    return CreateQuantitySurface(
+        instruction=instruction,
+        semantic_instruction=_create_masked_instruction(instruction, mentions),
+        status=status,
+        mentions=tuple(mentions),
+        issues=(),
     )

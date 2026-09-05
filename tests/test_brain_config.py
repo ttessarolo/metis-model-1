@@ -152,6 +152,17 @@ def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -
         warmup="lazy",
     )
     assert loaded.retrieval == BrainRetrievalConfig(schema2=True)
+    assert loaded.typed_create is False
+
+    config["typed_create"] = True
+    path.write_text(json.dumps(config), encoding="utf-8")
+    assert load_brain_config(path.resolve()).typed_create is True
+
+    config["typed_create"] = "true"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="typed CREATE flag"):
+        load_brain_config(path.resolve())
+    config["typed_create"] = False
 
     config["retrieval"] = {"schema2": True, "warmup": "on_start"}
     path.write_text(json.dumps(config), encoding="utf-8")
@@ -173,6 +184,20 @@ def test_optional_model_and_schema2_retrieval_config_is_strict(tmp_path: Path) -
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(BrainError, match="requires schema2"):
         load_brain_config(path.resolve())
+
+    config.pop("model")
+    config["retrieval"] = {"schema2": True}
+    config["typed_create"] = True
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(BrainError, match="typed CREATE requires"):
+        load_brain_config(path.resolve())
+    config["model"] = {
+        "python_path": str(python_path),
+        "model_path": str(model_path),
+        "adapter_path": str(adapter_path),
+        "timeout_seconds": 12.5,
+    }
+    config["typed_create"] = False
 
     config["retrieval"] = {"schema2": True, "extra": False}
     path.write_text(json.dumps(config), encoding="utf-8")

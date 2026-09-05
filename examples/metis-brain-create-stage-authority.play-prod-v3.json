@@ -1,0 +1,3027 @@
+{
+    "schema_version": 3,
+    "contract_id": "metis-brain-create-stage-authority/v3",
+    "provenance": {
+        "derivation": "operator-prompts-only",
+        "prompt_corpus_path": "examples/metis-brain-hard-prompts.play-prod-v2.json",
+        "prompt_scope": "zero_generation_scenarios[].{endpoint_qualified,turns[].{turn,user_message}}",
+        "prompt_scope_sha256": "sha256:02709353e5c6ff9664e1a15645ddee757096f05962b1b9f4bff6ac640ece7f2a",
+        "endpoint_source_used": false,
+        "tenant_used": false,
+        "compiler_used": false
+    },
+    "authority_set_sha256": "sha256:129a6fcb6899335f4df062e52210b049bf2287bd176c43261b6d1df6c8366f30",
+    "oracle_set_sha256": "sha256:1c1c60b6f135f7da31a6d08974e9255cabc816eb08f63b817011a130703fa502",
+    "authority_stages": [
+        {
+            "stage_id": "play.similar_cinema:T2",
+            "endpoint_qualified": "play.similar_cinema",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Usa il catalogo video e dammi 24 risultati totali.",
+            "instruction_sha256": "sha256:36469bf56fff8ff7f55ed68d5ef03cc7dc839555414bee5860bc9794df026eab",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "seed dal contenuto visto"
+                },
+                {
+                    "handle": 2,
+                    "label": "una riga film simili con totale 24"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "context",
+                    "label": "seed dal contenuto visto",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "fetch_roster",
+                    "label": "una riga film simili con totale 24",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "cardinality",
+                    "label": "pagina da 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "fallback recente automatico",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:24e67610ce22239a32a4adbcd7f7625bac816264d1aa8762cf23c173401ac70b"
+        },
+        {
+            "stage_id": "play.similar_cinema:T3",
+            "endpoint_qualified": "play.similar_cinema",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.similar_cinema:T2",
+            "instructions": "Aggiungi una riga principale e quattro rami separati per HDR, SDR, Infinity e Noleggio; distribuisci complessivamente dieci take di endpoint fra la riga principale e i quattro rami, usa per ogni ramo candidati simili al seed e ordina la riga principale per data.",
+            "instruction_sha256": "sha256:bfd5fd1d8eaaad6260f518ac633f2bcbb78d905836eb8e1f967a3911168941d8",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "una riga principale"
+                },
+                {
+                    "handle": 1,
+                    "label": "quattro rami guardati HDR SDR Infinity Noleggio"
+                },
+                {
+                    "handle": 2,
+                    "label": "dieci take totali nei cinque scope con almeno uno per scope"
+                },
+                {
+                    "handle": 3,
+                    "label": "candidati simili al seed in ogni ramo"
+                },
+                {
+                    "handle": 4,
+                    "label": "riga principale ordinata per data decrescente"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "block_roster",
+                    "label": "una riga principale",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "route_roster",
+                    "label": "quattro rami guardati HDR SDR Infinity Noleggio",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "fetch_roster",
+                    "label": "dieci take totali nei cinque scope con almeno uno per scope",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "context",
+                    "label": "candidati simili al seed in ogni ramo",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "order",
+                    "label": "riga principale ordinata per data decrescente",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "route_roster",
+                    "label": "un solo ramo 4K",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "fetch_roster",
+                    "label": "cinque take totali",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:c254e32e2c10054062c37d70d96c80bc568cb23aecf1a242cfea944f144ce168"
+        },
+        {
+            "stage_id": "play.similar_cinema:T4",
+            "endpoint_qualified": "play.similar_cinema",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.similar_cinema:T3",
+            "instructions": "Se la riga principale è vuota usa il blocco most_recent_film_2; nei rami con candidati combina le alternative e limita il risultato finale a 24.",
+            "instruction_sha256": "sha256:c1470827410788e708303d2251b9c0d54f6078908195b237231b4df157081963",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "main empty substitute most_recent_film_2"
+                },
+                {
+                    "handle": 1,
+                    "label": "candidate branches combine alternatives"
+                },
+                {
+                    "handle": 2,
+                    "label": "final limit 24"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "fallback",
+                    "label": "main empty substitute most_recent_film_2",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pipeline",
+                    "label": "candidate branches combine alternatives",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "output",
+                    "label": "final limit 24",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fallback",
+                    "label": "fallback on every branch",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "output",
+                    "label": "final limit 30",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:834655389c62442cce7ea4f61031764904f28afd4c12dcbd1c49a860f1114582"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T2",
+            "endpoint_qualified": "play.similar_serie_tv_fiction",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Catalogo video, 24 risultati totali, usando il contenuto visto come seed.",
+            "instruction_sha256": "sha256:2f75ffa962cadcde48430f772800f352d7135b668e39b8cff380affba8412dee",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "seed dal contenuto visto"
+                },
+                {
+                    "handle": 2,
+                    "label": "riga serie e fiction con totale 24"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "context",
+                    "label": "seed dal contenuto visto",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "fetch_roster",
+                    "label": "riga serie e fiction con totale 24",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "cardinality",
+                    "label": "pagina da 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "context",
+                    "label": "seed dalla cronologia completa",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:bde01295d592579602f9b3dd797431c29e3baaee3472a71a56ed8d799aa587b6"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T3",
+            "endpoint_qualified": "play.similar_serie_tv_fiction",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.similar_serie_tv_fiction:T2",
+            "instructions": "Prevedi tre percorsi: Infinity, canali diversi da Infinity/MediasetPlay/Noleggio e una variante generale; usa similarità al seed, mantieni una riga per episodi recenti e distribuisci complessivamente nove take di endpoint nei tre percorsi.",
+            "instruction_sha256": "sha256:d2f6d16bee3fcb335d3c5f4a16b814cd1f57d8a2f2f34a08e3a212c0e6eed57b",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "tre percorsi guardati Infinity esclusioni e generale"
+                },
+                {
+                    "handle": 1,
+                    "label": "nove take totali nei tre percorsi"
+                },
+                {
+                    "handle": 2,
+                    "label": "riga episodi recenti riusabile"
+                },
+                {
+                    "handle": 3,
+                    "label": "similarità al seed nei percorsi"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "route_roster",
+                    "label": "tre percorsi guardati Infinity esclusioni e generale",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "nove take totali nei tre percorsi",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "block_roster",
+                    "label": "riga episodi recenti riusabile",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "context",
+                    "label": "similarità al seed nei percorsi",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "route_roster",
+                    "label": "due percorsi",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "fetch_roster",
+                    "label": "dodici take",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:e0752a426422ae036e56afe444269537d126da01ed2a490b2b7bf487ed09cbcb"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T4",
+            "endpoint_qualified": "play.similar_serie_tv_fiction",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.similar_serie_tv_fiction:T3",
+            "instructions": "Nei rami che possono restare vuoti usa sempre la riga degli episodi più recenti; per il percorso principale aggiungi una sequenza 24 per 2 e fai shuffle solo sulla riga clip da 5.",
+            "instruction_sha256": "sha256:ffad1812cec3efd2a91f0258e131ed0730ad420366586ace0c67fafeb6c2d34d",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "rami vuoti substitute riga episodi recenti"
+                },
+                {
+                    "handle": 1,
+                    "label": "percorso principale take 24 per 2"
+                },
+                {
+                    "handle": 2,
+                    "label": "shuffle solo riga clip take 5"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "fallback",
+                    "label": "rami vuoti substitute riga episodi recenti",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "cardinality",
+                    "label": "percorso principale take 24 per 2",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "output",
+                    "label": "shuffle solo riga clip take 5",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "output",
+                    "label": "shuffle su tutte le righe",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "nuovo fallback globale",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:46c30986deb88fc643562c97ab9a6e627034074ac3b510a34c13813f90411c94"
+        },
+        {
+            "stage_id": "search.filtered_search:T2",
+            "endpoint_qualified": "search.filtered_search",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Catalogo video, 50 risultati per pagina, con ricerca su testo e canale; normalizza il testo di ricerca prima di eseguire le query.",
+            "instruction_sha256": "sha256:7459bef03b26fb19ead7fb0a08072a3b00f538276651c4cba714e2a0266412a4",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "pagina da 50"
+                },
+                {
+                    "handle": 2,
+                    "label": "input query e channel"
+                },
+                {
+                    "handle": 3,
+                    "label": "normalizzazione query prima delle query"
+                },
+                {
+                    "handle": 4,
+                    "label": "riga search riusabile con view-all e ranking rilevanza titolo"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pagination",
+                    "label": "pagina da 50",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "input",
+                    "label": "input query e channel",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "pipeline",
+                    "label": "normalizzazione query prima delle query",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fetch_roster",
+                    "label": "riga search riusabile con view-all e ranking rilevanza titolo",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "cardinality",
+                    "label": "totale fisso 50",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "pipeline",
+                    "label": "nessuna normalizzazione",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:d5c6cbc19dfba05b700dccf937f51c0e13aa78be6394417b8217ff46b1310255"
+        },
+        {
+            "stage_id": "search.filtered_search:T3",
+            "endpoint_qualified": "search.filtered_search",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "search.filtered_search:T2",
+            "instructions": "Aggiungi sette percorsi distinti: tutti, programmi/serie, film, video, gratis per te, Mediaset Italia senza query e default; distribuisci quattordici take fra i percorsi e, in quelli con query, combina le alternative di titolo, persone e genere mantenendo il ranking.",
+            "instruction_sha256": "sha256:f55def6658bf67a5c58774788e3536db10a69327d28977990f93034719f42a63",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "sette route guardate tutti programmi-serie film video gratis-per-te Mediaset-Italia-no-query default"
+                },
+                {
+                    "handle": 1,
+                    "label": "quattordici take totali nelle sette route"
+                },
+                {
+                    "handle": 2,
+                    "label": "alternative titolo persone genere nelle route con query e ranking preservato"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "route_roster",
+                    "label": "sette route guardate tutti programmi-serie film video gratis-per-te Mediaset-Italia-no-query default",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "quattordici take totali nelle sette route",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "pipeline",
+                    "label": "alternative titolo persone genere nelle route con query e ranking preservato",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "route_roster",
+                    "label": "otto route",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fetch_roster",
+                    "label": "sette take",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:b69e79e949646da084ad32848ac4dc546fecbcbf96c8f55099f350a021bae01f"
+        },
+        {
+            "stage_id": "search.filtered_search:T4",
+            "endpoint_qualified": "search.filtered_search",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "search.filtered_search:T3",
+            "instructions": "Per ogni percorso abilita Vedi tutto; usa fallback sostitutivi quando una pagina è vuota e, nel default, aggiungi il fallback in coda quando gli elementi piatti sono meno di uno.",
+            "instruction_sha256": "sha256:e55c8289b359a5ed2e61297ecd5a4af8d350aa573edf90a55b50751706e2ef24",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "view-all su tutte le sette route"
+                },
+                {
+                    "handle": 1,
+                    "label": "pagina vuota substitute con target da risolvere"
+                },
+                {
+                    "handle": 2,
+                    "label": "default append sotto un elemento piatto con target da risolvere"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "presentation",
+                    "label": "view-all su tutte le sette route",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fallback",
+                    "label": "pagina vuota substitute con target da risolvere",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "fallback",
+                    "label": "default append sotto un elemento piatto con target da risolvere",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fallback",
+                    "label": "fallback globale substitute",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "pagination",
+                    "label": "passaggio a totale 50",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:70b524521303f321b6f63d0a12ae69087eb88a5b229e9e552788f9779d783dc9"
+        },
+        {
+            "stage_id": "search.detail:T2",
+            "endpoint_qualified": "search.detail",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Usa il catalogo video e ricevi query, variante, canale e capacità 4K; deriva esplicitamente gli attributi has_query, has_channel e inf_channel.",
+            "instruction_sha256": "sha256:1346650214303434624b44f2d2c087d4a23c37ec0e1006e02f77e428d84d784d",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "input query variant channel capability-4K"
+                },
+                {
+                    "handle": 2,
+                    "label": "attributi has_query has_channel inf_channel"
+                },
+                {
+                    "handle": 3,
+                    "label": "blocco ricerca iniziale empty-safe"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "input",
+                    "label": "input query variant channel capability-4K",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "attribute",
+                    "label": "attributi has_query has_channel inf_channel",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "block_roster",
+                    "label": "blocco ricerca iniziale empty-safe",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "attribute",
+                    "label": "attributo has_4k aggiuntivo",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "catalog",
+                    "label": "catalogo users",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:40cca8730df1cdbce668616d6492b3b76558ad7330b87c71856481e56ec4a3f0"
+        },
+        {
+            "stage_id": "search.detail:T3",
+            "endpoint_qualified": "search.detail",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "search.detail:T2",
+            "instructions": "Separa tre blocchi riusabili: video predefiniti, serie/programmi e stagioni; ogni blocco deve avere i suoi take condizionati per canale e query e deduplicare la risposta.",
+            "instruction_sha256": "sha256:fb7d1e83f1b4d82b62d8bb41e60cc6609acc9d47865f60de7b940e91f85a5402",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "tre blocchi riusabili video predefiniti serie-programmi stagioni"
+                },
+                {
+                    "handle": 1,
+                    "label": "take per blocco condizionati da channel e query con numero non specificato"
+                },
+                {
+                    "handle": 2,
+                    "label": "deduplicate su tutti i tre blocchi"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "block_roster",
+                    "label": "tre blocchi riusabili video predefiniti serie-programmi stagioni",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "take per blocco condizionati da channel e query con numero non specificato",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "output",
+                    "label": "deduplicate su tutti i tre blocchi",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fetch_roster",
+                    "label": "nove take imposti senza evidenza",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "route_roster",
+                    "label": "route movie anticipata",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:dcf499c50ec2d598925a30bf310cda9173f421324520785420b5ab19e0a30bed"
+        },
+        {
+            "stage_id": "search.detail:T4",
+            "endpoint_qualified": "search.detail",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "search.detail:T3",
+            "instructions": "Instrada nove varianti: searchedVideo, brand, clip, fep, movie, tre percorsi Infinity e default, verso i blocchi corretti; per clip/fep/movie conserva template e searchDetailParams dedicati.",
+            "instruction_sha256": "sha256:9f7a0fd8f11031389c61a2d20e3ed037d3424c48aed68c4fd2c9210d541c1e40",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "nove route guardate searchedVideo brand clip fep movie tre Infinity default"
+                },
+                {
+                    "handle": 1,
+                    "label": "binding delle route ai tre blocchi"
+                },
+                {
+                    "handle": 2,
+                    "label": "template e searchDetailParams dedicati a clip fep movie con valori da autorità"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "route_roster",
+                    "label": "nove route guardate searchedVideo brand clip fep movie tre Infinity default",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pipeline",
+                    "label": "binding delle route ai tre blocchi",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "metadata",
+                    "label": "template e searchDetailParams dedicati a clip fep movie con valori da autorità",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "route_roster",
+                    "label": "otto route",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "metadata",
+                    "label": "template unico per tutte le route",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:222962c1b7817351d4694cd70c723c4745a04e313c4cbcbedc1653e8d5d33c18"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T2",
+            "endpoint_qualified": "play.multiple_block_compleanno",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Usa insieme i cataloghi video e users, la paginazione snapshot e il seed dell'utente; non applicare ancora un limite globale, perché i conteggi saranno definiti nei singoli blocchi.",
+            "instruction_sha256": "sha256:c63adaa64f8b5c4ad434cbe8dc6274006ae4c3338a41b473acce66e4c35b8e67",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "cataloghi video e users"
+                },
+                {
+                    "handle": 1,
+                    "label": "paginazione snapshot"
+                },
+                {
+                    "handle": 2,
+                    "label": "contesto user e seed read-only"
+                },
+                {
+                    "handle": 3,
+                    "label": "nessun limite globale; conteggi rinviati ai blocchi"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "cataloghi video e users",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pagination",
+                    "label": "paginazione snapshot",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "context",
+                    "label": "contesto user e seed read-only",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "cardinality",
+                    "label": "nessun limite globale; conteggi rinviati ai blocchi",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "cardinality",
+                    "label": "limite globale 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "pagination",
+                    "label": "paginazione windowed",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:f3b2e2aedf5a475a7677912a35920748090d32044e9490d188a268f773755e37"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T3",
+            "endpoint_qualified": "play.multiple_block_compleanno",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.multiple_block_compleanno:T2",
+            "instructions": "Aggiungi undici ruoli separati e ventisei take complessivi: film recenti, fallback cinema, film simili al cluster, intrattenimento recente, programmi TV, documentari, fiction/serie scelte, soap simili al cluster, kids, informazione recente e informazione/sport simili; riusa i blocchi con Vedi tutto, combina le alternative dove esiste un profilo simile e ordina ogni riga secondo il suo criterio.",
+            "instruction_sha256": "sha256:e0bc5bbe2db759f507fc6333661ae2f9c327bd88bc1c952e3979f81c8674808f",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "undici ruoli tematici distinti"
+                },
+                {
+                    "handle": 1,
+                    "label": "ventisei take totali negli undici ruoli"
+                },
+                {
+                    "handle": 2,
+                    "label": "view-all sui blocchi riusati"
+                },
+                {
+                    "handle": 3,
+                    "label": "alternative solo nei ruoli con profilo simile"
+                },
+                {
+                    "handle": 4,
+                    "label": "ordine locale per riga"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "block_roster",
+                    "label": "undici ruoli tematici distinti",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "ventisei take totali negli undici ruoli",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "presentation",
+                    "label": "view-all sui blocchi riusati",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "pipeline",
+                    "label": "alternative solo nei ruoli con profilo simile",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "order",
+                    "label": "ordine locale per riga",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "block_roster",
+                    "label": "dieci ruoli",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "fetch_roster",
+                    "label": "ventisette take",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:e2f0ea5e55f6365f4574e960d5e2fb42dbb185ddd3a9a8fb6feaa3a9c587a309"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T4",
+            "endpoint_qualified": "play.multiple_block_compleanno",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.multiple_block_compleanno:T3",
+            "instructions": "Quando una riga clusterizzata è vuota usa la riga più recente della stessa area; aggiungi i rami ciak e statico, con un limite finale distinto per ciascuno.",
+            "instruction_sha256": "sha256:90d5f818e08b956212ac4dcb9fcbb7d65509e2a3468619c8e0886bac9b7f6f53",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "riga cluster vuota usa più recente della stessa area"
+                },
+                {
+                    "handle": 1,
+                    "label": "rami ciak e statico guardati"
+                },
+                {
+                    "handle": 2,
+                    "label": "limiti finali distinti ma valori non specificati"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "fallback",
+                    "label": "riga cluster vuota usa più recente della stessa area",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "route_roster",
+                    "label": "rami ciak e statico guardati",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "output",
+                    "label": "limiti finali distinti ma valori non specificati",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fallback",
+                    "label": "fallback fra aree diverse",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "output",
+                    "label": "entrambi i limiti fissati a 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:82ac0fea0686b956529e32e3fe566f789b2ffe3a95650b41d08e3e3d9e35397c"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T2",
+            "endpoint_qualified": "play.multiple_block_dem_titoli_momento",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Catalogo video, 30 risultati totali per la pagina, con film e serie recenti.",
+            "instruction_sha256": "sha256:390ce3d5c8f52bf94ae38fa06d04745de03507a72f4e38874a7584ddbb1f2e79",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "totale pagina 30"
+                },
+                {
+                    "handle": 2,
+                    "label": "righe film recenti e serie recenti"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "cardinality",
+                    "label": "totale pagina 30",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "block_roster",
+                    "label": "righe film recenti e serie recenti",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "pagination",
+                    "label": "pagina da 30",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "fallback cinema automatico",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:0292ef0221200ca8096938f0530a32df5a5dcc7bab5deb7616d5a3a8a6bd77f0"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T3",
+            "endpoint_qualified": "play.multiple_block_dem_titoli_momento",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.multiple_block_dem_titoli_momento:T2",
+            "instructions": "Dividi la pagina in almeno dieci blocchi e ventisette take complessivi: fallback cinema, film recenti, serie/fiction recenti, fiction e serie per te, originali, documentari più visti, programmi TV, soap e tre righe rese movibili; ciascuno deve avere Vedi tutto.",
+            "instruction_sha256": "sha256:698b7359ff62f9bd020e733267e0112128bab66c9ba472bc01a8478a92e20ab6",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "almeno dieci blocchi; conteggio esatto non specificato"
+                },
+                {
+                    "handle": 1,
+                    "label": "ventisette take totali"
+                },
+                {
+                    "handle": 2,
+                    "label": "otto ruoli nominati più tre righe movibili"
+                },
+                {
+                    "handle": 3,
+                    "label": "view-all su ciascun blocco"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "block_roster",
+                    "label": "almeno dieci blocchi; conteggio esatto non specificato",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "ventisette take totali",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "block_roster",
+                    "label": "otto ruoli nominati più tre righe movibili",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "presentation",
+                    "label": "view-all su ciascun blocco",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "block_roster",
+                    "label": "esattamente dieci blocchi",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "fetch_roster",
+                    "label": "ventisei take",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:0ed6adff0e150429d88960fa86ab8be69da6dd953b2e11cc1bbe48f12a7876da"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T4",
+            "endpoint_qualified": "play.multiple_block_dem_titoli_momento",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.multiple_block_dem_titoli_momento:T3",
+            "instructions": "Aggiungi un ramo clusterizzato e uno default; passa prima dalla personalizzazione e poi dal clustering. Nel ramo clusterizzato usa una riga 20 per 2 e un fallback sulla riga più recente, mentre il risultato finale riordina per affinità al profilo.",
+            "instruction_sha256": "sha256:d188ad65e78c1c1d6195e4989a3542b388395689fd24b78fabc44adce8d49e72",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "rami clustered e default guardati"
+                },
+                {
+                    "handle": 1,
+                    "label": "personalizzazione prima del clustering"
+                },
+                {
+                    "handle": 2,
+                    "label": "riga clustered take 20 per 2"
+                },
+                {
+                    "handle": 3,
+                    "label": "fallback recent solo clustered"
+                },
+                {
+                    "handle": 4,
+                    "label": "ordine finale clustered per affinità profilo"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "route_roster",
+                    "label": "rami clustered e default guardati",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pipeline",
+                    "label": "personalizzazione prima del clustering",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "cardinality",
+                    "label": "riga clustered take 20 per 2",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fallback",
+                    "label": "fallback recent solo clustered",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "order",
+                    "label": "ordine finale clustered per affinità profilo",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "pipeline",
+                    "label": "clustering prima della personalizzazione",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "fallback",
+                    "label": "fallback anche nel default",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:3fe866258a1b19e0edc50047d9cd73ba34b9c314b057c998278355e3f4b6be5c"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T2",
+            "endpoint_qualified": "play.tvod_multiple_block",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Catalogo video, 30 risultati totali e sezioni per genere.",
+            "instruction_sha256": "sha256:aec0a1186a4b53e94ed9946914082e5248d188e6be919d79a4b804e023761628",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "totale 30"
+                },
+                {
+                    "handle": 2,
+                    "label": "blocco condiviso con parametro genere obbligatorio"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "cardinality",
+                    "label": "totale 30",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "parameter",
+                    "label": "blocco condiviso con parametro genere obbligatorio",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "pagination",
+                    "label": "pagina da 30",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "parameter",
+                    "label": "genere hard-coded nel blocco",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:76d93a6bdc9eabc8dfff85fcf4f3a2d8c2fb951df3137591ce48b62d486f4d38"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T3",
+            "endpoint_qualified": "play.tvod_multiple_block",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.tvod_multiple_block:T2",
+            "instructions": "Crea undici istanze del blocco, una per famiglia/animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime e sportivo; conserva cinque take nel blocco condiviso, aggiungi una riga Perché hai visto con risposta expanded e usa alternative per selezionare i titoli migliori.",
+            "instruction_sha256": "sha256:fd846c6b8716ec0bda75647527ef9962229c504502bb61af788aab9308895cc3",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "undici istanze genere esatte"
+                },
+                {
+                    "handle": 1,
+                    "label": "cinque take nel blocco condiviso"
+                },
+                {
+                    "handle": 2,
+                    "label": "contesto watched e seed read-only"
+                },
+                {
+                    "handle": 3,
+                    "label": "riga Perché hai visto expanded"
+                },
+                {
+                    "handle": 4,
+                    "label": "alternative per selezionare i titoli migliori"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "instance_roster",
+                    "label": "undici istanze genere esatte",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fetch_roster",
+                    "label": "cinque take nel blocco condiviso",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "context",
+                    "label": "contesto watched e seed read-only",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "output",
+                    "label": "riga Perché hai visto expanded",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "pipeline",
+                    "label": "alternative per selezionare i titoli migliori",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "instance_roster",
+                    "label": "dieci istanze",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "output",
+                    "label": "riga personalizzata con risposta default",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:0519b4c0a40bc2bdbafb8a9def2a1b3a5e0d273463026002d954bcda8ac65976"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T4",
+            "endpoint_qualified": "play.tvod_multiple_block",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.tvod_multiple_block:T3",
+            "instructions": "Riordina le sezioni per affinità alla storia dell'utente e, in caso di errore, usa la pagina TVOD di errore; conserva i take interni, Vedi tutto e la paginazione snapshot.",
+            "instruction_sha256": "sha256:e4859d2dc26f6a994bcfecbf12f45db7229a3f542cdf5d6610aae873c824d939",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "sezioni ordinate per affinità alla storia utente"
+                },
+                {
+                    "handle": 1,
+                    "label": "on-error substitute tvod_error_page"
+                },
+                {
+                    "handle": 2,
+                    "label": "paginazione snapshot"
+                },
+                {
+                    "handle": 3,
+                    "label": "view-all sulle sezioni genere"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "order",
+                    "label": "sezioni ordinate per affinità alla storia utente",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "fallback",
+                    "label": "on-error substitute tvod_error_page",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "pagination",
+                    "label": "paginazione snapshot",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "presentation",
+                    "label": "view-all sulle sezioni genere",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "fallback su riga vuota",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "order",
+                    "label": "ordine alfabetico",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:517a724d5b4bb65c64eb0696f9c437ee950708b91220b124d1be19a6b51cd6b0"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T2",
+            "endpoint_qualified": "play.multiple_block4_k",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Usa insieme i cataloghi video e users, la paginazione snapshot e 20 risultati totali per riga; distingui HDR e SDR in base alla capacità del dispositivo.",
+            "instruction_sha256": "sha256:77160bbaaafbbcc3ded19ee022f90e32b89b481806fb4bd7662a993a39f14a38",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "cataloghi video e users"
+                },
+                {
+                    "handle": 1,
+                    "label": "paginazione snapshot"
+                },
+                {
+                    "handle": 2,
+                    "label": "totale 20 per ogni riga principale"
+                },
+                {
+                    "handle": 3,
+                    "label": "rami HDR e SDR guardati dalla capacità dispositivo"
+                },
+                {
+                    "handle": 4,
+                    "label": "input capacità 4K dispositivo"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "cataloghi video e users",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pagination",
+                    "label": "paginazione snapshot",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "cardinality",
+                    "label": "totale 20 per ogni riga principale",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "route_roster",
+                    "label": "rami HDR e SDR guardati dalla capacità dispositivo",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "input",
+                    "label": "input capacità 4K dispositivo",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "cardinality",
+                    "label": "pagina da 20",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "route_roster",
+                    "label": "un solo ramo 4K",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:7e6207090d847231730db1630e9f6f8f92db87d1c8a065a3b9875785cd58fa38"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T3",
+            "endpoint_qualified": "play.multiple_block4_k",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.multiple_block4_k:T2",
+            "instructions": "Distribuisci sei take complessivi nei rami: ciascuna riga principale da 20 deve avere un secondo take di ampliamento a 50; usa Vedi tutto, ordina i film per anno di produzione e riusa un blocco parametrico per genere con righe per azione/thriller, commedie, drammatico e classici.",
+            "instruction_sha256": "sha256:ce051052fe9f9c7ba9dd0af075ea284ee29184a3dc0b23720891785e9c7fcad3",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "sei take totali con coppie main 20 e expansion 50"
+                },
+                {
+                    "handle": 1,
+                    "label": "view-all sulle righe 4K"
+                },
+                {
+                    "handle": 2,
+                    "label": "film ordinati per anno produzione"
+                },
+                {
+                    "handle": 3,
+                    "label": "blocco genere con quattro istanze action-thriller commedie drammatico classici"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "fetch_roster",
+                    "label": "sei take totali con coppie main 20 e expansion 50",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "presentation",
+                    "label": "view-all sulle righe 4K",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "order",
+                    "label": "film ordinati per anno produzione",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "parameter",
+                    "label": "blocco genere con quattro istanze action-thriller commedie drammatico classici",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fetch_roster",
+                    "label": "otto take",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "cardinality",
+                    "label": "secondo take 40",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:683dba20fc8e4b531e50d24cf82e3f72688dfcd1a2aa5b73733fb1cd5d0f9688"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T4",
+            "endpoint_qualified": "play.multiple_block4_k",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.multiple_block4_k:T3",
+            "instructions": "Se non c'è una capacità 4K lascia la variante vuota; conserva anche la riga di serie/documentari e riordina il risultato finale per affinità alla storia.",
+            "instruction_sha256": "sha256:8765303eee8dc7a622891f03c176d221543a5b08c7828b73cc0ec1bbcaa2e13d",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "default senza capacità esplicitamente vuoto"
+                },
+                {
+                    "handle": 1,
+                    "label": "riga serie e documentari"
+                },
+                {
+                    "handle": 2,
+                    "label": "ordine finale per affinità alla storia"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "route_roster",
+                    "label": "default senza capacità esplicitamente vuoto",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "block_roster",
+                    "label": "riga serie e documentari",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "order",
+                    "label": "ordine finale per affinità alla storia",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "fallback",
+                    "label": "contenuti recenti nel default",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "order",
+                    "label": "ordine finale casuale",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:d0b157891412c05d8b4dcb04cf58adb5f8fa2041a96a2a3bc14f1df38cb0fc54"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T2",
+            "endpoint_qualified": "play.inf_multiple_block_film_serie",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Usa insieme i cataloghi video e users, la paginazione snapshot e sei righe per la pagina; ricava dal catalogo users il contesto utente e l'attributo has_fingerprint: se l'utente ha storia usa la personalizzazione, altrimenti una pagina anonima.",
+            "instruction_sha256": "sha256:0d47b2ddd1367002cd4f1ef9b3a2807ebac0e3c72b23aeb7ca28ff7f9ac8da76",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "cataloghi video e users"
+                },
+                {
+                    "handle": 1,
+                    "label": "paginazione snapshot"
+                },
+                {
+                    "handle": 2,
+                    "label": "budget sei righe per pagina"
+                },
+                {
+                    "handle": 3,
+                    "label": "contesto users e attributo has_fingerprint"
+                },
+                {
+                    "handle": 4,
+                    "label": "route personalized e anonymous guardate dal fingerprint"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "cataloghi video e users",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pagination",
+                    "label": "paginazione snapshot",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "cardinality",
+                    "label": "budget sei righe per pagina",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "context",
+                    "label": "contesto users e attributo has_fingerprint",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "route_roster",
+                    "label": "route personalized e anonymous guardate dal fingerprint",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "route_roster",
+                    "label": "solo route personalizzata",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "cardinality",
+                    "label": "sei risultati totali",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:a2b3ae2211358502c05d7c83086bc008cf40ea1a4274521af743c8e86c42b528"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T3",
+            "endpoint_qualified": "play.inf_multiple_block_film_serie",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.inf_multiple_block_film_serie:T2",
+            "instructions": "Dichiara quattro blocchi parametrici riusabili, film e serie per il percorso personalizzato e film e serie per quello anonimo, tutti con genere obbligatorio; crea dodici istanze complessive usando commedia, drammatico, azione, drama, comedy e crime in ciascun percorso.",
+            "instruction_sha256": "sha256:8fed0a8dbe43cabe3662385b91017b4661fc744a5c2a5e82d28b25e3feddb921",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "quattro blocchi parametrici film-serie per personalized-anonymous"
+                },
+                {
+                    "handle": 1,
+                    "label": "dodici istanze sei per route con commedia drammatico azione drama comedy crime"
+                },
+                {
+                    "handle": 2,
+                    "label": "genere obbligatorio; dichiarazioni singole e argomenti per istanza"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "block_roster",
+                    "label": "quattro blocchi parametrici film-serie per personalized-anonymous",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "instance_roster",
+                    "label": "dodici istanze sei per route con commedia drammatico azione drama comedy crime",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "parameter",
+                    "label": "genere obbligatorio; dichiarazioni singole e argomenti per istanza",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "instance_roster",
+                    "label": "sei istanze totali",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "parameter",
+                    "label": "genere opzionale",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:d32de655756a43745a299669369b0a7b50c951772c6796703cf303a1494a6c6b"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T4",
+            "endpoint_qualified": "play.inf_multiple_block_film_serie",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.inf_multiple_block_film_serie:T3",
+            "instructions": "Ogni riga deve avere Vedi tutto; nella pagina personalizzata ordina le righe per affinità al fingerprint e lascia quella anonima in ordine fisso.",
+            "instruction_sha256": "sha256:2d8ce4ca67c06a05bb805b1cdc713e986cf77c305fb72df9f7d45ae335f7062a",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "view-all su ogni riga"
+                },
+                {
+                    "handle": 1,
+                    "label": "personalized ordinato per affinità fingerprint"
+                },
+                {
+                    "handle": 2,
+                    "label": "anonymous in ordine fisso"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "presentation",
+                    "label": "view-all su ogni riga",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "order",
+                    "label": "personalized ordinato per affinità fingerprint",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "order",
+                    "label": "anonymous in ordine fisso",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "order",
+                    "label": "smart order anche anonymous",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "presentation",
+                    "label": "view-all solo personalized",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:52eabf63b3ebda913904360a37839a05f5738773bf91d1699540778c1d7d76dc"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T2",
+            "endpoint_qualified": "play.similar_intrat_abtest",
+            "turn": 2,
+            "generation": 0,
+            "parent_stage_id": null,
+            "instructions": "Catalogo video, una riga da 24 risultati totali usando il contenuto visto come seed.",
+            "instruction_sha256": "sha256:6897bcbbb7dea3f185c6799e8d75ca30160ce51cedcf36651c743b5c951d0093",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "catalogo video"
+                },
+                {
+                    "handle": 1,
+                    "label": "seed dal contenuto visto"
+                },
+                {
+                    "handle": 2,
+                    "label": "consumer intrattenimento con totale 24"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "catalog",
+                    "label": "catalogo video",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "context",
+                    "label": "seed dal contenuto visto",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "fetch_roster",
+                    "label": "consumer intrattenimento con totale 24",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "pagination",
+                    "label": "pagina da 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "intrat_recent anticipato",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:99ed9c8b947ad6f1677d496001c383556743362745d997ade86b83d2ff010037"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T3",
+            "endpoint_qualified": "play.similar_intrat_abtest",
+            "turn": 3,
+            "generation": 1,
+            "parent_stage_id": "play.similar_intrat_abtest:T2",
+            "instructions": "Costruisci quattro pool candidati da 50 elementi ciascuno: episodi dello stesso programma, clip/extra, episodi di intrattenimento e clip di intrattenimento; usa una finestra di 18 mesi per gli episodi, 14 giorni per i contenuti recenti e raggruppa per programma.",
+            "instruction_sha256": "sha256:1f881d8fd9747381dcb686b18b50b71f04b3e90a5df3e976617f03ca26921ae3",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "quattro pool distinti da 50"
+                },
+                {
+                    "handle": 1,
+                    "label": "finestre episodi 18M e recenti 14d"
+                },
+                {
+                    "handle": 2,
+                    "label": "pool raggruppati per programma"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "context",
+                    "label": "quattro pool distinti da 50",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "temporal_window",
+                    "label": "finestre episodi 18M e recenti 14d",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "output",
+                    "label": "pool raggruppati per programma",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "context",
+                    "label": "tre pool da 50",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "temporal_window",
+                    "label": "finestra recenti 30d",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:c160fd002db393c009cd89c75b910944e10e3f690d3693b52af53114921ce9f7"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T4",
+            "endpoint_qualified": "play.similar_intrat_abtest",
+            "turn": 4,
+            "generation": 2,
+            "parent_stage_id": "play.similar_intrat_abtest:T3",
+            "instructions": "Nel consumer usa un primo take da 4 e uno finale da 24, combina i pool con alternative best-plus-near-full, promuovi contenuti recenti, deduplica e limita a 24; se gli elementi piatti sono meno di uno aggiungi in coda il fallback intrat_recent.",
+            "instruction_sha256": "sha256:4eb4d2520f1fdc5a5e560c225b70aa536547af9605c9a5f18a47ac67ca483275",
+            "requirements": [
+                {
+                    "handle": 0,
+                    "label": "consumer take primo 4 e finale 24"
+                },
+                {
+                    "handle": 1,
+                    "label": "quattro pool combinati best-plus-near-full"
+                },
+                {
+                    "handle": 2,
+                    "label": "promozione contenuti recenti"
+                },
+                {
+                    "handle": 3,
+                    "label": "deduplicate e limite 24"
+                },
+                {
+                    "handle": 4,
+                    "label": "append intrat_recent sotto un elemento piatto"
+                }
+            ],
+            "candidates": [
+                {
+                    "handle": 0,
+                    "kind": "fetch_roster",
+                    "label": "consumer take primo 4 e finale 24",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 1,
+                    "kind": "pipeline",
+                    "label": "quattro pool combinati best-plus-near-full",
+                    "requirement_handles": [
+                        1
+                    ]
+                },
+                {
+                    "handle": 2,
+                    "kind": "order",
+                    "label": "promozione contenuti recenti",
+                    "requirement_handles": [
+                        2
+                    ]
+                },
+                {
+                    "handle": 3,
+                    "kind": "output",
+                    "label": "deduplicate e limite 24",
+                    "requirement_handles": [
+                        3
+                    ]
+                },
+                {
+                    "handle": 4,
+                    "kind": "fallback",
+                    "label": "append intrat_recent sotto un elemento piatto",
+                    "requirement_handles": [
+                        4
+                    ]
+                },
+                {
+                    "handle": 5,
+                    "kind": "fallback",
+                    "label": "intrat_recent substitute",
+                    "requirement_handles": [
+                        0
+                    ]
+                },
+                {
+                    "handle": 6,
+                    "kind": "output",
+                    "label": "limite finale 30",
+                    "requirement_handles": [
+                        0
+                    ]
+                }
+            ],
+            "authority_sha256": "sha256:bfd5e141f2b4f60b3e12dfeae485b9e25f0cda9055ae4fdaa9b8b70a93a4139c"
+        }
+    ],
+    "oracle_stages": [
+        {
+            "stage_id": "play.similar_cinema:T2",
+            "authority_sha256": "sha256:24e67610ce22239a32a4adbcd7f7625bac816264d1aa8762cf23c173401ac70b",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "add read-only seed context from watched content",
+                    "add one film-similarity consumer row with total = 24"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; one film-similarity row; total 24"
+            ],
+            "preserve_assertions": [
+                "no page mode; no branch; no fallback"
+            ],
+            "oracle_sha256": "sha256:ae6c7e0b4e03e0a3521bc9938e345b798c3c3d2421c51bd8672a0f6a3604f19e"
+        },
+        {
+            "stage_id": "play.similar_cinema:T3",
+            "authority_sha256": "sha256:c254e32e2c10054062c37d70d96c80bc568cb23aecf1a242cfea944f144ce168",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add main row",
+                    "add guarded branches = HDR, SDR, Infinity, Noleggio",
+                    "set endpoint take quota = 10 across main plus four branches, minimum one each",
+                    "add branch-local candidate similarity to seed",
+                    "add main order by publication date descending"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; total 24; main plus four branches; ten takes; branch similarity; main date order"
+            ],
+            "preserve_assertions": [
+                "no fallback; total 24 unchanged"
+            ],
+            "oracle_sha256": "sha256:54f5dfb0aca73066c50103700b1731115ea4c050844503320bb3a767a9c950c9"
+        },
+        {
+            "stage_id": "play.similar_cinema:T4",
+            "authority_sha256": "sha256:834655389c62442cce7ea4f61031764904f28afd4c12dcbd1c49a860f1114582",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add empty fallback only to main row targeting most_recent_film_2 in substitute mode",
+                    "add alternatives pipeline only to candidate branches",
+                    "set final output limit = 24"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; main plus HDR SDR Infinity Noleggio; ten takes; main fallback; alternatives; final 24"
+            ],
+            "preserve_assertions": [
+                "four branch guards unchanged; seed unchanged; fallback main-only"
+            ],
+            "oracle_sha256": "sha256:37cb329a8964d8ed2570d74a423b86f984f3fea2f0790f55ad85074193546b40"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T2",
+            "authority_sha256": "sha256:bde01295d592579602f9b3dd797431c29e3baaee3472a71a56ed8d799aa587b6",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "add read-only seed context from watched content",
+                    "add one series-fiction consumer row with total = 24"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; one series-fiction row; total 24"
+            ],
+            "preserve_assertions": [
+                "no fallback; no guessed history field"
+            ],
+            "oracle_sha256": "sha256:5d0cb5906b416753bd4d7d4c9f1a6a9a934d0af7863d546441ddea64c7c73f39"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T3",
+            "authority_sha256": "sha256:e0752a426422ae036e56afe444269537d126da01ed2a490b2b7bf487ed09cbcb",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add guarded routes = Infinity, non-Infinity-MediasetPlay-Noleggio, general",
+                    "set endpoint take quota = 9 across three routes, minimum one each",
+                    "add reusable recent-episode row",
+                    "add seed similarity to route candidates"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; total 24; three routes; nine takes; reusable recent row"
+            ],
+            "preserve_assertions": [
+                "no fallback yet; original 24-row retained"
+            ],
+            "oracle_sha256": "sha256:d81775172c5dc90435c5e7088f82f0b1b3f2595f300c72e90f442f3be897160e"
+        },
+        {
+            "stage_id": "play.similar_serie_tv_fiction:T4",
+            "authority_sha256": "sha256:46c30986deb88fc643562c97ab9a6e627034074ac3b510a34c13813f90411c94",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add empty substitute fallback to eligible routes targeting recent-episode row",
+                    "add main take total 24 with over-fetch multiplier 2",
+                    "add shuffle only to clip row whose take is 5"
+                ]
+            },
+            "cumulative_assertions": [
+                "seed; three routes; nine takes; recent fallback; main 24 times 2; clip-5 shuffle"
+            ],
+            "preserve_assertions": [
+                "route guards unchanged; non-target takes unchanged"
+            ],
+            "oracle_sha256": "sha256:71909aea218e12bab13b2d183774689d12170c104864bb754a7d9822d13dd979"
+        },
+        {
+            "stage_id": "search.filtered_search:T2",
+            "authority_sha256": "sha256:d5c6cbc19dfba05b700dccf937f51c0e13aa78be6394417b8217ff46b1310255",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "set pagination mode = page and page size = 50",
+                    "add external inputs = query, channel",
+                    "add query normalization before lookup",
+                    "add reusable search row with view-all and relevance then title order"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; page 50; query and channel inputs; normalization; reusable search row"
+            ],
+            "preserve_assertions": [
+                "inputs remain external; no editorial value fabricated; no fallback"
+            ],
+            "oracle_sha256": "sha256:63228e6ed6ce86f71ff2d6301455ad2d7e64b32e275bfecb53568eef06c3bd14"
+        },
+        {
+            "stage_id": "search.filtered_search:T3",
+            "authority_sha256": "sha256:b69e79e949646da084ad32848ac4dc546fecbcbf96c8f55099f350a021bae01f",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add seven guarded routes = all, programs-series, movies, videos, free-for-you, Mediaset-Italia-no-query, default",
+                    "set endpoint take quota = 14 across seven routes, minimum one each",
+                    "add title-person-genre alternatives only to query routes and preserve ranking"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; page 50; inputs; seven routes; fourteen takes; query alternatives"
+            ],
+            "preserve_assertions": [
+                "page 50 unchanged; every route has a guard"
+            ],
+            "oracle_sha256": "sha256:3eee2bf31e63e3e401335d902600cb56d22f27414b82a8293e819a3a2673c37e"
+        },
+        {
+            "stage_id": "search.filtered_search:T4",
+            "authority_sha256": "sha256:70b524521303f321b6f63d0a12ae69087eb88a5b229e9e552788f9779d783dc9",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add view-all coverage to all seven routes",
+                    "add empty-page substitute fallback policy but require separately authorized target",
+                    "add default append fallback policy when flat items are below 1 but require separately authorized target"
+                ]
+            },
+            "cumulative_assertions": [
+                "seven routes; fourteen takes; view-all everywhere; substitute page fallback; append default fallback"
+            ],
+            "preserve_assertions": [
+                "query semantics and page 50 unchanged; no fallback target invented"
+            ],
+            "oracle_sha256": "sha256:74c6a243ad4e9357cff4560d1574c3dd8e4d35920028a5f9c8097f2929f71dd5"
+        },
+        {
+            "stage_id": "search.detail:T2",
+            "authority_sha256": "sha256:40cca8730df1cdbce668616d6492b3b76558ad7330b87c71856481e56ec4a3f0",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "add external inputs = query, variant, channel, capability_4k",
+                    "derive attributes = has_query, has_channel, inf_channel",
+                    "add initial empty-safe search block"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; four inputs; three derived attributes; initial search block"
+            ],
+            "preserve_assertions": [
+                "no hard-coded catalog value"
+            ],
+            "oracle_sha256": "sha256:9f0f1dbabc0091058cb784693df8fb2264529cc303dac2043bf2daad44dde427"
+        },
+        {
+            "stage_id": "search.detail:T3",
+            "authority_sha256": "sha256:dcf499c50ec2d598925a30bf310cda9173f421324520785420b5ab19e0a30bed",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add three reusable blocks = default-videos, series-programs, seasons",
+                    "add per-block channel/query conditional takes; exact count remains unresolved",
+                    "add deduplicate output to each of the three blocks"
+                ]
+            },
+            "cumulative_assertions": [
+                "four inputs; three attributes; three reusable blocks; conditional takes count unresolved; deduplicate"
+            ],
+            "preserve_assertions": [
+                "no route yet; no invented take count"
+            ],
+            "oracle_sha256": "sha256:393bc06344c51763b3b654c601cf9d18b38ed46a0ec3f2850a975a805b0e82d0"
+        },
+        {
+            "stage_id": "search.detail:T4",
+            "authority_sha256": "sha256:222962c1b7817351d4694cd70c723c4745a04e313c4cbcbedc1653e8d5d33c18",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add nine guarded routes = searchedVideo, brand, clip, fep, movie, Infinity-1, Infinity-2, Infinity-3, default",
+                    "bind each route to one of the existing three blocks",
+                    "add dedicated template and searchDetailParams contract to clip, fep and movie; values require authority"
+                ]
+            },
+            "cumulative_assertions": [
+                "inputs and attributes; three blocks; nine guarded routes; dedicated clip-fep-movie metadata"
+            ],
+            "preserve_assertions": [
+                "query matching and take cardinalities unchanged; metadata values not invented"
+            ],
+            "oracle_sha256": "sha256:0d25f42b6ab1060e758d6de0cd36366979ace08d50bb8919d6decfc96252f5cc"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T2",
+            "authority_sha256": "sha256:f3b2e2aedf5a475a7677912a35920748090d32044e9490d188a268f773755e37",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video plus users",
+                    "set pagination = snapshot",
+                    "add read-only user and seed context",
+                    "defer global limit to block-local counts"
+                ]
+            },
+            "cumulative_assertions": [
+                "video plus users; snapshot; user and seed; no global limit"
+            ],
+            "preserve_assertions": [
+                "no unexplained finite predicate; no Apply"
+            ],
+            "oracle_sha256": "sha256:c319dc7a6c34dd4fa53f262fabc7da86cf7387e6da63f53da07388f2553b5e93"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T3",
+            "authority_sha256": "sha256:e2f0ea5e55f6365f4574e960d5e2fb42dbb185ddd3a9a8fb6feaa3a9c587a309",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add 11 roles = recent movies, cinema fallback, cluster-similar movies, recent entertainment, TV programs, documentaries, chosen fiction-series, cluster-similar soap, kids, recent information, similar information-sport",
+                    "set endpoint take quota = 26 across eleven distinct roles",
+                    "add view-all to reused blocks",
+                    "add alternatives only where a similarity profile exists",
+                    "add row-specific ordering"
+                ]
+            },
+            "cumulative_assertions": [
+                "snapshot; user-seed; eleven roles; 26 takes; view-all; scoped alternatives; row orders"
+            ],
+            "preserve_assertions": [
+                "roles remain distinct; no global limit"
+            ],
+            "oracle_sha256": "sha256:553d126c7881b52ef9ded46a646449740ea746cd3bc8fa838aa80662cb0caa44"
+        },
+        {
+            "stage_id": "play.multiple_block_compleanno:T4",
+            "authority_sha256": "sha256:82ac0fea0686b956529e32e3fe566f789b2ffe3a95650b41d08e3e3d9e35397c",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add empty fallback from each clustered row to the most-recent row of the same thematic area",
+                    "add guarded routes = ciak, static",
+                    "require distinct final caps for the two routes; exact cap values remain unresolved"
+                ]
+            },
+            "cumulative_assertions": [
+                "eleven roles; 26 takes; same-area fallbacks; ciak and static; distinct unresolved caps"
+            ],
+            "preserve_assertions": [
+                "view-all and row orders unchanged; no cross-area fallback"
+            ],
+            "oracle_sha256": "sha256:59b7f726dd287db5a304ecee2cbdd7ec7173591ff5b1dd611c7d6472f43bdcf3"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T2",
+            "authority_sha256": "sha256:0292ef0221200ca8096938f0530a32df5a5dcc7bab5deb7616d5a3a8a6bd77f0",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "set page result mode = total and value = 30",
+                    "add recent-movie and recent-series rows"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; total 30; recent movie and series rows"
+            ],
+            "preserve_assertions": [
+                "no pagination; no fallback"
+            ],
+            "oracle_sha256": "sha256:aaabb94984f0926fe2760644555e622c6ede769f482df8a479a5921d0a31f62a"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T3",
+            "authority_sha256": "sha256:0ed6adff0e150429d88960fa86ab8be69da6dd953b2e11cc1bbe48f12a7876da",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set block minimum = 10; do not infer an exact block count",
+                    "set endpoint take quota = 27",
+                    "add named roles = cinema fallback, recent movies, recent series-fiction, fiction-series for you, originals, most-viewed documentaries, TV programs, soap; add three movable rows",
+                    "add view-all to every block"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; total 30; at least ten blocks; 27 takes; eight named roles plus three movable rows; view-all"
+            ],
+            "preserve_assertions": [
+                "movable is instance metadata; filters unchanged"
+            ],
+            "oracle_sha256": "sha256:4d80eddf23e91831c8cfee0833cd30781d780a2f0aff2d706411d4ee2986aea6"
+        },
+        {
+            "stage_id": "play.multiple_block_dem_titoli_momento:T4",
+            "authority_sha256": "sha256:3fe866258a1b19e0edc50047d9cd73ba34b9c314b057c998278355e3f4b6be5c",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add guarded routes = clustered, default",
+                    "set input pipeline order = personalization then clustering",
+                    "add clustered-row take total 20 with over-fetch multiplier 2",
+                    "add empty substitute fallback only in clustered route targeting most-recent row",
+                    "add clustered final order by profile similarity descending"
+                ]
+            },
+            "cumulative_assertions": [
+                "at least ten blocks; 27 takes; movable rows; two routes; personalization then clustering; 20 times 2; clustered fallback; similarity order"
+            ],
+            "preserve_assertions": [
+                "no fallback in default; base total 30 unchanged"
+            ],
+            "oracle_sha256": "sha256:d61bf50fda3dc8a7a1607c143b50faeeba84163601bd8c1f3f3951a5f234e0a7"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T2",
+            "authority_sha256": "sha256:76d93a6bdc9eabc8dfff85fcf4f3a2d8c2fb951df3137591ce48b62d486f4d38",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "set result mode = total and value = 30",
+                    "add one shared parameterized block with required genre parameter"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; total 30; one shared genre-parameter block"
+            ],
+            "preserve_assertions": [
+                "no hard-coded genre; no fallback"
+            ],
+            "oracle_sha256": "sha256:70828f62baef858d6ef002df3a2ad4e0d3edc125bb1676491dcdb4fdc0925f25"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T3",
+            "authority_sha256": "sha256:0519b4c0a40bc2bdbafb8a9def2a1b3a5e0d273463026002d954bcda8ac65976",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add 11 genre instances = famiglia-animazione, azione, commedia, drammatico, horror, thriller, fantascienza, avventura, biografico, crime, sportivo",
+                    "set shared block take count = 5",
+                    "add read-only watched and seed context",
+                    "add Perché hai visto row with expanded projection",
+                    "add alternatives pipeline for best-title selection"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; total 30; one shared block with five takes; eleven exact instances; watched-seed; expanded row; alternatives"
+            ],
+            "preserve_assertions": [
+                "shared declaration remains single; genre args remain instance-scoped"
+            ],
+            "oracle_sha256": "sha256:63ae7c9432b9055d731ae1b6217399bd49282dc4e403b2f333566c7a6725a6d1"
+        },
+        {
+            "stage_id": "play.tvod_multiple_block:T4",
+            "authority_sha256": "sha256:517a724d5b4bb65c64eb0696f9c437ee950708b91220b124d1be19a6b51cd6b0",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add section order by user-history similarity descending",
+                    "add substitute fallback on error targeting tvod_error_page",
+                    "set pagination = snapshot",
+                    "add view-all to genre sections"
+                ]
+            },
+            "cumulative_assertions": [
+                "shared five-take block; eleven genres; expanded row; user-history order; on-error fallback; snapshot; view-all"
+            ],
+            "preserve_assertions": [
+                "genre args and internal takes unchanged; no empty-row fallback"
+            ],
+            "oracle_sha256": "sha256:8afb3c027726d35e5c8c5e93d35348ac13a1dad9a4b4f98659adc666d21b6095"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T2",
+            "authority_sha256": "sha256:7e6207090d847231730db1630e9f6f8f92db87d1c8a065a3b9875785cd58fa38",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video plus users",
+                    "set pagination = snapshot",
+                    "set each main row total = 20",
+                    "add guarded routes = HDR, SDR based on device 4K capability",
+                    "add external device 4K capability input"
+                ]
+            },
+            "cumulative_assertions": [
+                "video plus users; snapshot; 20 per row; capability input; guarded HDR and SDR"
+            ],
+            "preserve_assertions": [
+                "no default content without capability"
+            ],
+            "oracle_sha256": "sha256:0c076d0856296c7005dc386491c4be1761e93207dbdbedc63367521ea0c183f3"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T3",
+            "authority_sha256": "sha256:683dba20fc8e4b531e50d24cf82e3f72688dfcd1a2aa5b73733fb1cd5d0f9688",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set endpoint take quota = 6 and each main row pair = 20 then 50",
+                    "add view-all to 4K rows",
+                    "add film order by production year descending",
+                    "add reusable required-genre block with instances = action-thriller, comedies, drama, classics"
+                ]
+            },
+            "cumulative_assertions": [
+                "HDR and SDR; six 20-50 takes; view-all; film year order; genre block with four instances"
+            ],
+            "preserve_assertions": [
+                "capability guards separate; genre args instance-scoped"
+            ],
+            "oracle_sha256": "sha256:ec1e1513390de206d5b290103aa8139df90b24f1d475205191da032ff83c8ef1"
+        },
+        {
+            "stage_id": "play.multiple_block4_k:T4",
+            "authority_sha256": "sha256:d0b157891412c05d8b4dcb04cf58adb5f8fa2041a96a2a3bc14f1df38cb0fc54",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add guarded no-4K-capability default route with empty = true",
+                    "add non-film row for series and documentaries",
+                    "add final order by user-history similarity descending"
+                ]
+            },
+            "cumulative_assertions": [
+                "snapshot; HDR-SDR; six paired takes; genre rows; view-all; empty default; series-documentaries; final similarity order"
+            ],
+            "preserve_assertions": [
+                "no fallback content in default; previous counts and local orders unchanged"
+            ],
+            "oracle_sha256": "sha256:19b72d582ba6e407256fa6e5bf098baeaf5806032c912a60647bbf8ac2768eeb"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T2",
+            "authority_sha256": "sha256:a2b3ae2211358502c05d7c83086bc008cf40ea1a4274521af743c8e86c42b528",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video plus users",
+                    "set pagination = snapshot",
+                    "set page row budget = 6",
+                    "add users context and derive has_fingerprint",
+                    "add guarded routes = personalized when fingerprint exists, anonymous otherwise"
+                ]
+            },
+            "cumulative_assertions": [
+                "video plus users; snapshot; six rows; users context; has_fingerprint; two guarded routes"
+            ],
+            "preserve_assertions": [
+                "no genre invented; route selected only by guard"
+            ],
+            "oracle_sha256": "sha256:06b9030195d9ece100adab41b1d05f13060e1c45ab38e378c8856c884b548ec6"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T3",
+            "authority_sha256": "sha256:d32de655756a43745a299669369b0a7b50c951772c6796703cf303a1494a6c6b",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add four reusable blocks = personalized movies, personalized series, anonymous movies, anonymous series; required genre parameter",
+                    "add 12 instances, six per route, using exactly commedia, drammatico, azione, drama, comedy, crime",
+                    "keep block declarations single and genre args instance-scoped"
+                ]
+            },
+            "cumulative_assertions": [
+                "two routes and six rows; four required-genre blocks; twelve instances; exact six values per route"
+            ],
+            "preserve_assertions": [
+                "no extra genre; no duplicated block declaration"
+            ],
+            "oracle_sha256": "sha256:9142a7df803facaa8e409c1ade5e9009a8c283616f29cc1fde11d2c58a131c26"
+        },
+        {
+            "stage_id": "play.inf_multiple_block_film_serie:T4",
+            "authority_sha256": "sha256:52eabf63b3ebda913904360a37839a05f5738773bf91d1699540778c1d7d76dc",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add view-all to every row",
+                    "add personalized row order by fingerprint similarity descending",
+                    "set anonymous row order = fixed"
+                ]
+            },
+            "cumulative_assertions": [
+                "snapshot; two routes; four blocks; twelve instances; view-all everywhere; personalized similarity order; anonymous fixed"
+            ],
+            "preserve_assertions": [
+                "genre args and block filters unchanged; no cross-route smart order"
+            ],
+            "oracle_sha256": "sha256:a6730ac1c4889ac66ee2e7221d854a87bdcfbc3389cdbd71d870b0837bbe82e9"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T2",
+            "authority_sha256": "sha256:99ed9c8b947ad6f1677d496001c383556743362745d997ade86b83d2ff010037",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set catalogs = video",
+                    "add read-only seed context from watched content",
+                    "add one similar-entertainment consumer row with total = 24"
+                ]
+            },
+            "cumulative_assertions": [
+                "video; seed; consumer total 24"
+            ],
+            "preserve_assertions": [
+                "no pool; no fallback; no finite value invented"
+            ],
+            "oracle_sha256": "sha256:410bc0339524730dadc438c934b329235a50c878db4a4f2b56c04c1f9943e289"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T3",
+            "authority_sha256": "sha256:c160fd002db393c009cd89c75b910944e10e3f690d3693b52af53114921ce9f7",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "add four candidate pools with 50 each = same-program episodes, clip-extra, entertainment episodes, entertainment clips",
+                    "set episode window = 18M and recent-content window = 14d",
+                    "group each candidate pool by program"
+                ]
+            },
+            "cumulative_assertions": [
+                "seed and consumer 24; four pools of 50; 18M and 14d windows; grouped by program"
+            ],
+            "preserve_assertions": [
+                "candidate pools are context, not direct output; no fallback yet"
+            ],
+            "oracle_sha256": "sha256:924feebddc03d4265368712a686339e21542d995a6b25f79a254c7e819294f6c"
+        },
+        {
+            "stage_id": "play.similar_intrat_abtest:T4",
+            "authority_sha256": "sha256:bfd5e141f2b4f60b3e12dfeae485b9e25f0cda9055ae4fdaa9b8b70a93a4139c",
+            "selected_candidate_handles": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "exact_delta": {
+                "mode": "create",
+                "operations": [
+                    "set consumer takes = first 4 and final 24",
+                    "combine all four pools with best-plus-near-full alternatives",
+                    "promote recent content",
+                    "deduplicate consumer and set final limit = 24",
+                    "add append fallback targeting intrat_recent when nested flat items are below 1"
+                ]
+            },
+            "cumulative_assertions": [
+                "seed; four 50 pools; windows; consumer 4 and 24; best-plus-near-full; promotion; deduplicate; final 24; append fallback"
+            ],
+            "preserve_assertions": [
+                "all pools and windows unchanged; fallback is append not substitute"
+            ],
+            "oracle_sha256": "sha256:f84da386c49e8b9e66aab8f4ae8950190bc93df446a99f92b04ed8b01fe8391e"
+        }
+    ]
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis.local/schemas/metis-brain-dialogue-v2.schema.json",
+  "title": "Metis Brain dialogue v2 public envelopes",
+  "description": "Private authority bindings and history never enter this wire. Runtime validators additionally enforce UTF-8 byte bounds, distinct question references and nonempty message-or-answer input.",
+  "oneOf": [{"$ref": "#/$defs/answerEnvelope"}, {"$ref": "#/$defs/pending"}],
+  "$defs": {
+    "optionRef": {"type": "string", "pattern": "^opt_[A-Za-z0-9._:/-]+$", "maxLength": 256},
+    "questionRef": {"type": "string", "pattern": "^q_[A-Za-z0-9._:/-]+$", "maxLength": 256},
+    "clarificationRef": {"type": "string", "pattern": "^clr_[A-Za-z0-9._:/-]+$", "maxLength": 256},
+    "kind": {"enum": ["catalog", "semantic_choice", "result_count", "response_shape", "fallback", "structural_choice"]},
+    "answerValue": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["option_ref"], "properties": {"option_ref": {"$ref": "#/$defs/optionRef"}}},
+        {"type": "object", "additionalProperties": false, "required": ["option_refs"], "properties": {"option_refs": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"$ref": "#/$defs/optionRef"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["integer"], "properties": {"integer": {"type": "integer", "minimum": 1, "maximum": 1000000}}}
+      ]
+    },
+    "answer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["question_ref", "value"],
+      "properties": {"question_ref": {"$ref": "#/$defs/questionRef"}, "value": {"$ref": "#/$defs/answerValue"}}
+    },
+    "answerEnvelope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "request_id", "clarification_id", "message", "answers"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "request_id": {"type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"},
+        "clarification_id": {"$ref": "#/$defs/clarificationRef"},
+        "message": {"type": ["string", "null"], "minLength": 1, "maxLength": 65536},
+        "answers": {"type": "array", "maxItems": 5, "items": {"$ref": "#/$defs/answer"}}
+      },
+      "anyOf": [{"properties": {"message": {"type": "string", "pattern": "\\S"}}}, {"properties": {"answers": {"minItems": 1}}}]
+    },
+    "option": {
+      "type": "object", "additionalProperties": false,
+      "required": ["option_ref", "label"],
+      "properties": {
+        "option_ref": {"$ref": "#/$defs/optionRef"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 256},
+        "description": {"type": "string", "minLength": 1, "maxLength": 1024}
+      }
+    },
+    "answerSchema": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["type"], "properties": {"type": {"const": "option_ref"}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "minimum", "maximum"], "properties": {"type": {"enum": ["integer", "option_refs"]}, "minimum": {"type": "integer", "minimum": 1, "maximum": 1000000}, "maximum": {"type": "integer", "minimum": 1, "maximum": 1000000}}}
+      ]
+    },
+    "question": {
+      "type": "object", "additionalProperties": false,
+      "required": ["question_ref", "kind", "question", "answer_schema", "options"],
+      "properties": {
+        "question_ref": {"$ref": "#/$defs/questionRef"},
+        "kind": {"$ref": "#/$defs/kind"},
+        "question": {"type": "string", "minLength": 1, "maxLength": 512},
+        "answer_schema": {"$ref": "#/$defs/answerSchema"},
+        "options": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/option"}}
+      }
+    },
+    "pending": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "clarification_id", "questions", "round", "max_rounds"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "clarification_id": {"$ref": "#/$defs/clarificationRef"},
+        "questions": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"$ref": "#/$defs/question"}},
+        "round": {"type": "integer", "minimum": 1, "maximum": 3},
+        "max_rounds": {"type": "integer", "minimum": 1, "maximum": 3},
+        "expires_in_seconds": {"type": "number", "minimum": 0, "maximum": 1200}
+      }
+    }
+  }
+}

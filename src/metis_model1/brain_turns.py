@@ -18,7 +18,21 @@ from metis_model1.brain_clarifications import (
     clarification_reference,
     clarification_text,
 )
-from metis_model1.brain_model_runtime import BrainModelRuntime
+from metis_model1.brain_create_ir import CreateIrStageProof, isolated_ir, verify_ir_stage
+from metis_model1.brain_create_surface import (
+    CreateAuthorityHistoryMessage,
+    CreateAuthoritySurfaceError,
+    create_authority_history_revision,
+)
+from metis_model1.brain_dialogue_contract import (
+    DialogueAnswer,
+    DialogueAnswerEnvelope,
+    DialogueBinding,
+    PendingClarificationV2,
+    PrivateDialogueState,
+    answer_roster,
+)
+from metis_model1.brain_model_runtime import MAX_CREATE_PLAN_MESSAGES, BrainModelRuntime
 from metis_model1.brain_protocol import (
     MAX_SOURCE_BYTES,
     BrainError,
@@ -39,6 +53,9 @@ _INTENTS = frozenset({"create", "edit", "repair", "review", "migrate"})
 MAX_SESSION_TURNS = 64
 HEARTBEAT_INTERVAL_SECONDS = 4.0
 MAX_EVENT_METRIC = 1_000_000
+TYPED_CREATE_QUALIFICATION_RECEIPT_CONTRACT = "metis-brain-typed-create-qualification-receipt/v1"
+TYPED_CREATE_CLARIFICATION_RECEIPT_CONTRACT = "metis-brain-typed-create-clarification-receipt/v1"
+_CREATE_PARENT_UNAVAILABLE = object()
 _EVENTS = frozenset(
     {
         "turn.accepted",
@@ -114,10 +131,10 @@ class TurnRequest:
     expected_context_revision: str
     expected_semantic_source_revision: str
     intent: str
-    instruction: str
+    instruction: str = field(repr=False)
     target: dict[str, Any]
     basis: dict[str, str] | None
-    clarification_response: dict[str, Any] | None
+    clarification_response: dict[str, Any] | None = field(repr=False)
     server_clarification: dict[str, Any] | None = field(
         default=None,
         compare=False,
@@ -138,6 +155,7 @@ class TurnRequest:
         compare=False,
         repr=False,
     )
+    server_dialogue: PrivateDialogueState | None = field(default=None, compare=False, repr=False)
 
     @classmethod
     def parse(cls, value: dict[str, Any]) -> TurnRequest:
@@ -287,11 +305,18 @@ class TurnRequest:
         option_ref = response.get("option_ref")
         return {"option_ref": option_ref} if isinstance(option_ref, str) else None
 
+    @property
+    def dialogue_answer(self) -> DialogueAnswerEnvelope | None:
+        value = self.clarification_response
+        if isinstance(value, dict) and value.get("schema_version") == 2:
+            return DialogueAnswerEnvelope.parse(value)
+        return None
+
     def with_server_clarification(self, value: dict[str, Any]) -> TurnRequest:
         return replace(self, server_clarification=dict(value))
 
     def with_server_basis_grounding(self, value: dict[str, Any]) -> TurnRequest:
-        return replace(self, server_basis_grounding=dict(value))
+        return replace(self, server_basis_grounding=deepcopy(value))
 
     def with_server_flash_intent(self, value: dict[str, Any]) -> TurnRequest:
         """Attach validated, volatile intent context without changing client identity."""
@@ -323,10 +348,21 @@ class ClarificationAnswerRequest:
     schema_version: int
     request_id: str
     clarification_id: str
-    answer: dict[str, Any]
+    answer: dict[str, Any] | None = None
+    message: str | None = field(default=None, repr=False)
+    answers: tuple[DialogueAnswer, ...] = field(default=(), repr=False)
 
     @classmethod
     def parse(cls, value: dict[str, Any]) -> ClarificationAnswerRequest:
+        if value.get("schema_version") == 2:
+            parsed = DialogueAnswerEnvelope.parse(value)
+            return cls(
+                2,
+                parsed.request_id,
+                parsed.clarification_id,
+                message=parsed.message,
+                answers=parsed.answers,
+            )
         exact_fields(
             value,
             required={"schema_version", "request_id", "clarification_id", "answer"},
@@ -367,16 +403,44 @@ class ClarificationAnswerRequest:
 class TurnRecord:
     turn_id: str
     session_id: str
-    request: TurnRequest
+    request: TurnRequest = field(repr=False)
     payload_hash: str
     conversation_id: str | None = None
     basis_source: str | None = None
+    basis_source_sha256: str | None = field(default=None, repr=False)
     basis_grounding: dict[str, Any] | None = None
     basis_manifest: dict[str, Any] | None = field(default=None, repr=False)
     basis_manifest_sha256: str | None = field(default=None, repr=False)
+    basis_create_spec: dict[str, Any] | None = field(default=None, repr=False)
+    basis_create_spec_sha256: str | None = field(default=None, repr=False)
+    basis_create_ir: Any | None = field(default=None, repr=False)
+    basis_create_ir_sha256: str | None = field(default=None, repr=False)
+    basis_create_proof: CreateIrStageProof | None = field(default=None, repr=False)
+    basis_create_generation: int | None = field(default=None, repr=False)
+    basis_create_history: tuple[CreateAuthorityHistoryMessage, ...] | None = field(
+        default=None, repr=False
+    )
+    basis_create_history_revision: str | None = field(default=None, repr=False)
+    head_target_identity: str | None = field(default=None, repr=False)
+    expected_head_turn_id: str | None = field(default=None, repr=False)
+    candidate_proposal_ref: str | None = field(default=None, repr=False)
+    candidate_source: str | None = field(default=None, repr=False)
+    candidate_source_sha256: str | None = field(default=None, repr=False)
     candidate_manifest: dict[str, Any] | None = field(default=None, repr=False)
     candidate_manifest_sha256: str | None = field(default=None, repr=False)
+    candidate_create_spec: dict[str, Any] | None = field(default=None, repr=False)
+    candidate_create_spec_sha256: str | None = field(default=None, repr=False)
+    candidate_create_ir: Any | None = field(default=None, repr=False)
+    candidate_create_ir_sha256: str | None = field(default=None, repr=False)
+    candidate_create_proof: CreateIrStageProof | None = field(default=None, repr=False)
+    candidate_create_generation: int | None = field(default=None, repr=False)
+    candidate_create_history: tuple[CreateAuthorityHistoryMessage, ...] | None = field(
+        default=None, repr=False
+    )
+    candidate_create_history_revision: str | None = field(default=None, repr=False)
     clarification_decision: dict[str, Any] | None = None
+    dialogue_state: PrivateDialogueState | None = field(default=None, repr=False)
+    dialogue_pending: PendingClarificationV2 | None = field(default=None, repr=False)
     status: str = "queued"
     outcome: str | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -397,12 +461,43 @@ class TurnRecord:
         """
 
         self.basis_source = None
+        self.basis_source_sha256 = None
         self.basis_grounding = None
         self.basis_manifest = None
         self.basis_manifest_sha256 = None
+        self.basis_create_spec = None
+        self.basis_create_spec_sha256 = None
+        self.basis_create_ir = None
+        self.basis_create_ir_sha256 = None
+        self.basis_create_proof = None
+        self.basis_create_generation = None
+        self.basis_create_history = None
+        self.basis_create_history_revision = None
+        self.head_target_identity = None
+        self.expected_head_turn_id = None
+        self.candidate_proposal_ref = None
+        self.candidate_source = None
+        self.candidate_source_sha256 = None
         self.candidate_manifest = None
         self.candidate_manifest_sha256 = None
+        self.candidate_create_spec = None
+        self.candidate_create_spec_sha256 = None
+        self.candidate_create_ir = None
+        self.candidate_create_ir_sha256 = None
+        self.candidate_create_proof = None
+        self.candidate_create_generation = None
+        self.candidate_create_history = None
+        self.candidate_create_history_revision = None
         self.clarification_decision = None
+        had_dialogue = self.dialogue_state is not None or self.request.server_dialogue is not None
+        self.dialogue_state = None
+        self.dialogue_pending = None
+        self.request = replace(
+            self.request,
+            server_dialogue=None,
+            instruction="" if had_dialogue else self.request.instruction,
+            clarification_response=None if had_dialogue else self.request.clarification_response,
+        )
 
     def emit(self, event: str, phase: str, label: str, **metrics: int | str | bool) -> None:
         if event not in _EVENTS:
@@ -485,7 +580,10 @@ class TurnRecord:
     def public_status(self) -> dict[str, Any]:
         with self.condition:
             if self.terminal is not None:
-                return dict(self.terminal)
+                # Client/native transports must never receive aliases to the
+                # server-owned proposal graph.  A nested mutation must not be
+                # able to rewrite the private source later used as a basis.
+                return deepcopy(self.terminal)
             return {
                 "schema_version": self.request.schema_version,
                 "turn_id": self.turn_id,
@@ -494,12 +592,43 @@ class TurnRecord:
             }
 
 
+@dataclass(frozen=True)
+class _ProposalHead:
+    """Private latest-writer authority for one session-scoped target."""
+
+    turn_id: str
+    conversation_id: str
+    target_identity: str
+    proposal_ref: str
+    source_sha256: str
+    manifest_sha256: str
+    create_spec_sha256: str | None
+    create_ir_sha256: str | None
+    create_proof: CreateIrStageProof | None
+    create_generation: int | None
+    create_history_revision: str | None
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class _PrivateCreateState:
+    """One isolated, hash-bound typed CREATE stage kept only in memory."""
+
+    spec: dict[str, Any]
+    spec_sha256: str
+    ir: Any
+    ir_sha256: str
+    proof: CreateIrStageProof
+    generation: int
+    history: tuple[CreateAuthorityHistoryMessage, ...]
+    history_revision: str
+
+
 class _OrchestratorTurnRecord:
-    """Stage orchestrator-owned manifest writes away from the live store.
+    """Stage orchestrator-owned private attachments away from the live store.
 
     The orchestrator intentionally receives a record-like object because it
-    emits progress and observes cancellation throughout a turn.  Its two
-    private manifest pairs, however, must not be written to the live record
+    emits progress and observes cancellation throughout a turn.  Its private
+    source and manifest pairs, however, must not be written to the live record
     until the session lifecycle is rechecked atomically by ``TurnStore``.
     """
 
@@ -507,18 +636,76 @@ class _OrchestratorTurnRecord:
         "_record",
         "basis_manifest",
         "basis_manifest_sha256",
+        "basis_create_spec",
+        "basis_create_spec_sha256",
+        "basis_create_ir",
+        "basis_create_ir_sha256",
+        "basis_create_proof",
+        "basis_create_generation",
+        "basis_create_history",
+        "basis_create_history_revision",
+        "candidate_proposal_ref",
+        "candidate_source",
+        "candidate_source_sha256",
         "candidate_manifest",
         "candidate_manifest_sha256",
+        "candidate_create_spec",
+        "candidate_create_spec_sha256",
+        "candidate_create_ir",
+        "candidate_create_ir_sha256",
+        "candidate_create_proof",
+        "candidate_create_generation",
+        "candidate_create_history",
+        "candidate_create_history_revision",
+        "dialogue_state",
+        "dialogue_pending",
     )
 
     _PRIVATE_NAMES = frozenset(__slots__[1:])
 
     def __init__(self, record: TurnRecord) -> None:
         object.__setattr__(self, "_record", record)
+        object.__setattr__(
+            self,
+            "dialogue_state",
+            None if record.dialogue_state is None else replace(record.dialogue_state),
+        )
+        object.__setattr__(
+            self,
+            "dialogue_pending",
+            None if record.dialogue_pending is None else replace(record.dialogue_pending),
+        )
         object.__setattr__(self, "basis_manifest", deepcopy(record.basis_manifest))
         object.__setattr__(self, "basis_manifest_sha256", record.basis_manifest_sha256)
+        object.__setattr__(self, "basis_create_spec", deepcopy(record.basis_create_spec))
+        object.__setattr__(self, "basis_create_spec_sha256", record.basis_create_spec_sha256)
+        object.__setattr__(self, "basis_create_ir", deepcopy(record.basis_create_ir))
+        object.__setattr__(self, "basis_create_ir_sha256", record.basis_create_ir_sha256)
+        object.__setattr__(self, "basis_create_proof", deepcopy(record.basis_create_proof))
+        object.__setattr__(self, "basis_create_generation", record.basis_create_generation)
+        object.__setattr__(self, "basis_create_history", deepcopy(record.basis_create_history))
+        object.__setattr__(
+            self, "basis_create_history_revision", record.basis_create_history_revision
+        )
+        object.__setattr__(self, "candidate_proposal_ref", record.candidate_proposal_ref)
+        object.__setattr__(self, "candidate_source", record.candidate_source)
+        object.__setattr__(self, "candidate_source_sha256", record.candidate_source_sha256)
         object.__setattr__(self, "candidate_manifest", deepcopy(record.candidate_manifest))
         object.__setattr__(self, "candidate_manifest_sha256", record.candidate_manifest_sha256)
+        object.__setattr__(self, "candidate_create_spec", deepcopy(record.candidate_create_spec))
+        object.__setattr__(
+            self, "candidate_create_spec_sha256", record.candidate_create_spec_sha256
+        )
+        object.__setattr__(self, "candidate_create_ir", deepcopy(record.candidate_create_ir))
+        object.__setattr__(self, "candidate_create_ir_sha256", record.candidate_create_ir_sha256)
+        object.__setattr__(self, "candidate_create_proof", deepcopy(record.candidate_create_proof))
+        object.__setattr__(self, "candidate_create_generation", record.candidate_create_generation)
+        object.__setattr__(
+            self, "candidate_create_history", deepcopy(record.candidate_create_history)
+        )
+        object.__setattr__(
+            self, "candidate_create_history_revision", record.candidate_create_history_revision
+        )
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._record, name)
@@ -530,10 +717,31 @@ class _OrchestratorTurnRecord:
         setattr(self._record, name, value)
 
     def clear_private(self) -> None:
+        self.dialogue_state = None
+        self.dialogue_pending = None
         self.basis_manifest = None
         self.basis_manifest_sha256 = None
+        self.basis_create_spec = None
+        self.basis_create_spec_sha256 = None
+        self.basis_create_ir = None
+        self.basis_create_ir_sha256 = None
+        self.basis_create_proof = None
+        self.basis_create_generation = None
+        self.basis_create_history = None
+        self.basis_create_history_revision = None
+        self.candidate_proposal_ref = None
+        self.candidate_source = None
+        self.candidate_source_sha256 = None
         self.candidate_manifest = None
         self.candidate_manifest_sha256 = None
+        self.candidate_create_spec = None
+        self.candidate_create_spec_sha256 = None
+        self.candidate_create_ir = None
+        self.candidate_create_ir_sha256 = None
+        self.candidate_create_proof = None
+        self.candidate_create_generation = None
+        self.candidate_create_history = None
+        self.candidate_create_history_revision = None
 
 
 class TurnStore:
@@ -547,6 +755,8 @@ class TurnStore:
         model: BrainModelRuntime,
         compiler: Any,
         intent_compiler: Any | None = None,
+        dialogue_answer_resolver: Any | None = None,
+        create_authority_provider: Any | None = None,
         max_workers: int = 1,
         max_queue: int = 32,
     ) -> None:
@@ -559,6 +769,8 @@ class TurnStore:
         self._model = model
         self._compiler = compiler
         self._intent_compiler = intent_compiler
+        self._dialogue_answer_resolver = dialogue_answer_resolver
+        self._create_authority_provider = create_authority_provider
         self._max_queue = max_queue
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="brain-turn"
@@ -566,6 +778,7 @@ class TurnStore:
         self._lock = threading.RLock()
         self._turns: dict[str, TurnRecord] = {}
         self._idempotency: dict[tuple[str, str], tuple[str, str]] = {}
+        self._proposal_heads: dict[tuple[str, str], _ProposalHead] = {}
         self._active: set[str] = set()
         self._futures: dict[str, Future[None]] = {}
         # The executor queue owns only opaque IDs. Prompt-bearing records and
@@ -598,6 +811,406 @@ class TurnStore:
             raise BrainError("COMPILER_FAILED", 503, "private manifest authority is invalid")
         return deepcopy(manifest), manifest_sha256
 
+    @staticmethod
+    def _private_source_copy(
+        source: str | None,
+        source_sha256: str | None,
+    ) -> tuple[str | None, str | None]:
+        if source is None and source_sha256 is None:
+            return None, None
+        if not isinstance(source, str) or not source or not isinstance(source_sha256, str):
+            raise BrainError("COMPILER_FAILED", 503, "private source authority is invalid")
+        try:
+            raw = source.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise BrainError(
+                "COMPILER_FAILED", 503, "private source authority is invalid"
+            ) from error
+        if len(raw) > MAX_SOURCE_BYTES or bytes_sha256(raw) != source_sha256:
+            raise BrainError("COMPILER_FAILED", 503, "private source authority is invalid")
+        return source, source_sha256
+
+    @staticmethod
+    def _private_create_state_copy(
+        *,
+        spec: dict[str, Any] | None,
+        spec_sha256: str | None,
+        ir: Any | None,
+        ir_sha256: str | None,
+        proof: CreateIrStageProof | None,
+        generation: int | None,
+        history: tuple[CreateAuthorityHistoryMessage, ...] | None,
+        history_revision: str | None,
+        parent_ir: Any = _CREATE_PARENT_UNAVAILABLE,
+        expected_generation: int | None = None,
+    ) -> _PrivateCreateState | None:
+        """Validate and isolate one all-or-none private typed CREATE stage."""
+
+        members = (
+            spec,
+            spec_sha256,
+            ir,
+            ir_sha256,
+            proof,
+            generation,
+            history,
+            history_revision,
+        )
+        if all(member is None for member in members):
+            return None
+        if any(member is None for member in members):
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "private typed CREATE authority is incomplete",
+            )
+        if (
+            not isinstance(spec, dict)
+            or not isinstance(spec_sha256, str)
+            or not isinstance(ir_sha256, str)
+            or type(proof) is not CreateIrStageProof
+            or type(generation) is not int
+            or not isinstance(history, tuple)
+            or not isinstance(history_revision, str)
+            or not 0 <= generation <= MAX_CREATE_PLAN_MESSAGES
+            or (expected_generation is not None and generation != expected_generation)
+        ):
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "private typed CREATE authority is invalid",
+            )
+        try:
+            isolated_spec = isolated_ir(spec)
+            isolated_normalized_ir = isolated_ir(ir)
+            spec_digest = canonical_sha256(isolated_spec)
+            ir_digest = canonical_sha256(isolated_normalized_ir)
+            computed_history_revision = create_authority_history_revision(history)
+            isolated_history = tuple(
+                CreateAuthorityHistoryMessage(
+                    ordinal=message.ordinal,
+                    text=str(message.text),
+                    message_sha256=str(message.message_sha256),
+                )
+                for message in history
+            )
+        except (BrainError, CreateAuthoritySurfaceError, TypeError, ValueError) as error:
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "private typed CREATE graph is invalid",
+            ) from error
+        if (
+            spec_digest != spec_sha256
+            or ir_digest != ir_sha256
+            or computed_history_revision != history_revision
+            or proof.ir_sha256 != ir_sha256
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", proof.delta_sha256)
+            or type(proof.delta_operation_count) is not int
+            or not 0 <= proof.delta_operation_count <= 100_000
+            or (
+                proof.parent_ir_sha256 is not None
+                and re.fullmatch(r"sha256:[0-9a-f]{64}", proof.parent_ir_sha256) is None
+            )
+            or (generation == 0) != (proof.parent_ir_sha256 is None)
+        ):
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "private typed CREATE hashes or proof are invalid",
+            )
+        if parent_ir is not _CREATE_PARENT_UNAVAILABLE:
+            verify_ir_stage(
+                parent_ir=parent_ir,
+                child_ir=isolated_normalized_ir,
+                expected=proof,
+            )
+        return _PrivateCreateState(
+            spec=isolated_spec,
+            spec_sha256=spec_sha256,
+            ir=isolated_normalized_ir,
+            ir_sha256=ir_sha256,
+            proof=deepcopy(proof),
+            generation=generation,
+            history=isolated_history,
+            history_revision=history_revision,
+        )
+
+    @classmethod
+    def _create_state_from_record(
+        cls,
+        record: TurnRecord | _OrchestratorTurnRecord,
+        *,
+        prefix: str,
+        parent_ir: Any = _CREATE_PARENT_UNAVAILABLE,
+        expected_generation: int | None = None,
+    ) -> _PrivateCreateState | None:
+        return cls._private_create_state_copy(
+            spec=getattr(record, f"{prefix}_create_spec"),
+            spec_sha256=getattr(record, f"{prefix}_create_spec_sha256"),
+            ir=getattr(record, f"{prefix}_create_ir"),
+            ir_sha256=getattr(record, f"{prefix}_create_ir_sha256"),
+            proof=getattr(record, f"{prefix}_create_proof"),
+            generation=getattr(record, f"{prefix}_create_generation"),
+            history=getattr(record, f"{prefix}_create_history"),
+            history_revision=getattr(record, f"{prefix}_create_history_revision"),
+            parent_ir=parent_ir,
+            expected_generation=expected_generation,
+        )
+
+    @staticmethod
+    def _install_create_state(
+        record: TurnRecord | _OrchestratorTurnRecord,
+        *,
+        prefix: str,
+        state: _PrivateCreateState | None,
+    ) -> None:
+        setattr(record, f"{prefix}_create_spec", None if state is None else state.spec)
+        setattr(
+            record,
+            f"{prefix}_create_spec_sha256",
+            None if state is None else state.spec_sha256,
+        )
+        setattr(record, f"{prefix}_create_ir", None if state is None else state.ir)
+        setattr(
+            record,
+            f"{prefix}_create_ir_sha256",
+            None if state is None else state.ir_sha256,
+        )
+        setattr(record, f"{prefix}_create_proof", None if state is None else state.proof)
+        setattr(
+            record,
+            f"{prefix}_create_generation",
+            None if state is None else state.generation,
+        )
+        setattr(record, f"{prefix}_create_history", None if state is None else state.history)
+        setattr(
+            record,
+            f"{prefix}_create_history_revision",
+            None if state is None else state.history_revision,
+        )
+
+    @staticmethod
+    def _create_state_identity(
+        state: _PrivateCreateState | None,
+    ) -> tuple[str, str, CreateIrStageProof, int, str] | None:
+        if state is None:
+            return None
+        return (
+            state.spec_sha256,
+            state.ir_sha256,
+            state.proof,
+            state.generation,
+            state.history_revision,
+        )
+
+    @staticmethod
+    def _validate_candidate_create_history(
+        *,
+        record: TurnRecord,
+        basis: _PrivateCreateState | None,
+        candidate: _PrivateCreateState | None,
+    ) -> None:
+        """Require the exact cumulative operator lineage for a typed CREATE stage."""
+
+        if candidate is None:
+            if basis is not None:
+                raise BrainError(
+                    "COMPILER_FAILED",
+                    503,
+                    "typed CREATE refinement cannot discard its private authority",
+                )
+            return
+        if record.dialogue_state is not None:
+            state = replace(record.dialogue_state)
+            if (
+                candidate.history != state.messages
+                or candidate.history_revision != state.binding.history_revision
+            ):
+                raise BrainError(
+                    "COMPILER_FAILED", 503, "typed CREATE history differs from admitted dialogue"
+                )
+            return
+        try:
+            raw_instruction = record.request.instruction.encode("utf-8")
+        except UnicodeError as error:
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "typed CREATE history instruction is invalid",
+            ) from error
+        message = CreateAuthorityHistoryMessage(
+            ordinal=0 if basis is None else len(basis.history),
+            text=record.request.instruction,
+            message_sha256=bytes_sha256(raw_instruction),
+        )
+        if basis is None:
+            expected = (message,)
+        elif (
+            record.request.clarification_response is not None
+            and basis.history[-1].text == record.request.instruction
+        ):
+            # An answer retries the exact unresolved operator instruction.  It
+            # must not append that message a second time.
+            expected = basis.history
+        else:
+            expected = (*basis.history, message)
+        if candidate.history != expected:
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "typed CREATE history does not match its cumulative lineage",
+            )
+
+    @classmethod
+    def _stage_candidate_source(
+        cls,
+        staged: _OrchestratorTurnRecord,
+        result: dict[str, Any],
+    ) -> None:
+        proposal = result.get("proposal")
+        if result.get("outcome") != "proposed":
+            if proposal is not None:
+                raise BrainError("INTERNAL_ERROR", 500, "turn proposal outcome is invalid")
+            staged.candidate_proposal_ref = None
+            staged.candidate_source = None
+            staged.candidate_source_sha256 = None
+            cls._install_create_state(staged, prefix="candidate", state=None)
+            return
+        if not isinstance(proposal, dict):
+            raise BrainError("INTERNAL_ERROR", 500, "turn proposal is unavailable")
+        proposal_ref = proposal.get("proposal_ref")
+        if not isinstance(proposal_ref, str) or _REF_RE.fullmatch(proposal_ref) is None:
+            raise BrainError("INTERNAL_ERROR", 500, "turn proposal authority is invalid")
+        source, source_sha256 = cls._private_source_copy(
+            proposal.get("source"),
+            proposal.get("source_sha256"),
+        )
+        staged.candidate_proposal_ref = proposal_ref
+        staged.candidate_source = source
+        staged.candidate_source_sha256 = source_sha256
+
+    @staticmethod
+    def _target_identity(target: dict[str, Any]) -> str:
+        return canonical_sha256(target)
+
+    def _candidate_head(
+        self,
+        record: TurnRecord,
+        payload: dict[str, Any],
+    ) -> _ProposalHead | None:
+        """Return a validated head candidate, or None for an unmanifested proposal."""
+
+        if payload.get("outcome") != "proposed":
+            return None
+        manifest, manifest_sha256 = self._private_manifest_copy(
+            record.candidate_manifest,
+            record.candidate_manifest_sha256,
+        )
+        if manifest is None or manifest_sha256 is None:
+            # Legacy unnamed drafts can still be presented, but cannot become
+            # an incremental-create authority until the compiler identifies
+            # their exact endpoint occurrence and emits its private manifest.
+            return None
+        source, source_sha256 = self._private_source_copy(
+            record.candidate_source,
+            record.candidate_source_sha256,
+        )
+        basis_create = self._create_state_from_record(record, prefix="basis")
+        candidate_create = self._create_state_from_record(
+            record,
+            prefix="candidate",
+            parent_ir=None if basis_create is None else basis_create.ir,
+            expected_generation=0 if basis_create is None else basis_create.generation + 1,
+        )
+        if candidate_create is not None and record.request.target.get("mode") != "create":
+            raise BrainError(
+                "COMPILER_FAILED",
+                503,
+                "typed CREATE authority cannot attach to an existing target",
+            )
+        self._validate_candidate_create_history(
+            record=record,
+            basis=basis_create,
+            candidate=candidate_create,
+        )
+        proposal = payload.get("proposal")
+        proposal_ref = record.candidate_proposal_ref
+        target_identity = record.head_target_identity
+        conversation_id = record.conversation_id
+        if (
+            source is None
+            or not isinstance(proposal, dict)
+            or not isinstance(proposal_ref, str)
+            or proposal.get("proposal_ref") != proposal_ref
+            or proposal.get("source") != source
+            or proposal.get("source_sha256") != source_sha256
+            or not isinstance(target_identity, str)
+            or target_identity != self._target_identity(record.request.target)
+            or not isinstance(conversation_id, str)
+            or not conversation_id
+        ):
+            raise BrainError("COMPILER_FAILED", 503, "private proposal head is invalid")
+        return _ProposalHead(
+            turn_id=record.turn_id,
+            conversation_id=conversation_id,
+            target_identity=target_identity,
+            proposal_ref=proposal_ref,
+            source_sha256=source_sha256,
+            manifest_sha256=manifest_sha256,
+            create_spec_sha256=(None if candidate_create is None else candidate_create.spec_sha256),
+            create_ir_sha256=None if candidate_create is None else candidate_create.ir_sha256,
+            create_proof=None if candidate_create is None else candidate_create.proof,
+            create_generation=None if candidate_create is None else candidate_create.generation,
+            create_history_revision=(
+                None if candidate_create is None else candidate_create.history_revision
+            ),
+        )
+
+    def _advance_head_locked(self, record: TurnRecord, payload: dict[str, Any]) -> None:
+        proposed = payload.get("outcome") == "proposed"
+        if proposed and (
+            self._closed
+            or self._turns.get(record.turn_id) is not record
+            or record.cancellation.is_set()
+        ):
+            raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+        candidate = self._candidate_head(record, payload)
+        if candidate is None:
+            return
+        key = (record.session_id, candidate.target_identity)
+        current = self._proposal_heads.get(key)
+        if (current.turn_id if current is not None else None) != record.expected_head_turn_id:
+            raise BrainError("PROPOSAL_STALE", 409, "proposal head advanced")
+        if current is not None and current.conversation_id != candidate.conversation_id:
+            raise BrainError("PROPOSAL_STALE", 409, "proposal conversation differs")
+        basis_create = self._create_state_from_record(record, prefix="basis")
+        current_members = (
+            ()
+            if current is None
+            else (
+                current.create_spec_sha256,
+                current.create_ir_sha256,
+                current.create_proof,
+                current.create_generation,
+                current.create_history_revision,
+            )
+        )
+        if (
+            current_members
+            and any(member is None for member in current_members)
+            and not all(member is None for member in current_members)
+        ):
+            raise BrainError("PROPOSAL_STALE", 409, "typed CREATE proposal head is invalid")
+        current_identity = (
+            None
+            if not current_members or all(member is None for member in current_members)
+            else current_members
+        )
+        if current_identity != self._create_state_identity(basis_create):
+            raise BrainError("PROPOSAL_STALE", 409, "typed CREATE proposal head differs")
+        self._proposal_heads[key] = candidate
+
     def _publish_private_attachments(
         self,
         record: TurnRecord,
@@ -612,8 +1225,17 @@ class TurnStore:
                 or record.cancellation.is_set()
                 or record.terminal is not None
             ):
+                self._discard_rotated_dialogue_pending(record)
                 record.clear_private()
                 return False
+            live_dialogue = (
+                None if record.dialogue_state is None else replace(record.dialogue_state)
+            )
+            staged_dialogue = (
+                None if staged.dialogue_state is None else replace(staged.dialogue_state)
+            )
+            if staged_dialogue != live_dialogue:
+                raise BrainError("PROPOSAL_STALE", 409, "private dialogue changed during the turn")
             basis_manifest, basis_manifest_sha256 = self._private_manifest_copy(
                 staged.basis_manifest,
                 staged.basis_manifest_sha256,
@@ -622,16 +1244,174 @@ class TurnStore:
                 staged.candidate_manifest,
                 staged.candidate_manifest_sha256,
             )
+            candidate_source, candidate_source_sha256 = self._private_source_copy(
+                staged.candidate_source,
+                staged.candidate_source_sha256,
+            )
+            live_basis_create = self._create_state_from_record(record, prefix="basis")
+            staged_basis_create = self._create_state_from_record(staged, prefix="basis")
+            if self._create_state_identity(staged_basis_create) != self._create_state_identity(
+                live_basis_create
+            ):
+                raise BrainError(
+                    "PROPOSAL_STALE",
+                    409,
+                    "private typed CREATE basis changed during the turn",
+                )
+            candidate_create = self._create_state_from_record(
+                staged,
+                prefix="candidate",
+                parent_ir=None if staged_basis_create is None else staged_basis_create.ir,
+                expected_generation=(
+                    0 if staged_basis_create is None else staged_basis_create.generation + 1
+                ),
+            )
+            if candidate_create is not None and record.request.target.get("mode") != "create":
+                raise BrainError(
+                    "COMPILER_FAILED",
+                    503,
+                    "typed CREATE authority cannot attach to an existing target",
+                )
+            self._validate_candidate_create_history(
+                record=record,
+                basis=staged_basis_create,
+                candidate=candidate_create,
+            )
+            candidate_proposal_ref = staged.candidate_proposal_ref
+            if candidate_proposal_ref is not None and (
+                not isinstance(candidate_proposal_ref, str)
+                or _REF_RE.fullmatch(candidate_proposal_ref) is None
+            ):
+                raise BrainError("COMPILER_FAILED", 503, "private proposal authority is invalid")
             record.basis_manifest = basis_manifest
             record.basis_manifest_sha256 = basis_manifest_sha256
+            self._install_create_state(record, prefix="basis", state=staged_basis_create)
+            record.candidate_proposal_ref = candidate_proposal_ref
+            record.candidate_source = candidate_source
+            record.candidate_source_sha256 = candidate_source_sha256
             record.candidate_manifest = candidate_manifest
             record.candidate_manifest_sha256 = candidate_manifest_sha256
+            self._install_create_state(record, prefix="candidate", state=candidate_create)
             return True
 
     def _clear_private_if_current(self, record: TurnRecord) -> None:
         with self._lock:
             if self._turns.get(record.turn_id) is record:
+                self._discard_rotated_dialogue_pending(record)
                 record.clear_private()
+
+    def _discard_rotated_dialogue_pending(self, record: TurnRecord) -> None:
+        envelope = record.request.dialogue_answer
+        pending = record.dialogue_pending
+        if (
+            envelope is not None
+            and pending is not None
+            and pending.clarification_id != envelope.clarification_id
+        ):
+            self.clarifications.discard_pending_for_turn(
+                session_id=record.session_id,
+                parent_turn_id=pending.parent_turn_id,
+            )
+
+    def _dialogue_pending_for_answer(
+        self,
+        *,
+        session_id: str,
+        request: TurnRequest,
+        parent: TurnRecord | None,
+        claim_owner: str | None = None,
+    ) -> PendingClarificationV2:
+        """Bind a v2 answer to its server-owned parent, never the new prompt hash."""
+        answer = request.dialogue_answer
+        if answer is None or parent is None or self._turns.get(parent.turn_id) is not parent:
+            raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "dialogue parent is unavailable")
+        if parent.session_id != session_id or parent.request.target != request.target:
+            raise BrainError("CLARIFICATION_MISMATCH", 409, "dialogue parent differs")
+        state = parent.dialogue_state
+        if state is None:
+            raise BrainError("CLARIFICATION_UNAVAILABLE", 409, "parent dialogue is unavailable")
+        state = replace(state)
+        pending = self.clarifications.pending_v2(
+            session_id=session_id,
+            clarification_id=answer.clarification_id,
+        )
+        issued_by = self._turns.get(pending.parent_turn_id)
+        if (
+            issued_by is None
+            or issued_by.session_id != session_id
+            or issued_by.conversation_id != state.conversation_id
+            or pending.binding.parent_fingerprint != issued_by.request.request_fingerprint
+            or pending.conversation_id != state.conversation_id
+            or pending.binding.context_revision != request.expected_context_revision
+            or pending.binding.semantic_revision != request.expected_semantic_source_revision
+            or pending.binding.toolchain_binding != state.binding.toolchain_binding
+            or pending.binding.history_revision
+            not in {
+                create_authority_history_revision(state.messages[:index])
+                for index in range(1, len(state.messages) + 1)
+            }
+        ):
+            raise BrainError("CLARIFICATION_STALE", 409, "dialogue parent binding differs")
+        if answer.answers:
+            self.clarifications.validate_answers_v2(
+                session_id=session_id,
+                clarification_id=pending.clarification_id,
+                binding=pending.binding,
+                answers=answer.answers,
+                claim_owner=claim_owner,
+            )
+        return pending
+
+    @staticmethod
+    def _dialogue_for_request(
+        *,
+        request: TurnRequest,
+        conversation_id: str,
+        toolchain_binding: str,
+        parent: PrivateDialogueState | None,
+    ) -> PrivateDialogueState:
+        parent = None if parent is None else replace(parent)
+        if parent is not None and (
+            parent.conversation_id != conversation_id
+            or parent.binding.context_revision != request.expected_context_revision
+            or parent.binding.semantic_revision != request.expected_semantic_source_revision
+            or parent.binding.toolchain_binding != toolchain_binding
+        ):
+            raise BrainError("PROPOSAL_STALE", 409, "dialogue parent authority differs")
+        messages = () if parent is None else parent.messages
+        answer = request.dialogue_answer
+        # A button-only answer adds no operator utterance. V1 resumes its exact
+        # prior instruction; a v2 message is a new utterance even if text repeats.
+        append = (
+            answer.message is not None
+            if answer is not None
+            else request.clarification_response is None
+        )
+        if not messages or append:
+            text = request.instruction
+            messages = (
+                *messages,
+                CreateAuthorityHistoryMessage(
+                    ordinal=len(messages),
+                    text=text,
+                    message_sha256=bytes_sha256(text.encode("utf-8")),
+                ),
+            )
+        binding = DialogueBinding(
+            request.expected_context_revision,
+            request.expected_semantic_source_revision,
+            toolchain_binding,
+            create_authority_history_revision(messages),
+            request.request_fingerprint,
+        )
+        return PrivateDialogueState(
+            conversation_id=conversation_id,
+            binding=binding,
+            messages=messages,
+            decisions=() if parent is None else parent.decisions,
+            generation=0 if parent is None else parent.generation + 1,
+            latest_proposal_binding=None if parent is None else parent.latest_proposal_binding,
+        )
 
     def submit(
         self,
@@ -641,6 +1421,7 @@ class TurnStore:
         request: TurnRequest,
         _private_basis_manifest: dict[str, Any] | None = None,
         _private_basis_manifest_sha256: str | None = None,
+        _private_dialogue_parent: TurnRecord | None = None,
     ) -> TurnRecord:
         # Authenticate before the idempotency lookup. A retry must return its
         # terminal record even if the tenant has changed since the first turn.
@@ -649,7 +1430,6 @@ class TurnStore:
         )
         self.clarifications.touch_session(session_id)
         with self._lock:
-            self._validate_basis_locked(session_id=session_id, request=request)
             if self._closed:
                 raise BrainError("SERVICE_UNAVAILABLE", 503, "turn service is shutting down")
             key = (session_id, request.request_id)
@@ -663,6 +1443,7 @@ class TurnStore:
                         "request_id was used with another payload",
                     )
                 return self._turns[old_turn_id]
+            self._validate_basis_locked(session_id=session_id, request=request)
             if session_id in self._active:
                 raise BrainError("TURN_ACTIVE", 409, "one turn is already active for this session")
             if request.clarification_response is None and self.clarifications.has_pending(
@@ -714,25 +1495,57 @@ class TurnStore:
                         "CLARIFICATION_PENDING", 409, "answer the pending clarification first"
                     )
                 if request.clarification_response is not None:
-                    response = request.clarification_response
-                    self.clarifications.validate_answer(
-                        session_id=session_id,
-                        clarification_id=response["clarification_id"],
-                        request_fingerprint=request.request_fingerprint,
-                        context_revision=response["context_revision"],
-                        semantic_source_revision=response["semantic_source_revision"],
-                        answer=request.clarification_answer or {},
-                    )
+                    if request.dialogue_answer is not None:
+                        self._dialogue_pending_for_answer(
+                            session_id=session_id, request=request, parent=_private_dialogue_parent
+                        )
+                    else:
+                        response = request.clarification_response
+                        self.clarifications.validate_answer(
+                            session_id=session_id,
+                            clarification_id=response["clarification_id"],
+                            request_fingerprint=request.request_fingerprint,
+                            context_revision=response["context_revision"],
+                            semantic_source_revision=response["semantic_source_revision"],
+                            answer=request.clarification_answer or {},
+                        )
                 if lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "session was revoked")
                 basis_record = self._validate_basis_locked(session_id=session_id, request=request)
+                head_target_identity = self._target_identity(request.target)
+                current_head = self._proposal_heads.get((session_id, head_target_identity))
+                if basis_record is None:
+                    if current_head is not None:
+                        raise BrainError("PROPOSAL_STALE", 409, "proposal head already exists")
+                    expected_head_turn_id = None
+                else:
+                    expected_head_turn_id = basis_record.turn_id
                 turn_id = self._new_id(self._turns)
-                proposal = basis_record.terminal.get("proposal") if basis_record else None
-                basis_source = proposal.get("source") if isinstance(proposal, dict) else None
+                basis_source = basis_record.candidate_source if basis_record is not None else None
+                basis_source_sha256 = (
+                    basis_record.candidate_source_sha256 if basis_record is not None else None
+                )
+                dialogue_parent_terminal = (
+                    _private_dialogue_parent.terminal
+                    if _private_dialogue_parent is not None
+                    and isinstance(_private_dialogue_parent.terminal, dict)
+                    else None
+                )
+                dialogue_parent_grounding = (
+                    dialogue_parent_terminal.get("grounding")
+                    if isinstance(dialogue_parent_terminal, dict)
+                    and dialogue_parent_terminal.get("status") == "completed"
+                    and dialogue_parent_terminal.get("outcome") == "needs_clarification"
+                    and isinstance(dialogue_parent_terminal.get("grounding"), dict)
+                    else _private_dialogue_parent.basis_grounding
+                    if _private_dialogue_parent is not None
+                    and isinstance(_private_dialogue_parent.basis_grounding, dict)
+                    else None
+                )
                 basis_grounding = (
                     basis_record.terminal.get("grounding")
                     if basis_record and isinstance(basis_record.terminal, dict)
-                    else None
+                    else dialogue_parent_grounding
                 )
                 basis_manifest = (
                     basis_record.candidate_manifest
@@ -744,6 +1557,31 @@ class TurnStore:
                     if basis_record is not None
                     else _private_basis_manifest_sha256
                 )
+                try:
+                    basis_create = (
+                        None
+                        if basis_record is None
+                        else self._create_state_from_record(
+                            basis_record,
+                            prefix="candidate",
+                            parent_ir=(
+                                None
+                                if basis_record.basis_create_generation is None
+                                else basis_record.basis_create_ir
+                            ),
+                            expected_generation=(
+                                0
+                                if basis_record.basis_create_generation is None
+                                else basis_record.basis_create_generation + 1
+                            ),
+                        )
+                    )
+                except BrainError as error:
+                    raise BrainError(
+                        "PROPOSAL_STALE",
+                        409,
+                        "proposal typed CREATE authority is stale",
+                    ) from error
                 if basis_manifest is not None and (
                     not isinstance(basis_manifest_sha256, str)
                     or canonical_sha256(basis_manifest) != basis_manifest_sha256
@@ -753,38 +1591,77 @@ class TurnStore:
                     )
                 if isinstance(basis_grounding, dict):
                     request = request.with_server_basis_grounding(basis_grounding)
+                dialogue_parent = _private_dialogue_parent or basis_record
+                conversation_id = (
+                    dialogue_parent.conversation_id
+                    if dialogue_parent is not None and dialogue_parent.conversation_id
+                    else request.request_fingerprint
+                )
+                dialogue_state = None
+                if request.schema_version == 2:
+                    dialogue_state = self._dialogue_for_request(
+                        request=request,
+                        conversation_id=conversation_id,
+                        toolchain_binding=lease.snapshot.toolchain_binding,
+                        parent=None if dialogue_parent is None else dialogue_parent.dialogue_state,
+                    )
+                    request = replace(request, server_dialogue=replace(dialogue_state))
                 record = TurnRecord(
                     turn_id=turn_id,
                     session_id=session_id,
                     request=request,
                     payload_hash=request.payload_hash,
-                    conversation_id=(
-                        basis_record.conversation_id
-                        if basis_record and basis_record.conversation_id
-                        else request.request_fingerprint
-                    ),
+                    conversation_id=conversation_id,
+                    dialogue_state=dialogue_state,
                     basis_source=basis_source if isinstance(basis_source, str) else None,
+                    basis_source_sha256=basis_source_sha256,
                     basis_grounding=(
-                        dict(basis_grounding) if isinstance(basis_grounding, dict) else None
+                        deepcopy(basis_grounding) if isinstance(basis_grounding, dict) else None
                     ),
                     basis_manifest=(
                         deepcopy(basis_manifest) if isinstance(basis_manifest, dict) else None
                     ),
                     basis_manifest_sha256=basis_manifest_sha256,
+                    basis_create_spec=None if basis_create is None else basis_create.spec,
+                    basis_create_spec_sha256=(
+                        None if basis_create is None else basis_create.spec_sha256
+                    ),
+                    basis_create_ir=None if basis_create is None else basis_create.ir,
+                    basis_create_ir_sha256=(
+                        None if basis_create is None else basis_create.ir_sha256
+                    ),
+                    basis_create_proof=None if basis_create is None else basis_create.proof,
+                    basis_create_generation=(
+                        None if basis_create is None else basis_create.generation
+                    ),
+                    basis_create_history=None if basis_create is None else basis_create.history,
+                    basis_create_history_revision=(
+                        None if basis_create is None else basis_create.history_revision
+                    ),
+                    head_target_identity=head_target_identity,
+                    expected_head_turn_id=expected_head_turn_id,
                 )
                 if lease.cancellation.is_set():
                     raise BrainError("SESSION_REVOKED", 409, "session was revoked")
                 if request.clarification_response is not None:
-                    response = request.clarification_response
-                    self.clarifications.validate_answer(
-                        session_id=session_id,
-                        clarification_id=response["clarification_id"],
-                        request_fingerprint=request.request_fingerprint,
-                        context_revision=response["context_revision"],
-                        semantic_source_revision=response["semantic_source_revision"],
-                        answer=request.clarification_answer or {},
-                        claim_owner=record.turn_id,
-                    )
+                    if request.dialogue_answer is not None:
+                        record.dialogue_pending = self._dialogue_pending_for_answer(
+                            session_id=session_id,
+                            request=request,
+                            parent=_private_dialogue_parent,
+                            claim_owner=record.turn_id,
+                        )
+                    else:
+                        response = request.clarification_response
+                        self.clarifications.validate_answer(
+                            session_id=session_id,
+                            clarification_id=response["clarification_id"],
+                            request_fingerprint=request.request_fingerprint,
+                            context_revision=response["context_revision"],
+                            semantic_source_revision=response["semantic_source_revision"],
+                            answer=request.clarification_answer or {},
+                            claim_owner=record.turn_id,
+                        )
                 self._turns[record.turn_id] = record
                 self._idempotency[key] = (request.payload_hash, record.turn_id)
                 self._active.add(session_id)
@@ -855,12 +1732,14 @@ class TurnStore:
             return None
         wanted = request.basis["proposal_ref"]
         for record in self._turns.values():
+            if record.candidate_proposal_ref != wanted:
+                continue
             terminal = record.terminal
             if not isinstance(terminal, dict):
                 continue
             proposal = terminal.get("proposal")
             if not isinstance(proposal, dict) or proposal.get("proposal_ref") != wanted:
-                continue
+                raise BrainError("PROPOSAL_STALE", 409, "proposal authority differs")
             if record.session_id != session_id:
                 raise BrainError("PROPOSAL_STALE", 409, "proposal is scoped to another session")
             if (
@@ -871,10 +1750,65 @@ class TurnStore:
                 raise BrainError("PROPOSAL_STALE", 409, "proposal revision is stale")
             if record.request.target != request.target:
                 raise BrainError("PROPOSAL_STALE", 409, "proposal target differs")
-            if isinstance(request.target.get("endpoint"), str) and (
-                record.candidate_manifest is None
-                or not isinstance(record.candidate_manifest_sha256, str)
-                or canonical_sha256(record.candidate_manifest) != record.candidate_manifest_sha256
+            try:
+                candidate_source, candidate_source_sha256 = self._private_source_copy(
+                    record.candidate_source,
+                    record.candidate_source_sha256,
+                )
+            except BrainError as error:
+                raise BrainError(
+                    "PROPOSAL_STALE", 409, "proposal source authority is unavailable"
+                ) from error
+            if (
+                candidate_source is None
+                or proposal.get("source") != candidate_source
+                or proposal.get("source_sha256") != candidate_source_sha256
+            ):
+                raise BrainError("PROPOSAL_STALE", 409, "proposal source authority differs")
+            target_identity = self._target_identity(request.target)
+            current = self._proposal_heads.get((session_id, target_identity))
+            manifest = record.candidate_manifest
+            manifest_sha256 = record.candidate_manifest_sha256
+            try:
+                parent_create = self._create_state_from_record(record, prefix="basis")
+                candidate_create = self._create_state_from_record(
+                    record,
+                    prefix="candidate",
+                    parent_ir=None if parent_create is None else parent_create.ir,
+                    expected_generation=(
+                        0 if parent_create is None else parent_create.generation + 1
+                    ),
+                )
+            except BrainError as error:
+                raise BrainError(
+                    "PROPOSAL_STALE",
+                    409,
+                    "proposal typed CREATE authority is unavailable",
+                ) from error
+            if (
+                current is None
+                or current.turn_id != record.turn_id
+                or current.conversation_id != record.conversation_id
+                or current.target_identity != target_identity
+                or current.proposal_ref != wanted
+                or current.source_sha256 != candidate_source_sha256
+                or current.manifest_sha256 != manifest_sha256
+                or current.create_spec_sha256
+                != (None if candidate_create is None else candidate_create.spec_sha256)
+                or current.create_ir_sha256
+                != (None if candidate_create is None else candidate_create.ir_sha256)
+                or current.create_proof
+                != (None if candidate_create is None else candidate_create.proof)
+                or current.create_generation
+                != (None if candidate_create is None else candidate_create.generation)
+                or current.create_history_revision
+                != (None if candidate_create is None else candidate_create.history_revision)
+            ):
+                raise BrainError("PROPOSAL_STALE", 409, "proposal is not the latest head")
+            if (
+                manifest is None
+                or not isinstance(manifest_sha256, str)
+                or canonical_sha256(manifest) != manifest_sha256
             ):
                 raise BrainError(
                     "PROPOSAL_STALE", 409, "proposal structural authority is unavailable"
@@ -908,6 +1842,8 @@ class TurnStore:
                 record.clear_private()
             for key in [key for key in self._idempotency if key[0] == session_id]:
                 self._idempotency.pop(key, None)
+            for key in [key for key in self._proposal_heads if key[0] == session_id]:
+                self._proposal_heads.pop(key, None)
             self._active.discard(session_id)
             self.clarifications.drop_session(
                 session_id,
@@ -958,6 +1894,208 @@ class TurnStore:
         )
         return record.public_status()
 
+    def seal_typed_create_qualification_receipt(
+        self,
+        *,
+        session_id: str,
+        token: str,
+        turn_id: str,
+    ) -> dict[str, Any]:
+        """Seal a hash-only proof for an in-process, completed typed CREATE Draft.
+
+        This deliberately is not an HTTP surface.  Qualification must obtain the
+        proof while the owning session is live; normal session erasure removes
+        the private typed graph before any post-run oracle is loaded.
+        """
+
+        record = self._authenticate_record(
+            session_id=session_id,
+            token=token,
+            turn_id=turn_id,
+            capability="chat.read",
+        )
+        with record.condition, self._lock:
+            if self._closed or self._turns.get(turn_id) is not record:
+                raise BrainError("TURN_UNAVAILABLE", 404, "turn is unavailable")
+            terminal = record.terminal
+            if (
+                not isinstance(terminal, dict)
+                or terminal.get("status") != "completed"
+                or terminal.get("outcome") != "proposed"
+                or record.request.target.get("mode") != "create"
+            ):
+                raise BrainError(
+                    "QUALIFICATION_PROOF_UNAVAILABLE",
+                    409,
+                    "typed CREATE qualification proof is unavailable",
+                )
+            basis = self._create_state_from_record(record, prefix="basis")
+            candidate = self._create_state_from_record(
+                record,
+                prefix="candidate",
+                parent_ir=None if basis is None else basis.ir,
+                expected_generation=0 if basis is None else basis.generation + 1,
+            )
+            source, source_sha256 = self._private_source_copy(
+                record.candidate_source,
+                record.candidate_source_sha256,
+            )
+            manifest, manifest_sha256 = self._private_manifest_copy(
+                record.candidate_manifest,
+                record.candidate_manifest_sha256,
+            )
+            proposal = terminal.get("proposal")
+            validation = terminal.get("validation")
+            identity = terminal.get("identity")
+            compiler_receipt_sha256 = (
+                validation.get("compiler_receipt_sha256") if isinstance(validation, dict) else None
+            )
+            if (
+                candidate is None
+                or source is None
+                or manifest is None
+                or not isinstance(source_sha256, str)
+                or not isinstance(manifest_sha256, str)
+                or not isinstance(proposal, dict)
+                or proposal.get("source_sha256") != source_sha256
+                or not isinstance(validation, dict)
+                or validation.get("status") != "ok"
+                or not isinstance(identity, dict)
+                or identity.get("generation_strategy") != "model_create_plan_v2"
+                or not isinstance(compiler_receipt_sha256, str)
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", compiler_receipt_sha256) is None
+            ):
+                raise BrainError(
+                    "QUALIFICATION_PROOF_UNAVAILABLE",
+                    409,
+                    "typed CREATE qualification proof is unavailable",
+                )
+            proof = candidate.proof
+            body = {
+                "contract_id": TYPED_CREATE_QUALIFICATION_RECEIPT_CONTRACT,
+                "turn_id": record.turn_id,
+                "generation": candidate.generation,
+                "source_sha256": source_sha256,
+                "manifest_sha256": manifest_sha256,
+                "spec_sha256": candidate.spec_sha256,
+                "ir_sha256": candidate.ir_sha256,
+                "parent_ir_sha256": proof.parent_ir_sha256,
+                "delta_sha256": proof.delta_sha256,
+                "delta_operation_count": proof.delta_operation_count,
+                "history_revision": candidate.history_revision,
+                "compiler_receipt_sha256": compiler_receipt_sha256,
+                "generation_strategy": "model_create_plan_v2",
+            }
+            return {**body, "receipt_sha256": canonical_sha256(body)}
+
+    def seal_typed_create_clarification_receipt(
+        self,
+        *,
+        session_id: str,
+        token: str,
+        turn_id: str,
+    ) -> dict[str, Any]:
+        """Seal a redacted private gap roster for one completed CREATE Ask.
+
+        The question wording, option references and authority keys are excluded.
+        A post-close qualification oracle can therefore verify that the Ask
+        addresses an expected structural gap without revealing an oracle to the
+        running model or accepting an arbitrary clarification as success.
+        """
+
+        record = self._authenticate_record(
+            session_id=session_id,
+            token=token,
+            turn_id=turn_id,
+            capability="chat.read",
+        )
+        with record.condition, self._lock:
+            if self._closed or self._turns.get(turn_id) is not record:
+                raise BrainError("TURN_UNAVAILABLE", 404, "turn is unavailable")
+            terminal = record.terminal
+            clarification = terminal.get("clarification") if isinstance(terminal, dict) else None
+            if (
+                not isinstance(terminal, dict)
+                or terminal.get("status") != "completed"
+                or terminal.get("outcome") != "needs_clarification"
+                or record.request.target.get("mode") != "create"
+                or not isinstance(clarification, dict)
+                or not isinstance(clarification.get("clarification_id"), str)
+            ):
+                raise BrainError(
+                    "QUALIFICATION_PROOF_UNAVAILABLE",
+                    409,
+                    "typed CREATE clarification proof is unavailable",
+                )
+            clarification_id = clarification["clarification_id"]
+            conversation_id = record.conversation_id
+
+        # The issuing turn does not retain a second private copy of the pending
+        # question: ClarificationStore is its single authority.  Resolve it
+        # outside TurnStore's lock, then re-authenticate/recheck the turn below
+        # so session revocation or concurrent erasure still fails closed.
+        pending = self.clarifications.pending_v2(
+            session_id=session_id,
+            clarification_id=clarification_id,
+        )
+        self._authenticate_record(
+            session_id=session_id,
+            token=token,
+            turn_id=turn_id,
+            capability="chat.read",
+        )
+        with record.condition, self._lock:
+            terminal = record.terminal
+            clarification = terminal.get("clarification") if isinstance(terminal, dict) else None
+            issued_by = self._turns.get(pending.parent_turn_id)
+            if (
+                self._closed
+                or self._turns.get(turn_id) is not record
+                or not isinstance(terminal, dict)
+                or terminal.get("status") != "completed"
+                or terminal.get("outcome") != "needs_clarification"
+                or record.request.target.get("mode") != "create"
+                or not isinstance(clarification, dict)
+                or clarification.get("clarification_id") != pending.clarification_id
+                or pending.session_id != record.session_id
+                or pending.conversation_id != conversation_id
+                or issued_by is None
+                or issued_by.session_id != record.session_id
+                or issued_by.conversation_id != conversation_id
+                or pending.binding.parent_fingerprint != issued_by.request.request_fingerprint
+                or (
+                    record.dialogue_pending is not None
+                    and record.dialogue_pending.clarification_id != pending.clarification_id
+                )
+            ):
+                raise BrainError(
+                    "QUALIFICATION_PROOF_UNAVAILABLE",
+                    409,
+                    "typed CREATE clarification proof is unavailable",
+                )
+            slots = [
+                {
+                    "decision_key": slot.decision_key,
+                    "target_key": slot.target_key,
+                    "kind": slot.kind,
+                    "answer_kind": slot.answer_kind,
+                    "value_contract": slot.value_contract,
+                    "minimum": slot.minimum,
+                    "maximum": slot.maximum,
+                    "choice_count": len(slot.choices),
+                }
+                for slot in pending.slots
+            ]
+            body = {
+                "contract_id": TYPED_CREATE_CLARIFICATION_RECEIPT_CONTRACT,
+                "turn_id": record.turn_id,
+                "round": pending.round_index,
+                "slot_contracts": slots,
+                "slot_contracts_sha256": canonical_sha256(slots),
+                "binding_sha256": canonical_sha256(pending.binding.manifest()),
+            }
+            return {**body, "receipt_sha256": canonical_sha256(body)}
+
     def answer(
         self,
         *,
@@ -989,6 +2127,32 @@ class TurnStore:
                 "CLARIFICATION_MISMATCH", 409, "clarification does not belong to parent turn"
             )
         original = parent.request
+        if answer.schema_version == 2:
+            envelope = DialogueAnswerEnvelope(
+                answer.request_id,
+                answer.clarification_id,
+                answer.message,
+                answer.answers,
+            )
+            request = TurnRequest(
+                schema_version=2,
+                request_id=answer.request_id,
+                expected_context_revision=original.expected_context_revision,
+                expected_semantic_source_revision=original.expected_semantic_source_revision,
+                intent=original.intent,
+                instruction=answer.message if answer.message is not None else original.instruction,
+                target=deepcopy(original.target),
+                basis=deepcopy(original.basis),
+                clarification_response=envelope.payload(),
+            )
+            return self.submit(
+                session_id=session_id,
+                token=token,
+                request=request,
+                _private_basis_manifest=parent.basis_manifest,
+                _private_basis_manifest_sha256=parent.basis_manifest_sha256,
+                _private_dialogue_parent=parent,
+            )
         request = TurnRequest(
             schema_version=2,
             request_id=answer.request_id,
@@ -1016,6 +2180,7 @@ class TurnStore:
             request=request,
             _private_basis_manifest=parent.basis_manifest,
             _private_basis_manifest_sha256=parent.basis_manifest_sha256,
+            _private_dialogue_parent=parent,
         )
 
     def cancel(self, *, session_id: str, token: str, turn_id: str) -> dict[str, Any]:
@@ -1122,7 +2287,78 @@ class TurnStore:
             from metis_model1.brain_orchestrator import BrainOrchestrator
 
             request = record.request
-            if request.clarification_response is not None:
+            dialogue_terminal = None
+            if request.dialogue_answer is not None:
+                envelope = request.dialogue_answer
+                pending = record.dialogue_pending
+                state = record.dialogue_state
+                if pending is None or state is None:
+                    raise BrainError(
+                        "CLARIFICATION_UNAVAILABLE", 409, "dialogue authority is unavailable"
+                    )
+                answers = envelope.answers
+                if not answers and self._dialogue_answer_resolver is not None:
+                    answers = answer_roster(
+                        self._dialogue_answer_resolver(
+                            request=request,
+                            pending=replace(pending),
+                            dialogue=replace(state),
+                        ),
+                        allow_empty=True,
+                    )
+                    if answers:
+                        self.clarifications.validate_answers_v2(
+                            session_id=record.session_id,
+                            clarification_id=pending.clarification_id,
+                            binding=pending.binding,
+                            answers=answers,
+                            claim_owner=record.turn_id,
+                        )
+                remaining = pending
+                with self._lock:
+                    if (
+                        self._closed
+                        or self._turns.get(record.turn_id) is not record
+                        or record.cancellation.is_set()
+                    ):
+                        raise BrainError("SESSION_REVOKED", 409, "session was revoked")
+                    # Consuming/rotating the binding and publishing its owner
+                    # are one lifecycle transaction with cancel/drop/shutdown.
+                    if answers:
+                        resolution = self.clarifications.answer_v2(
+                            session_id=record.session_id,
+                            clarification_id=pending.clarification_id,
+                            binding=pending.binding,
+                            answers=answers,
+                            claim_owner=record.turn_id,
+                        )
+                        state = replace(state, decisions=resolution.decisions)
+                        remaining = resolution.remaining
+                    record.dialogue_state = replace(state)
+                    record.dialogue_pending = None if remaining is None else replace(remaining)
+                    staged_record.dialogue_state = replace(state)
+                    staged_record.dialogue_pending = (
+                        None if remaining is None else replace(remaining)
+                    )
+                    request = replace(request, server_dialogue=replace(state))
+                    record.request = request
+                if remaining is not None:
+                    dialogue_terminal = {
+                        "schema_version": request.schema_version,
+                        "turn_id": record.turn_id,
+                        "request_id": request.request_id,
+                        "status": "completed",
+                        "outcome": "needs_clarification",
+                        "route": "local",
+                        "clarification": remaining.payload(),
+                        "claims": {
+                            "compile_clean": None,
+                            "semantic_grounded": False,
+                            "semantic_correctness": False,
+                            "tenant_modified": False,
+                        },
+                    }
+            elif request.clarification_response is not None:
                 response = request.clarification_response
                 resolution = self.clarifications.answer(
                     session_id=record.session_id,
@@ -1157,20 +2393,25 @@ class TurnStore:
                 )
                 record.request = request
 
-            orchestrator = BrainOrchestrator(
-                retriever=self._retriever,
-                model=self._model,
-                compiler=self._compiler,
-                clarifications=self.clarifications,
-                intent_compiler=self._intent_compiler,
-            )
-            result = orchestrator.run(
-                manager=self._manager,
-                session_id=record.session_id,
-                token=token,
-                request=request,
-                record=staged_record,
-            )
+            if dialogue_terminal is None:
+                orchestrator = BrainOrchestrator(
+                    retriever=self._retriever,
+                    model=self._model,
+                    compiler=self._compiler,
+                    clarifications=self.clarifications,
+                    intent_compiler=self._intent_compiler,
+                    create_authority_provider=self._create_authority_provider,
+                )
+                result = orchestrator.run(
+                    manager=self._manager,
+                    session_id=record.session_id,
+                    token=token,
+                    request=request,
+                    record=staged_record,
+                )
+            else:
+                result = dialogue_terminal
+            self._stage_candidate_source(staged_record, result)
             self._publish_private_attachments(record, staged_record)
             if record.cancellation.is_set():
                 self._clear_private_if_current(record)
@@ -1228,6 +2469,9 @@ class TurnStore:
             self._discard_turn_pending(record)
 
     def _discard_turn_pending(self, record: TurnRecord) -> None:
+        # A partial v2 answer rotates the ID while retaining the issue-time
+        # parent binding. Its hidden successor still belongs to this turn.
+        self._discard_rotated_dialogue_pending(record)
         self.clarifications.discard_pending_for_turn(
             session_id=record.session_id,
             parent_turn_id=record.turn_id,
@@ -1237,10 +2481,29 @@ class TurnStore:
         with record.condition:
             if record.terminal is not None:
                 return
-            record.terminal = payload
-            record.emit("terminal", "terminal", "Turn terminato")
-        with self._lock:
-            self._active.discard(record.session_id)
+            with self._lock:
+                self._advance_head_locked(record, payload)
+                if record.dialogue_state is not None:
+                    if payload.get("outcome") == "proposed":
+                        record.dialogue_state = replace(
+                            record.dialogue_state,
+                            latest_proposal_binding=canonical_sha256(payload.get("proposal")),
+                        )
+                        record.request = replace(
+                            record.request, server_dialogue=replace(record.dialogue_state)
+                        )
+                    elif payload.get("outcome") != "needs_clarification":
+                        record.dialogue_state = None
+                        record.dialogue_pending = None
+                        record.request = replace(
+                            record.request,
+                            server_dialogue=None,
+                            instruction="",
+                            clarification_response=None,
+                        )
+                record.terminal = payload
+                record.emit("terminal", "terminal", "Turn terminato")
+                self._active.discard(record.session_id)
 
     @staticmethod
     def _error_payload(record: TurnRecord, error: BrainError) -> dict[str, Any]:
@@ -1271,6 +2534,7 @@ class TurnStore:
     def shutdown(self) -> None:
         with self._lock:
             self._closed = True
+            self._proposal_heads.clear()
             for record in self._turns.values():
                 record.clear_private()
                 if record.terminal is None:
@@ -1284,6 +2548,7 @@ class TurnStore:
                 record.clear_private()
             self._turns.clear()
             self._idempotency.clear()
+            self._proposal_heads.clear()
             self._active.clear()
             self._futures.clear()
             self._admitted_work.clear()

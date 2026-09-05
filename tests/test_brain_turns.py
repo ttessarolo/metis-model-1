@@ -6,6 +6,8 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -13,16 +15,25 @@ from typing import Any
 import pytest
 
 from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_create_ir import CreateIrStageProof, create_ir_stage_proof
+from metis_model1.brain_create_surface import (
+    CreateAuthorityHistoryMessage,
+    create_authority_history_revision,
+)
+from metis_model1.brain_dialogue_contract import BoundChoice, DialogueAnswer, QuestionSlot
 from metis_model1.brain_model_runtime import ModelCandidate, StaticModelRuntime
 from metis_model1.brain_protocol import CAPABILITIES, BrainError, bytes_sha256, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult, semantic_revision
 from metis_model1.brain_server import BrainApplication, BrainRuntime, _ThreadingBrainHTTPServer
 from metis_model1.brain_sessions import ClientPolicy, SessionManager
 from metis_model1.brain_turns import (
+    TYPED_CREATE_CLARIFICATION_RECEIPT_CONTRACT,
+    TYPED_CREATE_QUALIFICATION_RECEIPT_CONTRACT,
     ClarificationAnswerRequest,
     TurnRecord,
     TurnRequest,
     TurnStore,
+    _OrchestratorTurnRecord,
 )
 
 
@@ -310,6 +321,650 @@ def _wait_turn(server: Any, session: dict[str, Any], turn_id: str) -> dict[str, 
     raise AssertionError("turn did not reach a terminal state")
 
 
+def _named_create_request(
+    session: dict[str, Any],
+    semantic: str,
+    *,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    body = _turn_request(session, semantic, request_id=request_id)
+    body.update(
+        schema_version=2,
+        target={**body["target"], "endpoint": "demo.head"},
+    )
+    return body
+
+
+def _scripted_proposal(record: Any, request: TurnRequest, ordinal: int) -> dict[str, Any]:
+    source = (
+        "metis 0.43\n"
+        f"// private head {ordinal}\n"
+        f"endpoint {request.target['endpoint']} {{ take 24 from @video }}\n"
+    )
+    manifest = {
+        "schema_version": 1,
+        "endpoint": request.target["endpoint"],
+        "endpoint_sha256": "sha256:" + f"{ordinal:x}"[-1] * 64,
+        "containers": [],
+        "fetches": [],
+    }
+    record.candidate_manifest = manifest
+    record.candidate_manifest_sha256 = canonical_sha256(manifest)
+    return {
+        "schema_version": request.schema_version,
+        "turn_id": record.turn_id,
+        "request_id": request.request_id,
+        "status": "completed",
+        "route": "local",
+        "outcome": "proposed",
+        "proposal": {
+            "proposal_ref": f"proposal-head-{ordinal}",
+            "source": source,
+            "source_sha256": bytes_sha256(source.encode("utf-8")),
+        },
+    }
+
+
+def _typed_create_state(
+    *,
+    generation: int,
+    parent_ir: Any | None,
+    marker: str,
+    history_texts: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    spec = {
+        "schema_version": 1,
+        "contract_id": "metis-brain-create-endpoint-spec/v1",
+        "endpoint": {"name": "demo.head", "marker": marker},
+    }
+    ir = {
+        "kind": "Endpoint",
+        "name": "demo.head",
+        "generation": generation,
+        "private_marker": marker,
+    }
+    proof = create_ir_stage_proof(parent_ir, ir)
+    history = _create_history(*(history_texts or (marker,)))
+    return {
+        "spec": spec,
+        "spec_sha256": canonical_sha256(spec),
+        "ir": ir,
+        "ir_sha256": canonical_sha256(ir),
+        "proof": proof,
+        "generation": generation,
+        "history": history,
+        "history_revision": create_authority_history_revision(history),
+    }
+
+
+def _create_history(*messages: str) -> tuple[CreateAuthorityHistoryMessage, ...]:
+    return tuple(
+        CreateAuthorityHistoryMessage(
+            ordinal=ordinal,
+            text=message,
+            message_sha256=bytes_sha256(message.encode("utf-8")),
+        )
+        for ordinal, message in enumerate(messages)
+    )
+
+
+def _attach_typed_create_state(record: Any, *, prefix: str, state: dict[str, Any]) -> None:
+    if prefix == "candidate":
+        basis_history = record.basis_create_history
+        instruction = record.request.instruction
+        if basis_history is None:
+            history = _create_history(instruction)
+        elif (
+            record.request.clarification_response is not None
+            and basis_history[-1].text == instruction
+        ):
+            history = tuple(basis_history)
+        else:
+            history = _create_history(*(item.text for item in basis_history), instruction)
+        state["history"] = history
+        state["history_revision"] = create_authority_history_revision(history)
+    setattr(record, f"{prefix}_create_spec", state["spec"])
+    setattr(record, f"{prefix}_create_spec_sha256", state["spec_sha256"])
+    setattr(record, f"{prefix}_create_ir", state["ir"])
+    setattr(record, f"{prefix}_create_ir_sha256", state["ir_sha256"])
+    setattr(record, f"{prefix}_create_proof", state["proof"])
+    setattr(record, f"{prefix}_create_generation", state["generation"])
+    setattr(record, f"{prefix}_create_history", state["history"])
+    setattr(record, f"{prefix}_create_history_revision", state["history_revision"])
+
+
+def _dialogue_script(trace, *, fail_after_answer=False, blocked=None):
+    def scripted(orchestrator, **kwargs):
+        record, request = kwargs["record"], kwargs["request"]
+        state = record.dialogue_state
+        assert state == request.server_dialogue
+        assert state is not request.server_dialogue
+        trace.append(state)
+        if not state.decisions:
+            choices = tuple(
+                BoundChoice(
+                    name, (f"private.{name}",), state.binding.semantic_revision, ("catalog",)
+                )
+                for name in ("Video", "Users")
+            )
+            slots = (
+                QuestionSlot(
+                    "catalogs",
+                    "endpoint",
+                    "catalog",
+                    "Quali cataloghi?",
+                    "option_refs",
+                    choices,
+                    maximum=2,
+                ),
+                QuestionSlot(
+                    "count",
+                    "row.main",
+                    "result_count",
+                    "Quanti risultati per riga?",
+                    "integer",
+                    maximum=100,
+                    value_contract="total",
+                ),
+            )
+            pending = orchestrator._clarifications.create_pending_v2(
+                session_id=record.session_id,
+                parent_turn_id=record.turn_id,
+                conversation_id=record.conversation_id,
+                binding=state.binding,
+                slots=slots,
+            )
+            return {
+                "schema_version": 2,
+                "turn_id": record.turn_id,
+                "request_id": request.request_id,
+                "status": "completed",
+                "outcome": "needs_clarification",
+                "clarification": pending.payload(),
+            }
+        if blocked is not None:
+            blocked[0].set()
+            assert blocked[1].wait(timeout=5)
+        if fail_after_answer:
+            raise BrainError("TEST_FAILURE", 422, "synthetic failure")
+        result = _scripted_proposal(record, request, len(state.messages))
+        generation = (
+            0 if record.basis_create_generation is None else record.basis_create_generation + 1
+        )
+        typed = _typed_create_state(
+            generation=generation, parent_ir=record.basis_create_ir, marker=f"stage-{generation}"
+        )
+        _attach_typed_create_state(record, prefix="candidate", state=typed)
+        record.candidate_create_history = state.messages
+        record.candidate_create_history_revision = state.binding.history_revision
+        return result
+
+    return scripted
+
+
+def _dialogue_answer_body(
+    terminal, *, message="Video e users, 24 risultati per riga.", partial=False
+):
+    questions = terminal["clarification"]["questions"]
+    answers = []
+    for question in questions:
+        if question["kind"] == "catalog":
+            answers.append(
+                {
+                    "question_ref": question["question_ref"],
+                    "value": {"option_refs": [item["option_ref"] for item in question["options"]]},
+                }
+            )
+        elif not partial:
+            answers.append({"question_ref": question["question_ref"], "value": {"integer": 24}})
+    return {
+        "schema_version": 2,
+        "request_id": str(uuid.uuid4()),
+        "clarification_id": terminal["clarification"]["clarification_id"],
+        "message": message,
+        "answers": answers,
+    }
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_dialogue_v2_http_history_before_draft_partial_retry_and_refinement(
+    tmp_path, monkeypatch, partial
+):
+    trace = []
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run", _dialogue_script(trace)
+    )
+    compiler = FakeCompiler()
+    with _service(tmp_path, model=StaticModelRuntime("unused"), compiler=compiler) as (
+        server,
+        runtime,
+        app,
+    ):
+        session = _open(server, runtime)
+        semantic = (
+            TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")])
+            .capture("demo", toolchain_binding=compiler.toolchain_binding)
+            .semantic_source_revision()
+        )
+        collection = f"/v1/sessions/{session['id']}/turns"
+        body = _named_create_request(session, semantic)
+        body["instruction"] = "Voglio una homepage personalizzata."
+        status, accepted, _ = _request(
+            server, "POST", collection, token=session["token"], body=body
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        assert first["outcome"] == "needs_clarification"
+        first_record = app.turns._turns[first["turn_id"]]
+        assert [m.text for m in first_record.dialogue_state.messages] == [body["instruction"]]
+        assert first_record.dialogue_state.latest_proposal_binding is None
+        answer = _dialogue_answer_body(first, partial=partial)
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=answer,
+        )
+        assert status == 202
+        current = _wait_turn(server, session, accepted["turn_id"])
+        second_record = app.turns._turns[current["turn_id"]]
+        assert second_record.conversation_id == first_record.conversation_id
+        assert second_record.request.request_fingerprint != first_record.request.request_fingerprint
+        history = [body["instruction"], answer["message"]]
+        assert [m.text for m in second_record.dialogue_state.messages] == history
+        status, replay, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=answer,
+        )
+        assert status == 202 and replay["turn_id"] == second_record.turn_id
+        assert [m.text for m in second_record.dialogue_state.messages] == history
+        if partial:
+            assert current["outcome"] == "needs_clarification"
+            assert (
+                current["clarification"]["clarification_id"]
+                != first["clarification"]["clarification_id"]
+            )
+            assert current["clarification"]["round"] == 1
+            # A button-only answer must not duplicate the previous text.
+            remaining = _dialogue_answer_body(current, message=None)
+            status, accepted, _ = _request(
+                server,
+                "POST",
+                f"{collection}/{current['turn_id']}/answer",
+                token=session["token"],
+                body=remaining,
+            )
+            assert status == 202
+            current = _wait_turn(server, session, accepted["turn_id"])
+        assert current["outcome"] == "proposed"
+        draft_record = app.turns._turns[current["turn_id"]]
+        assert [m.text for m in draft_record.candidate_create_history] == history
+        assert len(draft_record.dialogue_state.decisions) == 2
+        assert draft_record.dialogue_state.latest_proposal_binding is not None
+        refine = {
+            **body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "Aggiungi una riga per le serie.",
+            "basis": {"kind": "proposal", "proposal_ref": current["proposal"]["proposal_ref"]},
+        }
+        status, accepted, _ = _request(
+            server, "POST", collection, token=session["token"], body=refine
+        )
+        assert status == 202
+        final = _wait_turn(server, session, accepted["turn_id"])
+        assert final["outcome"] == "proposed"
+        final_record = app.turns._turns[final["turn_id"]]
+        assert [m.text for m in final_record.dialogue_state.messages] == [
+            *history,
+            refine["instruction"],
+        ]
+        assert final_record.candidate_create_generation == 1
+        encoded = json.dumps(final)
+        assert "private.Video" not in encoded and body["instruction"] not in encoded
+        assert body["instruction"] not in repr(final_record)
+        assert compiler.calls == 0
+        manager_session = session["id"]
+        app.manager.close(session_id=manager_session, token=session["token"])
+        assert all(
+            record.dialogue_state is None and record.request.server_dialogue is None
+            for record in (first_record, second_record, draft_record, final_record)
+        )
+
+
+@pytest.mark.parametrize("resolve", [False, True])
+def test_dialogue_v2_message_only_is_preserved_and_requires_host_adjudication(
+    tmp_path, monkeypatch, resolve
+):
+    trace = []
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run", _dialogue_script(trace)
+    )
+    compiler = FakeCompiler()
+    with _service(tmp_path, model=StaticModelRuntime("unused"), compiler=compiler) as (
+        server,
+        runtime,
+        app,
+    ):
+        if resolve:
+
+            def host_resolver(*, request, pending, dialogue):
+                assert dialogue.messages[-1].text == request.instruction
+                return tuple(
+                    DialogueAnswer(slot.question_ref, integer=24)
+                    if slot.answer_kind == "integer"
+                    else DialogueAnswer(
+                        slot.question_ref,
+                        tuple(choice.option_ref for choice in slot.choices),
+                        multiple=True,
+                    )
+                    for slot in pending.slots
+                )
+
+            app.turns._dialogue_answer_resolver = host_resolver
+        session = _open(server, runtime)
+        semantic = (
+            TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")])
+            .capture("demo", toolchain_binding=compiler.toolchain_binding)
+            .semantic_source_revision()
+        )
+        collection = f"/v1/sessions/{session['id']}/turns"
+        body = _named_create_request(session, semantic)
+        _, accepted, _ = _request(server, "POST", collection, token=session["token"], body=body)
+        first = _wait_turn(server, session, accepted["turn_id"])
+        answer = _dialogue_answer_body(first)
+        answer["answers"] = []
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=answer,
+        )
+        assert status == 202
+        final = _wait_turn(server, session, accepted["turn_id"])
+        assert final["outcome"] == ("proposed" if resolve else "needs_clarification")
+        state = app.turns._turns[final["turn_id"]].dialogue_state
+        assert [m.text for m in state.messages] == [body["instruction"], answer["message"]]
+        assert len(state.decisions) == (2 if resolve else 0)
+        assert len(trace) == (2 if resolve else 1)
+
+
+def test_dialogue_v2_carries_server_grounding_across_partial_ask_chain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _pending_dialogue(tmp_path, monkeypatch) as (
+        server,
+        app,
+        session,
+        collection,
+        first,
+        _trace,
+    ):
+        grounding = {
+            "status": "resolved",
+            "catalogs": ["demo.video"],
+            "selections": [{"catalog": "demo.video", "field": "tipologia", "literal": "Film"}],
+            "semantic_source_revision": "sha256:" + "b" * 64,
+        }
+        parent = app.turns._turns[first["turn_id"]]
+        parent.terminal["grounding"] = deepcopy(grounding)
+
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=_dialogue_answer_body(first, partial=True),
+        )
+        assert status == 202
+        second = _wait_turn(server, session, accepted["turn_id"])
+        assert second["outcome"] == "needs_clarification"
+        second_record = app.turns._turns[second["turn_id"]]
+        assert second_record.basis_grounding == grounding
+        assert second_record.request.server_basis_grounding == grounding
+        assert second_record.basis_grounding is not parent.terminal["grounding"]
+
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{second['turn_id']}/answer",
+            token=session["token"],
+            body=_dialogue_answer_body(second, message=None),
+        )
+        assert status == 202
+        final = _wait_turn(server, session, accepted["turn_id"])
+        assert final["outcome"] == "proposed"
+        final_record = app.turns._turns[final["turn_id"]]
+        assert final_record.basis_grounding == grounding
+        assert final_record.request.server_basis_grounding == grounding
+        assert final_record.basis_grounding is not second_record.basis_grounding
+
+
+@contextmanager
+def _pending_dialogue(tmp_path, monkeypatch, *, script=None):
+    trace = []
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run",
+        script or _dialogue_script(trace),
+    )
+    compiler = FakeCompiler()
+    with _service(tmp_path, model=StaticModelRuntime("unused"), compiler=compiler) as (
+        server,
+        runtime,
+        app,
+    ):
+        session = _open(server, runtime)
+        semantic = (
+            TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")])
+            .capture("demo", toolchain_binding=compiler.toolchain_binding)
+            .semantic_source_revision()
+        )
+        body = _named_create_request(session, semantic)
+        collection = f"/v1/sessions/{session['id']}/turns"
+        status, accepted, _ = _request(
+            server, "POST", collection, token=session["token"], body=body
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        assert first["outcome"] == "needs_clarification"
+        yield server, app, session, collection, first, trace
+        assert compiler.calls == 0
+
+
+@pytest.mark.parametrize(
+    "attack", ["unknown", "duplicate", "cross-slot", "private", "stale", "parent-fingerprint"]
+)
+def test_dialogue_v2_invalid_roster_is_atomic_and_original_pending_retryable(
+    tmp_path, monkeypatch, attack
+):
+    with _pending_dialogue(tmp_path, monkeypatch) as (
+        server,
+        app,
+        session,
+        collection,
+        first,
+        trace,
+    ):
+        answer = _dialogue_answer_body(first)
+        if attack == "unknown":
+            answer["answers"][0]["value"]["option_refs"] = ["option-unknown"]
+        elif attack == "duplicate":
+            answer["answers"].append(answer["answers"][0])
+        elif attack == "cross-slot":
+            answer["answers"][0]["question_ref"] = answer["answers"][1]["question_ref"]
+            answer["answers"].pop()
+        elif attack == "private":
+            answer["authority_keys"] = ["private.Users"]
+        elif attack == "stale":
+            parent = app.turns._turns[first["turn_id"]]
+            parent.dialogue_state = replace(
+                parent.dialogue_state,
+                binding=replace(
+                    parent.dialogue_state.binding, toolchain_binding="sha256:" + "f" * 64
+                ),
+            )
+        else:
+            parent = app.turns._turns[first["turn_id"]]
+            original_request = parent.request
+            parent.request = replace(parent.request, instruction="Unrelated replaced parent")
+        status, rejected, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=answer,
+        )
+        assert status in {400, 409}
+        assert "error" in rejected
+        assert len(trace) == 1
+        assert app.turns.clarifications.metrics()["pending"] == 1
+        parent = app.turns._turns[first["turn_id"]]
+        assert not app.turns.clarifications.decisions_v2(
+            session_id=session["id"], conversation_id=parent.conversation_id
+        )
+        if attack == "stale":
+            parent.dialogue_state = replace(trace[0])
+        elif attack == "parent-fingerprint":
+            parent.request = original_request
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=_dialogue_answer_body(first),
+        )
+        assert status == 202
+        assert _wait_turn(server, session, accepted["turn_id"])["outcome"] == "proposed"
+
+
+@pytest.mark.parametrize("lifecycle", ["close", "ttl", "shutdown"])
+@pytest.mark.parametrize("partial", [False, True])
+def test_dialogue_v2_session_erasure_including_rotated_pending(
+    tmp_path, monkeypatch, lifecycle, partial
+):
+    with _pending_dialogue(tmp_path, monkeypatch) as (
+        server,
+        app,
+        session,
+        collection,
+        first,
+        _trace,
+    ):
+        if partial:
+            status, accepted, _ = _request(
+                server,
+                "POST",
+                f"{collection}/{first['turn_id']}/answer",
+                token=session["token"],
+                body=_dialogue_answer_body(first, partial=True),
+            )
+            assert status == 202
+            assert (
+                _wait_turn(server, session, accepted["turn_id"])["outcome"] == "needs_clarification"
+            )
+        held = tuple(app.turns._turns.values())
+        if lifecycle == "close":
+            app.manager.close(session_id=session["id"], token=session["token"])
+        elif lifecycle == "ttl":
+            now = app.manager._monotonic()
+            app.manager._monotonic = lambda: now + 1_201
+            assert app.manager.sweep_expired() == 1
+        else:
+            app.turns.shutdown()
+        for record in held:
+            assert record.dialogue_state is None and record.dialogue_pending is None
+            assert record.request.server_dialogue is None
+            assert record.request.instruction == ""
+            assert record.request.clarification_response is None
+        assert app.turns.clarifications.metrics()["pending"] == 0
+        assert app.turns.clarifications.metrics()["decisions"] == 0
+
+
+@pytest.mark.parametrize("lifecycle", ["failure", "cancel", "mutation"])
+def test_dialogue_v2_failed_or_cancelled_answer_erases_state_and_cannot_republish(
+    tmp_path, monkeypatch, lifecycle
+):
+    trace = []
+    entered, release = threading.Event(), threading.Event()
+    original = _dialogue_script(
+        trace,
+        fail_after_answer=lifecycle == "failure",
+        blocked=(entered, release) if lifecycle == "cancel" else None,
+    )
+    staged_records = []
+
+    def scripted(orchestrator, **kwargs):
+        staged_records.append(kwargs["record"])
+        result = original(orchestrator, **kwargs)
+        if lifecycle == "mutation" and kwargs["record"].dialogue_state.decisions:
+            kwargs["record"].dialogue_state = replace(
+                kwargs["record"].dialogue_state,
+                generation=kwargs["record"].dialogue_state.generation + 1,
+            )
+        return result
+
+    with _pending_dialogue(tmp_path, monkeypatch, script=scripted) as (
+        server,
+        app,
+        session,
+        collection,
+        first,
+        _unused,
+    ):
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=_dialogue_answer_body(first),
+        )
+        assert status == 202
+        held = app.turns._turns[accepted["turn_id"]]
+        try:
+            if lifecycle == "cancel":
+                assert entered.wait(timeout=5)
+                status, _body, _ = _request(
+                    server,
+                    "DELETE",
+                    f"{collection}/{accepted['turn_id']}",
+                    token=session["token"],
+                )
+                assert status == 200
+        finally:
+            release.set()
+        terminal = _wait_turn(server, session, accepted["turn_id"])
+        assert terminal["status"] == ("cancelled" if lifecycle == "cancel" else "failed")
+        if lifecycle == "mutation":
+            assert terminal["error"]["code"] == "PROPOSAL_STALE"
+        app.turns._executor.submit(lambda: None).result(timeout=5)
+        assert held.dialogue_state is None and held.dialogue_pending is None
+        assert held.request.server_dialogue is None
+        assert held.request.instruction == "" and held.request.clarification_response is None
+        assert all(record.dialogue_state is None for record in staged_records)
+        assert app.turns.clarifications.metrics()["pending"] == 0
+        assert "private.Video" not in json.dumps(terminal)
+
+
+def _assert_no_typed_create_state(record: Any) -> None:
+    for prefix in ("basis", "candidate"):
+        for suffix in (
+            "spec",
+            "spec_sha256",
+            "ir",
+            "ir_sha256",
+            "proof",
+            "generation",
+            "history",
+            "history_revision",
+        ):
+            assert getattr(record, f"{prefix}_create_{suffix}") is None
+
+
 def test_turn_request_v2_parses_typed_clarification_and_stable_fingerprint() -> None:
     context = "sha256:" + "a" * 64
     semantic = "sha256:" + "b" * 64
@@ -562,11 +1217,18 @@ def test_private_manifest_publication_requires_the_exact_current_record() -> Non
         "fetches": [],
     }
     manifest_sha256 = canonical_sha256(manifest)
+    source = "metis 0.43\nendpoint demo.private { take 1 from @video }\n"
+    source_sha256 = bytes_sha256(source.encode("utf-8"))
     stale.basis_manifest = dict(manifest)
     stale.basis_manifest_sha256 = manifest_sha256
+    stale.candidate_source = source
+    stale.candidate_source_sha256 = source_sha256
     staged = SimpleNamespace(
         basis_manifest=dict(manifest),
         basis_manifest_sha256=manifest_sha256,
+        candidate_proposal_ref="proposal-private",
+        candidate_source=source,
+        candidate_source_sha256=source_sha256,
         candidate_manifest=dict(manifest),
         candidate_manifest_sha256=manifest_sha256,
     )
@@ -578,10 +1240,1077 @@ def test_private_manifest_publication_requires_the_exact_current_record() -> Non
     assert not store._publish_private_attachments(stale, staged)  # noqa: SLF001
     assert stale.basis_manifest is None
     assert stale.basis_manifest_sha256 is None
+    assert stale.candidate_source is None
+    assert stale.candidate_source_sha256 is None
     assert stale.candidate_manifest is None
     assert stale.candidate_manifest_sha256 is None
     assert replacement.basis_manifest is None
+    assert replacement.candidate_source is None
     assert replacement.candidate_manifest is None
+
+
+def test_public_status_deep_copies_nested_proposal_authority() -> None:
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": "sha256:" + "a" * 64,
+            "expected_semantic_source_revision": "sha256:" + "b" * 64,
+            "intent": "create",
+            "instruction": "crea un endpoint",
+            "target": {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.private",
+                "base_sha256": None,
+            },
+            "basis": None,
+            "clarification_response": None,
+        }
+    )
+    source = "metis 0.43\nendpoint demo.private { take 1 from @video }\n"
+    source_sha256 = bytes_sha256(source.encode("utf-8"))
+    record = TurnRecord(
+        "turn_" + "d" * 32,
+        "session_" + "d" * 32,
+        request,
+        request.payload_hash,
+        candidate_source=source,
+        candidate_source_sha256=source_sha256,
+    )
+    record.terminal = {
+        "status": "completed",
+        "outcome": "proposed",
+        "proposal": {
+            "proposal_ref": "proposal-private",
+            "source": source,
+            "source_sha256": source_sha256,
+            "proposal_basis": {"context_revision": request.expected_context_revision},
+        },
+    }
+
+    public = record.public_status()
+    public["proposal"]["source"] = "mutated"
+    public["proposal"]["proposal_basis"]["context_revision"] = "mutated"
+
+    assert record.terminal["proposal"]["source"] == source
+    assert (
+        record.terminal["proposal"]["proposal_basis"]["context_revision"]
+        == request.expected_context_revision
+    )
+    assert record.candidate_source == source
+    assert record.candidate_source_sha256 == source_sha256
+
+
+def test_latest_head_rejects_old_basis_and_replays_exact_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        return _scripted_proposal(kwargs["record"], kwargs["request"], calls)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, first_accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, first_accepted["turn_id"])
+
+        second_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "prima revisione",
+            "basis": {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]},
+        }
+        status, second_accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=second_body,
+        )
+        assert status == 202
+        second = _wait_turn(server, session, second_accepted["turn_id"])
+        assert second["outcome"] == "proposed"
+
+        status, replayed_first, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        assert replayed_first["turn_id"] == first_accepted["turn_id"]
+
+        stale_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "ramo vietato",
+            "basis": {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]},
+        }
+        status, stale, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=stale_body,
+        )
+        assert status == 409 and stale["error"]["code"] == "PROPOSAL_STALE"
+
+        status, replayed, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=second_body,
+        )
+        assert status == 202
+        assert replayed["turn_id"] == second_accepted["turn_id"]
+        assert calls == 2
+        head = next(iter(app.turns._proposal_heads.values()))  # noqa: SLF001
+        assert head.turn_id == second_accepted["turn_id"]
+
+        no_basis = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "secondo inizio sullo stesso target",
+        }
+        status, rejected, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=no_basis,
+        )
+        assert status == 409 and rejected["error"]["code"] == "PROPOSAL_STALE"
+
+
+def test_typed_create_state_isolated_publish_transfer_and_head_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    staged_graphs: list[dict[str, Any]] = []
+
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        staged = kwargs["record"]
+        parent_ir = staged.basis_create_ir
+        state = _typed_create_state(
+            generation=calls - 1,
+            parent_ir=parent_ir,
+            marker=f"private-create-{calls}",
+        )
+        staged_graphs.append(state)
+        _attach_typed_create_state(staged, prefix="candidate", state=state)
+        return _scripted_proposal(staged, kwargs["request"], calls)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first_public = _wait_turn(server, session, accepted["turn_id"])
+        assert first_public["outcome"] == "proposed"
+        first = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        assert first.candidate_create_generation == 0
+        assert first.candidate_create_proof == create_ir_stage_proof(
+            None, first.candidate_create_ir
+        )
+        assert first.candidate_create_spec is not staged_graphs[0]["spec"]
+        assert first.candidate_create_ir is not staged_graphs[0]["ir"]
+        assert first.candidate_create_history is not staged_graphs[0]["history"]
+        assert first.candidate_create_history == _create_history(first_body["instruction"])
+        assert first.candidate_create_history_revision == create_authority_history_revision(
+            first.candidate_create_history
+        )
+        staged_graphs[0]["spec"]["endpoint"]["marker"] = "mutated-after-publish"
+        staged_graphs[0]["ir"]["private_marker"] = "mutated-after-publish"
+        staged_graphs[0]["history"] = _create_history("mutated-after-publish")
+        assert first.candidate_create_spec["endpoint"]["marker"] == "private-create-1"
+        assert first.candidate_create_ir["private_marker"] == "private-create-1"
+        assert first.candidate_create_history == _create_history(first_body["instruction"])
+
+        refined_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "aggiungi il raffinamento",
+            "basis": {
+                "kind": "proposal",
+                "proposal_ref": first_public["proposal"]["proposal_ref"],
+            },
+        }
+        status, accepted_refined, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=refined_body,
+        )
+        assert status == 202
+        refined_public = _wait_turn(server, session, accepted_refined["turn_id"])
+        assert refined_public["outcome"] == "proposed"
+        refined = app.turns._turns[accepted_refined["turn_id"]]  # noqa: SLF001
+        assert refined.basis_create_spec == first.candidate_create_spec
+        assert refined.basis_create_spec is not first.candidate_create_spec
+        assert refined.basis_create_ir == first.candidate_create_ir
+        assert refined.basis_create_ir is not first.candidate_create_ir
+        assert refined.basis_create_history == first.candidate_create_history
+        assert refined.basis_create_history is not first.candidate_create_history
+        assert refined.basis_create_generation == 0
+        assert refined.candidate_create_generation == 1
+        assert tuple(item.text for item in refined.candidate_create_history) == (
+            first_body["instruction"],
+            refined_body["instruction"],
+        )
+        assert refined.candidate_create_proof.parent_ir_sha256 == first.candidate_create_ir_sha256
+        head = next(iter(app.turns._proposal_heads.values()))  # noqa: SLF001
+        assert head.create_spec_sha256 == refined.candidate_create_spec_sha256
+        assert head.create_ir_sha256 == refined.candidate_create_ir_sha256
+        assert head.create_proof == refined.candidate_create_proof
+        assert head.create_generation == 1
+        assert head.create_history_revision == refined.candidate_create_history_revision
+
+        status, replayed, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=refined_body,
+        )
+        assert status == 202
+        assert replayed["turn_id"] == accepted_refined["turn_id"]
+        assert calls == 2
+        assert refined.candidate_create_history == _create_history(
+            first_body["instruction"], refined_body["instruction"]
+        )
+
+        public_wire = json.dumps(
+            {"status": refined.public_status(), "events": refined.events},
+            sort_keys=True,
+        )
+        assert "private-create-2" not in public_wire
+        assert "candidate_create" not in public_wire
+
+
+def test_typed_create_qualification_receipt_is_hash_only_and_session_scoped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiler_receipt_sha256 = "sha256:" + "c" * 64
+
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        staged = kwargs["record"]
+        state = _typed_create_state(
+            generation=0,
+            parent_ir=None,
+            marker="private-receipt-marker",
+        )
+        _attach_typed_create_state(staged, prefix="candidate", state=state)
+        result = _scripted_proposal(staged, kwargs["request"], 1)
+        result["validation"] = {
+            "status": "ok",
+            "attempts": 1,
+            "compiler_receipt_sha256": compiler_receipt_sha256,
+        }
+        result["identity"] = {"generation_strategy": "model_create_plan_v2"}
+        return result
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        terminal = _wait_turn(server, session, accepted["turn_id"])
+        assert terminal["outcome"] == "proposed"
+
+        receipt = app.turns.seal_typed_create_qualification_receipt(
+            session_id=session["id"],
+            token=session["token"],
+            turn_id=accepted["turn_id"],
+        )
+        assert receipt["contract_id"] == TYPED_CREATE_QUALIFICATION_RECEIPT_CONTRACT
+        assert receipt["generation_strategy"] == "model_create_plan_v2"
+        assert receipt["compiler_receipt_sha256"] == compiler_receipt_sha256
+        assert receipt["receipt_sha256"] == canonical_sha256(
+            {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        )
+        wire = json.dumps(receipt, sort_keys=True)
+        assert "private-receipt-marker" not in wire
+        assert "metis 0.43" not in wire
+        assert "spec" not in receipt and "ir" not in receipt and "source" not in receipt
+
+        status, _, _ = _request(
+            server,
+            "DELETE",
+            f"/v1/sessions/{session['id']}",
+            token=session["token"],
+        )
+        assert status == 200
+        with pytest.raises(BrainError) as unavailable:
+            app.turns.seal_typed_create_qualification_receipt(
+                session_id=session["id"],
+                token=session["token"],
+                turn_id=accepted["turn_id"],
+            )
+        assert unavailable.value.code == "SESSION_UNAVAILABLE"
+
+
+def test_typed_create_clarification_receipt_seals_only_the_private_gap_contracts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace: list[Any] = []
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run", _dialogue_script(trace)
+    )
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("unused"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        terminal = _wait_turn(server, session, accepted["turn_id"])
+        assert terminal["outcome"] == "needs_clarification"
+
+        receipt = app.turns.seal_typed_create_clarification_receipt(
+            session_id=session["id"],
+            token=session["token"],
+            turn_id=accepted["turn_id"],
+        )
+
+        assert receipt["contract_id"] == TYPED_CREATE_CLARIFICATION_RECEIPT_CONTRACT
+        assert receipt["slot_contracts"] == [
+            {
+                "decision_key": "catalogs",
+                "target_key": "endpoint",
+                "kind": "catalog",
+                "answer_kind": "option_refs",
+                "value_contract": "authority",
+                "minimum": 1,
+                "maximum": 2,
+                "choice_count": 2,
+            },
+            {
+                "decision_key": "count",
+                "target_key": "row.main",
+                "kind": "result_count",
+                "answer_kind": "integer",
+                "value_contract": "total",
+                "minimum": 1,
+                "maximum": 100,
+                "choice_count": 0,
+            },
+        ]
+        assert receipt["receipt_sha256"] == canonical_sha256(
+            {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        )
+        wire = json.dumps(receipt, sort_keys=True)
+        assert "Quali cataloghi?" not in wire
+        assert "private.Video" not in wire
+        assert '"option_ref":' not in wire
+
+
+def test_typed_create_clarification_receipt_seals_rotated_unanswered_gap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace: list[Any] = []
+    monkeypatch.setattr(
+        "metis_model1.brain_orchestrator.BrainOrchestrator.run", _dialogue_script(trace)
+    )
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("unused"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        collection = f"/v1/sessions/{session['id']}/turns"
+        body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            collection,
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        assert first["outcome"] == "needs_clarification"
+        first_receipt = app.turns.seal_typed_create_clarification_receipt(
+            session_id=session["id"],
+            token=session["token"],
+            turn_id=accepted["turn_id"],
+        )
+
+        unresolved = _dialogue_answer_body(first, message="Non ho ancora deciso.")
+        unresolved["answers"] = []
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"{collection}/{first['turn_id']}/answer",
+            token=session["token"],
+            body=unresolved,
+        )
+        assert status == 202
+        repeated = _wait_turn(server, session, accepted["turn_id"])
+        assert repeated["outcome"] == "needs_clarification"
+
+        repeated_receipt = app.turns.seal_typed_create_clarification_receipt(
+            session_id=session["id"],
+            token=session["token"],
+            turn_id=accepted["turn_id"],
+        )
+        assert repeated_receipt["turn_id"] == accepted["turn_id"]
+        assert repeated_receipt["round"] == first_receipt["round"] == 1
+        assert repeated_receipt["slot_contracts"] == first_receipt["slot_contracts"]
+        assert repeated_receipt["binding_sha256"] == first_receipt["binding_sha256"]
+        assert repeated_receipt["receipt_sha256"] == canonical_sha256(
+            {key: value for key, value in repeated_receipt.items() if key != "receipt_sha256"}
+        )
+
+
+@pytest.mark.parametrize(
+    ("clarification_retry", "expected_messages"),
+    [(False, 2), (True, 1)],
+)
+def test_typed_create_history_appends_refinement_but_not_clarification_retry(
+    clarification_retry: bool,
+    expected_messages: int,
+) -> None:
+    instruction = "mantieni ventiquattro risultati"
+    context_revision = "sha256:" + "a" * 64
+    semantic_revision_value = "sha256:" + "b" * 64
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": context_revision,
+            "expected_semantic_source_revision": semantic_revision_value,
+            "intent": "create",
+            "instruction": instruction,
+            "target": {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.head",
+                "base_sha256": None,
+            },
+            "basis": {"kind": "proposal", "proposal_ref": "proposal-parent"},
+            "clarification_response": (
+                {
+                    "clarification_id": "clarification-parent",
+                    "answer": {"integer": 24},
+                    "context_revision": context_revision,
+                    "semantic_source_revision": semantic_revision_value,
+                }
+                if clarification_retry
+                else None
+            ),
+        }
+    )
+    basis = _typed_create_state(
+        generation=0,
+        parent_ir=None,
+        marker="basis",
+        history_texts=(instruction,),
+    )
+    candidate = _typed_create_state(
+        generation=1,
+        parent_ir=basis["ir"],
+        marker="candidate",
+    )
+    record = TurnRecord(
+        turn_id="turn_" + "a" * 32,
+        session_id="session_" + "a" * 32,
+        request=request,
+        payload_hash=request.payload_hash,
+    )
+    _attach_typed_create_state(record, prefix="basis", state=basis)
+    _attach_typed_create_state(record, prefix="candidate", state=candidate)
+
+    basis_state = TurnStore._create_state_from_record(record, prefix="basis")  # noqa: SLF001
+    candidate_state = TurnStore._create_state_from_record(  # noqa: SLF001
+        record,
+        prefix="candidate",
+        parent_ir=basis_state.ir,
+        expected_generation=1,
+    )
+    TurnStore._validate_candidate_create_history(  # noqa: SLF001
+        record=record,
+        basis=basis_state,
+        candidate=candidate_state,
+    )
+
+    assert len(candidate_state.history) == expected_messages
+    assert tuple(message.text for message in candidate_state.history) == (instruction,) * (
+        expected_messages
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "spec_hash",
+        "ir_hash",
+        "proof",
+        "generation",
+        "history_hash",
+        "history_message",
+        "history_lineage",
+        "history_partial",
+        "partial",
+    ],
+)
+def test_typed_create_state_mismatch_fails_before_any_private_publish(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        staged = kwargs["record"]
+        state = _typed_create_state(
+            generation=0,
+            parent_ir=None,
+            marker="must-never-publish",
+        )
+        if mutation == "spec_hash":
+            state["spec_sha256"] = "sha256:" + "0" * 64
+        elif mutation == "ir_hash":
+            state["ir_sha256"] = "sha256:" + "0" * 64
+        elif mutation == "proof":
+            state["proof"] = CreateIrStageProof(
+                ir_sha256=state["ir_sha256"],
+                parent_ir_sha256="sha256:" + "1" * 64,
+                delta_sha256=state["proof"].delta_sha256,
+                delta_operation_count=state["proof"].delta_operation_count,
+            )
+        elif mutation == "generation":
+            state["generation"] = 1
+        elif mutation == "partial":
+            state["ir"] = None
+        _attach_typed_create_state(staged, prefix="candidate", state=state)
+        if mutation == "history_hash":
+            staged.candidate_create_history_revision = "sha256:" + "0" * 64
+        elif mutation == "history_message":
+            staged.candidate_create_history = _create_history("spoofed operator instruction")
+        elif mutation == "history_lineage":
+            spoofed = _create_history("spoofed operator instruction")
+            staged.candidate_create_history = spoofed
+            staged.candidate_create_history_revision = create_authority_history_revision(spoofed)
+        elif mutation == "history_partial":
+            staged.candidate_create_history_revision = None
+        return _scripted_proposal(staged, kwargs["request"], 1)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        terminal = _wait_turn(server, session, accepted["turn_id"])
+        assert terminal["status"] == "failed"
+        assert terminal["error"]["code"] in {"COMPILER_FAILED", "CREATE_IR_MISMATCH"}
+        record = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        assert record.candidate_source is None
+        assert record.candidate_manifest is None
+        assert record.candidate_create_spec is None
+        assert record.candidate_create_ir is None
+        assert record.candidate_create_proof is None
+        assert record.candidate_create_generation is None
+        _assert_no_typed_create_state(record)
+        assert app.turns._proposal_heads == {}  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["spec", "history_message", "history_revision"],
+)
+def test_mutated_latest_typed_create_authority_is_not_transferable_as_basis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        staged = kwargs["record"]
+        state = _typed_create_state(
+            generation=0,
+            parent_ir=None,
+            marker="private-before-mutation",
+        )
+        _attach_typed_create_state(staged, prefix="candidate", state=state)
+        return _scripted_proposal(staged, kwargs["request"], 1)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first_public = _wait_turn(server, session, accepted["turn_id"])
+        first = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        if mutation == "spec":
+            first.candidate_create_spec["endpoint"]["marker"] = "tampered-in-store"
+        elif mutation == "history_message":
+            first.candidate_create_history = _create_history("tampered-in-store")
+        else:
+            first.candidate_create_history_revision = "sha256:" + "0" * 64
+        refinement = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffina",
+            "basis": {
+                "kind": "proposal",
+                "proposal_ref": first_public["proposal"]["proposal_ref"],
+            },
+        }
+        status, rejected, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=refinement,
+        )
+        assert status == 409
+        assert rejected["error"]["code"] == "PROPOSAL_STALE"
+
+
+def test_staged_typed_create_basis_cannot_be_rewritten_before_atomic_publish() -> None:
+    request = TurnRequest.parse(
+        {
+            "schema_version": 2,
+            "request_id": str(uuid.uuid4()),
+            "expected_context_revision": "sha256:" + "a" * 64,
+            "expected_semantic_source_revision": "sha256:" + "b" * 64,
+            "intent": "create",
+            "instruction": "raffina",
+            "target": {
+                "mode": "create",
+                "relative_path": "candidate.metis",
+                "endpoint": "demo.head",
+                "base_sha256": None,
+            },
+            "basis": {"kind": "proposal", "proposal_ref": "proposal-parent"},
+            "clarification_response": None,
+        }
+    )
+    basis = _typed_create_state(generation=0, parent_ir=None, marker="basis")
+    record = TurnRecord(
+        turn_id="turn_" + "a" * 32,
+        session_id="session_" + "a" * 32,
+        request=request,
+        payload_hash=request.payload_hash,
+    )
+    _attach_typed_create_state(record, prefix="basis", state=basis)
+    staged = _OrchestratorTurnRecord(record)
+    staged.basis_create_spec["endpoint"]["marker"] = "rewritten"
+    store = object.__new__(TurnStore)
+    store._lock = threading.RLock()  # noqa: SLF001
+    store._closed = False  # noqa: SLF001
+    store._turns = {record.turn_id: record}  # noqa: SLF001
+
+    with pytest.raises(BrainError) as raised:
+        store._publish_private_attachments(record, staged)  # noqa: SLF001
+    assert raised.value.code in {"COMPILER_FAILED", "PROPOSAL_STALE"}
+    assert record.basis_create_spec["endpoint"]["marker"] == "basis"
+    assert record.candidate_create_spec is None
+
+
+def test_latest_head_serializes_concurrent_refinements_without_branching(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    calls = 0
+
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        ordinal = calls
+        if ordinal == 2:
+            entered.set()
+            assert release.wait(timeout=5)
+        return _scripted_proposal(kwargs["record"], kwargs["request"], ordinal)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, _app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        basis = {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]}
+        winner_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffinamento vincente",
+            "basis": basis,
+        }
+        loser_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffinamento concorrente",
+            "basis": basis,
+        }
+        status, winner, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=winner_body,
+        )
+        assert status == 202 and entered.wait(timeout=5)
+
+        status, active, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=loser_body,
+        )
+        assert status == 409 and active["error"]["code"] == "TURN_ACTIVE"
+        release.set()
+        assert _wait_turn(server, session, winner["turn_id"])["outcome"] == "proposed"
+
+        status, stale, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=loser_body,
+        )
+        assert status == 409 and stale["error"]["code"] == "PROPOSAL_STALE"
+        status, replayed, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=winner_body,
+        )
+        assert status == 202 and replayed["turn_id"] == winner["turn_id"]
+        assert calls == 2
+
+
+def test_cancelled_refinement_cannot_replace_latest_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    calls = 0
+
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        ordinal = calls
+        if ordinal == 2:
+            entered.set()
+            assert release.wait(timeout=5)
+        return _scripted_proposal(kwargs["record"], kwargs["request"], ordinal)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        first_turn_id = accepted["turn_id"]
+        refinement = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffinamento da annullare",
+            "basis": {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]},
+        }
+        status, refining, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=refinement,
+        )
+        assert status == 202 and entered.wait(timeout=5)
+        status, _cancelling, _ = _request(
+            server,
+            "DELETE",
+            f"/v1/sessions/{session['id']}/turns/{refining['turn_id']}",
+            token=session["token"],
+        )
+        assert status == 200
+        release.set()
+        assert _wait_turn(server, session, refining["turn_id"])["status"] == "cancelled"
+        assert next(iter(app.turns._proposal_heads.values())).turn_id == first_turn_id  # noqa: SLF001
+
+        retry_from_head = {
+            **refinement,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffinamento dopo annullamento",
+        }
+        status, accepted_retry, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=retry_from_head,
+        )
+        assert status == 202
+        assert _wait_turn(server, session, accepted_retry["turn_id"])["outcome"] == "proposed"
+
+
+@pytest.mark.parametrize("middle_outcome", ["no_change", "failed"])
+def test_failed_or_non_proposed_turn_does_not_advance_latest_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    middle_outcome: str,
+) -> None:
+    calls = 0
+
+    def scripted(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls != 2:
+            return _scripted_proposal(kwargs["record"], kwargs["request"], calls)
+        if middle_outcome == "failed":
+            raise BrainError("TEST_FAILURE", 503, "injected failure")
+        request = kwargs["request"]
+        return {
+            "schema_version": request.schema_version,
+            "turn_id": kwargs["record"].turn_id,
+            "request_id": request.request_id,
+            "status": "completed",
+            "route": "local",
+            "outcome": "no_change",
+            "proposal": None,
+        }
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", scripted)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        first_body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=first_body,
+        )
+        assert status == 202
+        first = _wait_turn(server, session, accepted["turn_id"])
+        first_turn_id = accepted["turn_id"]
+        basis = {"kind": "proposal", "proposal_ref": first["proposal"]["proposal_ref"]}
+        middle_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "tentativo senza nuova proposta",
+            "basis": basis,
+        }
+        status, middle, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=middle_body,
+        )
+        assert status == 202
+        terminal = _wait_turn(server, session, middle["turn_id"])
+        assert terminal.get("outcome") == "no_change" or terminal["status"] == "failed"
+        assert next(iter(app.turns._proposal_heads.values())).turn_id == first_turn_id  # noqa: SLF001
+
+        final_body = {
+            **first_body,
+            "request_id": str(uuid.uuid4()),
+            "instruction": "raffinamento valido successivo",
+            "basis": basis,
+        }
+        status, final, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=final_body,
+        )
+        assert status == 202
+        assert _wait_turn(server, session, final["turn_id"])["outcome"] == "proposed"
+        assert next(iter(app.turns._proposal_heads.values())).turn_id == final["turn_id"]  # noqa: SLF001
+
+
+@pytest.mark.parametrize("lifecycle", ["close", "ttl"])
+def test_session_cleanup_erases_published_latest_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lifecycle: str,
+) -> None:
+    def propose(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
+        return _scripted_proposal(kwargs["record"], kwargs["request"], 1)
+
+    monkeypatch.setattr("metis_model1.brain_orchestrator.BrainOrchestrator.run", propose)
+    compiler = FakeCompiler()
+    with _service(
+        tmp_path,
+        model=StaticModelRuntime("metis 0.43\ntenant candidate {}\n"),
+        compiler=compiler,
+    ) as (server, runtime, app):
+        session = _open(server, runtime)
+        snapshot = TenantRegistry([("demo", "tenant-one", tmp_path / "tenant")]).capture(
+            "demo", toolchain_binding=compiler.toolchain_binding
+        )
+        body = _named_create_request(session, snapshot.semantic_source_revision())
+        status, accepted, _ = _request(
+            server,
+            "POST",
+            f"/v1/sessions/{session['id']}/turns",
+            token=session["token"],
+            body=body,
+        )
+        assert status == 202
+        assert _wait_turn(server, session, accepted["turn_id"])["outcome"] == "proposed"
+        assert len(app.turns._proposal_heads) == 1  # noqa: SLF001
+
+        if lifecycle == "close":
+            status, _closed, _ = _request(
+                server,
+                "DELETE",
+                f"/v1/sessions/{session['id']}",
+                token=session["token"],
+            )
+            assert status == 200
+        else:
+            now = app.manager._monotonic()  # noqa: SLF001
+            app.manager._monotonic = lambda: now + 1_201  # type: ignore[method-assign]  # noqa: SLF001
+            assert app.manager.sweep_expired() == 1
+        assert app.turns._proposal_heads == {}  # noqa: SLF001
 
 
 def test_heartbeat_is_bounded_replayable_and_contains_no_work_payload() -> None:
@@ -654,6 +2383,9 @@ def test_terminal_is_last_when_heartbeat_and_finish_race() -> None:
     )
     store = object.__new__(TurnStore)
     store._lock = threading.Lock()  # noqa: SLF001
+    store._closed = False  # noqa: SLF001
+    store._turns = {record.turn_id: record}  # noqa: SLF001
+    store._proposal_heads = {}  # noqa: SLF001
     store._active = {record.session_id}  # noqa: SLF001
     heartbeat_entered = threading.Event()
     release_heartbeat = threading.Event()
@@ -1063,7 +2795,7 @@ def test_close_during_retrieval_cannot_resurrect_pending_memory(tmp_path: Path) 
 
 
 @pytest.mark.parametrize("lifecycle", ["close", "ttl", "cancel"])
-def test_revoked_turn_cannot_republish_staged_private_manifests(
+def test_revoked_turn_cannot_republish_staged_private_attachments(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     lifecycle: str,
@@ -1079,6 +2811,18 @@ def test_revoked_turn_cannot_republish_staged_private_manifests(
         "fetches": [],
     }
     manifest_sha256 = canonical_sha256(manifest)
+    source = "metis 0.43\nendpoint demo.private { take 1 from @video }\n"
+    source_sha256 = bytes_sha256(source.encode("utf-8"))
+    basis_create = _typed_create_state(
+        generation=0,
+        parent_ir=None,
+        marker="private-lifecycle-basis",
+    )
+    candidate_create = _typed_create_state(
+        generation=1,
+        parent_ir=basis_create["ir"],
+        marker="private-lifecycle-candidate",
+    )
 
     def stage_after_revocation(_orchestrator: Any, **kwargs: Any) -> dict[str, Any]:
         staged = kwargs["record"]
@@ -1088,8 +2832,12 @@ def test_revoked_turn_cannot_republish_staged_private_manifests(
         assert release.wait(timeout=5)
         staged.basis_manifest = dict(manifest)
         staged.basis_manifest_sha256 = manifest_sha256
+        staged.candidate_source = source
+        staged.candidate_source_sha256 = source_sha256
         staged.candidate_manifest = dict(manifest)
         staged.candidate_manifest_sha256 = manifest_sha256
+        _attach_typed_create_state(staged, prefix="basis", state=basis_create)
+        _attach_typed_create_state(staged, prefix="candidate", state=candidate_create)
         return {
             "schema_version": request.schema_version,
             "turn_id": staged.turn_id,
@@ -1097,6 +2845,11 @@ def test_revoked_turn_cannot_republish_staged_private_manifests(
             "status": "completed",
             "route": "local",
             "outcome": "proposed",
+            "proposal": {
+                "proposal_ref": "proposal-private",
+                "source": source,
+                "source_sha256": source_sha256,
+            },
         }
 
     monkeypatch.setattr(
@@ -1126,8 +2879,13 @@ def test_revoked_turn_cannot_republish_staged_private_manifests(
         held = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
         held.basis_manifest = dict(manifest)
         held.basis_manifest_sha256 = manifest_sha256
+        held.candidate_proposal_ref = "proposal-private"
+        held.candidate_source = source
+        held.candidate_source_sha256 = source_sha256
         held.candidate_manifest = dict(manifest)
         held.candidate_manifest_sha256 = manifest_sha256
+        _attach_typed_create_state(held, prefix="basis", state=basis_create)
+        _attach_typed_create_state(held, prefix="candidate", state=candidate_create)
 
         try:
             if lifecycle == "close":
@@ -1153,26 +2911,63 @@ def test_revoked_turn_cannot_republish_staged_private_manifests(
 
             assert held.basis_manifest is None
             assert held.basis_manifest_sha256 is None
+            assert held.candidate_proposal_ref is None
+            assert held.candidate_source is None
+            assert held.candidate_source_sha256 is None
             assert held.candidate_manifest is None
             assert held.candidate_manifest_sha256 is None
+            assert held.basis_create_spec is None
+            assert held.basis_create_ir is None
+            assert held.basis_create_proof is None
+            assert held.basis_create_generation is None
+            assert held.candidate_create_spec is None
+            assert held.candidate_create_ir is None
+            assert held.candidate_create_proof is None
+            assert held.candidate_create_generation is None
+            _assert_no_typed_create_state(held)
         finally:
             release.set()
 
         app.turns._executor.submit(lambda: None).result(timeout=5)  # noqa: SLF001
         assert held.basis_manifest is None
         assert held.basis_manifest_sha256 is None
+        assert held.candidate_proposal_ref is None
+        assert held.candidate_source is None
+        assert held.candidate_source_sha256 is None
         assert held.candidate_manifest is None
         assert held.candidate_manifest_sha256 is None
+        assert held.basis_create_spec is None
+        assert held.basis_create_ir is None
+        assert held.basis_create_proof is None
+        assert held.basis_create_generation is None
+        assert held.candidate_create_spec is None
+        assert held.candidate_create_ir is None
+        assert held.candidate_create_proof is None
+        assert held.candidate_create_generation is None
+        _assert_no_typed_create_state(held)
         assert staged_records
         assert staged_records[0].basis_manifest is None
         assert staged_records[0].basis_manifest_sha256 is None
+        assert staged_records[0].candidate_proposal_ref is None
+        assert staged_records[0].candidate_source is None
+        assert staged_records[0].candidate_source_sha256 is None
         assert staged_records[0].candidate_manifest is None
         assert staged_records[0].candidate_manifest_sha256 is None
+        assert staged_records[0].basis_create_spec is None
+        assert staged_records[0].basis_create_ir is None
+        assert staged_records[0].basis_create_proof is None
+        assert staged_records[0].basis_create_generation is None
+        assert staged_records[0].candidate_create_spec is None
+        assert staged_records[0].candidate_create_ir is None
+        assert staged_records[0].candidate_create_proof is None
+        assert staged_records[0].candidate_create_generation is None
+        _assert_no_typed_create_state(staged_records[0])
         if lifecycle == "cancel":
             assert app.turns._turns.get(held.turn_id) is held  # noqa: SLF001
             assert held.public_status()["status"] == "cancelled"
         else:
             assert held.turn_id not in app.turns._turns  # noqa: SLF001
+        assert app.turns._proposal_heads == {}  # noqa: SLF001
 
 
 def test_close_before_turn_insertion_revokes_submit_without_resurrecting_record(
@@ -2101,17 +3896,19 @@ def test_refinement_uses_server_side_proposal_source_and_grounding_memory(tmp_pa
         adapter_sha256 = "sha256:" + "b" * 64
 
         def __init__(self) -> None:
-            self.sources = iter(
-                [
-                    "metis 0.43\nendpoint demo.first { take 24 from @video }\n",
-                    "metis 0.43\nendpoint demo.refined { take 24 from @video }\n",
-                ]
-            )
+            self.sources = [
+                "metis 0.43\nendpoint demo.candidate { take 24 from @video }\n",
+                (
+                    "metis 0.43\n// Presentazione più chiara\n"
+                    "endpoint demo.candidate { take 24 from @video }\n"
+                ),
+            ]
             self.requests: list[Any] = []
 
         def generate(self, request: Any) -> ModelCandidate:
             self.requests.append(request)
-            return ModelCandidate(next(self.sources), self.model_revision, self.adapter_sha256)
+            source = self.sources[min(len(self.requests) - 1, len(self.sources) - 1)]
+            return ModelCandidate(source, self.model_revision, self.adapter_sha256)
 
     compiler = FakeCompiler()
     retriever = RecordingRetriever()
@@ -2129,6 +3926,7 @@ def test_refinement_uses_server_side_proposal_source_and_grounding_memory(tmp_pa
         first_body.update(
             schema_version=2,
             instruction="crea un endpoint con alcuni risultati video",
+            target={**first_body["target"], "endpoint": "demo.candidate"},
         )
         status, accepted, _ = _request(
             server,
@@ -2159,6 +3957,9 @@ def test_refinement_uses_server_side_proposal_source_and_grounding_memory(tmp_pa
         assert status == 202
         first = _wait_turn(server, session, accepted["turn_id"])
         assert first["outcome"] == "proposed"
+        first_record = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        assert first_record.candidate_source == first["proposal"]["source"]
+        assert first_record.candidate_source_sha256 == first["proposal"]["source_sha256"]
         assert first["session_memory"]["rounds_used"] == 1
         assert first["session_memory"]["decisions"][0]["answer"] == {"integer": 24}
 
@@ -2196,8 +3997,11 @@ def test_refinement_uses_server_side_proposal_source_and_grounding_memory(tmp_pa
         )
         assert status == 202
         refined = _wait_turn(server, session, accepted["turn_id"])
-        assert refined["outcome"] == "proposed"
+        assert refined.get("outcome") == "proposed", refined
         assert model.requests[1].previous_source == first["proposal"]["source"]
+        refined_record = app.turns._turns[accepted["turn_id"]]  # noqa: SLF001
+        assert refined_record.basis_source == first_record.candidate_source
+        assert refined_record.basis_source_sha256 == first_record.candidate_source_sha256
         assert retriever.requests[2].server_basis_grounding == first["grounding"]
         assert refined["session_memory"]["rounds_used"] == 1
         assert refined["session_memory"]["decisions"] == first["session_memory"]["decisions"]
@@ -2297,9 +4101,17 @@ def test_named_basis_reuses_private_manifest_and_stale_authority_fails_closed(
             token=session["token"],
         )
         assert status == 200
+        assert app.turns._proposal_heads == {}  # noqa: SLF001
         for record in (first_record, refined_record):
+            assert record.basis_source is None
+            assert record.basis_source_sha256 is None
             assert record.basis_manifest is None
             assert record.basis_manifest_sha256 is None
+            assert record.head_target_identity is None
+            assert record.expected_head_turn_id is None
+            assert record.candidate_proposal_ref is None
+            assert record.candidate_source is None
+            assert record.candidate_source_sha256 is None
             assert record.candidate_manifest is None
             assert record.candidate_manifest_sha256 is None
 
@@ -2333,29 +4145,89 @@ def test_shutdown_erases_private_manifest_authority(tmp_path: Path) -> None:
             "containers": [],
             "fetches": [],
         }
+        basis_create = _typed_create_state(
+            generation=0,
+            parent_ir=None,
+            marker="private-shutdown-basis",
+        )
+        candidate_create = _typed_create_state(
+            generation=1,
+            parent_ir=basis_create["ir"],
+            marker="private-shutdown-candidate",
+        )
         held = TurnRecord(
             turn_id="turn_" + "z" * 32,
             session_id="session_" + "z" * 32,
             request=request,
             payload_hash=request.payload_hash,
             basis_source="private source",
+            basis_source_sha256=bytes_sha256(b"private source"),
             basis_grounding={"private": "grounding"},
             basis_manifest=manifest,
             basis_manifest_sha256=canonical_sha256(manifest),
+            basis_create_spec=basis_create["spec"],
+            basis_create_spec_sha256=basis_create["spec_sha256"],
+            basis_create_ir=basis_create["ir"],
+            basis_create_ir_sha256=basis_create["ir_sha256"],
+            basis_create_proof=basis_create["proof"],
+            basis_create_generation=basis_create["generation"],
+            basis_create_history=basis_create["history"],
+            basis_create_history_revision=basis_create["history_revision"],
+            head_target_identity=app.turns._target_identity(request.target),  # noqa: SLF001
+            expected_head_turn_id="turn_" + "y" * 32,
+            candidate_proposal_ref="proposal-private",
+            candidate_source="private candidate",
+            candidate_source_sha256=bytes_sha256(b"private candidate"),
             candidate_manifest=manifest,
             candidate_manifest_sha256=canonical_sha256(manifest),
+            candidate_create_spec=candidate_create["spec"],
+            candidate_create_spec_sha256=candidate_create["spec_sha256"],
+            candidate_create_ir=candidate_create["ir"],
+            candidate_create_ir_sha256=candidate_create["ir_sha256"],
+            candidate_create_proof=candidate_create["proof"],
+            candidate_create_generation=candidate_create["generation"],
+            candidate_create_history=candidate_create["history"],
+            candidate_create_history_revision=candidate_create["history_revision"],
             clarification_decision={"private": "decision"},
         )
         app.turns._turns[held.turn_id] = held  # noqa: SLF001
+        app.turns._proposal_heads[(held.session_id, held.head_target_identity)] = (  # noqa: SLF001
+            SimpleNamespace(turn_id=held.turn_id)
+        )
+        assert len(app.turns._proposal_heads) == 1  # noqa: SLF001
 
     assert held is not None
     assert held.basis_source is None
+    assert held.basis_source_sha256 is None
     assert held.basis_grounding is None
     assert held.basis_manifest is None
     assert held.basis_manifest_sha256 is None
+    assert held.basis_create_spec is None
+    assert held.basis_create_spec_sha256 is None
+    assert held.basis_create_ir is None
+    assert held.basis_create_ir_sha256 is None
+    assert held.basis_create_proof is None
+    assert held.basis_create_generation is None
+    assert held.basis_create_history is None
+    assert held.basis_create_history_revision is None
+    assert held.head_target_identity is None
+    assert held.expected_head_turn_id is None
+    assert held.candidate_proposal_ref is None
+    assert held.candidate_source is None
+    assert held.candidate_source_sha256 is None
     assert held.candidate_manifest is None
     assert held.candidate_manifest_sha256 is None
+    assert held.candidate_create_spec is None
+    assert held.candidate_create_spec_sha256 is None
+    assert held.candidate_create_ir is None
+    assert held.candidate_create_ir_sha256 is None
+    assert held.candidate_create_proof is None
+    assert held.candidate_create_generation is None
+    assert held.candidate_create_history is None
+    assert held.candidate_create_history_revision is None
+    _assert_no_typed_create_state(held)
     assert held.clarification_decision is None
+    assert app.turns._proposal_heads == {}  # noqa: SLF001
 
 
 def test_http_cancel_interrupts_generation_and_never_reaches_compiler(tmp_path: Path) -> None:

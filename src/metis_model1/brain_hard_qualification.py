@@ -828,12 +828,31 @@ def _validate_qualified_health(
 class HeadlessBrainClient:
     """Small strict client for the public Brain loopback contract."""
 
-    def __init__(self, host: str, port: int, *, bootstrap_token: str) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        *,
+        bootstrap_token: str,
+        client_id: str = EXPECTED_CLIENT_ID,
+        capabilities: frozenset[str] = EXPECTED_CAPABILITIES,
+    ) -> None:
         if host != "127.0.0.1" or not 1 <= port <= 65535 or not bootstrap_token:
             raise BrainError("HARD_QUALIFICATION_INVALID", 500, "Brain address is invalid")
+        if (
+            not isinstance(client_id, str)
+            or not client_id
+            or len(client_id) > 96
+            or type(capabilities) is not frozenset
+            or not capabilities
+            or any(not isinstance(item, str) or not item for item in capabilities)
+        ):
+            raise BrainError("HARD_QUALIFICATION_INVALID", 500, "Brain client is invalid")
         self.host = host
         self.port = port
         self._bootstrap_token = bootstrap_token
+        self._client_id = client_id
+        self._capabilities = capabilities
 
     def request(
         self,
@@ -881,9 +900,9 @@ class HeadlessBrainClient:
             "/v1/sessions",
             token=self._bootstrap_token,
             body={
-                "client_id": EXPECTED_CLIENT_ID,
+                "client_id": self._client_id,
                 "tenant_alias": tenant_alias,
-                "capabilities": sorted(EXPECTED_CAPABILITIES),
+                "capabilities": sorted(self._capabilities),
             },
         )
         if result.status != 201 or not isinstance(result.payload.get("session"), dict):
@@ -930,6 +949,34 @@ class HeadlessBrainClient:
                 "request_id": str(uuid.uuid4()),
                 "clarification_id": clarification_id,
                 "answer": dict(answer),
+            },
+        )
+        if result.status != 202 or not isinstance(result.payload.get("turn_id"), str):
+            code = result.payload.get("error", {}).get("code", "HARD_QUALIFICATION_HTTP")
+            raise BrainError(str(code), result.status, "clarification answer failed")
+        return result.payload["turn_id"]
+
+    def answer_v2(
+        self,
+        session: Mapping[str, Any],
+        *,
+        parent_turn_id: str,
+        clarification_id: str,
+        message: str | None,
+        answers: Sequence[Mapping[str, Any]] = (),
+    ) -> str:
+        """Continue a dialogue with the next operator message through schema 2."""
+
+        result = self.request(
+            "POST",
+            f"/v1/sessions/{session['id']}/turns/{parent_turn_id}/answer",
+            token=str(session["token"]),
+            body={
+                "schema_version": 2,
+                "request_id": str(uuid.uuid4()),
+                "clarification_id": clarification_id,
+                "message": message,
+                "answers": [dict(answer) for answer in answers],
             },
         )
         if result.status != 202 or not isinstance(result.payload.get("turn_id"), str):

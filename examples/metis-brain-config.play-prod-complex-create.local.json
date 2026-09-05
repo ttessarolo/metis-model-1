@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 0,
+    "runtime_root": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-hard-qualification/runtime-v3"
+  },
+  "toolchain": {
+    "metis_git_root": "/Users/tommasotessarolo/Developer/ares-matioska/metis",
+    "node_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/metis-brain-runtime/node-v22.22.3/bin/node",
+    "compiler_concurrency": 1
+  },
+  "model": {
+    "python_path": "/Users/tommasotessarolo/Developer/metis-model-1/qualification/.venv/bin/python",
+    "model_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/w4/2026-08-20-qualification/checkpoint",
+    "adapter_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/initial-local-qlora-v1/run-v2/checkpoints/step-00000050",
+    "timeout_seconds": 300,
+    "warmup": "on_start"
+  },
+  "retrieval": {
+    "schema2": true,
+    "warmup": "on_start"
+  },
+  "intent_compiler": {
+    "python_path": "/Users/tommasotessarolo/Developer/metis-model-1/qualification/.venv/bin/python",
+    "model_path": "/Users/tommasotessarolo/Developer/metis-model-1/artifacts/brain-flash-intent-v1/model",
+    "timeout_seconds": 60,
+    "warmup": "on_start",
+    "mode": "assist_on_unresolved"
+  },
+  "typed_create": true,
+  "tenants": [
+    {
+      "alias": "play-prod",
+      "tenant_id": "play-prod-v2",
+      "root": "/Users/tommasotessarolo/Developer/metis-tenant-play-prod"
+    }
+  ],
+  "clients": [
+    {
+      "client_id": "brain-complex-create-qualification",
+      "tenant_aliases": [
+        "play-prod"
+      ],
+      "capabilities": [
+        "chat.read",
+        "chat.turn",
+        "compile",
+        "context.read",
+        "session.close",
+        "session.read"
+      ]
+    }
+  ],
+  "limits": {
+    "global_sessions": 2,
+    "sessions_per_client": 1,
+    "sessions_per_tenant": 1
+  }
+}

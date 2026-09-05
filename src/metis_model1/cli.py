@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from metis_model1.brain_complex_create_qualification import run_complex_create_qualification
 from metis_model1.brain_hard_qualification import run_hard_qualification
 from metis_model1.brain_latency_live import run_latency_benchmark
 from metis_model1.brain_protocol import BrainError
@@ -234,6 +235,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Consume the explicit one-run local MLX execution authorization.",
     )
+    brain_complex_create = subparsers.add_parser(
+        "brain-complex-create-qualification",
+        description="Run the blind 10x4 typed-CREATE qualification without Apply.",
+    )
+    brain_complex_create.add_argument("--config", type=Path, required=True)
+    brain_complex_create.add_argument("--output", type=Path, required=True)
+    brain_complex_create.add_argument(
+        "--authorize-local-model-execution",
+        action="store_true",
+        help="Consume the explicit one-run local MLX execution authorization.",
+    )
     video_semantics = subparsers.add_parser(
         "video-semantics",
         description="Run bounded local preparation for video semantic grounding.",
@@ -419,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
                     "aggregates": receipt["aggregates"],
                     "claims": receipt["claims"],
                     "receipt_sha256": receipt["receipt_sha256"],
-                    "receipt_path": str(args.output),
+                    "receipt_path": receipt.get("receipt_path", str(args.output)),
                 },
                 sort_keys=True,
             )
@@ -494,6 +506,54 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0 if qualification_green else 2
+    if args.command == "brain-complex-create-qualification":
+        try:
+            receipt = run_complex_create_qualification(
+                config_path=args.config,
+                output_path=args.output,
+                authorize_local_model_execution=args.authorize_local_model_execution,
+                progress=lambda item: print(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "operation": "brain-complex-create-qualification.progress",
+                            **item,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                ),
+            )
+        except BrainError as error:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation": "brain-complex-create-qualification",
+                        "status": "BLOCKED",
+                        "error_code": error.code,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 1
+        green = receipt.get("qualification_green") is True
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "operation": "brain-complex-create-qualification",
+                    "status": receipt["status"],
+                    "denominator": receipt["denominator"],
+                    "assessment": receipt["assessment"],
+                    "qualification_green": green,
+                    "receipt_sha256": receipt["receipt_sha256"],
+                    "receipt_path": receipt.get("receipt_path", str(args.output)),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0 if green else 2
     if args.command == "video-semantics":
         operation = args.video_semantics_command
         offline_operation = {

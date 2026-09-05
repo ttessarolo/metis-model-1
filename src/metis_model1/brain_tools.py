@@ -41,7 +41,7 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:2ab8ebdf1fe74e29807d7ed1cd46e5b82de1cc40fc937f15975005f21738ad34"
+RUNNER_SHA256 = "sha256:7a29f85d2c262300cd67f0895fe303ba23ce8fe8ced4cd0731844b58620318a5"
 MAX_RUNNER_BYTES = 256 * 1024
 MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
@@ -53,6 +53,9 @@ MAX_CANDIDATE_MANIFEST_CONTAINERS = 512
 MAX_CANDIDATE_MANIFEST_FETCHES = 512
 MAX_CANDIDATE_MANIFEST_PREDICATES = 8192
 MAX_CANDIDATE_MANIFEST_BYTES = 4 * 1024 * 1024
+MAX_CANDIDATE_IR_BYTES = 4 * 1024 * 1024
+MAX_CANDIDATE_IR_DEPTH = 128
+MAX_CANDIDATE_IR_NODES = 100_000
 AUTHORITY_CLEANUP_ATTEMPTS = 3
 
 
@@ -71,11 +74,13 @@ class _AuthorityJob:
 
 @dataclass(frozen=True)
 class CandidateCompileResult:
-    """One public-safe compiler receipt plus an in-process-only manifest."""
+    """One public-safe receipt plus in-process-only compiler authorities."""
 
     receipt: dict[str, Any]
     manifest: dict[str, Any] | None
     manifest_sha256: str | None
+    ir: dict[str, Any] | None
+    ir_sha256: str | None
 
 
 def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
@@ -831,6 +836,65 @@ def _validate_candidate_manifest(
     return normalized
 
 
+def _validate_candidate_ir(
+    value: Any,
+    *,
+    endpoint: str,
+    ir_sha256: str,
+) -> dict[str, Any]:
+    if (
+        not isinstance(value, Mapping)
+        or value.get("node") != "Endpoint"
+        or value.get("name") != endpoint
+        or not isinstance(value.get("irVersion"), str)
+        or not 1 <= len(value["irVersion"]) <= 32
+        or "provenance" in value
+    ):
+        raise _BrainIsolationError("candidate normalized IR identity is invalid")
+
+    node_count = 0
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    while stack:
+        item, depth = stack.pop()
+        node_count += 1
+        if node_count > MAX_CANDIDATE_IR_NODES or depth > MAX_CANDIDATE_IR_DEPTH:
+            raise _BrainIsolationError("candidate normalized IR exceeds its structure limit")
+        if isinstance(item, Mapping):
+            if any(
+                not isinstance(key, str) or not key or len(key.encode("utf-8")) > 256
+                for key in item
+            ):
+                raise _BrainIsolationError("candidate normalized IR key is invalid")
+            if item.get("node") in {"Endpoint", "Block", "Fetch", "ContextTransform"} and (
+                "provenance" in item
+            ):
+                raise _BrainIsolationError("candidate normalized IR contains provenance")
+            stack.extend((member, depth + 1) for member in item.values())
+        elif isinstance(item, list):
+            stack.extend((member, depth + 1) for member in item)
+        elif item is None or type(item) in {str, bool}:
+            continue
+        elif type(item) is int:
+            if not -(2**53 - 1) <= item <= 2**53 - 1:
+                raise _BrainIsolationError("candidate normalized IR integer is unsafe")
+        elif type(item) is float:
+            if not math.isfinite(item):
+                raise _BrainIsolationError("candidate normalized IR number is invalid")
+        else:
+            raise _BrainIsolationError("candidate normalized IR value is invalid")
+
+    try:
+        raw = canonical_json(value)
+        normalized = json.loads(raw)
+    except (BrainError, UnicodeError, ValueError, json.JSONDecodeError) as error:
+        raise _BrainIsolationError("candidate normalized IR is invalid") from error
+    if not raw or len(raw) > MAX_CANDIDATE_IR_BYTES:
+        raise _BrainIsolationError("candidate normalized IR exceeds its byte limit")
+    if canonical_sha256(normalized) != ir_sha256:
+        raise _BrainIsolationError("candidate normalized IR hash differs")
+    return normalized
+
+
 class _PinnedBridge:
     def __init__(
         self,
@@ -1256,6 +1320,8 @@ class BrainCompiler(_PinnedBridge):
             "runtime_context_sha256",
             "manifest",
             "manifest_sha256",
+            "ir",
+            "ir_sha256",
         }
         status = envelope.get("status")
         if (
@@ -1270,17 +1336,21 @@ class BrainCompiler(_PinnedBridge):
             )
         manifest: dict[str, Any] | None = None
         manifest_sha256: str | None = None
+        ir: dict[str, Any] | None = None
+        ir_sha256: str | None = None
         if status == "ok":
             try:
                 endpoint_sha256 = _manifest_hash(envelope.get("endpoint_sha256"))
                 runtime_context_sha256 = _manifest_hash(envelope.get("runtime_context_sha256"))
                 manifest_sha256 = _manifest_hash(envelope.get("manifest_sha256"))
+                ir_sha256 = _manifest_hash(envelope.get("ir_sha256"))
                 if (
                     envelope.get("endpoint") != endpoint_text
                     or envelope.get("diagnostics") != []
                     or endpoint_sha256 is None
                     or runtime_context_sha256 is None
                     or manifest_sha256 is None
+                    or ir_sha256 is None
                 ):
                     raise _BrainIsolationError("candidate compiler identity differs")
                 manifest = _validate_candidate_manifest(
@@ -1289,11 +1359,17 @@ class BrainCompiler(_PinnedBridge):
                     endpoint_sha256=endpoint_sha256,
                     manifest_sha256=manifest_sha256,
                 )
+                ir = _validate_candidate_ir(
+                    envelope.get("ir"),
+                    endpoint=endpoint_text,
+                    ir_sha256=ir_sha256,
+                )
             except _BrainIsolationError as error:
                 raise BrainError(
                     "COMPILER_FAILED",
                     503,
-                    "pinned candidate compiler returned an invalid manifest",
+                    "pinned candidate compiler returned an invalid manifest "
+                    "or private IR authority",
                 ) from error
         elif not envelope.get("diagnostics") or any(
             envelope.get(key) is not None
@@ -1303,6 +1379,8 @@ class BrainCompiler(_PinnedBridge):
                 "runtime_context_sha256",
                 "manifest",
                 "manifest_sha256",
+                "ir",
+                "ir_sha256",
             )
         ):
             raise BrainError(
@@ -1348,6 +1426,8 @@ class BrainCompiler(_PinnedBridge):
             receipt=receipt,
             manifest=manifest,
             manifest_sha256=manifest_sha256,
+            ir=ir,
+            ir_sha256=ir_sha256,
         )
 
     def compile_structure(

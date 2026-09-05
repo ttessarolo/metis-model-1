@@ -1,0 +1,315 @@
+{
+  "schema_version": 3,
+  "contract_id": "metis-brain-create-stage-blueprints/v3",
+  "authority": {
+    "prompt_file": "examples/metis-brain-hard-prompts.play-prod-v2.json",
+    "prompt_projection": "zero_generation_scenarios[].{endpoint_qualified,turns[].{turn,user_message}}",
+    "endpoint_allowlist": ["search.filtered_search", "search.detail"],
+    "tenant_declarations_reviewed": [
+      "catalogs/video.metis",
+      "catalogs/video.values.metis",
+      "lib/lists.metis",
+      "lib/presets.metis",
+      "lib/presets.migrated.metis",
+      "_tenant.metis"
+    ],
+    "interpretation": "Catalog declarations establish available fields, profiles, lists and tenant defaults; their availability does not select endpoint behavior. The top-level play_search service declaration does not prove an invocable transformer or its input/output binding.",
+    "verification_scope": "Prompt provenance and fail-closed blueprint records. No ready specification, compiler proof or model result is asserted."
+  },
+  "stages": [
+    {
+      "stage_id": "search.filtered_search:T2",
+      "endpoint_qualified": "search.filtered_search",
+      "turn": 2,
+      "parent_stage_id": null,
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {"results_per_page": 50},
+      "missing": [
+        {
+          "slot": "normalization.transformer_binding",
+          "introduced_turn": 2,
+          "prompt_excerpt": "normalizza il testo di ricerca prima di eseguire le query",
+          "reason": "Serve il riferimento a un transformer verificato con contratto di ingresso/uscita e il collegamento dei suoi risultati alle query. Il servizio play_search dichiara query_to_numbers e query_to_words, ma non seleziona una trasformazione invocabile, uno dei risultati o la combinazione dei due."
+        },
+        {
+          "slot": "search.matching_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "con ricerca su testo e canale",
+          "reason": "Servono il contratto dei parametri di testo/canale e i campi, profili e operatori delle query, compreso il comportamento senza testo o canale. Il catalogo espone superfici di titolo e persone alternative: non ne sceglie una per questo endpoint."
+        },
+        {
+          "slot": "response.projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "50 risultati per pagina",
+          "reason": "La quantita e per pagina ed e gia fissata a 50; manca la forma della risposta, compresa la proiezione piatta o a blocchi. Non e autorizzato sostituire il vincolo di pagina con un take totale di 50."
+        }
+      ]
+    },
+    {
+      "stage_id": "search.filtered_search:T3",
+      "endpoint_qualified": "search.filtered_search",
+      "turn": 3,
+      "parent_stage_id": "search.filtered_search:T2",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {"results_per_page": 50, "routes": 7, "take_statements": 14},
+      "missing": [
+        {
+          "slot": "normalization.transformer_binding",
+          "introduced_turn": 2,
+          "prompt_excerpt": "normalizza il testo di ricerca prima di eseguire le query",
+          "reason": "Serve il riferimento a un transformer verificato con contratto di ingresso/uscita e il collegamento dei suoi risultati alle query. Il servizio play_search dichiara query_to_numbers e query_to_words, ma non seleziona una trasformazione invocabile, uno dei risultati o la combinazione dei due."
+        },
+        {
+          "slot": "search.matching_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "con ricerca su testo e canale",
+          "reason": "Servono il contratto dei parametri di testo/canale e i campi, profili e operatori delle query, compreso il comportamento senza testo o canale. Il catalogo espone superfici di titolo e persone alternative: non ne sceglie una per questo endpoint."
+        },
+        {
+          "slot": "response.projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "50 risultati per pagina",
+          "reason": "La quantita e per pagina ed e gia fissata a 50; manca la forma della risposta, compresa la proiezione piatta o a blocchi. Non e autorizzato sostituire il vincolo di pagina con un take totale di 50."
+        },
+        {
+          "slot": "routes.selectors_and_content_predicates",
+          "introduced_turn": 3,
+          "prompt_excerpt": "sette percorsi distinti: tutti, programmi/serie, film, video, gratis per te, Mediaset Italia senza query e default",
+          "reason": "Servono valori di selezione e guardie dei sette percorsi, precedenza e predicati dei contenuti. MediasetItalia e un valore dichiarato di content_channels, ma il catalogo non definisce gratis per te, l'insieme video o il contratto di selezione di tutti/default per questo endpoint."
+        },
+        {
+          "slot": "routes.take_allocation",
+          "introduced_turn": 3,
+          "prompt_excerpt": "distribuisci quattordici take fra i percorsi",
+          "reason": "Il totale e esattamente 14 costrutti take; servono la loro assegnazione ai sette percorsi, la sorgente e le guardie di ciascuno e l'applicazione del limite di 50 per pagina alla risposta composta. Non e autorizzata una divisione uniforme di due take per percorso."
+        },
+        {
+          "slot": "query_alternatives.ranking_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "combina le alternative di titolo, persone e genere mantenendo il ranking",
+          "reason": "Servono i campi e profili esatti per titolo/persone/genere, la strategia di combinazione e il ranking da preservare. Nel catalogo genere_mcm e un aggregato legacy distinto dai generi editoriali specifici; nessuna strategia any/best/best_plus, coefficiente o boost e selezionata dal prompt."
+        }
+      ]
+    },
+    {
+      "stage_id": "search.filtered_search:T4",
+      "endpoint_qualified": "search.filtered_search",
+      "turn": 4,
+      "parent_stage_id": "search.filtered_search:T3",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {"results_per_page": 50, "routes": 7, "take_statements": 14, "default_flat_items_below": 1},
+      "missing": [
+        {
+          "slot": "normalization.transformer_binding",
+          "introduced_turn": 2,
+          "prompt_excerpt": "normalizza il testo di ricerca prima di eseguire le query",
+          "reason": "Serve il riferimento a un transformer verificato con contratto di ingresso/uscita e il collegamento dei suoi risultati alle query. Il servizio play_search dichiara query_to_numbers e query_to_words, ma non seleziona una trasformazione invocabile, uno dei risultati o la combinazione dei due."
+        },
+        {
+          "slot": "search.matching_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "con ricerca su testo e canale",
+          "reason": "Servono il contratto dei parametri di testo/canale e i campi, profili e operatori delle query, compreso il comportamento senza testo o canale. Il catalogo espone superfici di titolo e persone alternative: non ne sceglie una per questo endpoint."
+        },
+        {
+          "slot": "response.projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "50 risultati per pagina",
+          "reason": "La quantita e per pagina ed e gia fissata a 50; manca la forma della risposta, compresa la proiezione piatta o a blocchi. Non e autorizzato sostituire il vincolo di pagina con un take totale di 50."
+        },
+        {
+          "slot": "routes.selectors_and_content_predicates",
+          "introduced_turn": 3,
+          "prompt_excerpt": "sette percorsi distinti: tutti, programmi/serie, film, video, gratis per te, Mediaset Italia senza query e default",
+          "reason": "Servono valori di selezione e guardie dei sette percorsi, precedenza e predicati dei contenuti. MediasetItalia e un valore dichiarato di content_channels, ma il catalogo non definisce gratis per te, l'insieme video o il contratto di selezione di tutti/default per questo endpoint."
+        },
+        {
+          "slot": "routes.take_allocation",
+          "introduced_turn": 3,
+          "prompt_excerpt": "distribuisci quattordici take fra i percorsi",
+          "reason": "Il totale e esattamente 14 costrutti take; servono la loro assegnazione ai sette percorsi, la sorgente e le guardie di ciascuno e l'applicazione del limite di 50 per pagina alla risposta composta. Non e autorizzata una divisione uniforme di due take per percorso."
+        },
+        {
+          "slot": "query_alternatives.ranking_contract",
+          "introduced_turn": 3,
+          "prompt_excerpt": "combina le alternative di titolo, persone e genere mantenendo il ranking",
+          "reason": "Servono i campi e profili esatti per titolo/persone/genere, la strategia di combinazione e il ranking da preservare. Nel catalogo genere_mcm e un aggregato legacy distinto dai generi editoriali specifici; nessuna strategia any/best/best_plus, coefficiente o boost e selezionata dal prompt."
+        },
+        {
+          "slot": "routes.view_all_targets",
+          "introduced_turn": 4,
+          "prompt_excerpt": "Per ogni percorso abilita Vedi tutto",
+          "reason": "Servono le destinazioni risolte di Vedi tutto per tutti e sette i percorsi e il contratto di selezione del dettaglio. La presenza di un'altra richiesta chiamata search.detail non autorizza a sceglierla come destinazione."
+        },
+        {
+          "slot": "routes.empty_page_fallback_targets",
+          "introduced_turn": 4,
+          "prompt_excerpt": "usa fallback sostitutivi quando una pagina è vuota",
+          "reason": "Il modo sostitutivo e noto; servono le destinazioni dei fallback per le pagine vuote e l'esatto ambito di pagina su cui valutare il trigger. Il prompt non specifica un fallback su errore."
+        },
+        {
+          "slot": "default.flat_items_fallback_target",
+          "introduced_turn": 4,
+          "prompt_excerpt": "nel default, aggiungi il fallback in coda quando gli elementi piatti sono meno di uno",
+          "reason": "Il modo append e la soglia flat-items < 1 sono espliciti; manca la destinazione del fallback del default e il suo rapporto con il fallback sostitutivo. Non sono autorizzati una soglia di blocchi o un bersaglio ricavato da una pagina esistente."
+        }
+      ]
+    },
+    {
+      "stage_id": "search.detail:T2",
+      "endpoint_qualified": "search.detail",
+      "turn": 2,
+      "parent_stage_id": null,
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {},
+      "missing": [
+        {
+          "slot": "inputs.variant_and_4k_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "ricevi query, variante, canale e capacità 4K",
+          "reason": "Servono i nomi e domini del parametro che seleziona la variante e della capacita 4K, compreso il valore assente. Le liste di formati e le personas del tenant non definiscono da sole il contratto pubblico di questo endpoint; ricevere la capacita non autorizza automaticamente un filtro sui formati."
+        },
+        {
+          "slot": "attributes.presence_guards",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "I tre nomi sono espliciti, ma servono le condizioni esatte di has_query e has_channel per valori assenti, vuoti o composti da spazi e il loro legame con gli input dichiarati. Non e stata richiesta la normalizzazione di query di questo endpoint."
+        },
+        {
+          "slot": "attributes.inf_channel_guard",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "Manca il predicato di inf_channel: il solo canale Infinity, un insieme nominato di canali, un prefisso o un'altra condizione sono comportamenti diversi. Il catalogo contiene piu valori Infinity/Inf senza selezionare il predicato."
+        },
+        {
+          "slot": "response.cardinality_and_projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "Usa il catalogo video",
+          "reason": "Servono quantita e modalita di cardinalita dei risultati e forma della risposta. Il prompt non autorizza un numero arbitrario, take senza limite, paginazione senza limite esplicito o il riuso dei 50 risultati dell'altro endpoint."
+        }
+      ]
+    },
+    {
+      "stage_id": "search.detail:T3",
+      "endpoint_qualified": "search.detail",
+      "turn": 3,
+      "parent_stage_id": "search.detail:T2",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {"reusable_blocks": 3},
+      "missing": [
+        {
+          "slot": "inputs.variant_and_4k_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "ricevi query, variante, canale e capacità 4K",
+          "reason": "Servono i nomi e domini del parametro che seleziona la variante e della capacita 4K, compreso il valore assente. Le liste di formati e le personas del tenant non definiscono da sole il contratto pubblico di questo endpoint; ricevere la capacita non autorizza automaticamente un filtro sui formati."
+        },
+        {
+          "slot": "attributes.presence_guards",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "I tre nomi sono espliciti, ma servono le condizioni esatte di has_query e has_channel per valori assenti, vuoti o composti da spazi e il loro legame con gli input dichiarati. Non e stata richiesta la normalizzazione di query di questo endpoint."
+        },
+        {
+          "slot": "attributes.inf_channel_guard",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "Manca il predicato di inf_channel: il solo canale Infinity, un insieme nominato di canali, un prefisso o un'altra condizione sono comportamenti diversi. Il catalogo contiene piu valori Infinity/Inf senza selezionare il predicato."
+        },
+        {
+          "slot": "response.cardinality_and_projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "Usa il catalogo video",
+          "reason": "Servono quantita e modalita di cardinalita dei risultati e forma della risposta. Il prompt non autorizza un numero arbitrario, take senza limite, paginazione senza limite esplicito o il riuso dei 50 risultati dell'altro endpoint."
+        },
+        {
+          "slot": "blocks.take_roster_and_predicates",
+          "introduced_turn": 3,
+          "prompt_excerpt": "tre blocchi riusabili: video predefiniti, serie/programmi e stagioni; ogni blocco deve avere i suoi take condizionati per canale e query",
+          "reason": "Sono richiesti esattamente tre blocchi, ma mancano numero e cardinalita dei take di ciascuno, campi/profili di query, guardie per canale/query e predicati dei contenuti. Serie, TVSeason e le liste disponibili non selezionano da sole le condizioni complete di ciascun blocco."
+        },
+        {
+          "slot": "blocks.deduplication_identity",
+          "introduced_turn": 3,
+          "prompt_excerpt": "deduplicare la risposta",
+          "reason": "Manca la chiave di deduplicazione dei tre blocchi. video_content_id identifica l'asset, id_series_se la serie e id_season_st la stagione: scegliere una di queste identita cambia quali risultati sopravvivono."
+        }
+      ]
+    },
+    {
+      "stage_id": "search.detail:T4",
+      "endpoint_qualified": "search.detail",
+      "turn": 4,
+      "parent_stage_id": "search.detail:T3",
+      "status": "needs_clarification",
+      "spec": null,
+      "spec_sha256": null,
+      "required_counts": {"reusable_blocks": 3, "routed_variants": 9, "infinity_variants": 3},
+      "missing": [
+        {
+          "slot": "inputs.variant_and_4k_contract",
+          "introduced_turn": 2,
+          "prompt_excerpt": "ricevi query, variante, canale e capacità 4K",
+          "reason": "Servono i nomi e domini del parametro che seleziona la variante e della capacita 4K, compreso il valore assente. Le liste di formati e le personas del tenant non definiscono da sole il contratto pubblico di questo endpoint; ricevere la capacita non autorizza automaticamente un filtro sui formati."
+        },
+        {
+          "slot": "attributes.presence_guards",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "I tre nomi sono espliciti, ma servono le condizioni esatte di has_query e has_channel per valori assenti, vuoti o composti da spazi e il loro legame con gli input dichiarati. Non e stata richiesta la normalizzazione di query di questo endpoint."
+        },
+        {
+          "slot": "attributes.inf_channel_guard",
+          "introduced_turn": 2,
+          "prompt_excerpt": "deriva esplicitamente gli attributi has_query, has_channel e inf_channel",
+          "reason": "Manca il predicato di inf_channel: il solo canale Infinity, un insieme nominato di canali, un prefisso o un'altra condizione sono comportamenti diversi. Il catalogo contiene piu valori Infinity/Inf senza selezionare il predicato."
+        },
+        {
+          "slot": "response.cardinality_and_projection",
+          "introduced_turn": 2,
+          "prompt_excerpt": "Usa il catalogo video",
+          "reason": "Servono quantita e modalita di cardinalita dei risultati e forma della risposta. Il prompt non autorizza un numero arbitrario, take senza limite, paginazione senza limite esplicito o il riuso dei 50 risultati dell'altro endpoint."
+        },
+        {
+          "slot": "blocks.take_roster_and_predicates",
+          "introduced_turn": 3,
+          "prompt_excerpt": "tre blocchi riusabili: video predefiniti, serie/programmi e stagioni; ogni blocco deve avere i suoi take condizionati per canale e query",
+          "reason": "Sono richiesti esattamente tre blocchi, ma mancano numero e cardinalita dei take di ciascuno, campi/profili di query, guardie per canale/query e predicati dei contenuti. Serie, TVSeason e le liste disponibili non selezionano da sole le condizioni complete di ciascun blocco."
+        },
+        {
+          "slot": "blocks.deduplication_identity",
+          "introduced_turn": 3,
+          "prompt_excerpt": "deduplicare la risposta",
+          "reason": "Manca la chiave di deduplicazione dei tre blocchi. video_content_id identifica l'asset, id_series_se la serie e id_season_st la stagione: scegliere una di queste identita cambia quali risultati sopravvivono."
+        },
+        {
+          "slot": "variants.infinity_selectors",
+          "introduced_turn": 4,
+          "prompt_excerpt": "nove varianti: searchedVideo, brand, clip, fep, movie, tre percorsi Infinity e default",
+          "reason": "Sono espliciti nove percorsi e i nomi searchedVideo, brand, clip, fep, movie e default. Mancano i tre selettori Infinity e le rispettive guardie; non e autorizzato inventare nomi o ricavarli da una pagina esistente."
+        },
+        {
+          "slot": "variants.block_routing",
+          "introduced_turn": 4,
+          "prompt_excerpt": "verso i blocchi corretti",
+          "reason": "Manca la mappa esatta dalle nove varianti ai tre blocchi, con gli eventuali argomenti e la precedenza. I nomi brand, clip e fep non stabiliscono da soli quale blocco debba essere usato."
+        },
+        {
+          "slot": "variants.clip_fep_movie_metadata",
+          "introduced_turn": 4,
+          "prompt_excerpt": "per clip/fep/movie conserva template e searchDetailParams dedicati",
+          "reason": "Servono le posizioni e i valori esatti di template e searchDetailParams per clip, fep e movie. Nessuno dei turni precedenti ne definisce il contenuto: conserva non autorizza il recupero di metadati da una pagina di produzione."
+        }
+      ]
+    }
+  ]
+}

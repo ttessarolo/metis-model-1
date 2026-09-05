@@ -20,6 +20,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from metis_model1.brain_context import TenantRegistry
+from metis_model1.brain_create_authority_provider_impl_v2 import (
+    PinnedCreateV2AuthorityProvider,
+)
+from metis_model1.brain_dialogue_planner import resolve_dialogue_answer
 from metis_model1.brain_flash_runtime import MlxFlashIntentRuntime
 from metis_model1.brain_mlx_runtime import MAX_PREFIX_CACHE_TOKENS, MlxBrainModelRuntime
 from metis_model1.brain_model_runtime import MAX_TELEMETRY_COUNT, UnavailableModelRuntime
@@ -90,6 +94,7 @@ class BrainConfig:
     model: BrainModelConfig | None = None
     retrieval: BrainRetrievalConfig | None = None
     intent_compiler: BrainIntentCompilerConfig | None = None
+    typed_create: bool = False
 
 
 def _safe_config_bytes(path: Path) -> bytes:
@@ -174,7 +179,7 @@ def parse_brain_config_bytes(raw: bytes) -> BrainConfig:
     exact_fields(
         value,
         required={"schema_version", "server", "toolchain", "tenants", "clients", "limits"},
-        optional={"model", "retrieval", "intent_compiler"},
+        optional={"model", "retrieval", "intent_compiler", "typed_create"},
         label="config",
     )
     if value["schema_version"] != 1:
@@ -203,9 +208,12 @@ def parse_brain_config_bytes(raw: bytes) -> BrainConfig:
     model_value = value.get("model")
     retrieval_value = value.get("retrieval")
     intent_compiler_value = value.get("intent_compiler")
+    typed_create_value = value.get("typed_create", False)
     model: BrainModelConfig | None = None
     retrieval: BrainRetrievalConfig | None = None
     intent_compiler: BrainIntentCompilerConfig | None = None
+    if type(typed_create_value) is not bool:
+        raise BrainError("INVALID_CONFIG", 500, "typed CREATE flag must be boolean")
     if "model" in value:
         if not isinstance(model_value, dict):
             raise BrainError("INVALID_CONFIG", 500, "model config must be an object")
@@ -294,6 +302,12 @@ def parse_brain_config_bytes(raw: bytes) -> BrainConfig:
         raise BrainError(
             "INVALID_CONFIG", 500, "intent compiler configuration requires schema2 retrieval"
         )
+    if typed_create_value and (model is None or retrieval is None or not retrieval.schema2):
+        raise BrainError(
+            "INVALID_CONFIG",
+            500,
+            "typed CREATE requires the local model and schema2 retrieval",
+        )
     if server["host"] != "127.0.0.1":
         raise BrainError("INVALID_CONFIG", 500, "server host must be numeric IPv4 loopback")
     if type(server["port"]) is not int or not 0 <= server["port"] <= 65535:
@@ -358,6 +372,7 @@ def parse_brain_config_bytes(raw: bytes) -> BrainConfig:
         model=model,
         retrieval=retrieval,
         intent_compiler=intent_compiler,
+        typed_create=typed_create_value,
     )
 
 
@@ -439,6 +454,8 @@ class BrainApplication:
         model: Any | None = None,
         model_warmup_policy: str = "disabled",
         intent_compiler: Any | None = None,
+        dialogue_answer_resolver: Any | None = None,
+        create_authority_provider: Any | None = None,
         retrieval_warmup: dict[str, Any] | None = None,
     ) -> None:
         if model_warmup_policy not in {*MODEL_WARMUP_POLICIES, "disabled"}:
@@ -450,6 +467,7 @@ class BrainApplication:
         self.model = model if model is not None else UnavailableModelRuntime()
         self.model_warmup_policy = model_warmup_policy
         self.intent_compiler = intent_compiler
+        self.create_authority_provider = create_authority_provider
         self.retrieval_warmup = retrieval_warmup or {
             "policy": "lazy",
             "status": "cold",
@@ -462,6 +480,8 @@ class BrainApplication:
             model=self.model,
             compiler=compiler,
             intent_compiler=intent_compiler,
+            dialogue_answer_resolver=dialogue_answer_resolver,
+            create_authority_provider=create_authority_provider,
         )
 
     def authenticate_bootstrap(self, token: str) -> None:
@@ -506,7 +526,7 @@ class BrainApplication:
             "service": "metis-brain",
             "protocol": "v1",
             "turn_schema_versions": [1, 2],
-            "clarification_answer_schema_versions": [1],
+            "clarification_answer_schema_versions": [1, 2],
             "compiler_configured": True,
             "compiler_executions": getattr(self.compiler, "execution_count", 0),
             "model_loaded": bool(getattr(self.model, "model_loaded", False)),
@@ -527,6 +547,19 @@ class BrainApplication:
                 "schema": 2 if isinstance(self.retriever, Schema2SnapshotRetriever) else None,
                 "implementation": type(self.retriever).__name__,
                 "warmup": dict(self.retrieval_warmup),
+            },
+            "typed_create": {
+                "enabled": self.create_authority_provider is not None,
+                "implementation": (
+                    type(self.create_authority_provider).__name__
+                    if self.create_authority_provider is not None
+                    else None
+                ),
+                "contract_id": getattr(self.create_authority_provider, "contract_id", None),
+                "policy_revision": getattr(self.create_authority_provider, "policy_revision", None),
+                "inventory_revision": getattr(
+                    self.create_authority_provider, "inventory_revision", None
+                ),
             },
             "metrics": metrics,
         }
@@ -564,23 +597,28 @@ class BrainApplication:
             self.turns.shutdown()
         finally:
             try:
-                close = getattr(self.intent_compiler, "close", None)
+                close = getattr(self.create_authority_provider, "close", None)
                 if callable(close):
                     close()
             finally:
                 try:
-                    close = getattr(self.model, "close", None)
+                    close = getattr(self.intent_compiler, "close", None)
                     if callable(close):
                         close()
                 finally:
                     try:
-                        close = getattr(self.retriever, "close", None)
+                        close = getattr(self.model, "close", None)
                         if callable(close):
                             close()
                     finally:
-                        close = getattr(self.compiler, "close", None)
-                        if callable(close):
-                            close()
+                        try:
+                            close = getattr(self.retriever, "close", None)
+                            if callable(close):
+                                close()
+                        finally:
+                            close = getattr(self.compiler, "close", None)
+                            if callable(close):
+                                close()
 
 
 class _ThreadingBrainHTTPServer(http.server.ThreadingHTTPServer):
@@ -1005,6 +1043,7 @@ class MetisBrainService:
         retriever: Any | None = None,
         model: Any | None = None,
         intent_compiler: Any | None = None,
+        create_authority_provider: Any | None = None,
     ) -> None:
         if config.host != "127.0.0.1":
             raise BrainError("INVALID_CONFIG", 500, "service host must be numeric loopback")
@@ -1019,6 +1058,14 @@ class MetisBrainService:
         ):
             raise BrainError(
                 "INVALID_CONFIG", 500, "intent compiler configuration requires schema2 retrieval"
+            )
+        if config.typed_create and (
+            config.model is None or config.retrieval is None or not config.retrieval.schema2
+        ):
+            raise BrainError(
+                "INVALID_CONFIG",
+                500,
+                "typed CREATE requires the local model and schema2 retrieval",
             )
         self.runtime = BrainRuntime(config.runtime_root)
         manager: SessionManager | None = None
@@ -1050,6 +1097,12 @@ class MetisBrainService:
                     )
                 else:
                     retriever = SnapshotRetriever()
+            if config.typed_create and create_authority_provider is None:
+                create_authority_provider = PinnedCreateV2AuthorityProvider(
+                    hmac_key=secrets.token_bytes(32),
+                    toolchain_binding=compiler.toolchain_binding,
+                    exact_value_resolver=retriever,
+                )
             if model_runtime is None and config.model is not None:
                 model_runtime = MlxBrainModelRuntime(
                     python_path=config.model.python_path,
@@ -1169,6 +1222,8 @@ class MetisBrainService:
                 model=model_runtime,
                 model_warmup_policy=config.model.warmup if config.model is not None else "disabled",
                 intent_compiler=intent_runtime,
+                dialogue_answer_resolver=resolve_dialogue_answer,
+                create_authority_provider=create_authority_provider,
                 retrieval_warmup=retrieval_warmup,
             )
             httpd = _ThreadingBrainHTTPServer((config.host, config.port), self.app)
@@ -1181,6 +1236,10 @@ class MetisBrainService:
                 httpd.server_close()
             if manager is not None:
                 manager.shutdown()
+            if create_authority_provider is not None:
+                close = getattr(create_authority_provider, "close", None)
+                if callable(close):
+                    close()
             if model_runtime is not None:
                 close = getattr(model_runtime, "close", None)
                 if callable(close):

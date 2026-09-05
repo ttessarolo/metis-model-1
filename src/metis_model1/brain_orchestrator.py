@@ -24,6 +24,15 @@ from metis_model1.brain_clarifications import (
     ClarificationChoice,
     ClarificationStore,
 )
+from metis_model1.brain_create_authority_provider_v2 import (
+    AskCreateV2Authority,
+    CreateV2AuthorityProvider,
+    PrivateCreateV2Basis,
+    ReadyCreateV2Authority,
+    UnavailableCreateV2AuthorityProvider,
+    selected_catalogs_from_dialogue,
+    validate_dialogue_binding,
+)
 from metis_model1.brain_grounded_renderer import render_grounded_create
 from metis_model1.brain_intent_ir import (
     BrainIntentCompiler,
@@ -47,6 +56,7 @@ from metis_model1.brain_structural_edit import (
     structural_edit_requested,
 )
 from metis_model1.brain_turns import TurnRecord, TurnRequest
+from metis_model1.brain_typed_create_pipeline import run_typed_create_pipeline_v2
 
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -95,6 +105,7 @@ class BrainOrchestrator:
         clarifications: ClarificationStore | None = None,
         max_repairs: int = 2,
         intent_compiler: BrainIntentCompiler | None = None,
+        create_authority_provider: CreateV2AuthorityProvider | None = None,
     ) -> None:
         if type(max_repairs) is not int or not 0 <= max_repairs <= 2:
             raise BrainError("INVALID_CONFIG", 500, "repair budget is invalid")
@@ -104,6 +115,12 @@ class BrainOrchestrator:
         self._clarifications = clarifications or ClarificationStore()
         self._max_repairs = max_repairs
         self._intent_compiler = intent_compiler
+        self._typed_create_enabled = create_authority_provider is not None
+        self._create_authority_provider = (
+            create_authority_provider
+            if create_authority_provider is not None
+            else UnavailableCreateV2AuthorityProvider()
+        )
 
     def run(
         self,
@@ -124,6 +141,16 @@ class BrainOrchestrator:
                 raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
             snapshot_previous = lease.snapshot.source_map().get(request.target["relative_path"])
             previous = record.basis_source if record.basis_source is not None else snapshot_previous
+            typed_create = (
+                self._typed_create_enabled
+                and request.schema_version == 2
+                and request.intent == "create"
+                and request.target["mode"] == "create"
+            )
+            if typed_create:
+                selected_catalogs = selected_catalogs_from_dialogue(request.server_dialogue)
+                if selected_catalogs:
+                    request = request.with_server_target_catalogs(selected_catalogs)
             if request.target["mode"] == "existing":
                 endpoint = request.target.get("endpoint")
                 if previous is not None and isinstance(endpoint, str):
@@ -162,6 +189,15 @@ class BrainOrchestrator:
                     record=record,
                 )
             record.request = request
+            if typed_create:
+                return self._run_typed_create_v2(
+                    lease=lease,
+                    session_id=session_id,
+                    request=request,
+                    record=record,
+                    retrieved=retrieved,
+                    previous=previous,
+                )
             if not structural_requested:
                 candidates = retrieved.catalog_candidates
                 if len(candidates) > 1:
@@ -473,6 +509,250 @@ class BrainOrchestrator:
                     proposal_ref=proposal["proposal_ref"],
                 )
             return result
+
+    @staticmethod
+    def _typed_create_basis(
+        record: TurnRecord, request: TurnRequest
+    ) -> PrivateCreateV2Basis | None:
+        members = (
+            record.basis_create_spec,
+            record.basis_create_spec_sha256,
+            record.basis_create_ir,
+            record.basis_create_ir_sha256,
+            record.basis_create_proof,
+            record.basis_create_generation,
+            record.basis_create_history,
+            record.basis_create_history_revision,
+        )
+        if all(item is None for item in members):
+            return None
+        if any(item is None for item in members):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE basis is incomplete"
+            )
+        basis = request.basis
+        if not isinstance(basis, Mapping) or not isinstance(basis.get("proposal_ref"), str):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE basis proposal is absent"
+            )
+        return PrivateCreateV2Basis(
+            spec=record.basis_create_spec,
+            spec_sha256=record.basis_create_spec_sha256,
+            ir=record.basis_create_ir,
+            ir_sha256=record.basis_create_ir_sha256,
+            proof=record.basis_create_proof,
+            generation=record.basis_create_generation,
+            history=record.basis_create_history,
+            history_revision=record.basis_create_history_revision,
+            proposal_ref=basis["proposal_ref"],
+        )
+
+    def _typed_create_clarification(
+        self,
+        *,
+        session_id: str,
+        request: TurnRequest,
+        record: TurnRecord,
+        retrieved: RetrievalResult,
+        dialogue: Any,
+        decision: AskCreateV2Authority,
+    ) -> dict[str, Any]:
+        pending = self._clarifications.create_pending_v2(
+            session_id=session_id,
+            parent_turn_id=record.turn_id,
+            conversation_id=record.conversation_id or request.request_fingerprint,
+            binding=dialogue.binding,
+            slots=decision.slots,
+        )
+        record.emit(
+            "catalog.clarification_required",
+            "clarification_required",
+            "Serve una scelta dell'operatore",
+            count=len(decision.slots),
+        )
+        return {
+            "schema_version": 2,
+            "turn_id": record.turn_id,
+            "request_id": request.request_id,
+            "status": "completed",
+            "outcome": "needs_clarification",
+            "route": "local",
+            "clarification": pending.payload(),
+            "identity": self._identity(record, retrieved),
+            "grounding": self._grounding(retrieved),
+            "claims": {
+                "compile_clean": None,
+                "semantic_grounded": False,
+                "semantic_correctness": False,
+                "tenant_modified": False,
+            },
+        }
+
+    def _run_typed_create_v2(
+        self,
+        *,
+        lease: Any,
+        session_id: str,
+        request: TurnRequest,
+        record: TurnRecord,
+        retrieved: RetrievalResult,
+        previous: str | None,
+    ) -> dict[str, Any]:
+        """Run the total schema-2 CREATE path without any legacy escape hatch."""
+
+        dialogue = request.server_dialogue
+        if dialogue is None:
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_UNAVAILABLE", 503, "typed CREATE dialogue is unavailable"
+            )
+        validate_dialogue_binding(
+            lease=lease,
+            request=request,
+            dialogue=dialogue,
+            semantic_revision=retrieved.semantic_source_revision,
+        )
+        if previous is not None and record.basis_create_generation is None:
+            raise BrainError("TARGET_EXISTS", 409, "create target already exists")
+        basis = self._typed_create_basis(record, request)
+        decision = self._create_authority_provider.prepare(
+            session_id=session_id,
+            lease=lease,
+            request=request,
+            dialogue=dialogue,
+            retrieved=retrieved,
+            basis=basis,
+        )
+        if type(decision) is AskCreateV2Authority:
+            return self._typed_create_clarification(
+                session_id=session_id,
+                request=request,
+                record=record,
+                retrieved=retrieved,
+                dialogue=dialogue,
+                decision=decision,
+            )
+        if type(decision) is not ReadyCreateV2Authority:
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID",
+                500,
+                "typed CREATE provider returned invalid authority",
+            )
+        if (
+            decision.binding.history != dialogue.messages
+            or decision.binding.history_revision != dialogue.binding.history_revision
+            or decision.binding.context_revision != lease.snapshot.revision
+            or decision.binding.semantic_revision != retrieved.semantic_source_revision
+            or decision.binding.candidate_filename != request.target["relative_path"]
+            or decision.binding.endpoint != request.target.get("endpoint")
+        ):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_STALE", 409, "typed CREATE provider binding differs"
+            )
+        expected_generation = 0 if basis is None else basis.generation + 1
+        if decision.generation != expected_generation:
+            raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "typed CREATE generation differs")
+        if basis is None:
+            if any(
+                item is not None
+                for item in (
+                    decision.basis_ref,
+                    decision.parent_spec_sha256,
+                    decision.parent_ir,
+                    decision.parent_ir_sha256,
+                )
+            ):
+                raise BrainError(
+                    "CREATE_TYPED_AUTHORITY_STALE", 409, "initial typed CREATE has a parent"
+                )
+        elif (
+            decision.parent_spec_sha256 != basis.spec_sha256
+            or decision.parent_ir_sha256 != basis.ir_sha256
+            or decision.parent_ir != basis.ir
+            or decision.base_spec != basis.spec
+        ):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_STALE", 409, "typed CREATE parent authority differs"
+            )
+
+        inference_started = time.monotonic()
+        phase_started: dict[str, float] = {}
+
+        def progress(phase: str) -> None:
+            now = time.monotonic()
+            if phase == "model.started":
+                phase_started[phase] = now
+                record.emit(
+                    "inference.started", "inference_started", "Model 1 prepara il piano tipizzato"
+                )
+            elif phase == "model.completed":
+                started = phase_started.get("model.started", inference_started)
+                record.emit(
+                    "inference.completed",
+                    "inference_completed",
+                    "Piano tipizzato ricevuto",
+                    duration_ms=max(0, int((now - started) * 1000)),
+                )
+            elif phase == "compile.started":
+                phase_started[phase] = now
+                record.emit(
+                    "compile.started",
+                    "compile_started",
+                    "Compilazione del Draft tipizzato",
+                    attempt=1,
+                )
+            elif phase == "compile.completed":
+                started = phase_started.get("compile.started", now)
+                record.emit(
+                    "compile.completed",
+                    "compile_completed",
+                    "Compilazione riuscita",
+                    attempt=1,
+                    duration_ms=max(0, int((now - started) * 1000)),
+                )
+            else:
+                raise BrainError(
+                    "CREATE_TYPED_RUNTIME_DRIFT", 500, "typed CREATE progress phase is invalid"
+                )
+
+        with record.heartbeat_while(
+            phase="inference_running", label="Model 1 e compilatore stanno validando il Draft"
+        ):
+            result = run_typed_create_pipeline_v2(
+                model=self._model,
+                compiler=self._compiler,
+                lease=lease,
+                binding=decision.binding,
+                projection=decision.projection,
+                active_requirement_handles=decision.active_requirement_handles,
+                base_spec=decision.base_spec,
+                target_ref=decision.target_ref,
+                basis_ref=decision.basis_ref,
+                generation=decision.generation,
+                parent_spec_sha256=decision.parent_spec_sha256,
+                parent_ir=decision.parent_ir,
+                parent_ir_sha256=decision.parent_ir_sha256,
+                progress=progress,
+            )
+        record.candidate_manifest = result.private_manifest()
+        record.candidate_manifest_sha256 = result.manifest_sha256
+        record.candidate_create_spec = result.private_spec()
+        record.candidate_create_spec_sha256 = result.spec_sha256
+        record.candidate_create_ir = result.private_ir()
+        record.candidate_create_ir_sha256 = result.ir_sha256
+        record.candidate_create_proof = result.private_stage_proof()
+        record.candidate_create_generation = decision.generation
+        record.candidate_create_history = tuple(decision.binding.history)
+        record.candidate_create_history_revision = decision.binding.history_revision
+        return self._proposal(
+            record=record,
+            request=request,
+            retrieved=retrieved,
+            candidate=result.candidate,
+            receipt=result.compiler_receipt,
+            attempts=1,
+            previous=previous,
+            diagnostics=[],
+        )
 
     def _basis_manifest(
         self,

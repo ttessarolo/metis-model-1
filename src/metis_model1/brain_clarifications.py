@@ -13,11 +13,23 @@ import secrets
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from hashlib import sha256
 from typing import Any, Literal
 
-from metis_model1.brain_protocol import IDLE_TTL_SECONDS, BrainError, revision
+from metis_model1.brain_dialogue_contract import (
+    MAX_DECISIONS,
+    MAX_QUESTIONS,
+    BoundDecision,
+    ClarificationResolutionV2,
+    DialogueAnswer,
+    DialogueBinding,
+    PendingClarificationV2,
+    QuestionSlot,
+    answer_roster,
+    decision_roster,
+)
+from metis_model1.brain_protocol import IDLE_TTL_SECONDS, BrainError, canonical_sha256, revision
 
 ClarificationKind = Literal[
     "catalog",
@@ -319,6 +331,21 @@ class _StoredPending:
     claimed_by: str | None = None
 
 
+@dataclass
+class _ConversationV2:
+    binding: DialogueBinding
+    rounds_used: int = 0
+    decisions: tuple[BoundDecision, ...] = ()
+    issued_slots: set[tuple[str, str, str | None]] = field(default_factory=set)
+
+
+@dataclass
+class _StoredPendingV2:
+    public: PendingClarificationV2
+    claimed_by: str | None = None
+    claimed_answers_sha256: str | None = None
+
+
 class ClarificationStore:
     """Thread-safe volatile store for one-shot, revision-bound questions.
 
@@ -366,8 +393,9 @@ class ClarificationStore:
         self._max_result_count = max_result_count
         self._max_conversations = max_conversations_per_session
         self._sessions: dict[str, _SessionMemory] = {}
-        self._pending_by_session: dict[str, _StoredPending] = {}
-        self._pending_by_id: dict[str, _StoredPending] = {}
+        self._pending_by_session: dict[str, _StoredPending | _StoredPendingV2] = {}
+        self._pending_by_id: dict[str, _StoredPending | _StoredPendingV2] = {}
+        self._conversations_v2: dict[tuple[str, str], _ConversationV2] = {}
         self._retired: dict[str, _Retired] = {}
         self._revoked_sessions: dict[str, str] = {}
         self._lock = threading.RLock()
@@ -459,6 +487,10 @@ class ClarificationStore:
                 removed += 1
         if self._sessions.pop(session_id, None) is not None:
             removed += 1
+        for key in list(self._conversations_v2):
+            if key[0] == session_id:
+                del self._conversations_v2[key]
+                removed += 1
         return removed
 
     def _sweep_locked(self, now: float) -> int:
@@ -493,7 +525,11 @@ class ClarificationStore:
             self._sessions[session_id] = session
         conversation = session.conversations.get(request_fingerprint)
         if conversation is None:
-            if len(session.conversations) >= self._max_conversations:
+            if (
+                len(session.conversations)
+                + sum(key[0] == session_id for key in self._conversations_v2)
+                >= self._max_conversations
+            ):
                 _fail("CONVERSATION_LIMIT", 409, "session conversation capacity is exhausted")
             conversation = _Conversation(
                 session_id=session_id,
@@ -762,6 +798,8 @@ class ClarificationStore:
                     _fail("CLARIFICATION_EXPIRED", 410, "clarification has expired")
                 _fail("CLARIFICATION_UNKNOWN", 404, "clarification is unknown")
             pending = stored.public
+            if not isinstance(stored, _StoredPending):
+                _fail("CLARIFICATION_WRONG_VERSION", 409, "clarification requires version 2")
             if pending.session_id != session_id:
                 _fail(
                     "CLARIFICATION_CROSS_SESSION", 403, "clarification belongs to another session"
@@ -906,6 +944,8 @@ class ClarificationStore:
                     _fail("CLARIFICATION_EXPIRED", 410, "clarification has expired")
                 _fail("CLARIFICATION_UNKNOWN", 404, "clarification is unknown")
             pending = stored.public
+            if not isinstance(stored, _StoredPending):
+                _fail("CLARIFICATION_WRONG_VERSION", 409, "clarification requires version 2")
             if pending.session_id != session_id:
                 _fail(
                     "CLARIFICATION_CROSS_SESSION", 403, "clarification belongs to another session"
@@ -976,7 +1016,367 @@ class ClarificationStore:
             if stored is None or stored.claimed_by != owner:
                 return False
             stored.claimed_by = None
+            if isinstance(stored, _StoredPendingV2):
+                stored.claimed_answers_sha256 = None
             return True
+
+    def pending_v2(
+        self, *, session_id: str, clarification_id: str, now: float | None = None
+    ) -> PendingClarificationV2:
+        """Recover an isolated private binding/slot snapshot for authenticated TurnStore.
+
+        This is not a public projection. The caller exposes only ``payload()``.
+        ``conversation_id`` remains the original server-owned conversation even
+        when a later instruction has a different request fingerprint.
+        """
+        _validate_session_id(session_id)
+        _opaque(clarification_id, name="clarification_id")
+        clock = self._now(now)
+        with self._lock:
+            if session_id in self._revoked_sessions:
+                _fail("SESSION_REVOKED", 409, "session was revoked")
+            self._sweep_locked(clock)
+            stored = self._pending_by_id.get(clarification_id)
+            if stored is None:
+                retired = self._retired.get(clarification_id)
+                if retired is not None:
+                    if retired.session_id != session_id:
+                        _fail(
+                            "CLARIFICATION_CROSS_SESSION",
+                            403,
+                            "clarification belongs to another session",
+                        )
+                    if retired.reason == "expired":
+                        _fail("CLARIFICATION_EXPIRED", 410, "clarification has expired")
+                    _fail("CLARIFICATION_REPLAY", 409, "clarification was already consumed")
+                _fail("CLARIFICATION_UNKNOWN", 404, "clarification is unknown")
+            if stored.public.session_id != session_id:
+                _fail(
+                    "CLARIFICATION_CROSS_SESSION", 403, "clarification belongs to another session"
+                )
+            if not isinstance(stored, _StoredPendingV2):
+                _fail("CLARIFICATION_WRONG_VERSION", 409, "clarification requires version 1")
+            return replace(stored.public)
+
+    def create_pending_v2(
+        self,
+        *,
+        session_id: str,
+        parent_turn_id: str,
+        conversation_id: str,
+        binding: DialogueBinding,
+        slots: Sequence[QuestionSlot],
+        now: float | None = None,
+    ) -> PendingClarificationV2:
+        """Issue a bounded question group and seal its private choice authority.
+
+        Callers supply unissued immutable slots. This store alone allocates the
+        public references. Neither messages nor post-answer authority maps are
+        inputs to this API.
+        """
+        if type(binding) is not DialogueBinding:
+            _fail("DIALOGUE_INVALID", 400, "dialogue binding is invalid")
+        binding = replace(binding)
+        self._validate_common(
+            session_id=session_id,
+            parent_turn_id=parent_turn_id,
+            request_fingerprint=binding.parent_fingerprint,
+            context_revision=binding.context_revision,
+            semantic_source_revision=binding.semantic_revision,
+        )
+        conversation_id = _fingerprint(conversation_id, name="conversation_id")
+        if isinstance(slots, (str, bytes)) or not isinstance(slots, Sequence):
+            _fail("DIALOGUE_INVALID", 400, "dialogue slots are invalid")
+        if not 1 <= len(slots) <= MAX_QUESTIONS or any(
+            type(slot) is not QuestionSlot for slot in slots
+        ):
+            _fail("DIALOGUE_INVALID", 400, "dialogue slots are invalid")
+        copied = tuple(replace(slot) for slot in slots)
+        if any(slot.question_ref is not None for slot in copied) or len(
+            {slot.identity for slot in copied}
+        ) != len(copied):
+            _fail("DIALOGUE_INVALID", 400, "dialogue slots are already issued or duplicated")
+        if any(
+            slot.answer_kind == "integer" and slot.maximum > self._max_result_count
+            for slot in copied
+        ):
+            _fail("DIALOGUE_INVALID", 400, "dialogue integer bound exceeds configuration")
+        clock = self._now(now)
+        key = (session_id, conversation_id)
+        with self._lock:
+            self._sweep_locked(clock)
+            if session_id in self._revoked_sessions:
+                _fail("SESSION_REVOKED", 409, "session was revoked")
+            if session_id in self._pending_by_session:
+                _fail("CLARIFICATION_PENDING", 409, "session already has a pending clarification")
+            conversation = self._conversations_v2.get(key)
+            if conversation is None:
+                count = sum(item[0] == session_id for item in self._conversations_v2)
+                count += len(
+                    self._sessions.get(session_id, _SessionMemory(session_id, clock)).conversations
+                )
+                if count >= self._max_conversations:
+                    _fail("CONVERSATION_LIMIT", 409, "session conversation capacity is exhausted")
+                conversation = _ConversationV2(binding)
+            elif (
+                conversation.binding.context_revision != binding.context_revision
+                or conversation.binding.semantic_revision != binding.semantic_revision
+                or conversation.binding.toolchain_binding != binding.toolchain_binding
+            ):
+                _fail("CLARIFICATION_STALE", 409, "dialogue authority is stale")
+            if conversation.rounds_used >= self._max_rounds:
+                _fail("CLARIFICATION_BUDGET_EXCEEDED", 409, "clarification budget is exhausted")
+            latest = {decision.identity: decision for decision in conversation.decisions}
+            for slot in copied:
+                identity = (*slot.identity, slot.supersedes)
+                if identity in conversation.issued_slots:
+                    _fail("CLARIFICATION_REPEAT", 409, "clarification slot was already asked")
+                prior = latest.get(slot.identity)
+                if (prior is None and slot.supersedes is not None) or (
+                    prior is not None
+                    and (slot.supersedes != prior.decision_sha256 or slot.kind != prior.kind)
+                ):
+                    _fail(
+                        "CLARIFICATION_REPLACEMENT_INVALID", 409, "slot replacement is not explicit"
+                    )
+            if len(conversation.decisions) + len(copied) > MAX_DECISIONS:
+                _fail("CLARIFICATION_BUDGET_EXCEEDED", 409, "decision capacity is exhausted")
+            reserved: set[str] = {
+                choice.option_ref
+                for item in self._conversations_v2.values()
+                for decision in item.decisions
+                for choice in decision.choices
+                if choice.option_ref is not None
+            }
+            issued: list[QuestionSlot] = []
+            for slot in copied:
+                question_ref = self._new_unique(
+                    lambda: "q_" + secrets.token_urlsafe(12),
+                    name="question_ref",
+                    prefix="q_",
+                    reserved=reserved,
+                )
+                reserved.add(question_ref)
+                choices = []
+                for choice in slot.choices:
+                    option_ref = self._new_unique(
+                        self._new_option_ref, name="option_ref", prefix="opt_", reserved=reserved
+                    )
+                    reserved.add(option_ref)
+                    choices.append(replace(choice, option_ref=option_ref))
+                issued.append(replace(slot, choices=tuple(choices), question_ref=question_ref))
+            pending = PendingClarificationV2(
+                clarification_id=self._new_unique(
+                    self._new_clarification_id, name="clarification_id", prefix="clr_"
+                ),
+                session_id=session_id,
+                parent_turn_id=parent_turn_id,
+                conversation_id=conversation_id,
+                binding=binding,
+                slots=tuple(issued),
+                round_index=conversation.rounds_used + 1,
+                max_rounds=self._max_rounds,
+                expires_at=clock + self._ttl,
+            )
+            stored = _StoredPendingV2(pending)
+            conversation.issued_slots.update((*slot.identity, slot.supersedes) for slot in copied)
+            self._conversations_v2[key] = conversation
+            self._pending_by_id[pending.clarification_id] = stored
+            self._pending_by_session[session_id] = stored
+            return replace(pending)
+
+    def _validated_v2_locked(
+        self,
+        *,
+        session_id: str,
+        clarification_id: str,
+        binding: DialogueBinding,
+        answers: Sequence[DialogueAnswer | Mapping[str, Any]],
+        claim_owner: str | None,
+        clock: float,
+        require_claim: bool = False,
+    ) -> tuple[_StoredPendingV2, tuple[BoundDecision, ...], tuple[QuestionSlot, ...]]:
+        _validate_session_id(session_id)
+        _opaque(clarification_id, name="clarification_id")
+        if type(binding) is not DialogueBinding:
+            _fail("DIALOGUE_INVALID", 400, "dialogue binding is invalid")
+        binding = replace(binding)
+        parsed = answer_roster(answers)
+        if claim_owner is not None:
+            _validate_turn_id(claim_owner)
+        if session_id in self._revoked_sessions:
+            _fail("SESSION_REVOKED", 409, "session was revoked")
+        self._sweep_locked(clock)
+        stored = self._pending_by_id.get(clarification_id)
+        if stored is None:
+            retired = self._retired.get(clarification_id)
+            if retired is not None:
+                if retired.session_id != session_id:
+                    _fail(
+                        "CLARIFICATION_CROSS_SESSION",
+                        403,
+                        "clarification belongs to another session",
+                    )
+                if retired.reason == "expired":
+                    _fail("CLARIFICATION_EXPIRED", 410, "clarification has expired")
+                _fail("CLARIFICATION_REPLAY", 409, "clarification was already consumed")
+            _fail("CLARIFICATION_UNKNOWN", 404, "clarification is unknown")
+        if stored.public.session_id != session_id:
+            _fail("CLARIFICATION_CROSS_SESSION", 403, "clarification belongs to another session")
+        if not isinstance(stored, _StoredPendingV2):
+            _fail("CLARIFICATION_WRONG_VERSION", 409, "clarification requires version 1")
+        if stored.public.binding != binding:
+            _fail("CLARIFICATION_STALE", 409, "dialogue binding differs")
+        if stored.claimed_by is not None and stored.claimed_by != claim_owner:
+            _fail("CLARIFICATION_CLAIMED", 409, "clarification answer is already admitted")
+        if require_claim and claim_owner is not None and stored.claimed_by != claim_owner:
+            _fail("CLARIFICATION_CLAIM_UNAVAILABLE", 409, "clarification claim is unavailable")
+        by_ref = {answer.question_ref: answer for answer in parsed}
+        if not set(by_ref).issubset({slot.question_ref for slot in stored.public.slots}):
+            _fail(
+                "CLARIFICATION_OPTION_UNKNOWN",
+                422,
+                "question reference is not valid for this group",
+            )
+        accepted: list[BoundDecision] = []
+        remaining: list[QuestionSlot] = []
+        for slot in stored.public.slots:
+            answer = by_ref.get(slot.question_ref)
+            if answer is None:
+                remaining.append(slot)
+                continue
+            kind = (
+                "integer"
+                if answer.integer is not None
+                else "option_refs"
+                if answer.multiple
+                else "option_ref"
+            )
+            if kind != slot.answer_kind:
+                _fail("INVALID_SCHEMA", 400, "answer kind differs from question")
+            choices = []
+            if answer.integer is not None:
+                if not slot.minimum <= answer.integer <= slot.maximum:
+                    _fail("CLARIFICATION_VALUE_OUT_OF_RANGE", 422, "answer is out of range")
+            else:
+                refs = {choice.option_ref: choice for choice in slot.choices}
+                if not set(answer.option_refs).issubset(refs):
+                    _fail(
+                        "CLARIFICATION_OPTION_UNKNOWN",
+                        422,
+                        "option reference is not valid for this question",
+                    )
+                if (
+                    kind == "option_refs"
+                    and not slot.minimum <= len(answer.option_refs) <= slot.maximum
+                ):
+                    _fail(
+                        "CLARIFICATION_VALUE_OUT_OF_RANGE", 422, "selection count is out of range"
+                    )
+                # Declaration order, never client answer order, defines the selected roster.
+                choices = [
+                    choice for choice in slot.choices if choice.option_ref in answer.option_refs
+                ]
+            accepted.append(
+                BoundDecision(
+                    decision_key=slot.decision_key,
+                    target_key=slot.target_key,
+                    kind=slot.kind,
+                    question_ref=slot.question_ref,
+                    answer_kind=slot.answer_kind,
+                    binding=stored.public.binding,
+                    choices=tuple(choices),
+                    integer=answer.integer,
+                    supersedes=slot.supersedes,
+                    value_contract=slot.value_contract,
+                )
+            )
+        digest = canonical_sha256([decision.decision_sha256 for decision in accepted])
+        if stored.claimed_by is not None and stored.claimed_answers_sha256 != digest:
+            _fail("CLARIFICATION_CLAIM_MISMATCH", 409, "admitted answer roster differs")
+        return stored, tuple(accepted), tuple(remaining)
+
+    def validate_answers_v2(
+        self,
+        *,
+        session_id: str,
+        clarification_id: str,
+        binding: DialogueBinding,
+        answers: Sequence[DialogueAnswer | Mapping[str, Any]],
+        claim_owner: str | None = None,
+        now: float | None = None,
+    ) -> None:
+        """Validate all supplied answers, then optionally claim the group atomically."""
+        with self._lock:
+            stored, accepted, _remaining = self._validated_v2_locked(
+                session_id=session_id,
+                clarification_id=clarification_id,
+                binding=binding,
+                answers=answers,
+                claim_owner=claim_owner,
+                clock=self._now(now),
+            )
+            if claim_owner is not None:
+                stored.claimed_by = claim_owner
+                stored.claimed_answers_sha256 = canonical_sha256(
+                    [decision.decision_sha256 for decision in accepted]
+                )
+
+    def answer_v2(
+        self,
+        *,
+        session_id: str,
+        clarification_id: str,
+        binding: DialogueBinding,
+        answers: Sequence[DialogueAnswer | Mapping[str, Any]],
+        claim_owner: str | None = None,
+        now: float | None = None,
+    ) -> ClarificationResolutionV2:
+        """Consume once; partial answers rotate the ID without spending another round."""
+        clock = self._now(now)
+        with self._lock:
+            stored, accepted, remaining_slots = self._validated_v2_locked(
+                session_id=session_id,
+                clarification_id=clarification_id,
+                binding=binding,
+                answers=answers,
+                claim_owner=claim_owner,
+                clock=clock,
+                require_claim=True,
+            )
+            pending = stored.public
+            conversation = self._conversations_v2[(session_id, pending.conversation_id)]
+            decisions = decision_roster((*conversation.decisions, *accepted))
+            remaining = None
+            if remaining_slots:
+                remaining = replace(
+                    pending,
+                    clarification_id=self._new_unique(
+                        self._new_clarification_id, name="clarification_id", prefix="clr_"
+                    ),
+                    slots=remaining_slots,
+                )
+            # Everything above is validation/allocation. Commit only the complete transition.
+            self._retire_locked(clarification_id, reason="replay", now=clock)
+            conversation.decisions = decisions
+            conversation.rounds_used = max(conversation.rounds_used, pending.round_index)
+            if remaining is not None:
+                successor = _StoredPendingV2(remaining)
+                self._pending_by_id[remaining.clarification_id] = successor
+                self._pending_by_session[session_id] = successor
+            return ClarificationResolutionV2(
+                decisions=decision_roster(decisions),
+                accepted=tuple(replace(decision) for decision in accepted),
+                remaining=None if remaining is None else replace(remaining),
+            )
+
+    def decisions_v2(self, *, session_id: str, conversation_id: str) -> tuple[BoundDecision, ...]:
+        """Trusted in-process snapshot; callers must never serialize it publicly."""
+        _validate_session_id(session_id)
+        _fingerprint(conversation_id, name="conversation_id")
+        with self._lock:
+            conversation = self._conversations_v2.get((session_id, conversation_id))
+            return () if conversation is None else decision_roster(conversation.decisions)
 
     def conversation(
         self,
@@ -1091,6 +1491,19 @@ class ClarificationStore:
             if stored is None or stored.public.parent_turn_id != parent_turn_id:
                 return False
 
+            if isinstance(stored, _StoredPendingV2):
+                pending_v2 = stored.public
+                self._pending_by_session.pop(session_id, None)
+                self._pending_by_id.pop(pending_v2.clarification_id, None)
+                key = (session_id, pending_v2.conversation_id)
+                conversation_v2 = self._conversations_v2.get(key)
+                if conversation_v2 is not None:
+                    for slot in pending_v2.slots:
+                        conversation_v2.issued_slots.discard((*slot.identity, slot.supersedes))
+                    if not conversation_v2.decisions and not conversation_v2.issued_slots:
+                        self._conversations_v2.pop(key, None)
+                return True
+
             pending = stored.public
             self._pending_by_session.pop(session_id, None)
             self._pending_by_id.pop(pending.clarification_id, None)
@@ -1121,15 +1534,17 @@ class ClarificationStore:
     def metrics(self) -> dict[str, int]:
         with self._lock:
             return {
-                "sessions": len(self._sessions),
-                "conversations": sum(len(item.conversations) for item in self._sessions.values()),
+                "sessions": len(set(self._sessions) | {key[0] for key in self._conversations_v2}),
+                "conversations": sum(len(item.conversations) for item in self._sessions.values())
+                + len(self._conversations_v2),
                 "pending": len(self._pending_by_id),
                 "retired": len(self._retired),
                 "decisions": sum(
                     len(conversation.decisions)
                     for session in self._sessions.values()
                     for conversation in session.conversations.values()
-                ),
+                )
+                + sum(len(item.decisions) for item in self._conversations_v2.values()),
                 "assumptions": sum(
                     len(conversation.assumptions)
                     for session in self._sessions.values()
@@ -1165,10 +1580,12 @@ class ClarificationStore:
                 + len(self._pending_by_id)
                 + len(self._retired)
                 + len(self._revoked_sessions)
+                + len(self._conversations_v2)
             )
             self._sessions.clear()
             self._pending_by_session.clear()
             self._pending_by_id.clear()
             self._retired.clear()
             self._revoked_sessions.clear()
+            self._conversations_v2.clear()
             return removed

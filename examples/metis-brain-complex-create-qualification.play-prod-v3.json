@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "qualification_id": "metis-brain-complex-create/play-prod-v3",
+  "prompt_corpus": {
+    "path": "examples/metis-brain-complex-create-prompts.play-prod-v3.json",
+    "sha256": "sha256:3e32180d42614774cbdef7862a809cab19eeef896fedc658efb53811f672c7c8"
+  },
+  "config": {
+    "path": "examples/metis-brain-config.play-prod-complex-create.local.json",
+    "sha256": "sha256:38454eb6db5aaac9adc13875da20d478d98bd846183752f7366db8d2eeeaab24"
+  },
+  "authority": {
+    "tenant_alias": "play-prod",
+    "tenant_id": "play-prod-v2",
+    "root": "/Users/tommasotessarolo/Developer/metis-tenant-play-prod",
+    "head": "98e78407f7286d2a9ac404dceb655fd1f6a9118e",
+    "tree": "914785f55c2be453ee75a6314f4e9e77010eed25"
+  },
+  "runtime_identity": {
+    "model": {
+      "model_revision": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff",
+      "adapter_sha256": "sha256:5e65a0b48531ce9e2a9751c201f570f8793da87bd2a2a9446f461dbe0589dcfb"
+    },
+    "intent_compiler": {
+      "model_revision": "475b9088d29754a3379866cf5aeb6b41acd313c2",
+      "schema_sha256": "sha256:972eb339d8f0f22f4d5dd43aa9f4f74ae49e2a6e2b3b7ff536a60444edd864fa",
+      "decoder": "llguidance-1.8.0"
+    },
+    "semantic_retrieval": {
+      "enabled": true,
+      "schema": 2,
+      "implementation": "Schema2SnapshotRetriever"
+    },
+    "toolchain": {
+      "revision": "3fde0820c04244b011a2f7a9604c425891424b34",
+      "tree": "432bd3babd9f4c2dfe6349288b12eba917d4fe73",
+      "node_modules_sha256": "sha256:5ba3b1ef8e399260fa40c840fdeffd255931b37c01d284b4d445c0311533e7e5",
+      "runner_sha256": "sha256:7a29f85d2c262300cd67f0895fe303ba23ce8fe8ced4cd0731844b58620318a5"
+    },
+    "typed_create": {
+      "enabled": true,
+      "implementation": "PinnedCreateV2AuthorityProvider",
+      "contract_id": "metis-brain-create-authority-provider/production-structural-v2",
+      "policy_revision": "sha256:3866f0236c3a1105cc23587316356c481499c61fb0c0908003b5298f6632dfc0",
+      "inventory_revision": "sha256:5bc6fb63b18ad5c3d2a18f0cb5fbad71f634fb8eb40601befcd0d37edacce9de"
+    }
+  },
+  "execution_boundary": {
+    "transport": "numeric_loopback_http",
+    "one_session_per_journey": true,
+    "apply_authorized": false,
+    "blueprint_load_phase": "after_service_close",
+    "qualification_proof": "metis-brain-typed-create-qualification-receipt/v1",
+    "clarification_proof": "metis-brain-typed-create-clarification-receipt/v1",
+    "required_generation_strategy": "model_create_plan_v2"
+  },
+  "blueprints": [
+    {
+      "kind": "similar",
+      "path": "examples/metis-brain-create-blueprints-v3-similar.json",
+      "sha256": "sha256:26d940a76fe0ce24be3cce49a372a5f58c6751cd7c19f7e62338e452f5d42394"
+    },
+    {
+      "kind": "search",
+      "path": "examples/metis-brain-create-blueprints-v3-search.json",
+      "sha256": "sha256:878cdbbf0ca6fbd451840a937ffd8628459ecb68efafd75e7034d80c615bcbe0"
+    },
+    {
+      "kind": "multiblock",
+      "path": "examples/metis-brain-create-blueprints-v3-multiblock.json",
+      "sha256": "sha256:ceb78b47f49c58fa182e2d4b29a6ab3266c856fa20098427535bc78f97941866"
+    }
+  ],
+  "targets": [
+    {"case_id":"case_01","scenario_id":"play.similar_cinema","relative_path":"properties/brain_qualification_v3/case_01.metis","endpoint":"brain_qualification_v3.case_01"},
+    {"case_id":"case_02","scenario_id":"play.similar_serie_tv_fiction","relative_path":"properties/brain_qualification_v3/case_02.metis","endpoint":"brain_qualification_v3.case_02"},
+    {"case_id":"case_03","scenario_id":"search.filtered_search","relative_path":"properties/brain_qualification_v3/case_03.metis","endpoint":"brain_qualification_v3.case_03"},
+    {"case_id":"case_04","scenario_id":"search.detail","relative_path":"properties/brain_qualification_v3/case_04.metis","endpoint":"brain_qualification_v3.case_04"},
+    {"case_id":"case_05","scenario_id":"play.multiple_block_compleanno","relative_path":"properties/brain_qualification_v3/case_05.metis","endpoint":"brain_qualification_v3.case_05"},
+    {"case_id":"case_06","scenario_id":"play.multiple_block_dem_titoli_momento","relative_path":"properties/brain_qualification_v3/case_06.metis","endpoint":"brain_qualification_v3.case_06"},
+    {"case_id":"case_07","scenario_id":"play.tvod_multiple_block","relative_path":"properties/brain_qualification_v3/case_07.metis","endpoint":"brain_qualification_v3.case_07"},
+    {"case_id":"case_08","scenario_id":"play.multiple_block4_k","relative_path":"properties/brain_qualification_v3/case_08.metis","endpoint":"brain_qualification_v3.case_08"},
+    {"case_id":"case_09","scenario_id":"play.inf_multiple_block_film_serie","relative_path":"properties/brain_qualification_v3/case_09.metis","endpoint":"brain_qualification_v3.case_09"},
+    {"case_id":"case_10","scenario_id":"play.similar_intrat_abtest","relative_path":"properties/brain_qualification_v3/case_10.metis","endpoint":"brain_qualification_v3.case_10"}
+  ],
+  "denominator": {
+    "journeys": 10,
+    "operator_messages": 40,
+    "initial_ask_stages": 10,
+    "assessed_stages": 30,
+    "expected_ready": 6,
+    "expected_blocked": 24
+  }
+}

@@ -21,6 +21,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from metis_model1.brain_dialogue_contract import PrivateDialogueState
 from metis_model1.brain_intent_ir import IntentCompileRequest, IntentIR
 from metis_model1.brain_output_contract import parse_output_request
 from metis_model1.brain_protocol import BrainError, canonical_json, canonical_sha256
@@ -56,11 +57,14 @@ _INSTRUCTION_STOPWORDS = frozenset(
         "anche",
         "avere",
         "che",
+        "come",
         "con",
         "contenuti",
         "contenuto",
         "crea",
         "creare",
+        "costruisci",
+        "costruire",
         "da",
         "dei",
         "del",
@@ -69,6 +73,7 @@ _INSTRUCTION_STOPWORDS = frozenset(
         "di",
         "e",
         "ed",
+        "è",
         "endpoint",
         "gli",
         "hanno",
@@ -112,6 +117,200 @@ _STRUCTURAL_REFINEMENT_TOKENS = frozenset(
         "paginato",
         "porta",
         "risultati",
+    }
+)
+# Structural refinements deliberately use a closed lexical envelope.  This is
+# not a natural-language classifier: every word outside this roster is a
+# possible new catalog predicate, a source identifier, or an instruction to
+# the model and therefore remains fail-closed.  The roster contains only
+# syntax/output/composition vocabulary.  It never names a catalog field or a
+# finite catalog value.
+_STRUCTURAL_CREATE_REFINEMENT_TOKENS = frozenset(
+    {
+        "abilita",
+        "abiliti",
+        "aggiungi",
+        "aggiunta",
+        "aggiunte",
+        "aggiunto",
+        "aggiunti",
+        "almeno",
+        "alternativa",
+        "alternative",
+        "append",
+        "appendi",
+        "best",
+        "blocco",
+        "blocchi",
+        "candidati",
+        "candidato",
+        "ciascuno",
+        "cinema",
+        "coda",
+        "combina",
+        "combinare",
+        "complessivamente",
+        "consumer",
+        "consumatore",
+        "crea",
+        "creare",
+        "da",
+        "date",
+        "deduplica",
+        "deduplicare",
+        "deduplicazione",
+        "default",
+        "dieci",
+        "distribuisci",
+        "distribuire",
+        "distinti",
+        "distinte",
+        "elementi",
+        "elemento",
+        "empty",
+        "endpoint",
+        "errore",
+        "episodi",
+        "episodio",
+        "fallback",
+        "finale",
+        "finali",
+        "finestra",
+        "finestre",
+        "fra",
+        "full",
+        "generale",
+        "giorni",
+        "giorno",
+        "gruppo",
+        "gruppi",
+        "hdr",
+        "infinity",
+        "istanza",
+        "istanze",
+        "limita",
+        "limitare",
+        "limite",
+        "limiti",
+        "main",
+        "mantieni",
+        "mantenere",
+        "massimo",
+        "mesi",
+        "mese",
+        "near",
+        "noleggio",
+        "ordine",
+        "ordina",
+        "ordinare",
+        "output",
+        "pagina",
+        "pagine",
+        "paginata",
+        "paginazione",
+        "per",
+        "percorso",
+        "percorsi",
+        "piatta",
+        "piatti",
+        "pool",
+        "plus",
+        "primo",
+        "prima",
+        "principale",
+        "programma",
+        "promuovi",
+        "rami",
+        "ramo",
+        "response",
+        "riga",
+        "righe",
+        "raggruppa",
+        "risultati",
+        "risultato",
+        "totale",
+        "totali",
+        "quattro",
+        "sdr",
+        "se",
+        "seconda",
+        "secondo",
+        "seed",
+        "sezione",
+        "separati",
+        "separate",
+        "shuffle",
+        "simile",
+        "simili",
+        "similarita",
+        "similarità",
+        "stesso",
+        "stessa",
+        "sostitutivi",
+        "sostitutivo",
+        "take",
+        "takes",
+        "tutto",
+        "un",
+        "una",
+        "usa",
+        "usare",
+        "varianti",
+        "variante",
+        "vedi",
+        "visto",
+        "voglio",
+        "quando",
+        "vuota",
+        "vuote",
+        "vuoti",
+        "vuoto",
+        "recenti",
+        "intrat_recent",
+        "meno",
+    }
+)
+_STRUCTURAL_CREATE_FORBIDDEN_TOKENS = frozenset(
+    {
+        "eccetto",
+        "escludi",
+        "escludere",
+        "ignora",
+        "ignorare",
+        "mai",
+        "negare",
+        "nessun",
+        "nessuna",
+        "no",
+        "non",
+        "rimuovi",
+        "rimuovere",
+        "rimuovete",
+        "sostituisci",
+        "sostituire",
+        "tranne",
+    }
+)
+_STRUCTURAL_COUNT_WORDS = frozenset(
+    {
+        "uno",
+        "una",
+        "due",
+        "tre",
+        "quattro",
+        "cinque",
+        "sei",
+        "sette",
+        "otto",
+        "nove",
+        "dieci",
+        "undici",
+        "dodici",
+        "quattordici",
+        "venti",
+        "ventiquattro",
+        "trenta",
+        "cinquanta",
     }
 )
 _ENDPOINT_LABEL_REFINEMENT_PATTERNS = (
@@ -535,8 +734,8 @@ def _is_structural_refinement(text: str) -> bool:
     )
 
 
-def _nonsemantic_refinement(text: str, catalog: str) -> str | None:
-    """Classify only bounded refinements which cannot alter catalog filters."""
+def _scrub_catalog_surface(text: str, catalog: str) -> str:
+    """Remove only the selected catalog's spelling from an operator instruction."""
 
     scrubbed = text
     short = catalog.rsplit(".", 1)[-1]
@@ -554,9 +753,204 @@ def _nonsemantic_refinement(text: str, catalog: str) -> str | None:
         reverse=True,
     ):
         scrubbed = _mask_surface(scrubbed, surface)
+    return scrubbed
+
+
+def _catalog_semantic_surfaces(
+    index: Mapping[str, Any], catalog: str
+) -> tuple[tuple[tuple[str, str, str | None], str], ...]:
+    """Return every reviewed lexical surface together with its exact identity."""
+
+    result: list[tuple[tuple[str, str, str | None], str]] = []
+    seen: set[tuple[tuple[str, str, str | None], str]] = set()
+    for entry in index.get("entries", []):
+        if (
+            not isinstance(entry, Mapping)
+            or entry.get("catalog") != catalog
+            or entry.get("state") != "reviewed"
+            or entry.get("node_kind") not in {"field", "value"}
+            or not isinstance(entry.get("field"), str)
+        ):
+            continue
+        field = entry["field"]
+        literal = entry.get("literal") if entry.get("node_kind") == "value" else None
+        if literal is not None and not isinstance(literal, str):
+            continue
+        identity = ("value" if literal is not None else "field", field, literal)
+        surfaces: list[str] = [field]
+        if literal is not None:
+            surfaces.append(literal)
+        means = entry.get("means")
+        if isinstance(means, Mapping) and isinstance(means.get("text"), str):
+            surfaces.append(means["text"])
+        aka = entry.get("aka")
+        if isinstance(aka, Mapping):
+            surfaces.extend(item for item in aka.get("items", []) if isinstance(item, str))
+        for surface in surfaces:
+            normalized = surface.strip()
+            key = identity, normalized.casefold()
+            if normalized and key not in seen:
+                seen.add(key)
+                result.append((identity, normalized))
+    return tuple(result)
+
+
+def _contains_catalog_semantic_surface(index: Mapping[str, Any], catalog: str, text: str) -> bool:
+    """Return true for any reviewed field/value surface in a refinement.
+
+    A structural refinement may retain prior grounding, but it cannot add,
+    remove, replace, or otherwise name a catalog predicate.  We intentionally
+    examine the full reviewed lexical surface (technical name, literal,
+    ``means`` and ``aka``), rather than relying on the main resolver's scoring:
+    a low-scoring exact value is still an operator semantic claim.
+    """
+
+    for _identity, surface in _catalog_semantic_surfaces(index, catalog):
+        if _whole_surface(text, surface):
+            return True
+    return False
+
+
+def _selection_semantic_identities(
+    selections: Sequence[Mapping[str, Any]], catalog: str
+) -> set[tuple[str, str, str | None]]:
+    """Return exact reviewed field/value identities already admitted by retrieval."""
+
+    result: set[tuple[str, str, str | None]] = set()
+    for item in selections:
+        if item.get("catalog") != catalog or not isinstance(item.get("field"), str):
+            continue
+        field = item["field"]
+        result.add(("field", field, None))
+        literal = item.get("literal")
+        if isinstance(literal, str):
+            result.add(("value", field, literal))
+        literals = item.get("literals")
+        if isinstance(literals, list):
+            result.update(("value", field, value) for value in literals if isinstance(value, str))
+    return result
+
+
+def _mask_authorized_catalog_semantics(
+    index: Mapping[str, Any],
+    catalog: str,
+    text: str,
+    selections: Sequence[Mapping[str, Any]],
+) -> str | None:
+    """Mask exactly the reviewed catalog surfaces owned by ``selections``.
+
+    If an operator text mentions a different reviewed field/value, returning
+    ``None`` prevents a dialogue refinement from silently dropping that claim.
+    """
+
+    authorized = _selection_semantic_identities(selections, catalog)
+    matched: list[tuple[tuple[str, str, str | None], str]] = [
+        (identity, surface)
+        for identity, surface in _catalog_semantic_surfaces(index, catalog)
+        if _whole_surface(text, surface)
+    ]
+    for identity, _surface in matched:
+        if identity[0] == "field":
+            # Naming a field is covered when an exact value on that same field
+            # was resolved, or when the field itself was selected.
+            if identity not in authorized and not any(
+                item[0] == "value" and item[1] == identity[1] for item in authorized
+            ):
+                return None
+        elif identity not in authorized:
+            return None
+    result = text
+    for _identity, surface in sorted(matched, key=lambda item: len(item[1]), reverse=True):
+        result = _mask_surface(result, surface)
+    return result
+
+
+def _is_closed_structural_create_refinement(text: str, *, require_count: bool = True) -> bool:
+    """Recognize a bounded structural-only CREATE refinement.
+
+    The test is lexical by design.  It accepts quantities, response topology,
+    fallback and composition vocabulary, never free-form prose.  A later
+    authority may decide whether a requested fallback/branch actually exists;
+    this classifier merely establishes that catalog grounding is unchanged.
+    """
+
+    if not text or len(text) > 1_024:
+        return False
+    # Quotes, code delimiters and qualification sigils introduce an opaque
+    # payload or a catalog reference which this narrow recognizer must not
+    # interpret.  Known selected-catalog spellings were removed beforehand.
+    if any(character in text for character in ('"', "'", "`", "@", "{", "}", "[", "]")):
+        return False
+    raw_tokens = [token.casefold() for token in _TOKEN_RE.findall(text)]
+    if not raw_tokens or len(raw_tokens) > 96:
+        return False
+    tokens = [token for token in raw_tokens if token not in _INSTRUCTION_STOPWORDS]
+    if not tokens or any(token in _STRUCTURAL_CREATE_FORBIDDEN_TOKENS for token in tokens):
+        return False
+    if require_count and not any(
+        token.isdigit() or token in _STRUCTURAL_COUNT_WORDS for token in tokens
+    ):
+        return False
+    return all(
+        token.isdigit()
+        or token in _STRUCTURAL_COUNT_WORDS
+        or token in _STRUCTURAL_CREATE_REFINEMENT_TOKENS
+        for token in tokens
+    )
+
+
+def _is_cumulative_create_verb(text: str) -> bool:
+    """Require an explicit additive CREATE operation, never a replacement."""
+
+    tokens = {token.casefold() for token in _TOKEN_RE.findall(text)}
+    return bool(tokens & {"aggiungi", "aggiungere", "crea", "creare", "costruisci", "costruire"})
+
+
+def _exact_reviewed_grounding_selections(
+    index: Mapping[str, Any], grounding: Mapping[str, Any], *, allow_partial: bool = False
+) -> list[dict[str, Any]] | None:
+    """Revalidate one fully-resolved grounding before it joins dialogue state."""
+
+    accepted_statuses = {"resolved", "unsupported"} if allow_partial else {"resolved"}
+    if (
+        grounding.get("status") not in accepted_statuses
+        or grounding.get("candidates")
+        or grounding.get("lookups")
+        or grounding.get("lookup") is not None
+    ):
+        return None
+    raw = grounding.get("selections")
+    if not isinstance(raw, list):
+        return None
+    result: list[dict[str, Any]] = []
+    identities: set[tuple[Any, ...]] = set()
+    for item in raw:
+        if not isinstance(item, Mapping):
+            return None
+        selection = _candidate_selection(index, item)
+        if selection is None:
+            return None
+        if not isinstance(selection.get("literal"), str) and not selection.get("literals"):
+            return None
+        identity = _selection_identity(selection)
+        if identity in identities:
+            return None
+        identities.add(identity)
+        result.append(selection)
+    return result
+
+
+def _nonsemantic_refinement(index: Mapping[str, Any], text: str, catalog: str) -> str | None:
+    """Classify only bounded refinements which cannot alter catalog filters."""
+
+    scrubbed = _scrub_catalog_surface(text, catalog)
     normalized = " ".join(scrubbed.split()).strip()
     if _is_structural_refinement(normalized):
         return "cardinality"
+    if _is_closed_structural_create_refinement(
+        normalized
+    ) and not _contains_catalog_semantic_surface(index, catalog, normalized):
+        return "structural_create"
     if any(pattern.fullmatch(normalized) for pattern in _ENDPOINT_LABEL_REFINEMENT_PATTERNS):
         return "endpoint_label"
     if _AMBIGUOUS_TITLE_REFINEMENT_RE.fullmatch(normalized):
@@ -573,19 +967,7 @@ def _semantic_refinement(text: str, catalog: str) -> _SemanticRefinement | None:
     filler.
     """
 
-    scrubbed = text
-    short = catalog.rsplit(".", 1)[-1]
-    surfaces = (
-        f"@{catalog}",
-        catalog,
-        f"catalogo {catalog}",
-        f"catalog {catalog}",
-        f"@{short}",
-        f"catalogo {short}",
-        f"catalog {short}",
-    )
-    for surface in sorted(set(surfaces), key=len, reverse=True):
-        scrubbed = _mask_surface(scrubbed, surface)
+    scrubbed = _scrub_catalog_surface(text, catalog)
     normalized = " ".join(scrubbed.split()).strip(" \t\r\n.!?")
     if not normalized or len(normalized) > 1_024:
         return None
@@ -1108,11 +1490,13 @@ def _basis_selections(
 
     if (
         not isinstance(basis, Mapping)
-        or basis.get("status") not in {None, "resolved"}
+        or basis.get("status") != "resolved"
         or basis.get("catalogs") != [catalog]
         or basis.get("candidates")
+        or basis.get("lookup") is not None
         or basis.get("lookups")
         or basis.get("unresolved")
+        or basis.get("semantic_source_revision") != index.get("semantic_source_revision")
     ):
         return None
     raw_selections = basis.get("selections")
@@ -1360,6 +1744,176 @@ def _reject_semantic_refinement(grounding: dict[str, Any], instruction: str) -> 
     )
 
 
+_DIALOGUE_CUMULATIVE_GROUNDING_CONTRACT = "metis-brain-dialogue-cumulative-grounding/v1"
+
+
+def _sealed_dialogue_messages(
+    *,
+    lease: OperationLease,
+    request: Any,
+    index: Mapping[str, Any],
+    instruction: str,
+) -> tuple[Any, ...] | None:
+    """Return only a TurnStore-private transcript bound to this snapshot.
+
+    The HTTP request never carries this object.  It is reconstructed by the
+    TurnStore and attached as a private field before retrieval.  Any malformed
+    or drifted object is an authority error, not a hint to fall back to client
+    history.
+    """
+
+    dialogue = getattr(request, "server_dialogue", None)
+    if dialogue is None:
+        return None
+    if type(dialogue) is not PrivateDialogueState:
+        _fail("RETRIEVAL_INVALID", "server dialogue authority is invalid", 400)
+    target = getattr(request, "target", None)
+    if (
+        getattr(request, "intent", None) != "create"
+        or not isinstance(target, Mapping)
+        or target.get("mode") != "create"
+        or not dialogue.messages
+        or dialogue.messages[-1].text != instruction
+        or dialogue.binding.parent_fingerprint != getattr(request, "request_fingerprint", None)
+    ):
+        _fail("RETRIEVAL_INVALID", "server dialogue authority differs", 400)
+    binding = dialogue.binding
+    if (
+        binding.context_revision != lease.snapshot.revision
+        or binding.context_revision != getattr(request, "expected_context_revision", None)
+        or binding.semantic_revision != index.get("semantic_source_revision")
+        or binding.semantic_revision != getattr(request, "expected_semantic_source_revision", None)
+        or binding.toolchain_binding != lease.snapshot.toolchain_binding
+    ):
+        _fail("RETRIEVAL_STALE", "server dialogue authority is stale")
+    return dialogue.messages
+
+
+def _dialogue_message_selections(
+    index: Mapping[str, Any],
+    catalog: str,
+    text: str,
+    semantic_instruction: str,
+) -> list[dict[str, Any]] | None:
+    """Resolve one historical message while allowing only closed structural residue."""
+
+    resolved = _resolve_complete_grounding(index, semantic_instruction, catalog)
+    if resolved.get("candidates") or resolved.get("lookups") or resolved.get("lookup") is not None:
+        return None
+    raw = resolved.get("selections")
+    if not isinstance(raw, list):
+        return None
+    selections: list[dict[str, Any]] = []
+    identities: set[tuple[Any, ...]] = set()
+    for item in raw:
+        if not isinstance(item, Mapping):
+            return None
+        selection = _candidate_selection(index, item)
+        if selection is None:
+            return None
+        identity = _selection_identity(selection)
+        if identity in identities:
+            return None
+        identities.add(identity)
+        selections.append(selection)
+    masked = _mask_authorized_catalog_semantics(index, catalog, text, selections)
+    if masked is None:
+        return None
+    residue = " ".join(_scrub_catalog_surface(masked, catalog).split()).strip()
+    if residue:
+        meaningful_tokens = [
+            token.casefold()
+            for token in _TOKEN_RE.findall(residue)
+            if token.casefold() not in _INSTRUCTION_STOPWORDS
+        ]
+        if meaningful_tokens and not _is_closed_structural_create_refinement(
+            residue, require_count=False
+        ):
+            return None
+    return selections
+
+
+def _cumulative_dialogue_selections(
+    *,
+    index: Mapping[str, Any],
+    lease: OperationLease,
+    request: Any,
+    catalog: str,
+    instruction: str,
+    semantic_instruction: str,
+    current_grounding: Mapping[str, Any],
+) -> list[dict[str, Any]] | None:
+    """Union exact reviewed semantics from one sealed typed-CREATE dialogue.
+
+    Historical natural language is never treated as an implicit filter.  Once
+    a Draft exists, only its server-owned grounding may seed the next turn;
+    unresolved intervening messages can therefore never become authority
+    retroactively.  Before the first Draft, the sole admitted history is the
+    original T1 plus its immediate T2 answer.
+    """
+
+    messages = _sealed_dialogue_messages(
+        lease=lease,
+        request=request,
+        index=index,
+        instruction=instruction,
+    )
+    if messages is None:
+        return None
+    basis = getattr(request, "server_basis_grounding", None)
+    if basis is None:
+        if len(messages) != 2:
+            return None
+        initial_text = messages[0].text
+        initial = _dialogue_message_selections(
+            index,
+            catalog,
+            initial_text,
+            parse_output_request(initial_text).semantic_instruction,
+        )
+        if initial is None:
+            return None
+        selected = list(initial)
+    else:
+        prior = _basis_selections(index, basis, catalog)
+        if prior is None:
+            return None
+        selected = list(prior)
+    identities = {_selection_identity(item) for item in selected}
+
+    current = _dialogue_message_selections(
+        index,
+        catalog,
+        instruction,
+        semantic_instruction,
+    )
+    fresh = _exact_reviewed_grounding_selections(
+        index,
+        current_grounding,
+        allow_partial=getattr(request, "server_flash_intent", None) is not None,
+    )
+    fresh_current = bool(
+        fresh is not None
+        and current is not None
+        and {_selection_identity(item) for item in fresh}
+        == {_selection_identity(item) for item in current}
+    )
+    if fresh_current:
+        current = fresh
+    if current is None:
+        return None
+    for selection in current:
+        identity = _selection_identity(selection)
+        if identity not in identities and (
+            not fresh_current or not _is_cumulative_create_verb(instruction)
+        ):
+            return None
+        if identity not in identities:
+            identities.add(identity)
+            selected.append(selection)
+    return selected or None
+
+
 def _merge_basis_grounding(
     index: Mapping[str, Any],
     grounding: dict[str, Any],
@@ -1370,11 +1924,11 @@ def _merge_basis_grounding(
     prior = _basis_selections(index, basis, catalog)
     if prior is None:
         return
-    nonsemantic = _nonsemantic_refinement(instruction, catalog)
+    nonsemantic = _nonsemantic_refinement(index, instruction, catalog)
     if nonsemantic == "ambiguous_title":
         grounding.update(_ambiguous_title_refinement_grounding(index, prior, catalog, instruction))
         return
-    if nonsemantic in {"cardinality", "endpoint_label"}:
+    if nonsemantic in {"cardinality", "endpoint_label", "structural_create"}:
         grounding.update(
             {
                 "status": "resolved",
@@ -2218,6 +2772,7 @@ class Schema2SnapshotRetriever:
             selected_catalog,
             disambiguation_instruction=disambiguation_instruction,
         )
+        fresh_grounding = copy.deepcopy(grounding)
         _merge_basis_grounding(
             indexed.index,
             grounding,
@@ -2225,6 +2780,44 @@ class Schema2SnapshotRetriever:
             selected_catalog,
             instruction,
         )
+        dialogue_selections = _cumulative_dialogue_selections(
+            index=indexed.index,
+            lease=lease,
+            request=request,
+            catalog=selected_catalog,
+            instruction=instruction,
+            semantic_instruction=semantic_instruction,
+            current_grounding=fresh_grounding,
+        )
+        if dialogue_selections is not None:
+            grounding.update(
+                _resolved_refinement_grounding(
+                    dialogue_selections,
+                    "reviewed selections retained from the sealed CREATE dialogue",
+                )
+            )
+            grounding["cumulative_dialogue_semantics"] = {
+                "contract": _DIALOGUE_CUMULATIVE_GROUNDING_CONTRACT,
+                "source": "server_dialogue",
+                "message_count": len(getattr(request.server_dialogue, "messages", ())),
+                "status": "admitted",
+            }
+        elif (
+            isinstance(getattr(request, "server_dialogue", None), PrivateDialogueState)
+            and len(request.server_dialogue.messages) > 1
+        ):
+            # A multi-turn CREATE transcript is never an authority fallback.
+            # If its cumulative proof cannot be rebuilt from the exact previous
+            # Draft grounding plus this turn, discard the current semantic
+            # interpretation so an unresolved message cannot become a filter
+            # in this turn or resurrect in a later one.
+            _reject_semantic_refinement(grounding, instruction)
+            grounding["cumulative_dialogue_semantics"] = {
+                "contract": _DIALOGUE_CUMULATIVE_GROUNDING_CONTRACT,
+                "source": "server_dialogue",
+                "message_count": len(request.server_dialogue.messages),
+                "status": "rejected",
+            }
         semantic_decisions = (
             tuple(
                 decision

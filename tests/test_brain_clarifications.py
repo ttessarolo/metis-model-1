@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 import pytest
 
 from metis_model1.brain_clarifications import (
     ClarificationChoice,
     ClarificationStore,
+)
+from metis_model1.brain_dialogue_contract import (
+    BoundChoice,
+    DialogueAnswer,
+    DialogueBinding,
+    QuestionSlot,
 )
 from metis_model1.brain_protocol import IDLE_TTL_SECONDS, BrainError
 
@@ -780,3 +787,384 @@ def test_clear_removes_all_sessions_and_replay_guards() -> None:
         "decisions": 0,
         "assumptions": 0,
     }
+
+
+V2_BINDING = DialogueBinding(REVISION, SEMANTIC_REVISION, FINGERPRINT, REVISION, FINGERPRINT)
+
+
+def _v2_slot(target: str = "endpoint.catalogs", *, count: bool = False, **kwargs: object):
+    defaults = dict(
+        decision_key="count" if count else "catalog",
+        target_key=target,
+        kind="result_count" if count else "catalog",
+        question="Quanti?" if count else "Quali?",
+        answer_kind="integer" if count else "option_refs",
+        minimum=1,
+        maximum=100 if count else 2,
+        value_contract="total" if count else "authority",
+        choices=()
+        if count
+        else tuple(
+            BoundChoice(name, (f"private.catalog.{name}",), REVISION, ("catalog",))
+            for name in ("video", "users")
+        ),
+    )
+    defaults.update(kwargs)
+    return QuestionSlot(**defaults)
+
+
+def _v2_pending(store, *, slots=None, **kwargs):
+    args = dict(
+        session_id=SESSION,
+        parent_turn_id=TURN,
+        conversation_id=FINGERPRINT,
+        binding=V2_BINDING,
+        slots=slots or (_v2_slot(),),
+    )
+    args.update(kwargs)
+    return store.create_pending_v2(**args)
+
+
+def _v2_answer(store, pending, answers, **kwargs):
+    args = dict(
+        session_id=SESSION,
+        clarification_id=pending.clarification_id,
+        binding=V2_BINDING,
+        answers=answers,
+    )
+    args.update(kwargs)
+    return store.answer_v2(**args)
+
+
+def _v2_choice_answer(slot):
+    return DialogueAnswer(
+        slot.question_ref, tuple(choice.option_ref for choice in slot.choices), multiple=True
+    )
+
+
+def test_v2_multi_catalog_same_kind_counts_and_exact_private_mapping() -> None:
+    store = _store(Clock())
+    pending = _v2_pending(
+        store,
+        slots=(_v2_slot(), _v2_slot("row.main", count=True), _v2_slot("pool.seed", count=True)),
+    )
+    result = _v2_answer(
+        store,
+        pending,
+        [
+            _v2_choice_answer(pending.slots[0]),
+            DialogueAnswer(pending.slots[1].question_ref, integer=24),
+            DialogueAnswer(pending.slots[2].question_ref, integer=50),
+        ],
+    )
+    assert result.remaining is None and len(result.decisions) == 3
+    assert tuple(choice.authority_keys for choice in result.accepted[0].choices) == (
+        ("private.catalog.video",),
+        ("private.catalog.users",),
+    )
+    assert [(item.target_key, item.integer) for item in result.accepted[1:]] == [
+        ("row.main", 24),
+        ("pool.seed", 50),
+    ]
+    assert result.accepted[1].value_contract == "total"
+    assert all(item.binding == V2_BINDING for item in result.accepted)
+    assert store.metrics()["decisions"] == 3
+    assert not store.has_pending(SESSION)
+    with pytest.raises(BrainError, match="already consumed"):
+        _v2_answer(store, pending, [_v2_choice_answer(pending.slots[0])])
+
+
+def test_v2_same_kind_semantic_choices_at_distinct_targets_are_independent() -> None:
+    store = _store(Clock())
+    slots = tuple(
+        _v2_slot(target, kind="semantic_choice")
+        for target in ("predicate.origin", "predicate.audio")
+    )
+    pending = _v2_pending(store, slots=slots)
+    result = _v2_answer(store, pending, [_v2_choice_answer(slot) for slot in pending.slots])
+    assert len(result.decisions) == 2
+    assert result.decisions[0].kind == result.decisions[1].kind == "semantic_choice"
+    assert result.decisions[0].target_key != result.decisions[1].target_key
+
+
+def test_v2_partial_rotates_single_use_id_but_does_not_spend_another_round() -> None:
+    store = _store(Clock())
+    pending = _v2_pending(store, slots=(_v2_slot(), _v2_slot("row.main", count=True)))
+    partial = _v2_answer(store, pending, [_v2_choice_answer(pending.slots[0])])
+    assert partial.remaining is not None
+    assert partial.remaining.clarification_id != pending.clarification_id
+    assert partial.remaining.round_index == pending.round_index == 1
+    assert len(partial.remaining.slots) == 1
+    assert partial.remaining.expires_at == pending.expires_at
+    final = _v2_answer(
+        store,
+        partial.remaining,
+        [DialogueAnswer(partial.remaining.slots[0].question_ref, integer=24)],
+    )
+    assert final.remaining is None and len(final.decisions) == 2
+    following = _v2_pending(store, slots=(_v2_slot("row.other", count=True),))
+    assert following.round_index == 2
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["unknown_question", "unknown_option", "cross_slot", "duplicate", "wrong_kind", "out_of_range"],
+)
+def test_v2_invalid_answers_are_atomic_and_leave_original_pending(mutation: str) -> None:
+    store = _store(Clock())
+    pending = _v2_pending(
+        store, slots=(_v2_slot(), _v2_slot("other.catalogs"), _v2_slot("row.main", count=True))
+    )
+    first, second, count = pending.slots
+    answers = [_v2_choice_answer(first)]
+    if mutation == "unknown_question":
+        answers.append(DialogueAnswer("q_unknown", integer=24))
+    elif mutation == "unknown_option":
+        answers.append(DialogueAnswer(second.question_ref, ("opt_unknown",), multiple=True))
+    elif mutation == "cross_slot":
+        answers.append(
+            DialogueAnswer(second.question_ref, (first.choices[0].option_ref,), multiple=True)
+        )
+    elif mutation == "duplicate":
+        answers.append(answers[0])
+    elif mutation == "wrong_kind":
+        answers.append(DialogueAnswer(count.question_ref, (first.choices[0].option_ref,)))
+    else:
+        answers.append(DialogueAnswer(count.question_ref, integer=101))
+    with pytest.raises(BrainError):
+        _v2_answer(store, pending, answers)
+    assert store.has_pending(SESSION) and store.metrics()["decisions"] == 0
+    assert len(_v2_answer(store, pending, [_v2_choice_answer(first)]).accepted) == 1
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "context_revision",
+        "semantic_revision",
+        "toolchain_binding",
+        "history_revision",
+        "parent_fingerprint",
+    ],
+)
+def test_v2_all_five_authority_bindings_are_exact(field: str) -> None:
+    store = _store(Clock())
+    pending = _v2_pending(store)
+    with pytest.raises(BrainError) as error:
+        _v2_answer(
+            store,
+            pending,
+            [_v2_choice_answer(pending.slots[0])],
+            binding=replace(V2_BINDING, **{field: "sha256:" + "d" * 64}),
+        )
+    assert error.value.code == "CLARIFICATION_STALE"
+    assert store.metrics()["decisions"] == 0
+
+
+def test_v2_input_and_returned_objects_cannot_mutate_stored_authority() -> None:
+    store = _store(Clock())
+    slot = _v2_slot()
+    pending = _v2_pending(store, slots=[slot])
+    valid_answer = _v2_choice_answer(pending.slots[0])
+    object.__setattr__(slot.choices[0], "authority_keys", ("evil.input",))
+    object.__setattr__(pending.slots[0].choices[0], "authority_keys", ("evil.output",))
+    result = _v2_answer(store, pending, [valid_answer])
+    assert result.accepted[0].choices[0].authority_keys == ("private.catalog.video",)
+    object.__setattr__(result.accepted[0].choices[0], "authority_keys", ("evil.result",))
+    assert store.decisions_v2(session_id=SESSION, conversation_id=FINGERPRINT)[0].choices[
+        0
+    ].authority_keys == ("private.catalog.video",)
+
+
+def test_v2_private_binding_never_appears_in_public_payload() -> None:
+    import json
+    from pathlib import Path
+
+    from jsonschema import Draft202012Validator
+
+    pending = _v2_pending(_store(Clock()))
+    payload = pending.payload(now=0)
+    encoded = json.dumps(payload)
+    for secret in (
+        "private.catalog",
+        "authority_keys",
+        "candidate_revision",
+        "required_roles",
+        "history_revision",
+        "parent_fingerprint",
+        SESSION,
+        FINGERPRINT,
+    ):
+        assert secret not in encoded
+    schema = json.loads(
+        (Path(__file__).parents[1] / "schemas/metis-brain-dialogue-v2.schema.json").read_text()
+    )
+    Draft202012Validator(schema).validate(payload)
+
+
+def test_v2_explicit_supersedes_is_same_logical_slot_only() -> None:
+    store = _store(Clock())
+    first = _v2_pending(store, slots=(_v2_slot("row.main", count=True),))
+    decision = _v2_answer(
+        store, first, [DialogueAnswer(first.slots[0].question_ref, integer=20)]
+    ).accepted[0]
+    with pytest.raises(BrainError):
+        _v2_pending(store, slots=(_v2_slot("row.main", count=True),))
+    with pytest.raises(BrainError):
+        _v2_pending(
+            store, slots=(_v2_slot("row.other", count=True, supersedes=decision.decision_sha256),)
+        )
+    next_pending = _v2_pending(
+        store, slots=(_v2_slot("row.main", count=True, supersedes=decision.decision_sha256),)
+    )
+    result = _v2_answer(
+        store, next_pending, [DialogueAnswer(next_pending.slots[0].question_ref, integer=24)]
+    )
+    assert len(result.decisions) == 2
+    assert result.decisions[-1].supersedes == result.decisions[0].decision_sha256
+
+
+def test_v2_ttl_claim_release_cross_session_and_drop() -> None:
+    clock = Clock()
+    store = _store(clock)
+    pending = _v2_pending(store)
+    answers = [_v2_choice_answer(pending.slots[0])]
+    with pytest.raises(BrainError) as error:
+        _v2_answer(store, pending, answers, session_id=OTHER_SESSION)
+    assert error.value.code == "CLARIFICATION_CROSS_SESSION"
+    store.validate_answers_v2(
+        session_id=SESSION,
+        clarification_id=pending.clarification_id,
+        binding=V2_BINDING,
+        answers=answers,
+        claim_owner=TURN,
+    )
+    clock.advance(IDLE_TTL_SECONDS)
+    assert store.sweep_expired() == 0
+    with pytest.raises(BrainError) as error:
+        _v2_answer(store, pending, answers)
+    assert error.value.code == "CLARIFICATION_CLAIMED"
+    assert store.release_answer_claim(session_id=SESSION, owner=TURN)
+    assert store.sweep_expired() == 1
+    with pytest.raises(BrainError) as error:
+        _v2_answer(store, pending, answers)
+    assert error.value.code == "CLARIFICATION_EXPIRED"
+    assert store.drop_session(SESSION, revocation_owner=TURN) >= 1
+    with pytest.raises(BrainError):
+        _v2_pending(store)
+    store.clear()
+    assert all(value == 0 for value in store.metrics().values())
+
+
+def test_v1_v2_share_one_pending_and_wrong_version_fails_closed() -> None:
+    store = _store(Clock())
+    pending = _v2_pending(store)
+    with pytest.raises(BrainError):
+        _pending(store)
+    with pytest.raises(BrainError) as error:
+        store.answer(
+            session_id=SESSION,
+            clarification_id=pending.clarification_id,
+            request_fingerprint=FINGERPRINT,
+            context_revision=REVISION,
+            semantic_source_revision=SEMANTIC_REVISION,
+            answer={"option_ref": pending.slots[0].choices[0].option_ref},
+        )
+    assert error.value.code == "CLARIFICATION_WRONG_VERSION"
+    assert store.discard_pending_for_turn(session_id=SESSION, parent_turn_id=TURN)
+    old = _pending(store)
+    with pytest.raises(BrainError):
+        _v2_pending(store)
+    with pytest.raises(BrainError) as error:
+        store.answer_v2(
+            session_id=SESSION,
+            clarification_id=old.clarification_id,
+            binding=V2_BINDING,
+            answers=[DialogueAnswer("q_a", integer=10)],
+        )
+    assert error.value.code == "CLARIFICATION_WRONG_VERSION"
+
+
+def test_v2_three_round_limit_and_five_slot_limit() -> None:
+    store = _store(Clock())
+    with pytest.raises(BrainError):
+        _v2_pending(store, slots=tuple(_v2_slot(f"row.{i}", count=True) for i in range(6)))
+    for i in range(3):
+        pending = _v2_pending(store, slots=(_v2_slot(f"row.{i}", count=True),))
+        _v2_answer(store, pending, [DialogueAnswer(pending.slots[0].question_ref, integer=20)])
+    with pytest.raises(BrainError) as error:
+        _v2_pending(store, slots=(_v2_slot("row.final", count=True),))
+    assert error.value.code == "CLARIFICATION_BUDGET_EXCEEDED"
+
+
+def test_v2_stable_conversation_survives_new_parent_fingerprint_without_transcript_storage() -> (
+    None
+):
+    store = _store(Clock())
+    first = _v2_pending(store)
+    _v2_answer(store, first, [_v2_choice_answer(first.slots[0])])
+    next_binding = replace(
+        V2_BINDING, parent_fingerprint="sha256:" + "e" * 64, history_revision="sha256:" + "f" * 64
+    )
+    second = _v2_pending(store, slots=(_v2_slot("row.main", count=True),), binding=next_binding)
+    recovered = store.pending_v2(session_id=SESSION, clarification_id=second.clarification_id)
+    assert recovered.conversation_id == first.conversation_id == FINGERPRINT
+    assert recovered.binding.parent_fingerprint != first.binding.parent_fingerprint
+    assert len(store.decisions_v2(session_id=SESSION, conversation_id=FINGERPRINT)) == 1
+    assert not hasattr(store._conversations_v2[(SESSION, FINGERPRINT)], "messages")
+    assert not hasattr(recovered, "messages")
+    result = _v2_answer(
+        store,
+        second,
+        [DialogueAnswer(second.slots[0].question_ref, integer=24)],
+        binding=recovered.binding,
+    )
+    assert len(result.decisions) == 2
+    store.drop_session(SESSION)
+    assert store.decisions_v2(session_id=SESSION, conversation_id=FINGERPRINT) == ()
+    assert all(value == 0 for value in store.metrics().values())
+
+
+def test_v2_claim_binds_exact_answer_roster_and_release_allows_new_choice() -> None:
+    store = _store(Clock())
+    pending = _v2_pending(store, slots=(_v2_slot("row.main", count=True),))
+    first = [DialogueAnswer(pending.slots[0].question_ref, integer=20)]
+    changed = [DialogueAnswer(pending.slots[0].question_ref, integer=24)]
+    args = dict(
+        session_id=SESSION,
+        clarification_id=pending.clarification_id,
+        binding=V2_BINDING,
+        claim_owner=TURN,
+    )
+    store.validate_answers_v2(**args, answers=first)
+    with pytest.raises(BrainError) as error:
+        store.answer_v2(**args, answers=changed)
+    assert error.value.code == "CLARIFICATION_CLAIM_MISMATCH"
+    assert store.metrics()["decisions"] == 0
+    assert store.release_answer_claim(session_id=SESSION, owner=TURN)
+    store.validate_answers_v2(**args, answers=changed)
+    assert store.answer_v2(**args, answers=changed).accepted[0].integer == 24
+
+
+def test_v2_concurrent_consumers_have_one_winner() -> None:
+    store = _store(Clock())
+    pending = _v2_pending(store, slots=(_v2_slot("row.main", count=True),))
+    barrier = threading.Barrier(2)
+    outcomes = []
+
+    def consume():
+        barrier.wait()
+        try:
+            _v2_answer(store, pending, [DialogueAnswer(pending.slots[0].question_ref, integer=24)])
+            outcomes.append("accepted")
+        except BrainError as error:
+            outcomes.append(error.code)
+
+    threads = [threading.Thread(target=consume) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+    assert sorted(outcomes) == ["CLARIFICATION_REPLAY", "accepted"]
+    assert store.metrics()["decisions"] == 1

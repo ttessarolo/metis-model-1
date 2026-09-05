@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "pin_id": "metis-brain-model1-create-decoder/2026-09-04-v1",
+  "status": "runtime_contract_ready",
+  "role": "metis_brain_model1_create_delta_planner",
+  "wire": {
+    "schema_version": 4,
+    "operation": "plan_create"
+  },
+  "runtime": {
+    "python": "3.12.10",
+    "qualification_lock": {
+      "path": "qualification/uv.lock",
+      "sha256": "sha256:e5a39821599ac1f4eba46b3f5ae04040bd4973f3518351bd75f48677f6c9a340"
+    },
+    "packages": {
+      "llguidance": "1.8.0",
+      "mlx": "0.32.1",
+      "mlx-metal": "0.32.1",
+      "mlx-vlm": "0.6.15",
+      "numpy": "2.5.2",
+      "transformers": "5.14.0"
+    },
+    "decoder": "llguidance-1.8.0",
+    "network": "denied"
+  },
+  "authoritative_schema": {
+    "path": "schemas/metis-brain-create-delta-plan.schema.json",
+    "canonical_sha256": "sha256:96742c9c945cf21c50aa2a789b7e0266a36f51b9cca5d160d167447df333f320"
+  },
+  "decoder_projection": {
+    "implementation": "metis_model1.initial_local_qlora_runtime._create_plan_decoder_schema",
+    "canonical_sha256": "sha256:b3ec0c8e98b1582e77813764395185efcab276c3adfb611271ae3cc9c2095711",
+    "operation_types": 19
+  },
+  "create_prefix": {
+    "implementation": "metis_model1.brain_mlx_runtime._create_plan_prefix_messages",
+    "canonical_sha256": "sha256:7d16873be86aa7916f30013d4b5f4f37904cff98e19babc306182ca905ad6d72",
+    "message_count": 2
+  },
+  "worker": {
+    "path": "src/metis_model1/initial_local_qlora_runtime.py",
+    "sha256": "sha256:025b91db4dfffeb8197c2c0f432194ae5c2eb9a538b1771369c2025f320b8020"
+  },
+  "policy": {
+    "authoritative_host_validation_required": true,
+    "request_bound_admission_required": true,
+    "delta_permit_required": true,
+    "source_generation_forbidden": true,
+    "network_denied": true
+  },
+  "nonclaims": [
+    "no_accuracy_claim",
+    "not_model_qualified",
+    "no_model_invocation",
+    "no_tenant_authority",
+    "no_training_authority",
+    "no_distribution_claim"
+  ]
+}

@@ -296,7 +296,7 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
     try:
         health = app.health()
         assert health["turn_schema_versions"] == [1, 2]
-        assert health["clarification_answer_schema_versions"] == [1]
+        assert health["clarification_answer_schema_versions"] == [1, 2]
         assert health["model_identity"] == {
             "model_revision": model.model_revision,
             "adapter_sha256": model.adapter_sha256,
@@ -319,6 +319,13 @@ def test_health_exposes_non_sensitive_identity_and_close_closes_model(tmp_path: 
                 "duration_ms": None,
                 "tenant_count": 0,
             },
+        }
+        assert health["typed_create"] == {
+            "enabled": False,
+            "implementation": None,
+            "contract_id": None,
+            "policy_revision": None,
+            "inventory_revision": None,
         }
     finally:
         app.close()
@@ -732,6 +739,7 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
         config,
         model=BrainModelConfig(python_path, model_path, adapter_path, 7.0),
         retrieval=BrainRetrievalConfig(schema2=True),
+        typed_create=True,
     )
     calls: dict[str, Any] = {}
 
@@ -755,9 +763,21 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
             calls["retriever_loader"] = loader
             calls["retriever_options"] = kwargs
 
+    class FakeCreateProvider:
+        contract_id = "metis-brain-create-authority-provider/test-v1"
+        policy_revision = "sha256:" + "5" * 64
+        inventory_revision = "sha256:" + "6" * 64
+
+        def __init__(self, **kwargs: Any) -> None:
+            calls["create_provider"] = kwargs
+
+        def close(self) -> None:
+            calls["create_provider_closed"] = True
+
     monkeypatch.setattr(brain_server_module, "MlxBrainModelRuntime", FakeModel)
     monkeypatch.setattr(brain_server_module, "PinnedCatalogProjectionLoader", FakeLoader)
     monkeypatch.setattr(brain_server_module, "Schema2SnapshotRetriever", FakeRetriever)
+    monkeypatch.setattr(brain_server_module, "PinnedCreateV2AuthorityProvider", FakeCreateProvider)
     service = MetisBrainService(config, compiler=ConstructibleFakeCompiler())
     try:
         assert calls["model"] == {
@@ -773,9 +793,25 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
         }
         assert calls["retriever_loader"] is not None
         assert calls["retriever_options"] == {"cache_size": 8}
+        assert (
+            calls["create_provider"]["toolchain_binding"]
+            == ConstructibleFakeCompiler.toolchain_binding
+        )
+        assert calls["create_provider"]["exact_value_resolver"] is not None
+        assert calls["create_provider"]["exact_value_resolver"] is service.app.retriever
+        assert isinstance(calls["create_provider"]["hmac_key"], bytes)
+        assert len(calls["create_provider"]["hmac_key"]) == 32
+        assert service.app.health()["typed_create"] == {
+            "enabled": True,
+            "implementation": "FakeCreateProvider",
+            "contract_id": "metis-brain-create-authority-provider/test-v1",
+            "policy_revision": "sha256:" + "5" * 64,
+            "inventory_revision": "sha256:" + "6" * 64,
+        }
     finally:
         service.close()
     assert calls["model_closed"] is True
+    assert calls["create_provider_closed"] is True
 
 
 def test_service_sizes_schema2_cache_for_every_configured_tenant(

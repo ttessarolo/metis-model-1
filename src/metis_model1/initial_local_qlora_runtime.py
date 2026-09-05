@@ -83,10 +83,29 @@ CONFIG = {
 }
 LIMITS = {"hours": 4, "metal_gb": 110, "new_artifacts_gb": 8, "checkpoints": 4}
 MODEL_WIRE_VERSION = 3
+CREATE_PLAN_WIRE_VERSION = 4
+CREATE_PLAN_V2_WIRE_VERSION = 5
 PREFIX_CACHE_WIRE_VERSION = 2
+CREATE_PLAN_SCHEMA = PROJECT_ROOT / "schemas/metis-brain-create-delta-plan.schema.json"
+CREATE_PLAN_SCHEMA_SHA256 = (
+    "sha256:96742c9c945cf21c50aa2a789b7e0266a36f51b9cca5d160d167447df333f320"
+)
+CREATE_PLAN_DECODER_SCHEMA_SHA256 = (
+    "sha256:b3ec0c8e98b1582e77813764395185efcab276c3adfb611271ae3cc9c2095711"
+)
+CREATE_PLAN_DECODER = "llguidance-1.8.0"
+CREATE_PLAN_V2_SCHEMA = PROJECT_ROOT / "schemas/metis-brain-create-delta-plan-body-v2.schema.json"
+CREATE_PLAN_V2_SCHEMA_SHA256 = (
+    "sha256:5473bb7b38be889caa9e8fd9b23c88cdbc0b2e8e352921470f9a4a621bf35271"
+)
+CREATE_PLAN_V2_DECODER_SCHEMA_SHA256 = (
+    "sha256:72b23e48f9d0b49b38c1787eae6eaeaea6b47a3756a81a24cc3a2ed5addedadb"
+)
+CREATE_PLAN_V2_DECODER = "llguidance-1.8.0"
 MAX_CACHE_SCOPE_BYTES = 128
 MAX_PREFIX_CACHE_TOKENS = 4096
 MAX_PREFIX_CACHE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_CREATE_PLAN_PROMPT_TOKENS = 8192
 VERDICTS = {"LOCAL_ADAPTER_UPLIFT", "LOCAL_ADAPTER_EXPERIMENTAL"}
 PACKAGE_FILES = {
     "CARD.md",
@@ -186,6 +205,225 @@ def _canonical_hash(value: Any) -> str:
         value, allow_nan=False, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def _strict_json_object(raw: str, *, label: str) -> dict[str, Any]:
+    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in items:
+            if key in value:
+                _fail(f"{label} contains duplicate JSON members")
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(
+            raw,
+            object_pairs_hook=pairs,
+            parse_constant=lambda item: (_ for _ in ()).throw(ValueError(item)),
+        )
+    except (UnicodeError, ValueError, json.JSONDecodeError, RecursionError) as error:
+        _fail(f"{label} is invalid: {error}")
+    if not isinstance(value, dict):
+        _fail(f"{label} must be an object")
+    return value
+
+
+class _CreatePlanGrammarProcessor:
+    """Apply one llguidance JSON-schema mask to each generated token."""
+
+    def __init__(self, *, tokenizer: Any, grammar: str, vocab_size: int) -> None:
+        from llguidance import LLMatcher
+        from llguidance.numpy import allocate_token_bitmask
+
+        self._matcher = LLMatcher(tokenizer, grammar, log_level=0)
+        if self._matcher.is_error():
+            _fail("CREATE plan constrained grammar is invalid")
+        self._prompt_length: int | None = None
+        self._committed = 0
+        self._mask = allocate_token_bitmask(1, vocab_size)
+
+    def __call__(self, tokens: Any, logits: Any) -> Any:
+        from llguidance.mlx import apply_token_bitmask
+        from llguidance.numpy import fill_next_token_bitmask
+
+        token_ids = tokens.tolist()
+        if token_ids and isinstance(token_ids[0], list):
+            token_ids = token_ids[0]
+        if self._prompt_length is None:
+            self._prompt_length = len(token_ids)
+        for token in token_ids[self._prompt_length + self._committed :]:
+            if not self._matcher.consume_token(int(token)):
+                _fail("CREATE plan constrained grammar rejected a generated token")
+            self._committed += 1
+        fill_next_token_bitmask(self._matcher, self._mask)
+        one_dimensional = len(logits.shape) == 1
+        masked = apply_token_bitmask(logits, self._mask)
+        return masked[0] if one_dimensional else masked
+
+
+def _create_plan_decoder_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the authoritative schema onto llguidance's supported subset.
+
+    The host validates the decoded result against the unchanged Draft 2020-12
+    schema afterwards.  This projection only removes redundant decoder-time
+    constraints and flattens the operation union; it does not grant authority.
+    """
+
+    projected = copy.deepcopy(dict(schema))
+    try:
+        definitions = projected["$defs"]
+        common = definitions["common"]
+        operation_items = projected["properties"]["operations"]["items"]
+        operation_refs = operation_items.pop("oneOf")
+    except (KeyError, TypeError, AttributeError) as error:
+        _fail(f"CREATE plan schema shape differs: {error}")
+    if (
+        not isinstance(definitions, dict)
+        or not isinstance(common, dict)
+        or not isinstance(operation_refs, list)
+        or len(operation_refs) != 19
+    ):
+        _fail("CREATE plan schema operation roster differs")
+    common_properties = common.get("properties")
+    common_required = common.get("required")
+    if not isinstance(common_properties, dict) or not isinstance(common_required, list):
+        _fail("CREATE plan schema common operation differs")
+
+    flattened: list[dict[str, Any]] = []
+    operation_definition_names: list[str] = []
+    for reference in operation_refs:
+        if not isinstance(reference, dict) or set(reference) != {"$ref"}:
+            _fail("CREATE plan schema operation reference differs")
+        prefix = "#/$defs/"
+        target = reference["$ref"]
+        if not isinstance(target, str) or not target.startswith(prefix):
+            _fail("CREATE plan schema operation reference differs")
+        name = target[len(prefix) :]
+        definition = definitions.get(name)
+        if not isinstance(definition, dict) or set(definition) != {
+            "allOf",
+            "unevaluatedProperties",
+        }:
+            _fail("CREATE plan schema operation definition differs")
+        branches = definition["allOf"]
+        if (
+            not isinstance(branches, list)
+            or len(branches) != 2
+            or branches[0] != {"$ref": "#/$defs/common"}
+            or not isinstance(branches[1], dict)
+        ):
+            _fail("CREATE plan schema operation composition differs")
+        specific = branches[1]
+        specific_properties = specific.get("properties")
+        specific_required = specific.get("required")
+        if (
+            specific.get("type") != "object"
+            or not isinstance(specific_properties, dict)
+            or not isinstance(specific_required, list)
+        ):
+            _fail("CREATE plan schema operation branch differs")
+        properties = copy.deepcopy(common_properties)
+        for key, value in specific_properties.items():
+            if key in properties and key != "kind":
+                _fail("CREATE plan schema operation property overlaps")
+            properties[key] = copy.deepcopy(value)
+        required = list(dict.fromkeys([*common_required, *specific_required]))
+        flattened.append(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": required,
+                "properties": properties,
+            }
+        )
+        operation_definition_names.append(name)
+    operation_items["anyOf"] = flattened
+    for name in ["common", *operation_definition_names]:
+        definitions.pop(name, None)
+
+    def compatible(value: Any) -> None:
+        if isinstance(value, dict):
+            if "oneOf" in value:
+                value["anyOf"] = value.pop("oneOf")
+            value.pop("uniqueItems", None)
+            if value.pop("unevaluatedProperties", None) is False:
+                value.setdefault("additionalProperties", False)
+            for nested in value.values():
+                compatible(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                compatible(nested)
+
+    compatible(projected)
+    # Every other plan field is request-owned and injected by the host after
+    # decoding.  Asking the model to repeat fixed hashes and rosters wastes a
+    # material part of its latency-bound output budget and lets it rewrite
+    # authority it does not own.
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["operations"],
+        "properties": {"operations": projected["properties"]["operations"]},
+        "$defs": projected["$defs"],
+    }
+
+
+def _create_plan_v2_decoder_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the minimal llguidance projection of the compact v2 body schema.
+
+    Decoder-time uniqueness is deliberately omitted because llguidance does not
+    enforce it. The host validates the unchanged authoritative body schema and
+    later performs role, coverage and authority admission.
+    """
+
+    projected = copy.deepcopy(dict(schema))
+    try:
+        operations = projected["properties"]["o"]
+        definitions = projected["$defs"]
+        operation_union = definitions["operation"]["anyOf"]
+    except (KeyError, TypeError, AttributeError) as error:
+        _fail(f"CREATE v2 plan schema shape differs: {error}")
+    if (
+        projected.get("type") != "object"
+        or projected.get("additionalProperties") is not False
+        or projected.get("required") != ["o"]
+        or not isinstance(operations, dict)
+        or operations.get("minItems") != 1
+        or operations.get("maxItems") != 5
+        or not isinstance(definitions, dict)
+        or set(definitions)
+        != {
+            "handle",
+            "requirementHandles",
+            "attach",
+            "set",
+            "remove",
+            "expand",
+            "operation",
+        }
+        or not isinstance(operation_union, list)
+        or len(operation_union) != 4
+    ):
+        _fail("CREATE v2 plan schema roster differs")
+
+    def compatible(value: Any) -> None:
+        if isinstance(value, dict):
+            value.pop("uniqueItems", None)
+            for nested in value.values():
+                compatible(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                compatible(nested)
+
+    compatible(projected)
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["o"],
+        "properties": {"o": projected["properties"]["o"]},
+        "$defs": projected["$defs"],
+    }
 
 
 def _cache_scope(value: Any) -> str:
@@ -2081,6 +2319,88 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
     prefix_cache: dict[str, PromptCacheState] = {}
     prefix_hashes: dict[str, str] = {}
     prefix_tokens_by_scope: dict[str, int] = {}
+    create_plan_grammar: str | None = None
+    create_plan_tokenizer: Any = None
+    create_plan_v2_grammar: str | None = None
+    create_plan_v2_tokenizer: Any = None
+
+    def create_plan_decoder() -> tuple[Any, str]:
+        nonlocal create_plan_grammar, create_plan_tokenizer
+        if create_plan_grammar is not None and create_plan_tokenizer is not None:
+            return create_plan_tokenizer, create_plan_grammar
+        try:
+            decoder_version = version("llguidance")
+        except PackageNotFoundError as error:
+            _fail(f"CREATE plan decoder is unavailable: {error}")
+        if f"llguidance-{decoder_version}" != CREATE_PLAN_DECODER:
+            _fail("CREATE plan decoder differs")
+        schema = _json(CREATE_PLAN_SCHEMA)
+        if _canonical_hash(schema) != CREATE_PLAN_SCHEMA_SHA256:
+            _fail("CREATE plan schema differs")
+        constrained_schema = _create_plan_decoder_schema(schema)
+        if _canonical_hash(constrained_schema) != CREATE_PLAN_DECODER_SCHEMA_SHA256:
+            _fail("CREATE plan decoder schema differs")
+        from llguidance import LLMatcher
+        from llguidance.hf import from_tokenizer
+
+        tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
+        if not getattr(tokenizer, "is_fast", False):
+            _fail("CREATE plan tokenizer is not grammar compatible")
+        create_plan_tokenizer = from_tokenizer(
+            tokenizer,
+            n_vocab=len(tokenizer),
+            eos_token=tokenizer.eos_token_id,
+            slices=[],
+        )
+        create_plan_grammar = LLMatcher.grammar_from_json_schema(
+            constrained_schema,
+            overrides={"whitespace_flexible": False},
+        )
+        grammar_error, warnings = LLMatcher.validate_grammar_with_warnings(
+            create_plan_grammar, create_plan_tokenizer
+        )
+        if grammar_error or warnings:
+            _fail("CREATE plan constrained grammar failed validation")
+        return create_plan_tokenizer, create_plan_grammar
+
+    def create_plan_v2_decoder() -> tuple[Any, str]:
+        nonlocal create_plan_v2_grammar, create_plan_v2_tokenizer
+        if create_plan_v2_grammar is not None and create_plan_v2_tokenizer is not None:
+            return create_plan_v2_tokenizer, create_plan_v2_grammar
+        try:
+            decoder_version = version("llguidance")
+        except PackageNotFoundError as error:
+            _fail(f"CREATE v2 plan decoder is unavailable: {error}")
+        if f"llguidance-{decoder_version}" != CREATE_PLAN_V2_DECODER:
+            _fail("CREATE v2 plan decoder differs")
+        schema = _json(CREATE_PLAN_V2_SCHEMA)
+        if _canonical_hash(schema) != CREATE_PLAN_V2_SCHEMA_SHA256:
+            _fail("CREATE v2 plan schema differs")
+        constrained_schema = _create_plan_v2_decoder_schema(schema)
+        if _canonical_hash(constrained_schema) != CREATE_PLAN_V2_DECODER_SCHEMA_SHA256:
+            _fail("CREATE v2 plan decoder schema differs")
+        from llguidance import LLMatcher
+        from llguidance.hf import from_tokenizer
+
+        tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
+        if not getattr(tokenizer, "is_fast", False):
+            _fail("CREATE v2 plan tokenizer is not grammar compatible")
+        create_plan_v2_tokenizer = from_tokenizer(
+            tokenizer,
+            n_vocab=len(tokenizer),
+            eos_token=tokenizer.eos_token_id,
+            slices=[],
+        )
+        create_plan_v2_grammar = LLMatcher.grammar_from_json_schema(
+            constrained_schema,
+            overrides={"whitespace_flexible": False},
+        )
+        grammar_error, warnings = LLMatcher.validate_grammar_with_warnings(
+            create_plan_v2_grammar, create_plan_v2_tokenizer
+        )
+        if grammar_error or warnings:
+            _fail("CREATE v2 plan constrained grammar failed validation")
+        return create_plan_v2_tokenizer, create_plan_v2_grammar
 
     def prefill_prefix(messages: Any) -> tuple[PromptCacheState | None, int]:
         if not isinstance(messages, list) or not messages or len(messages) > 4:
@@ -2290,6 +2610,19 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                 "adapter_sha256",
                 "prefix_sha256",
             }
+        elif version in {CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}:
+            expected_request = {
+                "schema_version",
+                "request_id",
+                "operation",
+                "messages",
+                "max_tokens",
+                "model_revision",
+                "adapter_sha256",
+                "schema_sha256",
+                "decoder_schema_sha256",
+                "decoder",
+            }
         else:
             expected_request = set()
         if (
@@ -2301,6 +2634,28 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             or not messages
             or len(messages) > 64
             or request["max_tokens"] != 512
+            or (
+                version == CREATE_PLAN_WIRE_VERSION
+                and (
+                    request["operation"] != "plan_create"
+                    or request["model_revision"] != model_revision
+                    or request["adapter_sha256"] != adapter_sha256
+                    or request["schema_sha256"] != CREATE_PLAN_SCHEMA_SHA256
+                    or request["decoder_schema_sha256"] != CREATE_PLAN_DECODER_SCHEMA_SHA256
+                    or request["decoder"] != CREATE_PLAN_DECODER
+                )
+            )
+            or (
+                version == CREATE_PLAN_V2_WIRE_VERSION
+                and (
+                    request["operation"] != "plan_create_v2"
+                    or request["model_revision"] != model_revision
+                    or request["adapter_sha256"] != adapter_sha256
+                    or request["schema_sha256"] != CREATE_PLAN_V2_SCHEMA_SHA256
+                    or request["decoder_schema_sha256"] != CREATE_PLAN_V2_DECODER_SCHEMA_SHA256
+                    or request["decoder"] != CREATE_PLAN_V2_DECODER
+                )
+            )
         ):
             _fail("worker request schema/limits")
         cache_prepare_started = time.monotonic()
@@ -2311,7 +2666,11 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         full_input_ids = None
         template_ids = None
         full_ids = None
-        cache_mode = "disabled" if version == 1 else "prefix"
+        cache_mode = (
+            "disabled"
+            if version in {1, CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}
+            else "prefix"
+        )
         if version in {PREFIX_CACHE_WIRE_VERSION, MODEL_WIRE_VERSION}:
             if version == MODEL_WIRE_VERSION:
                 cache_mode = request["cache_mode"]
@@ -2355,13 +2714,33 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             num_audios=0,
             enable_thinking=False,
         )
-        if version == MODEL_WIRE_VERSION or template is not None:
+        if (
+            version in {MODEL_WIRE_VERSION, CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}
+            or template is not None
+        ):
             prepared_inputs = prepare_inputs(
                 processor,
                 prompts=prompt,
                 add_special_tokens=should_add_special_tokens(model.config.model_type, processor),
                 return_tensors="mlx",
             )
+            if version in {CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}:
+                create_input_ids = prepared_inputs.get("input_ids")
+                text_config = getattr(model.config, "text_config", model.config)
+                context_limit = (
+                    text_config.get("max_position_embeddings")
+                    if isinstance(text_config, Mapping)
+                    else getattr(text_config, "max_position_embeddings", None)
+                )
+                if (
+                    create_input_ids is None
+                    or create_input_ids.ndim != 2
+                    or create_input_ids.shape[0] != 1
+                    or not isinstance(context_limit, int)
+                    or int(create_input_ids.shape[1]) > MAX_CREATE_PLAN_PROMPT_TOKENS
+                    or int(create_input_ids.shape[1]) + 512 > context_limit
+                ):
+                    _fail("CREATE plan prompt exceeds its token bound")
             if template is not None:
                 full_input_ids = prepared_inputs.get("input_ids")
                 template_ids = getattr(template, "token_ids", None)
@@ -2381,6 +2760,10 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                         cache_state = None
         tokenization_ms = max(0, int((time.monotonic() - tokenization_started) * 1000))
         generation_started = time.monotonic()
+        create_plan_processor = None
+        decoder_tokenizer = None
+        decoder_grammar = None
+        plan_body = None
         try:
             with contextlib.redirect_stdout(sys.stderr):
                 input_overrides = {}
@@ -2389,6 +2772,18 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                         "input_ids": prepared_inputs["input_ids"],
                         "mask": prepared_inputs.get("attention_mask"),
                     }
+                generation_options: dict[str, Any] = {}
+                if version in {CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}:
+                    if version == CREATE_PLAN_WIRE_VERSION:
+                        decoder_tokenizer, decoder_grammar = create_plan_decoder()
+                    else:
+                        decoder_tokenizer, decoder_grammar = create_plan_v2_decoder()
+                    create_plan_processor = _CreatePlanGrammarProcessor(
+                        tokenizer=decoder_tokenizer,
+                        grammar=decoder_grammar,
+                        vocab_size=decoder_tokenizer.vocab_size,
+                    )
+                    generation_options["logits_processors"] = [create_plan_processor]
                 result = generate(
                     model,
                     processor,
@@ -2400,6 +2795,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
                     prompt_cache_state=cache_state,
                     verbose=False,
                     **input_overrides,
+                    **generation_options,
                 )
         finally:
             # ``generate`` appends dynamic prompt/generated state only to this
@@ -2439,7 +2835,6 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         )
         response = {
             "request_id": request.get("request_id"),
-            "text": source,
             "peak_metal_gb": float(result.peak_memory),
             "worker_load_ms": worker_load_ms,
             "generation_ms": generation_ms,
@@ -2450,9 +2845,50 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
             "generation_tps": float(result.generation_tps),
             "finish_reason": result.finish_reason,
         }
-        if version in {PREFIX_CACHE_WIRE_VERSION, MODEL_WIRE_VERSION}:
+        if version == CREATE_PLAN_WIRE_VERSION:
+            if result.finish_reason != "stop":
+                _fail("CREATE plan constrained generation did not finish")
+            plan_body = _strict_json_object(source, label="CREATE plan generation")
+            if set(plan_body) != {"operations"} or not isinstance(plan_body["operations"], list):
+                _fail("CREATE plan generation body differs")
+            response.update(
+                {
+                    "schema_version": CREATE_PLAN_WIRE_VERSION,
+                    "operations": plan_body["operations"],
+                    "model_revision": model_revision,
+                    "adapter_sha256": adapter_sha256,
+                    "schema_sha256": CREATE_PLAN_SCHEMA_SHA256,
+                    "decoder_schema_sha256": CREATE_PLAN_DECODER_SCHEMA_SHA256,
+                    "decoder": CREATE_PLAN_DECODER,
+                }
+            )
+        elif version == CREATE_PLAN_V2_WIRE_VERSION:
+            if result.finish_reason != "stop":
+                _fail("CREATE v2 plan constrained generation did not finish")
+            plan_body = _strict_json_object(source, label="CREATE v2 plan generation")
+            if set(plan_body) != {"o"} or not isinstance(plan_body["o"], list):
+                _fail("CREATE v2 plan generation body differs")
+            response.update(
+                {
+                    "schema_version": CREATE_PLAN_V2_WIRE_VERSION,
+                    "body": plan_body,
+                    "model_revision": model_revision,
+                    "adapter_sha256": adapter_sha256,
+                    "schema_sha256": CREATE_PLAN_V2_SCHEMA_SHA256,
+                    "decoder_schema_sha256": CREATE_PLAN_V2_DECODER_SCHEMA_SHA256,
+                    "decoder": CREATE_PLAN_V2_DECODER,
+                }
+            )
+        else:
+            response["text"] = source
+        if version in {
+            PREFIX_CACHE_WIRE_VERSION,
+            MODEL_WIRE_VERSION,
+            CREATE_PLAN_WIRE_VERSION,
+            CREATE_PLAN_V2_WIRE_VERSION,
+        }:
             response["cache_hit"] = bool(result.cached_tokens > 0)
-        if version == MODEL_WIRE_VERSION:
+        if version in {MODEL_WIRE_VERSION, CREATE_PLAN_WIRE_VERSION, CREATE_PLAN_V2_WIRE_VERSION}:
             worker_request_ms = max(0, int((time.monotonic() - worker_request_started) * 1000))
             worker_residual_ms = max(
                 0,
@@ -2479,6 +2915,11 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         # template remains owned only by ``prefix_cache`` and was never passed
         # to generation directly.
         cache_state = None
+        create_plan_processor = None
+        decoder_tokenizer = None
+        decoder_grammar = None
+        plan_body = None
+        generation_options = None
         prepared_inputs = None
         input_overrides = None
         full_input_ids = None
@@ -2493,6 +2934,11 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         line = ""
         del (
             cache_state,
+            create_plan_processor,
+            decoder_tokenizer,
+            decoder_grammar,
+            plan_body,
+            generation_options,
             prepared_inputs,
             input_overrides,
             full_input_ids,

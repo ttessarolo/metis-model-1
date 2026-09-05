@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metis-model1.local/schemas/metis-brain-create-delta-plan-v2.schema.json",
+  "title": "Metis Brain internal CREATE delta plan v2 envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "mode",
+    "context_revision",
+    "semantic_revision",
+    "surface_revision",
+    "projection_revision",
+    "target_ref",
+    "basis_ref",
+    "requirements",
+    "body"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "contract_id": {"const": "metis-brain-create-delta-plan/v2"},
+    "mode": {"enum": ["initial", "refinement"]},
+    "context_revision": {"$ref": "#/$defs/hash"},
+    "semantic_revision": {"$ref": "#/$defs/hash"},
+    "surface_revision": {"$ref": "#/$defs/hash"},
+    "projection_revision": {"$ref": "#/$defs/hash"},
+    "target_ref": {"$ref": "#/$defs/ref"},
+    "basis_ref": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/ref"}]},
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/ref"}
+    },
+    "body": {"$ref": "#/$defs/expandedBody"}
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "ref": {
+      "type": "string",
+      "pattern": "^hostref:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "expandedRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/ref"}
+    },
+    "expandedAttach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "k", "q", "s", "n"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4},
+        "k": {"const": "a"}, "q": {"$ref": "#/$defs/expandedRequirements"},
+        "s": {"$ref": "#/$defs/ref"}, "n": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "expandedSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "k", "q", "s", "v"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4},
+        "k": {"const": "s"}, "q": {"$ref": "#/$defs/expandedRequirements"},
+        "s": {"$ref": "#/$defs/ref"}, "v": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "expandedRemove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "k", "q", "n"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4},
+        "k": {"const": "d"}, "q": {"$ref": "#/$defs/expandedRequirements"},
+        "n": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "expandedExpand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "k", "q", "s", "r", "w"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4},
+        "k": {"const": "x"}, "q": {"$ref": "#/$defs/expandedRequirements"},
+        "s": {"$ref": "#/$defs/ref"}, "r": {"$ref": "#/$defs/ref"},
+        "w": {"type": "array", "minItems": 1, "maxItems": 12, "uniqueItems": true, "items": {"$ref": "#/$defs/ref"}}
+      }
+    },
+    "expandedOperation": {
+      "anyOf": [
+        {"$ref": "#/$defs/expandedAttach"}, {"$ref": "#/$defs/expandedSet"},
+        {"$ref": "#/$defs/expandedRemove"}, {"$ref": "#/$defs/expandedExpand"}
+      ]
+    },
+    "expandedBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["o"],
+      "properties": {
+        "o": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"$ref": "#/$defs/expandedOperation"}}
+      }
+    }
+  }
+}

@@ -565,10 +565,39 @@ def _candidate_manifest() -> dict[str, Any]:
     }
 
 
+def _candidate_ir() -> dict[str, Any]:
+    return {
+        "irVersion": "0.6",
+        "node": "Endpoint",
+        "name": "catalog.search",
+        "reference": "private-ir-only-reference",
+        "blocks": [],
+        "variants": [],
+        "inline": {
+            "irVersion": "0.6",
+            "node": "Block",
+            "name": "catalog.search",
+            "takes": [
+                {
+                    "irVersion": "0.6",
+                    "node": "Fetch",
+                    "stageId": "inline.take.1",
+                    "source": {"kind": "catalog", "ref": "tenant.video"},
+                    "count": {"skip": 0, "take": 24},
+                }
+            ],
+        },
+    }
+
+
 def _candidate_compile_response(
-    *, status: str = "ok", manifest: dict[str, Any] | None = None
+    *,
+    status: str = "ok",
+    manifest: dict[str, Any] | None = None,
+    ir: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected = _candidate_manifest() if manifest is None else manifest
+    selected_ir = _candidate_ir() if ir is None else ir
     if status == "invalid":
         return {
             "schema_version": 1,
@@ -580,6 +609,8 @@ def _candidate_compile_response(
             "runtime_context_sha256": None,
             "manifest": None,
             "manifest_sha256": None,
+            "ir": None,
+            "ir_sha256": None,
         }
     return {
         "schema_version": 1,
@@ -591,6 +622,8 @@ def _candidate_compile_response(
         "runtime_context_sha256": "sha256:" + "3" * 64,
         "manifest": selected,
         "manifest_sha256": canonical_sha256(selected),
+        "ir": selected_ir,
+        "ir_sha256": canonical_sha256(selected_ir),
     }
 
 
@@ -601,6 +634,7 @@ def test_compile_candidate_compiles_once_and_keeps_manifest_out_of_public_receip
     observed: dict[str, Any] = {}
 
     def runner(**kwargs: Any) -> dict[str, Any]:
+        observed["calls"] = observed.get("calls", 0) + 1
         observed.update(kwargs)
         return response
 
@@ -615,10 +649,37 @@ def test_compile_candidate_compiles_once_and_keeps_manifest_out_of_public_receip
     assert isinstance(result, CandidateCompileResult)
     assert result.manifest == response["manifest"]
     assert result.manifest_sha256 == response["manifest_sha256"]
-    assert "manifest" not in json.dumps(result.receipt)
+    assert result.ir == response["ir"]
+    assert result.ir is not response["ir"]
+    assert result.ir_sha256 == response["ir_sha256"]
+    public_json = json.dumps(result.receipt)
+    assert "manifest" not in public_json
+    assert "private-ir-only-reference" not in public_json
+    assert set(result.receipt) == {
+        "schema_version",
+        "status",
+        "session_id",
+        "tenant_alias",
+        "context_revision",
+        "toolchain_binding",
+        "candidate",
+        "compiler",
+        "claims",
+        "receipt_sha256",
+    }
+    assert set(result.receipt["compiler"]) == {
+        "schema_version",
+        "operation",
+        "status",
+        "diagnostics",
+        "endpoint",
+        "endpoint_sha256",
+        "runtime_context_sha256",
+    }
     assert result.receipt["compiler"]["operation"] == "compile"
     assert result.receipt["compiler"]["endpoint_sha256"] == response["endpoint_sha256"]
     assert observed["request"]["operation"] == "compile-candidate"
+    assert observed["calls"] == 1
     assert toolchain_harness["compiler"].execution_count == 1
 
 
@@ -724,6 +785,8 @@ def test_compile_candidate_preserves_bounded_invalid_as_public_compile_receipt(
 
     assert result.manifest is None
     assert result.manifest_sha256 is None
+    assert result.ir is None
+    assert result.ir_sha256 is None
     assert result.receipt["status"] == "invalid"
     assert result.receipt["compiler"]["status"] == "invalid"
 
@@ -752,6 +815,84 @@ def test_compile_candidate_rejects_untrusted_manifest_shapes(
     monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
 
     with pytest.raises(BrainError, match="invalid manifest") as raised:
+        toolchain_harness["compiler"].compile_candidate(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename="candidate.metis",
+            endpoint="catalog.search",
+        )
+    assert raised.value.code == "COMPILER_FAILED"
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "hash",
+        "endpoint",
+        "node",
+        "root_provenance",
+        "nested_provenance",
+        "unsafe_integer",
+        "depth",
+        "bytes",
+    ],
+)
+def test_compile_candidate_rejects_untrusted_ir_shapes(
+    toolchain_harness: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    ir = _candidate_ir()
+    response = _candidate_compile_response(ir=ir)
+    if corruption == "hash":
+        response["ir_sha256"] = "sha256:" + "f" * 64
+    elif corruption == "endpoint":
+        ir["name"] = "catalog.other"
+        response["ir_sha256"] = canonical_sha256(ir)
+    elif corruption == "node":
+        ir["node"] = "Block"
+        response["ir_sha256"] = canonical_sha256(ir)
+    elif corruption == "root_provenance":
+        ir["provenance"] = {"file": "/private/tenant.metis", "line": 1}
+        response["ir_sha256"] = canonical_sha256(ir)
+    elif corruption == "nested_provenance":
+        ir["inline"]["provenance"] = {"file": "/private/tenant.metis", "line": 1}
+        response["ir_sha256"] = canonical_sha256(ir)
+    elif corruption == "unsafe_integer":
+        ir["inline"]["takes"][0]["count"]["take"] = 2**53
+        response["ir_sha256"] = canonical_sha256(ir)
+    elif corruption == "depth":
+        nested: dict[str, Any] = {}
+        ir["too_deep"] = nested
+        for _ in range(brain_tools_module.MAX_CANDIDATE_IR_DEPTH + 1):
+            child: dict[str, Any] = {}
+            nested["next"] = child
+            nested = child
+        response["ir_sha256"] = canonical_sha256(ir)
+    else:
+        ir["oversized"] = "x" * brain_tools_module.MAX_CANDIDATE_IR_BYTES
+        response["ir_sha256"] = canonical_sha256(ir)
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    with pytest.raises(BrainError, match="invalid manifest or private IR authority") as raised:
+        toolchain_harness["compiler"].compile_candidate(
+            lease=_lease(),
+            source="metis 0.43\ntenant candidate {}\n",
+            filename="candidate.metis",
+            endpoint="catalog.search",
+        )
+    assert raised.value.code == "COMPILER_FAILED"
+
+
+def test_compile_candidate_rejects_partial_ir_on_invalid_result(
+    toolchain_harness: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    response = _candidate_compile_response(status="invalid")
+    response["ir"] = _candidate_ir()
+    response["ir_sha256"] = canonical_sha256(response["ir"])
+    monkeypatch.setattr(brain_tools_module, "_run_brain_runner", lambda **_: response)
+
+    with pytest.raises(BrainError, match="invalid receipt") as raised:
         toolchain_harness["compiler"].compile_candidate(
             lease=_lease(),
             source="metis 0.43\ntenant candidate {}\n",
