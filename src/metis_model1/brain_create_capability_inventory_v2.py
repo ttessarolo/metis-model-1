@@ -69,16 +69,17 @@ _AUTHORITY_POLICY = {
     "disable_commands": sorted(DISABLE_CURRENT_TIME_COMMANDS),
     "ambiguous_commands": sorted(AMBIGUOUS_CURRENT_TIME_COMMANDS),
     "semantic_authority": "schema2_reviewed_exact_snapshot_only",
-    "exact_value_bridge": "metis-brain-exact-reviewed-value-authority/v1:reviewed_exact_only",
-    "cumulative_grounding": (
-        "metis-brain-dialogue-cumulative-grounding/v1:admitted_or_explicit_rejection"
-    ),
+    "cumulative_grounding": "schema2_resolved_reviewed_selections_only",
     "structural_archetypes": [
         "descriptor_filtered_collection",
+        "descriptor_operation",
     ],
-    "structural_authority": "original_reviewed_descriptor_index_plus_exact_count",
+    "structural_authority": "original_reviewed_descriptors_pinned_technical_and_bound_choices",
+    "technical_authority": "metis-brain-tenant-technical-authority/v1",
+    "operation_contract": "metis-brain-descriptor-operation/v1",
+    "operation_confirmation": "exact_operation_current_history_original_basis",
     "structural_confirmation": "exact_filters_count_inventory_and_covered_history",
-    "legacy_closed_recipes": "explicit_compatibility_only_disabled_by_default",
+    "legacy_closed_recipes": "not_registered_in_product",
     "refinement_basis": "exact_private_latest_head",
     "unknown_structure": "fail_closed",
     "unrequested_fallback": "do_not_add",

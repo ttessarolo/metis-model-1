@@ -231,7 +231,6 @@ def _prepare(
     ),
 )
 def test_default_descriptor_provider_asks_then_issues_only_the_bound_filtered_collection(
-    monkeypatch: pytest.MonkeyPatch,
     tenant: str,
     catalog: str,
     field: str,
@@ -262,18 +261,14 @@ def test_default_descriptor_provider_asks_then_issues_only_the_bound_filtered_co
         literal=literal,
     )
     complete = (complete[0], complete[1], _bound_filter_choice(complete[2], ask), complete[3])
-    monkeypatch.setattr(
-        provider_impl,
-        "presemantic_structural_need",
-        lambda *_args, **_kwargs: pytest.fail("the default provider invoked legacy recipes"),
-    )
+    assert not hasattr(provider_impl, "presemantic_structural_need")
     ready = _prepare(provider, complete)
 
     assert type(ready) is ReadyCreateV2Authority
     assert ready.generation == 0
-    assert ready.active_requirement_handles == (0,)
-    assert len(ready.projection.requirements) == 1
-    assert len(ready.projection.authorities) == 2
+    assert ready.active_requirement_handles == (0, 1)
+    assert len(ready.projection.requirements) == 2
+    assert len(ready.projection.authorities) == 4
     node = next(item for item in ready.projection.authorities if type(item) is NodeGrant)
     fetch = node.fragment["fetches"][0]
     assert fetch["from"] == {"kind": "catalog", "catalog": catalog.rsplit(".", 1)[-1]}
@@ -301,7 +296,8 @@ def test_default_descriptor_provider_asks_then_issues_only_the_bound_filtered_co
             "h": 0,
             "l": "Aggiungi collezione filtrata dai descrittori revisionati",
             "o": ["attach"],
-        }
+        },
+        {"h": 1, "l": "Emetti la collezione filtrata nella risposta", "o": ["attach"]},
     ]
     assert model_payload["s"] == [
         {
@@ -312,7 +308,16 @@ def test_default_descriptor_provider_asks_then_issues_only_the_bound_filtered_co
             "c": "many",
             "i": "append",
             "g": "blocks",
-        }
+        },
+        {
+            "h": 12,
+            "l": "Destinazione emetti la collezione filtrata nella risposta",
+            "a": ["variant"],
+            "m": ["attach"],
+            "c": "many",
+            "i": "append",
+            "g": "variants",
+        },
     ]
     assert model_payload["n"] == [
         {
@@ -321,7 +326,14 @@ def test_default_descriptor_provider_asks_then_issues_only_the_bound_filtered_co
             "t": "container",
             "s": "new",
             "d": False,
-        }
+        },
+        {
+            "h": 13,
+            "l": "Emetti la collezione filtrata nella risposta",
+            "t": "variant",
+            "s": "new",
+            "d": False,
+        },
     ]
     assert model_payload["r"] == [] and model_payload["w"] == []
     rendered = canonical_json(model_payload).decode("utf-8")

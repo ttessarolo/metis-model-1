@@ -9,6 +9,8 @@ from metis_model1.brain_create_plan import (
     validate_create_delta_plan,
 )
 from metis_model1.brain_create_surface import (
+    MAX_HISTORY_BYTES,
+    MAX_HISTORY_MESSAGE_BYTES,
     MAX_HISTORY_MESSAGES,
     MAX_LABEL_CHARACTERS,
     MAX_PAYLOAD_ARRAY_ITEMS,
@@ -245,6 +247,27 @@ def test_history_requires_exact_message_digests_and_contiguous_server_ordinals()
     oversized = _history(tuple(f"Messaggio {index}" for index in range(MAX_HISTORY_MESSAGES + 1)))
     with pytest.raises(CreateAuthoritySurfaceError, match="message bound"):
         create_authority_history_revision(oversized)
+
+
+def test_history_accepts_64_messages_but_rejects_a_65th() -> None:
+    bounded = _history(tuple(f"Messaggio {index}" for index in range(MAX_HISTORY_MESSAGES)))
+
+    assert create_authority_history_revision(bounded).startswith("sha256:")
+
+    overflow = _history(tuple(f"Messaggio {index}" for index in range(MAX_HISTORY_MESSAGES + 1)))
+    with pytest.raises(CreateAuthoritySurfaceError, match="message bound"):
+        create_authority_history_revision(overflow)
+
+
+def test_history_total_byte_bound_remains_twenty_maximum_messages() -> None:
+    assert MAX_HISTORY_BYTES == 20 * MAX_HISTORY_MESSAGE_BYTES
+    at_total_bound = _history(tuple("x" * MAX_HISTORY_MESSAGE_BYTES for _ in range(20)))
+
+    assert create_authority_history_revision(at_total_bound).startswith("sha256:")
+
+    over_total_bound = _history(tuple("x" * MAX_HISTORY_MESSAGE_BYTES for _ in range(20)) + ("x",))
+    with pytest.raises(CreateAuthoritySurfaceError, match="byte bound"):
+        create_authority_history_revision(over_total_bound)
 
 
 def test_model_projection_contains_only_safe_fields_and_requirement_kinds() -> None:

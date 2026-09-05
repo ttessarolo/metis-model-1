@@ -797,8 +797,8 @@ def test_service_wires_configured_model_and_schema2_retriever_without_loading_re
             calls["create_provider"]["toolchain_binding"]
             == ConstructibleFakeCompiler.toolchain_binding
         )
-        assert calls["create_provider"]["exact_value_resolver"] is not None
-        assert calls["create_provider"]["exact_value_resolver"] is service.app.retriever
+        # Closed recipes no longer receive a resolver callback through the server.
+        assert "exact_value_resolver" not in calls["create_provider"]
         assert isinstance(calls["create_provider"]["hmac_key"], bytes)
         assert len(calls["create_provider"]["hmac_key"]) == 32
         assert service.app.health()["typed_create"] == {

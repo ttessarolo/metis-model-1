@@ -879,10 +879,8 @@ def _render_return(value: Any, *, indent: int) -> str:
     projection = item.get("projection")
     if projection == "default":
         result = "return response"
-    elif projection == "expanded":
-        result = "return response.expanded"
     else:
-        _fail("INVALID_SPEC", "response projection is invalid")
+        result = "return response." + _identifier(projection, label="response projection")
     for step in _items(item.get("steps"), label="output steps"):
         result += " -> " + _render_output_step(step)
     for fallback in _items(item.get("fallbacks"), label="fallbacks"):

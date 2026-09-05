@@ -6,6 +6,11 @@ APPLY/ROLLBACK/UNDO È VERIFICATO SU FIXTURE ISOLATO, MENTRE L'APPLY NATIVO SUL
 TENANT REALE RICHIEDE ANCORA IL CONSENSO DELL'OPERATORE; NON È ANCORA L'APP MAC
 DISTRIBUIBILE**.
 
+Questa è la consegna storica della VSIX, non un'attestazione di interoperabilità
+con le nuove operazioni G5. Il client esterno verificato in questa wave gestisce
+ancora i chiarimenti v1: il consumer del dialogo v2 e la relativa prova live
+restano da integrare. Vedere l'[handover G5](handover-g5-visix-dialogue-v2.md).
+
 ## 1. Cosa avvia
 
 Il comando `brain-serve` avvia un processo HTTP soltanto su `127.0.0.1`, crea
@@ -134,7 +139,7 @@ workspace corrente.
   coincidere con il numero di tenant autorizzati e `duration_ms` resta un
   intero limitato;
 - `turn_schema_versions=[1,2]`: v2 abilita dialogo tipizzato e memoria volatile;
-- `clarification_answer_schema_versions=[1]`: i client possono riprendere una
+- `clarification_answer_schema_versions=[1,2]`: i client possono riprendere una
   domanda tramite la route compatta `/answer` senza reinviare il prompt;
   v1 resta il percorso legacy senza domande numeriche non rappresentabili;
 - `metrics`: sessioni, turni, conversazioni e domande pendenti sono osservabili

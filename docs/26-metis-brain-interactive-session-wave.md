@@ -1,8 +1,10 @@
 # Metis Brain: interactive session memory wave
 
-Status: **IMPLEMENTED**. The universal Brain contract and first VS Code
-consumer are delivered; the final rendered-draft observation in the installed
-extension is pending only because the Mac locked after the live turn completed.
+Status: **HISTORICAL V1 DELIVERY; G5 CLIENT INTEGRATION OPEN**. The initial
+session-memory contract and v1 VS Code consumer were delivered. This is not
+evidence that the installed extension consumes the newer G5 dialogue v2:
+that consumer and its live qualification remain separate work. Current core
+gate receipts are on the [active board](../orchestra/runs/2026-09-05-brain-generality/BLACKBOARD.md).
 
 ## Outcome
 
@@ -24,8 +26,13 @@ both accepted turn versions explicitly.
 
 The universal resume surface is
 `POST /v1/sessions/{session_id}/turns/{parent_turn_id}/answer`. Its closed
-schema contains only `schema_version: 1`, a fresh `request_id`, the server-issued
-`clarification_id` and one typed `answer` (`option_ref` or `integer`). Brain
+v1 schema contains only `schema_version: 1`, a fresh `request_id`, the server-issued
+`clarification_id` and one typed `answer` (`option_ref` or `integer`). The v2
+envelope on the same route carries `schema_version: 2`, `request_id`,
+`clarification_id`, `message` and `answers`: it supports native chat answers
+and up to five typed question answers. See the exact
+[`dialogue-v2` schema](../schemas/metis-brain-dialogue-v2.schema.json) and
+[G5 client handover](handover-g5-visix-dialogue-v2.md). Brain
 recovers instruction, intent, target, basis and both revisions from the parent
 turn. A client therefore never reconstructs or resubmits the original prompt
 envelope when Giulia answers a question.
@@ -59,17 +66,17 @@ source-derived default exists:
 | `result_count` | a new endpoint has no exact total, or the operator says “some/few/many” | asks for one bounded total; an exact answer emits `take N` |
 | `response_shape` | one number is explicitly combined with pagination but it is unclear whether it is a total or a page size | asks “total or per page?” and emits exactly the confirmed form |
 
-`fallback` remains a reserved typed question kind. Brain does not advertise or
-ask it until retrieval supplies two or more concrete, authorized alternatives.
-Today Brain does not offer a response-format menu and does not add a fallback;
-the compiled Draft remains the inspectable response surface. Existing endpoints
-that already contain fallback behavior fail closed because exact fallback
-preservation is not yet implemented. This avoids both fake choices and a
-silent destructive edit.
+In the historical v1 flow, `fallback` is a reserved typed question kind;
+unbound response-format changes and fallback edits are unsupported. G5 adds
+explicit descriptor-backed return projections and same-Draft block fallback
+through its generic operation dialogue. That does not authorize arbitrary
+existing-endpoint edits or external fallback targets; see the
+[capability contract](31-metis-brain-typed-create-authority.md).
 
-One question is blocking at a time. A logical request has a maximum of three
-questions and cannot repeat the same question/options. After that limit,
-critical ambiguity fails closed; Brain never guesses merely to finish.
+V1 retains one blocking question at a time and a three-round maximum. V2
+admits at most five questions per pending envelope, 32 rounds and 32 bound
+decisions. These are safety ceilings, not a UX target. Critical ambiguity
+fails closed at the applicable limit; Brain never guesses merely to finish.
 
 ## Cardinality and pagination
 
@@ -141,7 +148,12 @@ pending decision, original request and one-shot authority remain server-owned.
 VS Code `conversation_ref` is only a local routing hint; Metis Fast may use its
 own UI conversation identifier without changing Brain semantics.
 
-## VS Code behavior
+## Historical VS Code behavior (v1)
+
+The behavior below describes the initial consumer. G5 requires the explicit
+v2 consumer in the [client handover](handover-g5-visix-dialogue-v2.md), preserving
+opaque question/option references and typed answers. A schema-2 initial turn
+alone does not make a client compatible with schema-2 clarification answers.
 
 The selected workspace tenant opens the Brain session. Giulia is never asked
 to restate it. Catalog, semantic and total-versus-page questions are written in

@@ -379,7 +379,9 @@ class FragmentLeafBinding:
     json_pointer: str
     evidence_ref: str
     requirement_refs: tuple[str, ...]
-    origin: Literal["operator", "clarification", "reviewed_semantic", "policy", "basis"]
+    origin: Literal[
+        "operator", "clarification", "reviewed_semantic", "pinned_technical", "policy", "basis"
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -834,6 +836,7 @@ def _validate_leaf_bindings(
             "operator",
             "clarification",
             "reviewed_semantic",
+            "pinned_technical",
             "policy",
             "basis",
         }:

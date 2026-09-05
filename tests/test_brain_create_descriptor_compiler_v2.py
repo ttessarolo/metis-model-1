@@ -23,6 +23,7 @@ from metis_model1.brain_create_executor_v2 import (
 )
 from metis_model1.brain_create_plan_v2 import (
     admit_create_delta_plan_v2,
+    derive_create_plan_v2_decoder_constraint,
     initial_create_endpoint_skeleton,
 )
 from metis_model1.brain_create_structural_authority_v2 import (
@@ -169,6 +170,14 @@ def _execute_filtered_collection(
         semantic=semantic,
         policy_revision=CREATE_V2_AUTHORITY_POLICY_SHA256,
     )
+    assert [(mutation.member, mutation.fragment_type) for mutation in intent.mutations] == [
+        ("blocks", "container"),
+        ("variants", "variant"),
+    ]
+    assert intent.mutations[0].fragment["name"] == "main"
+    response_root = intent.mutations[1].fragment
+    assert response_root["name"] == "response_root"
+    assert response_root["uses"] == [{"kind": "direct", "block": "main"}]
     assert (
         validate_structural_intent(
             intent,
@@ -201,7 +210,11 @@ def _execute_filtered_collection(
         parent_ir_sha256=None,
         parent_proposal_ref=None,
     )
-    body = {"o": [{"k": "a", "q": [0], "s": 10, "n": 11}]}
+    constraint = derive_create_plan_v2_decoder_constraint(
+        issued.projection, issued.active_requirement_handles
+    )
+    body = {"o": [operation.body() for operation in constraint.direct_operations]}
+    assert len(body["o"]) == len(intent.mutations)
     plan = admit_create_delta_plan_v2(
         body,
         projection=issued.projection,
@@ -313,5 +326,12 @@ def test_renamed_descriptor_filtered_create_compiles_on_the_pinned_isolated_tena
         assert result.receipt["status"] == result.receipt["compiler"]["status"] == "ok"
         assert result.manifest is not None and result.ir is not None
         assert result.receipt["candidate"]["source_sha256"] == canonical_sha256(source)
+        variants = result.ir["variants"]
+        assert len(variants) == 1, result.ir
+        response = variants[0]
+        # The pinned IR spells a block use `ref`; `block` is the input AST key.
+        assert [use["ref"] for use in response["uses"]] == ["main"], result.ir
+        assert [block["name"] for block in result.ir["blocks"]] == ["main"], result.ir
+        assert result.ir["blocks"][0]["takes"], result.ir
     finally:
         compiler.close()

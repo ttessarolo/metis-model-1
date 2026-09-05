@@ -1,11 +1,8 @@
-"""Reviewed-semantic structural authority for typed CREATE v2.
+"""Descriptor-native structural authority for typed CREATE v2.
 
-The descriptor-native path translates reviewed selections from the active
-tenant into detached endpoint-spec fragments without naming a tenant, field or
-literal in Python.  A separate compatibility roster still supports previously
-sealed regression recipes; callers must opt into that legacy surface
-explicitly.  Neither path inspects an endpoint implementation or model output,
-and every executable semantic leaf is bound to the immutable session snapshot.
+This module admits only structural forms whose catalog, field and finite value
+identity is independently proven by the active reviewed Schema2 snapshot.
+Closed regression recipes are intentionally test-only historical fixtures.
 """
 
 from __future__ import annotations
@@ -25,100 +22,6 @@ from metis_model1.brain_retrieval import RetrievalResult
 
 STRUCTURAL_CREATE_AUTHORITY_CONTRACT = "metis-brain-create-structural-authority/v2"
 MAX_STRUCTURAL_MUTATIONS = 5
-_CATEGORY_FIELD = "tipologia"
-_CONTENT_IDENTITY_FIELD = "video_content_id"
-_DEDUPLICATION_FIELD = _CONTENT_IDENTITY_FIELD
-_EDITORIAL_TYPE_FIELD = "editorial_type"
-_PROGRAM_IDENTITY_FIELD = "id_brand"
-_PROGRAM_TYPE_FIELD = "programtype"
-_RECENCY_FIELD = "publication_date"
-_SEED_CONTEXT_NAME = "seed"
-_SEED_INPUT_NAME = "seed_id"
-_SIMILARITY_PROFILE = "content_fingerprint"
-
-_STRUCTURAL_VALUE_ROSTERS = MappingProxyType(
-    {
-        "similar_film": ((_CATEGORY_FIELD, "Film"),),
-        "similar_series": ((_CATEGORY_FIELD, "Serie TV"), (_CATEGORY_FIELD, "Fiction")),
-        "similar_entertainment": ((_CATEGORY_FIELD, "Intrattenimento"),),
-        "recent": ((_CATEGORY_FIELD, "Film"), (_CATEGORY_FIELD, "Serie TV")),
-        "entertainment_pools": (
-            (_CATEGORY_FIELD, "Intrattenimento"),
-            (_PROGRAM_TYPE_FIELD, "Episode"),
-            (_EDITORIAL_TYPE_FIELD, "Clip"),
-            (_EDITORIAL_TYPE_FIELD, "Extra"),
-        ),
-        "entertainment_consumer_new": (),
-    }
-)
-_RECIPE_CONTRACTS = MappingProxyType(
-    {
-        "filtered_collection": (("attach", "blocks", "many", "append", "container"),),
-        "similar_row": (
-            ("attach", "inputs", "many", "append", "input"),
-            ("attach", "context", "many", "append", "contextBinding"),
-            ("attach", "blocks", "many", "append", "container"),
-        ),
-        "recent_page": (
-            ("attach", "variants", "many", "append", "variant"),
-            ("set", "output", "one", "replace", "returnFlow"),
-        ),
-        "entertainment_pools": (
-            ("set", "needs_time", "one", "replace", "boolean"),
-            ("attach", "context", "many", "append", "contextBinding"),
-            ("attach", "context", "many", "append", "contextBinding"),
-            ("attach", "context", "many", "append", "contextBinding"),
-            ("attach", "context", "many", "append", "contextBinding"),
-        ),
-        "entertainment_consumer": (
-            ("remove", "blocks", "many", "exact", "container"),
-            ("attach", "variants", "many", "append", "variant"),
-        ),
-    }
-)
-_STRUCTURAL_RECIPE_MANIFEST = {
-    "contract_id": STRUCTURAL_CREATE_AUTHORITY_CONTRACT,
-    "recognition": "closed-normalized-token-contract/v1",
-    "evidence": "complete-scalar-leaves/exact-origin/v1",
-    "basis": "exact-latest-head-locator/v1",
-    "rejected_retrieval": {
-        "contract": "metis-brain-dialogue-cumulative-grounding/v1",
-        "source": "server_dialogue",
-        "status": "rejected",
-        "authority": "reviewed-schema2-fields-plus-host-exact-value-resolver",
-        "empty": ["selections", "resolutions", "candidates", "lookups"],
-    },
-    "recipes": {
-        name: [list(item) for item in recipe] for name, recipe in _RECIPE_CONTRACTS.items()
-    },
-    "policy_defaults": {
-        "seed_input": _SEED_INPUT_NAME,
-        "seed_context": _SEED_CONTEXT_NAME,
-        "similarity_profile": _SIMILARITY_PROFILE,
-        "recent_order": [_RECENCY_FIELD, "descending"],
-        "program_identity_field": _PROGRAM_IDENTITY_FIELD,
-        "deduplicate_field": _DEDUPLICATION_FIELD,
-        "semantic_roles": {
-            "category": _CATEGORY_FIELD,
-            "content_identity": _CONTENT_IDENTITY_FIELD,
-            "editorial_type": _EDITORIAL_TYPE_FIELD,
-            "program_type": _PROGRAM_TYPE_FIELD,
-            "recency": _RECENCY_FIELD,
-        },
-    },
-    "closed_recipe_constants": {
-        "pool_count": 50,
-        "episode_window": "18M",
-        "recent_window": "14d",
-        "consumer_first": 4,
-        "consumer_final": 24,
-        "consumer_strategy": ["best_plus", "near_full"],
-        "fallback": ["nested_flat_items_below", 1, "append"],
-    },
-    "semantic_values": {
-        name: [list(item) for item in roster] for name, roster in _STRUCTURAL_VALUE_ROSTERS.items()
-    },
-}
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,95}$")
 _QUALIFIED_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,95}(?:\.[A-Za-z_][A-Za-z0-9_-]{0,95})*$")
@@ -144,7 +47,9 @@ def normalize_operator_text(value: str) -> str:
 @dataclass(frozen=True, slots=True)
 class StructuralLeafEvidence:
     json_pointer: str
-    origin: Literal["operator", "clarification", "reviewed_semantic", "policy", "basis"]
+    origin: Literal[
+        "operator", "clarification", "reviewed_semantic", "pinned_technical", "policy", "basis"
+    ]
     identity: Mapping[str, Any]
 
     def __post_init__(self) -> None:
@@ -156,6 +61,7 @@ class StructuralLeafEvidence:
             "operator",
             "clarification",
             "reviewed_semantic",
+            "pinned_technical",
             "policy",
             "basis",
         }:
@@ -163,6 +69,30 @@ class StructuralLeafEvidence:
         if not isinstance(self.identity, Mapping):
             _invalid("structural leaf identity is invalid")
         object.__setattr__(self, "identity", copy.deepcopy(dict(self.identity)))
+
+
+@dataclass(frozen=True, slots=True)
+class StructuralAnchor:
+    """An exact original endpoint subtree, never a model-selected pointer."""
+
+    path: tuple[str | int, ...]
+    fragment_type: str
+    fragment: Any
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.path, tuple)
+            or not 1 <= len(self.path) <= 16
+            or any(
+                not (isinstance(item, str) and _IDENTIFIER_RE.fullmatch(item))
+                and not (type(item) is int and 0 <= item <= 1024)
+                for item in self.path
+            )
+            or self.fragment_type not in {"fetch", "container", "variant"}
+            or not isinstance(self.fragment, Mapping)
+        ):
+            _invalid("structural anchor is invalid")
+        object.__setattr__(self, "fragment", copy.deepcopy(dict(self.fragment)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +107,7 @@ class StructuralMutation:
     requirement_label: str
     leaf_evidence: tuple[StructuralLeafEvidence, ...]
     basis_path: tuple[str | int, ...] | None = None
+    anchor: StructuralAnchor | None = None
 
     def __post_init__(self) -> None:
         if self.action not in {"attach", "set", "remove"}:
@@ -206,10 +137,12 @@ class StructuralMutation:
         if len({item.json_pointer for item in self.leaf_evidence}) != len(self.leaf_evidence):
             _invalid("structural mutation evidence is duplicated")
         if self.action == "remove":
-            if self.basis_path is None:
+            if self.basis_path is None or self.anchor is not None:
                 _invalid("remove mutation lacks an exact basis path")
         elif self.basis_path is not None:
             _invalid("new mutation carries a basis path")
+        if self.anchor is not None and type(self.anchor) is not StructuralAnchor:
+            _invalid("structural mutation anchor is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,29 +166,6 @@ class StructuralIntent:
 class StructuralNeed:
     target_key: str
     question: str
-
-
-@dataclass(frozen=True, slots=True)
-class StructuralSemanticRequirements:
-    resolver_identities: tuple[tuple[str, str, str], ...]
-    cumulative_identities: tuple[tuple[str, str, str], ...]
-
-    def __post_init__(self) -> None:
-        for roster in (self.resolver_identities, self.cumulative_identities):
-            if (
-                not isinstance(roster, tuple)
-                or len(roster) != len(set(roster))
-                or any(
-                    not isinstance(item, tuple)
-                    or len(item) != 3
-                    or _QUALIFIED_RE.fullmatch(item[0]) is None
-                    or _IDENTIFIER_RE.fullmatch(item[1]) is None
-                    or not isinstance(item[2], str)
-                    or not item[2]
-                    for item in roster
-                )
-            ):
-                _invalid("structural semantic requirement roster is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,330 +239,6 @@ def _semantic_state(value: Any) -> str | None:
         value.get("state")
         if isinstance(value, Mapping) and isinstance(value.get("state"), str)
         else None
-    )
-
-
-def reviewed_semantic_index(
-    *,
-    retrieved: RetrievalResult,
-    context_revision: str,
-    semantic_revision: str,
-    toolchain_binding: str,
-    dialogue_message_count: int,
-    expected_value_identities: tuple[tuple[str, str, str], ...],
-    expected_cumulative_identities: tuple[tuple[str, str, str], ...],
-    exact_value_authority: Mapping[str, Any] | None,
-) -> ReviewedSemanticIndex:
-    """Reopen the bounded retrieval projection and retain only reviewed facts."""
-
-    if not isinstance(retrieved, RetrievalResult):
-        _invalid("retrieval authority is invalid")
-    context, grounding = retrieved.context, retrieved.grounding
-    if not isinstance(context, Mapping) or not isinstance(grounding, Mapping):
-        _invalid("retrieval authority is invalid")
-    if (
-        context.get("semantic_schema") != 2
-        or context.get("context_revision") != context_revision
-        or context.get("semantic_source_revision") != semantic_revision
-        or context.get("toolchain_binding") != toolchain_binding
-        or retrieved.semantic_source_revision != semantic_revision
-    ):
-        raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "retrieval authority differs")
-    if type(dialogue_message_count) is not int or dialogue_message_count < 2:
-        _invalid("structural dialogue cardinality is invalid")
-    cumulative_rejection = {
-        "contract": "metis-brain-dialogue-cumulative-grounding/v1",
-        "source": "server_dialogue",
-        "message_count": dialogue_message_count,
-        "status": "rejected",
-    }
-    raw_cumulative = grounding.get("cumulative_dialogue_semantics")
-    rejection_mode = (
-        grounding.get("status") == "unsupported" and raw_cumulative == cumulative_rejection
-    )
-    cumulative_admission = {**cumulative_rejection, "status": "admitted"}
-    admission_mode = (
-        grounding.get("status") == "resolved" and raw_cumulative == cumulative_admission
-    )
-    if rejection_mode:
-        # A rejected cumulative resolver has made no semantic selection.  A
-        # closed structural recipe may still reopen the reviewed schema-2
-        # projection below, but no partial/current resolver output can become
-        # authority through this path.
-        if (
-            grounding.get("selected") is not None
-            or grounding.get("selections") != []
-            or grounding.get("resolutions") != []
-            or grounding.get("candidates") != []
-            or grounding.get("catalog_candidates") != []
-            or grounding.get("lookup") is not None
-            or grounding.get("lookups") != []
-            or not isinstance(grounding.get("unresolved"), list)
-            or len(grounding["unresolved"]) != 1
-            or not isinstance(grounding["unresolved"][0], str)
-            or not grounding["unresolved"][0].strip()
-        ):
-            _invalid("rejected cumulative grounding retains semantic authority")
-    elif not admission_mode:
-        _unsupported("reviewed catalog semantics are unresolved")
-    elif (
-        grounding.get("candidates") != []
-        or grounding.get("unresolved") != []
-        or grounding.get("lookup") is not None
-        or grounding.get("lookups") != []
-    ):
-        _invalid("admitted cumulative grounding retains unresolved authority")
-    catalogs = grounding.get("catalogs")
-    if not isinstance(catalogs, list) or len(catalogs) != 1 or not isinstance(catalogs[0], str):
-        _unsupported("one reviewed catalog is required")
-    catalog = catalogs[0]
-    if _QUALIFIED_RE.fullmatch(catalog) is None:
-        _invalid("reviewed catalog identity is invalid")
-    raw_catalog = context.get("catalog")
-    if not isinstance(raw_catalog, Mapping) or raw_catalog.get("name") != catalog:
-        _invalid("reviewed catalog context differs")
-    if _semantic_state(raw_catalog.get("semantic")) != "reviewed":
-        _unsupported("catalog semantics are not reviewed")
-
-    raw_fields = context.get("fields")
-    if not isinstance(raw_fields, list):
-        _invalid("reviewed field context is invalid")
-    fields: dict[str, Mapping[str, Any]] = {}
-    context_reviewed_values: set[tuple[str, str]] = set()
-    field_manifest: list[dict[str, Any]] = []
-    for item in raw_fields:
-        if not isinstance(item, Mapping) or not isinstance(item.get("name"), str):
-            _invalid("reviewed field context is invalid")
-        name = item["name"]
-        if name in fields or _IDENTIFIER_RE.fullmatch(name) is None:
-            _invalid("reviewed field roster is invalid")
-        fields[name] = item
-        values: list[str] = []
-        raw_values = item.get("values", [])
-        if not isinstance(raw_values, list):
-            _invalid("reviewed value context is invalid")
-        for value in raw_values:
-            if not isinstance(value, Mapping) or not isinstance(value.get("literal"), str):
-                _invalid("reviewed value context is invalid")
-            if _semantic_state(value.get("semantic")) == "reviewed":
-                context_reviewed_values.add((name, value["literal"]))
-                values.append(value["literal"])
-        field_manifest.append(
-            {
-                "name": name,
-                "state": _semantic_state(item.get("semantic")),
-                "type": item.get("type"),
-                "modifiers": item.get("modifiers"),
-                "domain": item.get("domain"),
-                "reviewed_values": values,
-            }
-        )
-
-    expected_values = tuple(expected_value_identities)
-    expected_cumulative = tuple(expected_cumulative_identities)
-    for roster in (expected_values, expected_cumulative):
-        if len(roster) != len(set(roster)) or any(
-            not isinstance(item, tuple)
-            or len(item) != 3
-            or item[0] != catalog
-            or item[1] not in fields
-            or not isinstance(item[2], str)
-            or not item[2]
-            for item in roster
-        ):
-            _invalid("expected structural semantic roster is invalid")
-    required_fields = {field for _catalog, field, _literal in expected_values}
-    if any(
-        _semantic_state(fields[field].get("semantic")) != "reviewed" for field in required_fields
-    ):
-        _unsupported("required field semantics are not reviewed")
-
-    authority_manifest: dict[str, Any] | None = None
-    if not expected_values:
-        if exact_value_authority is not None:
-            _invalid("unexpected exact reviewed value authority")
-        authorized_values: set[tuple[str, str]] = set()
-    else:
-        if not isinstance(exact_value_authority, Mapping) or set(exact_value_authority) != {
-            "contract",
-            "context_revision",
-            "semantic_source_revision",
-            "toolchain_binding",
-            "index_revision",
-            "outcomes",
-            "selections",
-            "resolutions",
-        }:
-            _invalid("exact reviewed value authority is invalid")
-        if (
-            exact_value_authority.get("contract") != "metis-brain-exact-reviewed-value-authority/v1"
-            or exact_value_authority.get("context_revision") != context_revision
-            or exact_value_authority.get("semantic_source_revision") != semantic_revision
-            or exact_value_authority.get("toolchain_binding") != toolchain_binding
-            or not isinstance(exact_value_authority.get("index_revision"), str)
-            or re.fullmatch(r"sha256:[0-9a-f]{64}", exact_value_authority["index_revision"]) is None
-        ):
-            raise BrainError(
-                "CREATE_TYPED_AUTHORITY_STALE", 409, "exact reviewed value authority differs"
-            )
-        outcomes = exact_value_authority.get("outcomes")
-        authority_selections = exact_value_authority.get("selections")
-        authority_resolutions = exact_value_authority.get("resolutions")
-        if (
-            not isinstance(outcomes, tuple)
-            or not isinstance(authority_selections, tuple)
-            or not isinstance(authority_resolutions, tuple)
-            or not len(outcomes)
-            == len(authority_selections)
-            == len(authority_resolutions)
-            == len(expected_values)
-        ):
-            _invalid("exact reviewed value authority roster is invalid")
-        authority_manifest = {
-            "contract": exact_value_authority["contract"],
-            "index_revision": exact_value_authority["index_revision"],
-            "outcomes": [],
-            "selections": [],
-            "resolutions": [],
-        }
-        for identity, outcome, selection, resolution in zip(
-            expected_values,
-            outcomes,
-            authority_selections,
-            authority_resolutions,
-            strict=True,
-        ):
-            expected_catalog, expected_field, expected_literal = identity
-            record = fields[expected_field]
-            if (
-                not isinstance(outcome, Mapping)
-                or dict(outcome)
-                != {
-                    "catalog": expected_catalog,
-                    "field": expected_field,
-                    "literal": expected_literal,
-                    "status": "reviewed_exact",
-                }
-                or not isinstance(selection, Mapping)
-                or set(selection)
-                != {
-                    "catalog",
-                    "field",
-                    "literal",
-                    "domain",
-                    "matched_by",
-                    "type",
-                    "modifiers",
-                }
-                or selection.get("catalog") != expected_catalog
-                or selection.get("field") != expected_field
-                or selection.get("literal") != expected_literal
-                or selection.get("matched_by") != "compiler_exact_reviewed_value"
-                or selection.get("type") != record.get("type")
-                or selection.get("modifiers") != record.get("modifiers")
-                or selection.get("domain") != record.get("domain")
-                or not isinstance(resolution, Mapping)
-                or dict(resolution)
-                != {
-                    "concept": expected_literal,
-                    "catalog": expected_catalog,
-                    "field": expected_field,
-                    "literal": expected_literal,
-                    "review_state": "reviewed",
-                }
-            ):
-                _invalid("exact reviewed value authority differs")
-            authority_manifest["outcomes"].append(dict(outcome))
-            authority_manifest["selections"].append(dict(selection))
-            authority_manifest["resolutions"].append(dict(resolution))
-        authorized_values = {(field, literal) for _catalog, field, literal in expected_values}
-
-    selections, resolutions = grounding.get("selections"), grounding.get("resolutions")
-    if (
-        not isinstance(selections, list)
-        or not isinstance(resolutions, list)
-        or len(selections) != len(resolutions)
-    ):
-        _invalid("reviewed selection roster is invalid")
-    seen: set[tuple[str, str, str]] = set()
-    for selection, resolution in zip(selections, resolutions, strict=True):
-        if not isinstance(selection, Mapping) or not isinstance(resolution, Mapping):
-            _invalid("reviewed semantic evidence is invalid")
-        field, literal = selection.get("field"), selection.get("literal")
-        literals = selection.get("literals")
-        if literal is not None and literals is not None:
-            _invalid("reviewed semantic selection has conflicting literals")
-        selected_literals = (
-            (literal,)
-            if isinstance(literal, str)
-            else tuple(literals)
-            if isinstance(literals, list)
-            and literals
-            and all(isinstance(item, str) and item for item in literals)
-            and len(literals) == len(set(literals))
-            else ()
-        )
-        identities = tuple((selection.get("catalog"), field, item) for item in selected_literals)
-        if (
-            selection.get("catalog") != catalog
-            or not isinstance(field, str)
-            or field not in fields
-            or not selected_literals
-            or any(identity in seen for identity in identities)
-            or resolution.get("catalog") != catalog
-            or resolution.get("field") != field
-            or resolution.get("literal") != literal
-            or resolution.get("review_state") != "reviewed"
-        ):
-            _invalid("reviewed semantic evidence differs")
-        seen.update(identities)
-        record = fields[field]
-        if _semantic_state(record.get("semantic")) != "reviewed":
-            _unsupported("selected field semantics are not reviewed")
-        if (
-            selection.get("type") != record.get("type")
-            or selection.get("modifiers") != record.get("modifiers")
-            or selection.get("domain") != record.get("domain")
-        ):
-            _invalid("reviewed field technical surface differs")
-        if any((field, item) not in context_reviewed_values for item in selected_literals):
-            _unsupported("selected finite value semantics are not reviewed")
-    if admission_mode and seen != set(expected_cumulative):
-        _invalid("admitted cumulative semantic roster differs")
-    if rejection_mode and seen:
-        _invalid("rejected cumulative semantic roster is not empty")
-
-    proof = canonical_sha256(
-        {
-            "contract_id": "metis-brain-reviewed-semantic-index/v2",
-            "context_revision": context_revision,
-            "semantic_revision": semantic_revision,
-            "toolchain_binding": toolchain_binding,
-            "catalog": catalog,
-            "catalog_state": "reviewed",
-            "fields": field_manifest,
-            "selections": [list(item) for item in sorted(seen)],
-            "authority_mode": (
-                "reviewed_schema2_after_explicit_cumulative_rejection"
-                if rejection_mode
-                else "resolved_grounding"
-            ),
-            "cumulative_rejection": cumulative_rejection if rejection_mode else None,
-            "exact_value_authority": authority_manifest,
-            "expected_value_identities": [list(item) for item in expected_values],
-            "expected_cumulative_identities": [list(item) for item in expected_cumulative],
-        }
-    )
-    return ReviewedSemanticIndex(
-        catalog=catalog,
-        catalog_ref=catalog.rsplit(".", 1)[-1],
-        fields=frozenset(
-            name
-            for name, item in fields.items()
-            if _semantic_state(item.get("semantic")) == "reviewed"
-        ),
-        values=frozenset(authorized_values),
-        proof_revision=proof,
     )
 
 
@@ -881,24 +467,6 @@ def _eq(field: str, value: Mapping[str, Any]) -> dict[str, Any]:
     return {"op": "eq", "field": field, "value": dict(value)}
 
 
-def _within(field: str, duration: str) -> dict[str, Any]:
-    return {
-        "op": "within",
-        "field": field,
-        "amount": _literal(duration, "duration"),
-        "target": _literal("now", "time"),
-    }
-
-
-def _similar_seed() -> dict[str, Any]:
-    return {
-        "op": "similar",
-        "form": "record",
-        "profile": _SIMILARITY_PROFILE,
-        "target": {"kind": "ctx", "segments": [_SEED_CONTEXT_NAME]},
-    }
-
-
 def _fetch(
     *,
     catalog: str,
@@ -959,16 +527,6 @@ def _variant(
         "blocks": [copy.deepcopy(dict(item)) for item in blocks],
         "uses": [],
         "output": None,
-    }
-
-
-def _tipologia_predicate(values: tuple[str, ...]) -> dict[str, Any]:
-    if len(values) == 1:
-        return _eq("tipologia", _literal(values[0]))
-    return {
-        "op": "group",
-        "strategy": "any",
-        "items": [_eq("tipologia", _literal(value)) for value in values],
     }
 
 
@@ -1102,7 +660,7 @@ def filtered_collection_intent(
     semantic: ReviewedSemanticIndex,
     policy_revision: str,
 ) -> StructuralIntent:
-    """Build one plain filtered block solely from reviewed descriptor selections."""
+    """Build a reviewed filtered pool and explicitly emit it in the response."""
 
     if type(count) is not int or not 1 <= count <= 1_000_000:
         _invalid("filtered collection count is invalid")
@@ -1136,413 +694,51 @@ def filtered_collection_intent(
         semantic=semantic,
         policy_revision=policy_revision,
     )
+    response = _variant("response_root")
+    response["uses"] = [{"kind": "direct", "block": block["name"]}]
+    emission = _mutation(
+        action="attach",
+        member="variants",
+        cardinality="many",
+        insertion="append",
+        fragment_type="variant",
+        fragment=response,
+        label="Emetti la collezione filtrata nella risposta",
+        messages=messages,
+        semantic=semantic,
+        policy_revision=policy_revision,
+    )
     return StructuralIntent(
         "filtered_collection",
-        (mutation,),
+        (mutation, emission),
         semantic.proof_revision,
     )
 
 
-def _require_similar_semantics(semantic: ReviewedSemanticIndex, values: tuple[str, ...]) -> None:
-    for field in (_CONTENT_IDENTITY_FIELD, _CATEGORY_FIELD):
-        semantic.require_field(field)
-    for value in values:
-        semantic.require_value(_CATEGORY_FIELD, value)
-
-
-def similar_row_intent(
-    *,
-    values: tuple[str, ...],
-    count: int,
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent:
-    _require_similar_semantics(semantic, values)
-    seed_input = {
-        "name": _SEED_INPUT_NAME,
-        "type": "text",
-        "required": True,
-        "not_empty": True,
-        "default": None,
+def total_count_from_message(message: str, *, scopes: frozenset[str]) -> int | None:
+    surface = parse_create_quantity_surface(message)
+    if surface.status != "resolved":
+        return None
+    values = {
+        item.value
+        for item in surface.mentions
+        if item.kind == "result_count"
+        and item.scope in scopes
+        and item.mode == "total"
+        and item.qualifier is None
+        and type(item.value) is int
     }
-    seed = _context_fetch(
-        _SEED_CONTEXT_NAME,
-        _fetch(
-            catalog=semantic.catalog_ref,
-            count=1,
-            clauses=(
-                {
-                    "intent": "include",
-                    "where": [
-                        _eq(
-                            _CONTENT_IDENTITY_FIELD,
-                            {"kind": "input", "name": _SEED_INPUT_NAME},
-                        )
-                    ],
-                },
-            ),
-        ),
-    )
-    row = _container(
-        "main",
-        fetches=(
-            _fetch(
-                catalog=semantic.catalog_ref,
-                count=count,
-                clauses=(
-                    {
-                        "intent": "include",
-                        "where": [_tipologia_predicate(values), _similar_seed()],
-                    },
-                ),
-            ),
-        ),
-    )
-    mutations = (
-        _mutation(
-            action="attach",
-            member="inputs",
-            cardinality="many",
-            insertion="append",
-            fragment_type="input",
-            fragment=seed_input,
-            label="Aggiungi parametro seed",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-        _mutation(
-            action="attach",
-            member="context",
-            cardinality="many",
-            insertion="append",
-            fragment_type="contextBinding",
-            fragment=seed,
-            label="Aggiungi recupero del seed",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-        _mutation(
-            action="attach",
-            member="blocks",
-            cardinality="many",
-            insertion="append",
-            fragment_type="container",
-            fragment=row,
-            label="Aggiungi riga di contenuti simili",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-    )
-    return StructuralIntent("similar_row", mutations, semantic.proof_revision)
+    return next(iter(values)) if len(values) == 1 else None
 
 
-def recent_page_intent(
-    *,
-    values: tuple[str, ...],
-    count: int,
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent:
-    semantic.require_field(_CATEGORY_FIELD)
-    semantic.require_field(_RECENCY_FIELD)
-    for value in values:
-        semantic.require_value(_CATEGORY_FIELD, value)
-    fetch = _fetch(
-        catalog=semantic.catalog_ref,
-        count=count,
-        clauses=(
-            {
-                "intent": "include",
-                "where": [
-                    {
-                        "op": "in",
-                        "field": _CATEGORY_FIELD,
-                        "value": {"kind": "vals", "items": list(values)},
-                    }
-                ],
-            },
+_DESCRIPTOR_RECIPE_CONTRACTS = MappingProxyType(
+    {
+        "filtered_collection": (
+            ("attach", "blocks", "many", "append", "container"),
+            ("attach", "variants", "many", "append", "variant"),
         ),
-        order=({"by": "field", "direction": "descending", "field": _RECENCY_FIELD},),
-    )
-    variant = _variant("default", fetches=(fetch,))
-    output = {"projection": "default", "steps": [{"kind": "max", "count": count}], "fallbacks": []}
-    mutations = (
-        _mutation(
-            action="attach",
-            member="variants",
-            cardinality="many",
-            insertion="append",
-            fragment_type="variant",
-            fragment=variant,
-            label="Aggiungi pagina dei titoli recenti",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-        _mutation(
-            action="set",
-            member="output",
-            cardinality="one",
-            insertion="replace",
-            fragment_type="returnFlow",
-            fragment=output,
-            label="Limita il risultato della pagina",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-    )
-    return StructuralIntent("recent_page", mutations, semantic.proof_revision)
-
-
-def entertainment_pools_intent(
-    *,
-    count: int,
-    episode_window: str,
-    recent_window: str,
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent:
-    for field in (
-        _CATEGORY_FIELD,
-        _PROGRAM_TYPE_FIELD,
-        _PROGRAM_IDENTITY_FIELD,
-        _EDITORIAL_TYPE_FIELD,
-        _RECENCY_FIELD,
-    ):
-        semantic.require_field(field)
-    for field, literal in (
-        (_CATEGORY_FIELD, "Intrattenimento"),
-        (_PROGRAM_TYPE_FIELD, "Episode"),
-        (_EDITORIAL_TYPE_FIELD, "Clip"),
-        (_EDITORIAL_TYPE_FIELD, "Extra"),
-    ):
-        semantic.require_value(field, literal)
-    category = _eq(_CATEGORY_FIELD, _literal("Intrattenimento"))
-    episode = _eq(_PROGRAM_TYPE_FIELD, _literal("Episode"))
-    similar = _similar_seed()
-    group = {
-        "fields": [_PROGRAM_IDENTITY_FIELD],
-        "member_order": [],
-        "member_limit": None,
-        "having": None,
     }
-    definitions = (
-        (
-            "pool_same_program",
-            [
-                category,
-                episode,
-                _eq(
-                    _PROGRAM_IDENTITY_FIELD,
-                    {
-                        "kind": "ctx",
-                        "segments": [_SEED_CONTEXT_NAME, _PROGRAM_IDENTITY_FIELD],
-                    },
-                ),
-                _within(_RECENCY_FIELD, episode_window),
-                similar,
-            ],
-        ),
-        (
-            "pool_clips_extra",
-            [
-                category,
-                {
-                    "op": "group",
-                    "strategy": "any",
-                    "items": [
-                        _eq(_EDITORIAL_TYPE_FIELD, _literal("Clip")),
-                        _eq(_EDITORIAL_TYPE_FIELD, _literal("Extra")),
-                    ],
-                },
-                _within(_RECENCY_FIELD, recent_window),
-                similar,
-            ],
-        ),
-        (
-            "pool_entertainment_episodes",
-            [category, episode, _within(_RECENCY_FIELD, episode_window), similar],
-        ),
-        (
-            "pool_entertainment_clips",
-            [
-                category,
-                _eq(_EDITORIAL_TYPE_FIELD, _literal("Clip")),
-                _within(_RECENCY_FIELD, recent_window),
-                similar,
-            ],
-        ),
-    )
-    mutations: list[StructuralMutation] = [
-        _mutation(
-            action="set",
-            member="needs_time",
-            cardinality="one",
-            insertion="replace",
-            fragment_type="boolean",
-            fragment=True,
-            label="Abilita il tempo corrente",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        )
-    ]
-    for name, predicates in definitions:
-        binding = _context_fetch(
-            name,
-            _fetch(
-                catalog=semantic.catalog_ref,
-                count=count,
-                clauses=({"intent": "include", "where": predicates},),
-                group_by=group,
-            ),
-        )
-        mutations.append(
-            _mutation(
-                action="attach",
-                member="context",
-                cardinality="many",
-                insertion="append",
-                fragment_type="contextBinding",
-                fragment=binding,
-                label=f"Aggiungi pool {name.replace('_', ' ')}",
-                messages=messages,
-                semantic=semantic,
-                policy_revision=policy_revision,
-            )
-        )
-    return StructuralIntent("entertainment_pools", tuple(mutations), semantic.proof_revision)
-
-
-def entertainment_consumer_intent(
-    *,
-    first_count: int,
-    final_count: int,
-    recent_window: str,
-    fallback_target: str,
-    basis_block: Mapping[str, Any],
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent:
-    semantic.require_field(_RECENCY_FIELD)
-    semantic.require_field(_DEDUPLICATION_FIELD)
-    if _QUALIFIED_RE.fullmatch(fallback_target) is None:
-        _unsupported("fallback target is not an exact identifier")
-    pools = [
-        "pool_same_program",
-        "pool_clips_extra",
-        "pool_entertainment_episodes",
-        "pool_entertainment_clips",
-    ]
-
-    def consumer_fetch(alias: str, count: int) -> dict[str, Any]:
-        alternatives = {
-            "op": "group",
-            "strategy": "best_plus",
-            "coefficient": "near_full",
-            "items": [{"op": "ids", "segments": [name]} for name in pools],
-        }
-        return _fetch(
-            catalog=semantic.catalog_ref,
-            count=count,
-            alias=alias,
-            clauses=(
-                {"intent": "include", "where": [alternatives]},
-                {"intent": "promote", "where": [_within(_RECENCY_FIELD, recent_window)]},
-            ),
-        )
-
-    output = {
-        "projection": "default",
-        "steps": [
-            {"kind": "deduplicate", "field": _DEDUPLICATION_FIELD},
-            {"kind": "max", "count": final_count},
-        ],
-        "fallbacks": [
-            {
-                "kind": "materialized",
-                "target": fallback_target,
-                "trigger": "nested_flat_items_below",
-                "threshold": 1,
-                "mode": "append",
-            }
-        ],
-    }
-    block = _container(
-        "main",
-        fetches=(
-            consumer_fetch("consumer_first", first_count),
-            consumer_fetch("consumer_final", final_count),
-        ),
-        output=output,
-    )
-    variant = _variant("default", blocks=(block,))
-    mutations = (
-        _mutation(
-            action="remove",
-            member="blocks",
-            cardinality="many",
-            insertion="exact",
-            fragment_type="container",
-            fragment=copy.deepcopy(dict(basis_block)),
-            label="Rimuovi la riga iniziale",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-            basis_path=("blocks", 0),
-        ),
-        _mutation(
-            action="attach",
-            member="variants",
-            cardinality="many",
-            insertion="append",
-            fragment_type="variant",
-            fragment=variant,
-            label="Aggiungi consumer e fallback",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        ),
-    )
-    return StructuralIntent("entertainment_consumer", mutations, semantic.proof_revision)
-
-
-def _validation_semantic(catalog_ref: str) -> ReviewedSemanticIndex:
-    fields = frozenset(
-        {
-            "editorial_type",
-            "id_brand",
-            "programtype",
-            "publication_date",
-            "tipologia",
-            "video_content_id",
-        }
-    )
-    return ReviewedSemanticIndex(
-        catalog=f"authority.{catalog_ref}",
-        catalog_ref=catalog_ref,
-        fields=fields,
-        values=frozenset(
-            {
-                ("editorial_type", "Clip"),
-                ("editorial_type", "Extra"),
-                ("programtype", "Episode"),
-                ("tipologia", "Fiction"),
-                ("tipologia", "Film"),
-                ("tipologia", "Intrattenimento"),
-                ("tipologia", "Serie TV"),
-            }
-        ),
-        proof_revision="sha256:" + "0" * 64,
-    )
+)
 
 
 def _mutation_contract(mutation: StructuralMutation) -> tuple[str, str, str, str, str]:
@@ -1573,99 +769,26 @@ def _policy_revision_from_intent(intent: StructuralIntent) -> str:
     return revision
 
 
-def _expected_intent(
+def _expected_descriptor_intent(
     intent: StructuralIntent,
+    *,
     policy_revision: str,
-    semantic_authority: ReviewedSemanticIndex | None = None,
-    result_count: int | None = None,
+    semantic_authority: ReviewedSemanticIndex | None,
+    result_count: int | None,
 ) -> StructuralIntent:
-    """Rebuild the only admitted fragment from bounded variable leaves."""
-
-    try:
-        if intent.family == "filtered_collection":
-            if (
-                type(semantic_authority) is not ReviewedSemanticIndex
-                or semantic_authority.proof_revision != intent.semantic_proof_revision
-            ):
-                _invalid("original reviewed descriptor authority is required")
-            # Reopen the independent host index, never derive permission from
-            # the candidate fragment or its self-reported leaf identities.
-            return filtered_collection_intent(
-                count=result_count,
-                messages=(),
-                semantic=semantic_authority,
-                policy_revision=policy_revision,
-            )
-        if intent.family == "similar_row":
-            row = intent.mutations[2].fragment
-            fetch = row["fetches"][0]
-            catalog_ref = fetch["from"]["catalog"]
-            count = fetch["cardinality"]["value"]
-            predicate = fetch["clauses"][0]["where"][0]
-            if predicate.get("op") == "eq":
-                values = (predicate["value"]["value"],)
-            else:
-                values = tuple(item["value"]["value"] for item in predicate["items"])
-            if values not in {("Film",), ("Serie TV", "Fiction"), ("Intrattenimento",)}:
-                _invalid("similar row content roster is not code-owned")
-            if type(count) is not int or not 1 <= count <= 1_000_000:
-                _invalid("similar row count is invalid")
-            return similar_row_intent(
-                values=values,
-                count=count,
-                messages=(),
-                semantic=_validation_semantic(catalog_ref),
-                policy_revision=policy_revision,
-            )
-        if intent.family == "recent_page":
-            variant = intent.mutations[0].fragment
-            fetch = variant["fetches"][0]
-            catalog_ref = fetch["from"]["catalog"]
-            count = fetch["cardinality"]["value"]
-            if type(count) is not int or not 1 <= count <= 1_000_000:
-                _invalid("recent page count is invalid")
-            return recent_page_intent(
-                values=("Film", "Serie TV"),
-                count=count,
-                messages=(),
-                semantic=_validation_semantic(catalog_ref),
-                policy_revision=policy_revision,
-            )
-        if intent.family == "entertainment_pools":
-            binding = intent.mutations[1].fragment
-            catalog_ref = binding["fetch"]["from"]["catalog"]
-            return entertainment_pools_intent(
-                count=50,
-                episode_window="18M",
-                recent_window="14d",
-                messages=(),
-                semantic=_validation_semantic(catalog_ref),
-                policy_revision=policy_revision,
-            )
-        if intent.family == "entertainment_consumer":
-            basis_block = intent.mutations[0].fragment
-            variant = intent.mutations[1].fragment
-            block = variant["blocks"][0]
-            catalog_ref = block["fetches"][0]["from"]["catalog"]
-            fallback_target = block["output"]["fallbacks"][0]["target"]
-            if fallback_target != "intrat_recent":
-                _invalid("consumer fallback target is not code-owned")
-            return entertainment_consumer_intent(
-                first_count=4,
-                final_count=24,
-                recent_window="14d",
-                fallback_target=fallback_target,
-                basis_block=basis_block,
-                messages=(),
-                semantic=_validation_semantic(catalog_ref),
-                policy_revision=policy_revision,
-            )
-    except (KeyError, IndexError, TypeError, AttributeError) as error:
-        raise BrainError(
-            "CREATE_STRUCTURAL_AUTHORITY_INVALID", 500, "structural fragment is malformed"
-        ) from error
-    _invalid("structural intent family is not code-owned")
-    raise AssertionError("unreachable")
+    if intent.family != "filtered_collection":
+        _invalid("structural intent family is not descriptor-admissible")
+    if (
+        type(semantic_authority) is not ReviewedSemanticIndex
+        or semantic_authority.proof_revision != intent.semantic_proof_revision
+    ):
+        _invalid("original reviewed descriptor authority is required")
+    return filtered_collection_intent(
+        count=result_count,
+        messages=(),
+        semantic=semantic_authority,
+        policy_revision=policy_revision,
+    )
 
 
 def _validate_leaf_evidence(intent: StructuralIntent, *, policy_revision: str) -> None:
@@ -1745,684 +868,50 @@ def validate_structural_intent(
     policy_revision: str,
     semantic_authority: ReviewedSemanticIndex | None = None,
     result_count: int | None = None,
+    construction_authority: Any = None,
 ) -> StructuralIntent:
-    """Reopen a detached intent against the exact code-owned recipe registry."""
+    """Reopen an intent solely against independently held descriptor authority."""
 
     if not isinstance(intent, StructuralIntent):
         _invalid("structural intent is invalid")
     if re.fullmatch(r"sha256:[0-9a-f]{64}", policy_revision) is None:
         _invalid("structural policy revision is invalid")
-    descriptor = _RECIPE_CONTRACTS.get(intent.family)
+    if construction_authority is not None:
+        from metis_model1.brain_create_descriptor_operations import validate_descriptor_operation
+
+        return validate_descriptor_operation(
+            intent, authority=construction_authority, policy_revision=policy_revision
+        )
+    descriptor = _DESCRIPTOR_RECIPE_CONTRACTS.get(intent.family)
     observed = [_mutation_contract(item) for item in intent.mutations]
     if descriptor is None or observed != list(descriptor):
         _invalid("structural intent recipe differs")
     if _policy_revision_from_intent(intent) != policy_revision:
         _invalid("structural intent policy differs")
-    expected = _expected_intent(intent, policy_revision, semantic_authority, result_count)
+    expected = _expected_descriptor_intent(
+        intent,
+        policy_revision=policy_revision,
+        semantic_authority=semantic_authority,
+        result_count=result_count,
+    )
     for actual_mutation, expected_mutation in zip(
         intent.mutations, expected.mutations, strict=True
     ):
         if (
             actual_mutation.fragment != expected_mutation.fragment
+            or actual_mutation.anchor != expected_mutation.anchor
             or actual_mutation.basis_path != expected_mutation.basis_path
             or actual_mutation.label != expected_mutation.label
             or actual_mutation.requirement_label != expected_mutation.requirement_label
         ):
-            _invalid("structural intent fragment differs from its code-owned recipe")
-        if intent.family == "filtered_collection":
-            actual_leaves = {item.json_pointer: item for item in actual_mutation.leaf_evidence}
-            for leaf in expected_mutation.leaf_evidence:
-                actual_leaf = actual_leaves.get(leaf.json_pointer)
-                if leaf.origin == "reviewed_semantic" and actual_leaf != leaf:
-                    _invalid("descriptor leaf differs from its original reviewed authority")
+            _invalid("structural intent fragment differs from reviewed descriptor authority")
+        actual_leaves = {item.json_pointer: item for item in actual_mutation.leaf_evidence}
+        for leaf in expected_mutation.leaf_evidence:
+            actual_leaf = actual_leaves.get(leaf.json_pointer)
+            if leaf.origin == "reviewed_semantic" and actual_leaf != leaf:
+                _invalid("descriptor leaf differs from its original reviewed authority")
     _validate_leaf_evidence(intent, policy_revision=policy_revision)
     return intent
-
-
-def total_count_from_message(message: str, *, scopes: frozenset[str]) -> int | None:
-    surface = parse_create_quantity_surface(message)
-    if surface.status != "resolved":
-        return None
-    values = {
-        item.value
-        for item in surface.mentions
-        if item.kind == "result_count"
-        and item.scope in scopes
-        and item.mode == "total"
-        and item.qualifier is None
-        and type(item.value) is int
-    }
-    return next(iter(values)) if len(values) == 1 else None
-
-
-def _negated(text: str, token: str) -> bool:
-    escaped = re.escape(normalize_operator_text(token))
-    return re.search(rf"\b(?:non|senza)\b(?:\s+\w+){{0,3}}\s+{escaped}\b", text) is not None
-
-
-def _has_similarity(text: str) -> bool:
-    return any(token in text for token in ("simil", "affin", "correlat"))
-
-
-_COMMON_CONTRACT_TOKENS = frozenset(
-    {
-        "a",
-        "al",
-        "alla",
-        "che",
-        "ciascuno",
-        "come",
-        "con",
-        "da",
-        "dal",
-        "dei",
-        "del",
-        "della",
-        "delle",
-        "dello",
-        "degli",
-        "di",
-        "e",
-        "gli",
-        "i",
-        "il",
-        "in",
-        "l",
-        "la",
-        "le",
-        "lo",
-        "mi",
-        "nel",
-        "per",
-        "quello",
-        "quattro",
-        "se",
-        "sono",
-        "una",
-        "uno",
-        "un",
-    }
-)
-
-
-def _closed_tokens(
-    text: str,
-    *,
-    prefixes: frozenset[str],
-    numbers: frozenset[int],
-) -> bool:
-    """Require every meaningful operator token to belong to the parsed contract."""
-
-    normalized = normalize_operator_text(text)
-    observed_numbers = {int(item) for item in re.findall(r"\b[0-9]+\b", normalized)}
-    if observed_numbers != set(numbers):
-        return False
-    for token in re.findall(r"[a-z_]+", normalized):
-        if token in _COMMON_CONTRACT_TOKENS:
-            continue
-        if token not in prefixes:
-            return False
-    return True
-
-
-_SIMILAR_FIRST_PREFIXES = frozenset(
-    {
-        "affine",
-        "affini",
-        "cinema",
-        "cinematografici",
-        "cinematografico",
-        "contenuti",
-        "contenuto",
-        "correlata",
-        "correlate",
-        "correlati",
-        "correlato",
-        "crea",
-        "fiction",
-        "film",
-        "guarda",
-        "guardando",
-        "intrattenimento",
-        "riga",
-        "sezione",
-        "serie",
-        "simile",
-        "simili",
-        "sta",
-        "tv",
-        "utente",
-        "visto",
-        "voglio",
-        "vorrei",
-    }
-)
-_SIMILAR_SECOND_PREFIXES = frozenset(
-    {
-        "catalogo",
-        "contenuto",
-        "dammi",
-        "partendo",
-        "riga",
-        "risultati",
-        "seed",
-        "totali",
-        "usa",
-        "usando",
-        "video",
-        "visto",
-    }
-)
-_RECENT_FIRST_PREFIXES = frozenset({"crea", "momento", "pagina", "titoli"})
-_RECENT_SECOND_PREFIXES = frozenset(
-    {
-        "catalogo",
-        "film",
-        "pagina",
-        "recenti",
-        "risultati",
-        "serie",
-        "totali",
-        "tv",
-        "video",
-    }
-)
-_POOLS_PREFIXES = frozenset(
-    {
-        "candidati",
-        "clip",
-        "contenuti",
-        "costruisci",
-        "elementi",
-        "episodi",
-        "extra",
-        "finestra",
-        "giorni",
-        "intrattenimento",
-        "mesi",
-        "pool",
-        "programma",
-        "raggruppa",
-        "recenti",
-        "stesso",
-        "usa",
-    }
-)
-_CONSUMER_PREFIXES = frozenset(
-    {
-        "aggiungi",
-        "alternative",
-        "best",
-        "coda",
-        "combina",
-        "consumer",
-        "contenuti",
-        "deduplica",
-        "elementi",
-        "fallback",
-        "finale",
-        "full",
-        "intrat_recent",
-        "limita",
-        "meno",
-        "near",
-        "piatti",
-        "pool",
-        "plus",
-        "primo",
-        "promuovi",
-        "recenti",
-        "take",
-        "usa",
-    }
-)
-_POOLS_REQUIRED_PHRASES = (
-    "quattro pool",
-    "50 elementi ciascuno",
-    "18 mesi per gli episodi",
-    "14 giorni per i contenuti recenti",
-    "raggruppa per programma",
-)
-_CONSUMER_REQUIRED_PHRASES = (
-    "primo take da 4",
-    "finale da 24",
-    "combina i pool con alternative best plus near full",
-    "promuovi contenuti recenti",
-    "deduplica",
-    "limita a 24",
-    "se gli elementi piatti sono meno di uno",
-    "aggiungi in coda il fallback intrat recent",
-)
-
-
-def _similar_family(text: str) -> str | None:
-    hits = tuple(
-        family
-        for family, present in (
-            (
-                "similar_entertainment",
-                "intrattenimento" in text and not _negated(text, "intrattenimento"),
-            ),
-            (
-                "similar_series",
-                "serie" in text
-                and "fiction" in text
-                and not (_negated(text, "serie") or _negated(text, "fiction")),
-            ),
-            (
-                "similar_film",
-                any(token in text for token in ("film", "cinema", "cinematograf"))
-                and not _negated(text, "film"),
-            ),
-        )
-        if present
-    )
-    return hits[0] if len(hits) == 1 else None
-
-
-def _initial_contract_need(
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-) -> StructuralNeed | None:
-    if len(messages) != 2:
-        return StructuralNeed(
-            "structure.initial_contract", "Specifica la struttura iniziale completa."
-        )
-    first, latest = (normalize_operator_text(item.text) for item in messages)
-    if _negated(latest, "catalogo") or _negated(latest, "risultati"):
-        return StructuralNeed(
-            "structure.initial_contract", "Conferma catalogo e quantità richiesti."
-        )
-    count = total_count_from_message(messages[-1].text, scopes=frozenset({"total", "row"}))
-    if "titoli del momento" in first:
-        if (
-            count is None
-            or "recent" not in latest
-            or "film" not in latest
-            or "serie tv" not in latest
-            or not _closed_tokens(
-                messages[0].text, prefixes=_RECENT_FIRST_PREFIXES, numbers=frozenset()
-            )
-            or not _closed_tokens(
-                messages[-1].text,
-                prefixes=_RECENT_SECOND_PREFIXES,
-                numbers=frozenset({count}),
-            )
-        ):
-            return StructuralNeed(
-                "structure.recent_page_contract",
-                "Specifica quantità, tipi di contenuto e criterio di recenza della pagina.",
-            )
-        return None
-    if _has_similarity(first):
-        if _similar_family(first) is None:
-            return StructuralNeed(
-                "structure.content_type",
-                "Quale singola famiglia di contenuti deve alimentare la riga simile?",
-            )
-        if (
-            count is None
-            or not any(token in latest for token in ("seed", "contenuto visto"))
-            or _negated(latest, "seed")
-            or _negated(latest, "contenuto visto")
-            or not _closed_tokens(
-                messages[0].text,
-                prefixes=_SIMILAR_FIRST_PREFIXES,
-                numbers=frozenset(),
-            )
-            or not _closed_tokens(
-                messages[-1].text,
-                prefixes=_SIMILAR_SECOND_PREFIXES,
-                numbers=frozenset({count}),
-            )
-        ):
-            return StructuralNeed(
-                "structure.seed_and_count",
-                "Specifica tipo, seed e numero esatto di risultati della riga.",
-            )
-        return None
-    need = blocked_structure_need(messages)
-    return StructuralNeed(need.target_key, need.question)
-
-
-def _has_exact_pool_composition(text: str) -> bool:
-    return (
-        "episodi dello stesso programma" in text
-        and re.search(r"\bclip(?:/| e | ed )extra\b", text) is not None
-        and "episodi di intrattenimento" in text
-        and "clip di intrattenimento" in text
-    )
-
-
-def presemantic_structural_need(
-    messages: tuple[CreateAuthorityHistoryMessage, ...], *, generation: int
-) -> StructuralNeed | None:
-    """Classify unsupported structure before demanding a single-catalog projection."""
-
-    if not messages:
-        _invalid("structural dialogue is absent")
-    first = normalize_operator_text(messages[0].text)
-    if generation == 0:
-        if len(messages) > 2:
-            need = blocked_structure_need(messages)
-            return StructuralNeed(need.target_key, need.question)
-        return _initial_contract_need(messages)
-    if "intrattenimento" not in first or not _has_similarity(first):
-        need = blocked_structure_need(messages)
-        return StructuralNeed(need.target_key, need.question)
-    latest = normalize_operator_text(messages[-1].text)
-    if generation == 1:
-        if (
-            all(token in latest for token in _POOLS_REQUIRED_PHRASES)
-            and _has_exact_pool_composition(latest)
-            and not any(_negated(latest, token) for token in ("pool", "raggruppa"))
-            and _closed_tokens(
-                messages[-1].text,
-                prefixes=_POOLS_PREFIXES,
-                numbers=frozenset({14, 18, 50}),
-            )
-        ):
-            return None
-        return StructuralNeed(
-            "context.pools.contract",
-            "Specifica numero, composizione, finestre e raggruppamento di ogni pool.",
-        )
-    if generation == 2:
-        lexical = latest.replace("-", " ").replace("_", " ")
-        match = re.search(r"\bfallback\s+([a-z_][a-z0-9_.-]*)\b", latest)
-        if match is None or match.group(1) != "intrat_recent":
-            return StructuralNeed(
-                "consumer.fallback_target", "Qual è il target materializzato esatto del fallback?"
-            )
-        if (
-            not all(token in lexical for token in _CONSUMER_REQUIRED_PHRASES)
-            or _negated(latest, "fallback")
-            or not _closed_tokens(
-                messages[-1].text,
-                prefixes=_CONSUMER_PREFIXES,
-                numbers=frozenset({4, 24}),
-            )
-        ):
-            return StructuralNeed(
-                "consumer.output_and_fallback_contract",
-                "Specifica take, composizione, deduplica, limite e fallback del consumer.",
-            )
-        return None
-    raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement generation differs")
-
-
-def closed_structural_semantic_requirements(
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    *,
-    generation: int,
-    catalog: str,
-) -> StructuralSemanticRequirements:
-    """Return the exact code-owned value roster for one closed recipe.
-
-    This function runs only after the complete operator utterance passes the
-    same closed structural recognizer used by the builders.  It names exact
-    catalog identities for the host resolver; it does not assert that those
-    identities exist or are reviewed.
-    """
-
-    if _QUALIFIED_RE.fullmatch(catalog) is None:
-        _invalid("structural semantic catalog is invalid")
-    if presemantic_structural_need(messages, generation=generation) is not None:
-        _invalid("structural semantic requirements need a closed recipe")
-    first = normalize_operator_text(messages[0].text)
-    if generation == 0:
-        roster = "recent" if "titoli del momento" in first else _similar_family(first)
-        if roster is None:  # pragma: no cover - the closed recognizer establishes one family
-            _invalid("closed initial semantic family is invalid")
-        pairs = _STRUCTURAL_VALUE_ROSTERS[roster]
-        identities = tuple((catalog, field, literal) for field, literal in pairs)
-        return StructuralSemanticRequirements(identities, identities)
-    cumulative = tuple(
-        (catalog, field, literal)
-        for field, literal in _STRUCTURAL_VALUE_ROSTERS["entertainment_pools"]
-    )
-    if generation == 1:
-        return StructuralSemanticRequirements(cumulative, cumulative)
-    if generation == 2:
-        return StructuralSemanticRequirements((), cumulative)
-    raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement generation differs")
-
-
-def initial_family_need(message: str) -> tuple[str, str, str] | None:
-    """Choose one T1 question that a richer natural follow-up can answer."""
-
-    text = normalize_operator_text(message)
-    if "dettaglio" in text or "compleanno" in text:
-        return ("catalog", "catalog.selection", "Quali cataloghi devo usare?")
-    if "ricerca" in text and "dettaglio" not in text:
-        return ("page", "endpoint.results.page", "Quanti risultati vuoi per pagina?")
-    if "divisi per genere" in text:
-        return ("rows", "endpoint.rows.page", "Quante righe vuoi nella pagina?")
-    if "4k" in text or "intrattenimento" in text:
-        return ("row", "endpoint.results.row", "Quanti risultati vuoi nella riga?")
-    if _has_similarity(text) or any(
-        word in text for word in ("tvod", "titoli del momento", "pagina")
-    ):
-        return ("total", "endpoint.results.total", "Quanti risultati totali vuoi?")
-    return None
-
-
-def initial_ready_intent(
-    *,
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent | StructuralNeed:
-    need = _initial_contract_need(messages)
-    if need is not None:
-        return need
-    first = normalize_operator_text(messages[0].text)
-    count = total_count_from_message(messages[-1].text, scopes=frozenset({"total", "row"}))
-    if count is None:  # pragma: no cover - proven by _initial_contract_need
-        _invalid("resolved initial quantity is absent")
-    if "titoli del momento" in first:
-        return recent_page_intent(
-            values=("Film", "Serie TV"),
-            count=count,
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        )
-    if _has_similarity(first):
-        family = _similar_family(first)
-        if family is None:
-            return StructuralNeed(
-                "structure.content_type",
-                "Quale tipo di contenuto deve alimentare la riga simile?",
-            )
-        values = tuple(literal for _field, literal in _STRUCTURAL_VALUE_ROSTERS[family])
-        return similar_row_intent(
-            values=values,
-            count=count,
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        )
-    return StructuralNeed(*blocked_structure_need(messages).target_key_question)
-
-
-@dataclass(frozen=True, slots=True)
-class _NeedPair:
-    target_key: str
-    question: str
-
-    @property
-    def target_key_question(self) -> tuple[str, str]:
-        return self.target_key, self.question
-
-
-def blocked_structure_need(messages: tuple[CreateAuthorityHistoryMessage, ...]) -> _NeedPair:
-    """Return the earliest unresolved host-owned structural slot."""
-
-    first = normalize_operator_text(messages[0].text)
-    if _has_similarity(first) and any(
-        token in normalize_operator_text(messages[-1].text)
-        for token in ("rami", "percorsi", "variante")
-    ):
-        return _NeedPair(
-            "routes.activation_contract",
-            "Quali condizioni di attivazione verificabili distinguono i rami richiesti?",
-        )
-    if "dettaglio" in first and "ricerca" in first:
-        return _NeedPair(
-            "inputs.variant_and_4k_contract",
-            "Specifica tipi, obbligatorietà e valori ammessi per variante e capacità 4K.",
-        )
-    if "ricerca" in first:
-        return _NeedPair(
-            "normalization.transformer_binding",
-            "Quale trasformatore verificato deve normalizzare il testo di ricerca?",
-        )
-    if "compleanno" in first:
-        return _NeedPair(
-            "endpoint.variants.fetches.clauses.birthday",
-            "Specifica il predicato verificato che identifica il compleanno.",
-        )
-    if "titoli del momento" in first:
-        return _NeedPair(
-            "endpoint.blocks.fetches.take_plan",
-            "Specifica l'allocazione esatta dei take fra i blocchi richiesti.",
-        )
-    if "tvod" in first:
-        return _NeedPair(
-            "endpoint.blocks.genre.fetches.clauses.genre",
-            "Specifica il parametro e il predicato verificato per le sezioni di genere.",
-        )
-    if "4k" in first:
-        return _NeedPair(
-            "endpoint.context.user.fetch.clauses",
-            "Specifica il recupero utente e la condizione verificata "
-            "sulla capacità del dispositivo.",
-        )
-    if "divisi per genere" in first:
-        return _NeedPair(
-            "endpoint.context.user.fetch.clauses",
-            "Specifica il recupero verificato del contesto utente.",
-        )
-    return _NeedPair(
-        "structure.contract",
-        "Specifica il contratto strutturale mancante senza riferimenti impliciti.",
-    )
-
-
-def _basis_has_exact_similar_entertainment(spec: Mapping[str, Any]) -> bool:
-    endpoint = spec.get("endpoint")
-    if not isinstance(endpoint, Mapping):
-        return False
-    blocks, context, inputs = (
-        endpoint.get("blocks"),
-        endpoint.get("context"),
-        endpoint.get("inputs"),
-    )
-    if (
-        not isinstance(blocks, list)
-        or len(blocks) != 1
-        or not isinstance(context, list)
-        or len(context) != 1
-    ):
-        return False
-    if not isinstance(inputs, list) or len(inputs) != 1:
-        return False
-    try:
-        predicate = blocks[0]["fetches"][0]["clauses"][0]["where"][0]
-        similar = blocks[0]["fetches"][0]["clauses"][0]["where"][1]
-    except (KeyError, IndexError, TypeError):
-        return False
-    return (
-        predicate == _eq("tipologia", _literal("Intrattenimento"))
-        and similar == _similar_seed()
-        and endpoint.get("variants") == []
-    )
-
-
-def refinement_ready_intent(
-    *,
-    messages: tuple[CreateAuthorityHistoryMessage, ...],
-    base_spec: Mapping[str, Any],
-    generation: int,
-    semantic: ReviewedSemanticIndex,
-    policy_revision: str,
-) -> StructuralIntent | StructuralNeed:
-    need = presemantic_structural_need(messages, generation=generation)
-    if need is not None:
-        return need
-    latest = normalize_operator_text(messages[-1].text)
-    first = normalize_operator_text(messages[0].text)
-    if "intrattenimento" not in first or not _has_similarity(first):
-        need = blocked_structure_need(messages)
-        return StructuralNeed(need.target_key, need.question)
-    if generation == 1:
-        if not _basis_has_exact_similar_entertainment(base_spec):
-            raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement basis differs")
-        if not all(token in latest for token in _POOLS_REQUIRED_PHRASES) or any(
-            _negated(latest, token) for token in ("pool", "raggruppa")
-        ):
-            return StructuralNeed(
-                "context.pools.contract",
-                "Specifica numero, composizione, finestre e raggruppamento di ogni pool.",
-            )
-        if not _has_exact_pool_composition(latest):
-            return StructuralNeed(
-                "context.pools.contract",
-                "Specifica numero, composizione, finestre e raggruppamento di ogni pool.",
-            )
-        return entertainment_pools_intent(
-            count=50,
-            episode_window="18M",
-            recent_window="14d",
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        )
-    if generation == 2:
-        endpoint = base_spec.get("endpoint")
-        if not isinstance(endpoint, Mapping):
-            raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement basis differs")
-        blocks, context = endpoint.get("blocks"), endpoint.get("context")
-        names = [item.get("name") for item in context] if isinstance(context, list) else []
-        if (
-            endpoint.get("needs_time") is not True
-            or not isinstance(blocks, list)
-            or len(blocks) != 1
-            or names
-            != [
-                "seed",
-                "pool_same_program",
-                "pool_clips_extra",
-                "pool_entertainment_episodes",
-                "pool_entertainment_clips",
-            ]
-        ):
-            raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement basis differs")
-        lexical = latest.replace("-", " ").replace("_", " ")
-        match = re.search(r"\bfallback\s+([a-z_][a-z0-9_.-]*)\b", latest)
-        if match is None or match.group(1) != "intrat_recent":
-            return StructuralNeed(
-                "consumer.fallback_target",
-                "Qual è il target materializzato esatto del fallback?",
-            )
-        if not all(token in lexical for token in _CONSUMER_REQUIRED_PHRASES) or _negated(
-            latest, "fallback"
-        ):
-            return StructuralNeed(
-                "consumer.output_and_fallback_contract",
-                "Specifica take, composizione, deduplica, limite e fallback del consumer.",
-            )
-        return entertainment_consumer_intent(
-            first_count=4,
-            final_count=24,
-            recent_window="14d",
-            fallback_target=match.group(1),
-            basis_block=blocks[0],
-            messages=messages,
-            semantic=semantic,
-            policy_revision=policy_revision,
-        )
-    raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "refinement generation differs")
 
 
 def _structural_intent_manifest(intent: StructuralIntent) -> dict[str, Any]:
@@ -2453,10 +942,8 @@ def _structural_intent_manifest(intent: StructuralIntent) -> dict[str, Any]:
     }
 
 
-def _implementation_fragment_roster() -> list[dict[str, Any]]:
-    semantic = _validation_semantic("video")
-    policy = "sha256:" + "1" * 64
-    descriptor_semantic = ReviewedSemanticIndex(
+def _descriptor_implementation_fragment_roster() -> list[dict[str, Any]]:
+    semantic = ReviewedSemanticIndex(
         catalog="synthetic.assets",
         catalog_ref="assets",
         fields=frozenset({"attribute_x"}),
@@ -2464,93 +951,43 @@ def _implementation_fragment_roster() -> list[dict[str, Any]]:
         proof_revision="sha256:" + "2" * 64,
         selected_values=(("attribute_x", ("option_y",)),),
     )
-    descriptor_collection = filtered_collection_intent(
+    intent = filtered_collection_intent(
         count=7,
         messages=(),
-        semantic=descriptor_semantic,
-        policy_revision=policy,
-    )
-    similar_film = similar_row_intent(
-        values=("Film",),
-        count=24,
-        messages=(),
         semantic=semantic,
-        policy_revision=policy,
+        policy_revision="sha256:" + "1" * 64,
     )
-    similar_series = similar_row_intent(
-        values=("Serie TV", "Fiction"),
-        count=24,
-        messages=(),
-        semantic=semantic,
-        policy_revision=policy,
-    )
-    similar_entertainment = similar_row_intent(
-        values=("Intrattenimento",),
-        count=24,
-        messages=(),
-        semantic=semantic,
-        policy_revision=policy,
-    )
-    recent = recent_page_intent(
-        values=("Film", "Serie TV"),
-        count=30,
-        messages=(),
-        semantic=semantic,
-        policy_revision=policy,
-    )
-    pools = entertainment_pools_intent(
-        count=50,
-        episode_window="18M",
-        recent_window="14d",
-        messages=(),
-        semantic=semantic,
-        policy_revision=policy,
-    )
-    consumer = entertainment_consumer_intent(
-        first_count=4,
-        final_count=24,
-        recent_window="14d",
-        fallback_target="intrat_recent",
-        basis_block=similar_entertainment.mutations[2].fragment,
-        messages=(),
-        semantic=semantic,
-        policy_revision=policy,
-    )
-    return [
-        _structural_intent_manifest(item)
-        for item in (
-            descriptor_collection,
-            similar_film,
-            similar_series,
-            similar_entertainment,
-            recent,
-            pools,
-            consumer,
-        )
-    ]
+    return [_structural_intent_manifest(intent)]
 
 
-_STRUCTURAL_RECIPE_MANIFEST["recognizers"] = {
-    "similar_first": sorted(_SIMILAR_FIRST_PREFIXES),
-    "similar_second": sorted(_SIMILAR_SECOND_PREFIXES),
-    "recent_first": sorted(_RECENT_FIRST_PREFIXES),
-    "recent_second": sorted(_RECENT_SECOND_PREFIXES),
-    "pools": sorted(_POOLS_PREFIXES),
-    "consumer": sorted(_CONSUMER_PREFIXES),
-    "pools_required_phrases": list(_POOLS_REQUIRED_PHRASES),
-    "consumer_required_phrases": list(_CONSUMER_REQUIRED_PHRASES),
-    "similar": {
-        "family_cardinality": "exactly_one",
-        "seed_surfaces": ["seed", "contenuto visto"],
+_STRUCTURAL_IMPLEMENTATION_MANIFEST = {
+    "contract_id": STRUCTURAL_CREATE_AUTHORITY_CONTRACT,
+    "authority": "reviewed-schema2-descriptor-filter-index/v1",
+    "admissible_families": sorted(_DESCRIPTOR_RECIPE_CONTRACTS),
+    "recipes": {
+        name: [list(item) for item in recipe]
+        for name, recipe in _DESCRIPTOR_RECIPE_CONTRACTS.items()
     },
-    "recent": {
-        "first_surface": "titoli del momento",
-        "second_surfaces": ["film", "serie tv", "recent"],
+    "fragments": _descriptor_implementation_fragment_roster(),
+    "descriptor_operation": {
+        "contract": "metis-brain-descriptor-operation/v1",
+        "authority": "independent_original_base_descriptors_technical_and_bound_operation",
+        "validation": "exact_reconstruction_all_mutations_anchors_and_leaf_evidence",
+        "anchor": "original_endpoint_relative_nonremovable_fetch_container_or_variant",
+        "technical_origin": "pinned_technical_never_editorial_review",
+        "operations": [
+            "add_filtered_block",
+            "add_filtered_page",
+            "set_cardinality",
+            "order_by_field",
+            "return_projection",
+            "same_draft_fallback",
+            "similarity_from_input",
+        ],
     },
 }
-_STRUCTURAL_RECIPE_MANIFEST["fragments"] = _implementation_fragment_roster()
-STRUCTURAL_CREATE_IMPLEMENTATION_SHA256 = canonical_sha256(_STRUCTURAL_RECIPE_MANIFEST)
-del _STRUCTURAL_RECIPE_MANIFEST
+STRUCTURAL_CREATE_IMPLEMENTATION_SHA256 = canonical_sha256(_STRUCTURAL_IMPLEMENTATION_MANIFEST)
+del _STRUCTURAL_IMPLEMENTATION_MANIFEST
 
 
 __all__ = [
@@ -2558,20 +995,12 @@ __all__ = [
     "STRUCTURAL_CREATE_AUTHORITY_CONTRACT",
     "STRUCTURAL_CREATE_IMPLEMENTATION_SHA256",
     "ReviewedSemanticIndex",
-    "StructuralSemanticRequirements",
     "StructuralIntent",
     "StructuralLeafEvidence",
     "StructuralMutation",
     "StructuralNeed",
-    "blocked_structure_need",
-    "closed_structural_semantic_requirements",
     "filtered_collection_intent",
-    "initial_family_need",
-    "initial_ready_intent",
     "normalize_operator_text",
-    "presemantic_structural_need",
-    "refinement_ready_intent",
-    "reviewed_semantic_index",
     "reviewed_descriptor_filter_index",
     "total_count_from_message",
     "validate_structural_intent",

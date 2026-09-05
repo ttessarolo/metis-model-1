@@ -27,6 +27,7 @@ from metis_model1.brain_output_contract import parse_output_request
 from metis_model1.brain_protocol import BrainError, canonical_json, canonical_sha256
 from metis_model1.brain_retrieval import RetrievalResult
 from metis_model1.brain_sessions import OperationLease
+from metis_model1.brain_technical_authority import validate_technical_authority
 from metis_model1.video_catalog_projection import PROJECTION_CONTRACT
 from metis_model1.video_semantic_index import (
     build_semantic_index,
@@ -387,6 +388,7 @@ class LoadedProjection:
     projection: Mapping[str, Any]
     snapshot_revision: str
     semantic_source_revision: str | None = None
+    technical_authority: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -394,6 +396,7 @@ class _IndexedSnapshot:
     index: dict[str, Any]
     catalogs: tuple[dict[str, Any], ...]
     field_technical: dict[tuple[str, str], dict[str, Any]]
+    technical_authority: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -1747,6 +1750,22 @@ def _reject_semantic_refinement(grounding: dict[str, Any], instruction: str) -> 
 _DIALOGUE_CUMULATIVE_GROUNDING_CONTRACT = "metis-brain-dialogue-cumulative-grounding/v1"
 
 
+def _admitted_dialogue_answer(request: Any, messages: tuple[Any, ...], index: int) -> bool:
+    """A procedural answer can retain authority, never introduce domain selections."""
+    from metis_model1.brain_create_descriptor_dialogue import _procedural_text
+    from metis_model1.brain_create_surface import create_authority_history_revision
+
+    if index < 1:
+        return False
+    prefix = create_authority_history_revision(messages[:index])
+    decisions = tuple(
+        decision
+        for decision in request.server_dialogue.decisions
+        if decision.binding.history_revision == prefix
+    )
+    return _procedural_text(messages[index].text, decisions)
+
+
 def _sealed_dialogue_messages(
     *,
     lease: OperationLease,
@@ -1849,7 +1868,8 @@ def _cumulative_dialogue_selections(
     a Draft exists, only its server-owned grounding may seed the next turn;
     unresolved intervening messages can therefore never become authority
     retroactively.  Before the first Draft, the sole admitted history is the
-    original T1 plus its immediate T2 answer.
+    original T1 plus its immediate T2 answer, or a fully covered chain of
+    adjacent server-admitted procedural answers. Such answers add no filters.
     """
 
     messages = _sealed_dialogue_messages(
@@ -1861,8 +1881,11 @@ def _cumulative_dialogue_selections(
     if messages is None:
         return None
     basis = getattr(request, "server_basis_grounding", None)
+    procedural_chain = len(messages) > 1 and all(
+        _admitted_dialogue_answer(request, messages, index) for index in range(1, len(messages))
+    )
     if basis is None:
-        if len(messages) != 2:
+        if len(messages) != 2 and not procedural_chain:
             return None
         initial_text = messages[0].text
         initial = _dialogue_message_selections(
@@ -1879,6 +1902,10 @@ def _cumulative_dialogue_selections(
         if prior is None:
             return None
         selected = list(prior)
+    if (basis is None and procedural_chain) or (
+        basis is not None and _admitted_dialogue_answer(request, messages, len(messages) - 1)
+    ):
+        return selected or None
     identities = {_selection_identity(item) for item in selected}
 
     current = _dialogue_message_selections(
@@ -1972,6 +1999,9 @@ def _semantic_catalog_candidates(
     """
 
     owners = [item for item in records if item["owner"]]
+    if not request.strip():
+        # A quantity-only answer has no catalog evidence of its own.
+        return owners
     scored: list[tuple[int, dict[str, Any]]] = []
     for record in owners:
         result = resolve_grounding(index, request, catalog=record["catalog"])
@@ -2191,6 +2221,18 @@ def _bounded_source_context(
     return context
 
 
+def _with_technical_authority(
+    context: dict[str, Any], technical: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """Attach a private defensive copy; no result can mutate the cached original."""
+
+    if technical is not None:
+        context["technical_authority"] = copy.deepcopy(dict(technical))
+        if len(canonical_json(context)) > MAX_CONTEXT_BYTES:
+            _fail("RETRIEVAL_TOO_LARGE", "private catalog context exceeds the byte bound")
+    return context
+
+
 class Schema2SnapshotRetriever:
     """Production-facing retriever over a session's immutable source snapshot."""
 
@@ -2258,6 +2300,18 @@ class Schema2SnapshotRetriever:
             _source_paths(snapshot),
         )
         projection_copy = copy.deepcopy(dict(projection))
+        technical_authority = (
+            validate_technical_authority(
+                loaded.technical_authority,
+                projection=projection_copy,
+                context_revision=snapshot_revision,
+                semantic_source_revision=semantic_revision,
+                toolchain_binding=toolchain_binding,
+                tenant_id=snapshot.tenant_id,
+            )
+            if loaded.technical_authority is not None
+            else None
+        )
         field_technical = _projection_field_technical(projection_copy)
         grammar_revision = canonical_sha256({"grammar": toolchain_binding})
         try:
@@ -2297,6 +2351,7 @@ class Schema2SnapshotRetriever:
             index=index,
             catalogs=records,
             field_technical=field_technical,
+            technical_authority=technical_authority,
         )
         with self._cache_lock:
             existing = self._cache.get(key)
@@ -2559,6 +2614,34 @@ class Schema2SnapshotRetriever:
                 semantic_instruction,
                 indexed.catalogs,
             )
+            # A pure answer is not a new catalog request. Re-resolve the exact
+            # original request only when every later utterance is fully covered
+            # by an adjacent admitted decision. No free transcript fallback.
+            if basis_grounding is None:
+                messages = _sealed_dialogue_messages(
+                    lease=lease, request=request, index=indexed.index, instruction=instruction
+                )
+                if (
+                    messages is not None
+                    and len(messages) > 1
+                    and all(
+                        _admitted_dialogue_answer(request, messages, ordinal)
+                        for ordinal in range(1, len(messages))
+                    )
+                ):
+                    original_explicit = _explicit_catalog(messages[0].text, indexed.catalogs, None)
+                    if original_explicit not in {None, "__unknown__", "__ambiguous__"}:
+                        true_candidates = [
+                            item
+                            for item in indexed.catalogs
+                            if item["catalog"] == original_explicit
+                        ]
+                    elif original_explicit is None:
+                        true_candidates = _semantic_catalog_candidates(
+                            indexed.index,
+                            parse_output_request(messages[0].text).semantic_instruction,
+                            indexed.catalogs,
+                        )
         candidate_payload = tuple(
             {
                 "catalog": item["catalog"],
@@ -2732,7 +2815,7 @@ class Schema2SnapshotRetriever:
                 snapshot,
             )
             return RetrievalResult(
-                context=context,
+                context=_with_technical_authority(context, indexed.technical_authority),
                 grounding=grounding,
                 semantic_source_revision=indexed.index["semantic_source_revision"],
                 catalog_candidates=(),
@@ -2755,14 +2838,17 @@ class Schema2SnapshotRetriever:
                 "semantic_source_revision": indexed.index["semantic_source_revision"],
             }
             return RetrievalResult(
-                context={
-                    "tenant_alias": snapshot.tenant_alias,
-                    "tenant_id": snapshot.tenant_id,
-                    "context_revision": snapshot.revision,
-                    "semantic_source_revision": indexed.index["semantic_source_revision"],
-                    "toolchain_binding": snapshot.toolchain_binding,
-                    "catalogs": [dict(item) for item in candidate_payload],
-                },
+                context=_with_technical_authority(
+                    {
+                        "tenant_alias": snapshot.tenant_alias,
+                        "tenant_id": snapshot.tenant_id,
+                        "context_revision": snapshot.revision,
+                        "semantic_source_revision": indexed.index["semantic_source_revision"],
+                        "toolchain_binding": snapshot.toolchain_binding,
+                        "catalogs": [dict(item) for item in candidate_payload],
+                    },
+                    indexed.technical_authority,
+                ),
                 grounding=grounding,
                 semantic_source_revision=indexed.index["semantic_source_revision"],
                 catalog_candidates=candidate_payload,
@@ -2874,7 +2960,7 @@ class Schema2SnapshotRetriever:
             snapshot,
         )
         return RetrievalResult(
-            context=context,
+            context=_with_technical_authority(context, indexed.technical_authority),
             grounding=grounding,
             semantic_source_revision=indexed.index["semantic_source_revision"],
             catalog_candidates=(

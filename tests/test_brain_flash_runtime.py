@@ -312,8 +312,10 @@ def runtime_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(qualified_runtime, "EVALUATION_CACHE_ROOT", tmp_path / "cache")
     monkeypatch.setattr(flash_runtime, "_worker_environment", lambda: os.environ.copy())
 
+    # Protocol assertions include real interpreter startup, not a latency SLA.
+    # Deadline/cancellation tests retain their explicit short timeout budgets.
     def build(
-        mode: str = "ok", *, timeout_seconds: float = 1.0
+        mode: str = "ok", *, timeout_seconds: float = 10.0
     ) -> flash_runtime.MlxFlashIntentRuntime:
         _write_worker(worker, mode)
         return flash_runtime.MlxFlashIntentRuntime(

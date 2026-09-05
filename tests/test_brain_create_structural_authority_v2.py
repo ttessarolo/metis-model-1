@@ -1,19 +1,29 @@
 from __future__ import annotations
 
+import ast
 import copy
+import inspect
 import threading
+import tomllib
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import legacy_brain_create_structural_authority_v2 as structural
 import pytest
+from legacy_brain_create_authority_issuer_v2 import CreateV2HostRefIssuer
+from legacy_brain_create_authority_provider_impl_v2 import PinnedCreateV2AuthorityProvider
 
-import metis_model1.brain_create_structural_authority_v2 as structural
+import metis_model1.brain_create_structural_authority_v2 as product_structural
 from metis_model1.brain_context import ContextSnapshot, SnapshotFile
-from metis_model1.brain_create_authority_issuer_v2 import CreateV2HostRefIssuer
+from metis_model1.brain_create_authority_issuer_v2 import (
+    CreateV2HostRefIssuer as ProductCreateV2HostRefIssuer,
+)
 from metis_model1.brain_create_authority_provider_impl_v2 import (
     CREATE_V2_AUTHORITY_PROVIDER_CONTRACT,
-    PinnedCreateV2AuthorityProvider,
+)
+from metis_model1.brain_create_authority_provider_impl_v2 import (
+    PinnedCreateV2AuthorityProvider as ProductPinnedCreateV2AuthorityProvider,
 )
 from metis_model1.brain_create_authority_provider_v2 import (
     AskCreateV2Authority,
@@ -373,7 +383,7 @@ def _execute_intent(
     return dict(executed.spec)
 
 
-def test_generic_issuer_and_executor_reproduce_all_six_specs() -> None:
+def test_historical_issuer_and_generic_executor_reproduce_all_six_specs() -> None:
     base = initial_create_endpoint_skeleton(ENDPOINT)
     ready = _ready_intents()
     for index in range(4):
@@ -1214,7 +1224,9 @@ def test_catalog_question_rejects_unindexed_or_malformed_candidates(catalog: str
     context["catalog"]["name"] = catalog
     poisoned = replace(retrieved, context=context)
     with pytest.raises(BrainError) as caught:
-        PinnedCreateV2AuthorityProvider(hmac_key=b"c" * 32, toolchain_binding=TOOLCHAIN).prepare(
+        ProductPinnedCreateV2AuthorityProvider(
+            hmac_key=b"c" * 32, toolchain_binding=TOOLCHAIN
+        ).prepare(
             session_id=SESSION_ID,
             lease=lease,
             request=request,
@@ -1236,7 +1248,9 @@ def test_catalog_question_rejects_forged_index_option_and_draft_single_catalog()
     context["catalogs"] = candidates
     poisoned = replace(retrieved, context=context, catalog_candidates=tuple(candidates))
     with pytest.raises(BrainError) as forged:
-        PinnedCreateV2AuthorityProvider(hmac_key=b"c" * 32, toolchain_binding=TOOLCHAIN).prepare(
+        ProductPinnedCreateV2AuthorityProvider(
+            hmac_key=b"c" * 32, toolchain_binding=TOOLCHAIN
+        ).prepare(
             session_id=SESSION_ID,
             lease=lease,
             request=request,
@@ -1252,7 +1266,9 @@ def test_catalog_question_rejects_forged_index_option_and_draft_single_catalog()
     context = copy.deepcopy(retrieved.context)
     context["catalog"]["semantic"] = {"state": "draft"}
     with pytest.raises(BrainError) as draft:
-        PinnedCreateV2AuthorityProvider(hmac_key=b"d" * 32, toolchain_binding=TOOLCHAIN).prepare(
+        ProductPinnedCreateV2AuthorityProvider(
+            hmac_key=b"d" * 32, toolchain_binding=TOOLCHAIN
+        ).prepare(
             session_id=SESSION_ID,
             lease=lease,
             request=request,
@@ -1456,7 +1472,7 @@ def test_wrong_refinement_basis_and_retired_issuer_are_rejected() -> None:
     assert caught.value.code == "CREATE_TYPED_AUTHORITY_STALE"
 
     inventory = build_pinned_create_v2_capability_inventory(toolchain_binding=TOOLCHAIN)
-    issuer = CreateV2HostRefIssuer(hmac_key=b"z" * 32)
+    issuer = ProductCreateV2HostRefIssuer(hmac_key=b"z" * 32)
     secret = issuer._secret
     issuer.close()
     issuer.close()
@@ -1476,7 +1492,9 @@ def test_wrong_refinement_basis_and_retired_issuer_are_rejected() -> None:
         )
     assert retired.value.code == "CREATE_V2_AUTHORITY_RETIRED"
 
-    provider = PinnedCreateV2AuthorityProvider(hmac_key=b"y" * 32, toolchain_binding=TOOLCHAIN)
+    provider = ProductPinnedCreateV2AuthorityProvider(
+        hmac_key=b"y" * 32, toolchain_binding=TOOLCHAIN
+    )
     provider.close()
     provider.close()
     lease, request, dialogue, retrieved = _runtime_authority(
@@ -1516,3 +1534,118 @@ def test_production_authority_has_no_qualification_or_endpoint_instance_dependen
     ):
         assert token not in source
     assert CREATE_V2_AUTHORITY_PROVIDER_CONTRACT.endswith("production-structural-v2")
+
+
+@pytest.mark.parametrize("stage", range(6))
+def test_product_issuer_rejects_every_historical_family(stage: int) -> None:
+    """A fixture intent cannot regain authority through the shipped issuer."""
+
+    historical = _ready_intents()[stage][0]
+    candidate = product_structural.StructuralIntent(
+        family=historical.family,
+        mutations=tuple(
+            product_structural.StructuralMutation(
+                action=mutation.action,
+                member=mutation.member,
+                cardinality=mutation.cardinality,
+                insertion=mutation.insertion,
+                fragment_type=mutation.fragment_type,
+                fragment=copy.deepcopy(mutation.fragment),
+                label=mutation.label,
+                requirement_label=mutation.requirement_label,
+                leaf_evidence=tuple(
+                    product_structural.StructuralLeafEvidence(
+                        json_pointer=leaf.json_pointer,
+                        origin=leaf.origin,
+                        identity=copy.deepcopy(leaf.identity),
+                    )
+                    for leaf in mutation.leaf_evidence
+                ),
+                basis_path=mutation.basis_path,
+            )
+            for mutation in historical.mutations
+        ),
+        semantic_proof_revision=historical.semantic_proof_revision,
+    )
+    assert isinstance(candidate, product_structural.StructuralIntent)
+    inventory = build_pinned_create_v2_capability_inventory(toolchain_binding=TOOLCHAIN)
+    issuer = ProductCreateV2HostRefIssuer(hmac_key=b"j" * 32)
+    try:
+        with pytest.raises(BrainError) as caught:
+            issuer.issue_structural_authority(
+                inventory=inventory,
+                intent=candidate,
+                session_id=SESSION_ID,
+                conversation_id=bytes_sha256(b"conversation"),
+                request_fingerprint=bytes_sha256(b"request"),
+                history_revision=bytes_sha256(b"history"),
+                context_revision=bytes_sha256(b"context"),
+                semantic_revision=bytes_sha256(b"semantic"),
+                toolchain_binding=TOOLCHAIN,
+                generation=0,
+                endpoint=ENDPOINT,
+                candidate_filename="brain-drafts/demo.metis",
+                parent_spec_sha256=None,
+                parent_ir_sha256=None,
+                parent_proposal_ref=None,
+            )
+        assert caught.value.code == "CREATE_STRUCTURAL_AUTHORITY_INVALID"
+    finally:
+        issuer.close()
+
+
+@pytest.mark.parametrize("option", ("legacy_closed_recipes", "exact_value_resolver"))
+def test_product_provider_has_no_legacy_registration_option(option: str) -> None:
+    signature = inspect.signature(ProductPinnedCreateV2AuthorityProvider)
+    assert option not in signature.parameters
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        ProductPinnedCreateV2AuthorityProvider(
+            hmac_key=b"x" * 32,
+            toolchain_binding=TOOLCHAIN,
+            **{option: True},
+        )
+
+
+def test_historical_positive_chain_is_test_only_and_not_wheel_packaged() -> None:
+    """Historical safety coverage is retained without a product backdoor."""
+
+    issuer_module = inspect.getmodule(CreateV2HostRefIssuer)
+    provider_module = inspect.getmodule(PinnedCreateV2AuthorityProvider)
+    assert issuer_module is not None and provider_module is not None
+    assert issuer_module.validate_structural_intent is structural.validate_structural_intent
+    assert provider_module.CreateV2HostRefIssuer is CreateV2HostRefIssuer
+    assert provider_module.initial_ready_intent is structural.initial_ready_intent
+    assert CreateV2HostRefIssuer is not ProductCreateV2HostRefIssuer
+    assert PinnedCreateV2AuthorityProvider is not ProductPinnedCreateV2AuthorityProvider
+    project_root = Path(__file__).resolve().parents[1]
+    config = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = config["tool"]["hatch"]["build"]["targets"]["wheel"]
+    assert wheel["packages"] == ["src/metis_model1"]
+    assert not wheel.get("force-include")
+    for module in (structural, issuer_module, provider_module):
+        fixture_file = Path(inspect.getfile(module)).resolve()
+        assert fixture_file.parent == project_root / "tests"
+        assert not fixture_file.is_relative_to(project_root / wheel["packages"][0])
+        assert "never product authority" in (module.__doc__ or "").casefold()
+
+
+def test_product_sources_cannot_import_historical_test_fixtures() -> None:
+    source_root = Path(__file__).resolve().parents[1] / "src" / "metis_model1"
+    modules = tuple(source_root.rglob("*.py"))
+    assert modules
+    for path in modules:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+        imported = [
+            name
+            for node in ast.walk(tree)
+            for name in (
+                [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+        ]
+        assert all(not name.startswith(("tests.", "legacy_brain_create_")) for name in imported)
+        assert "legacy_brain_create_" not in source, path

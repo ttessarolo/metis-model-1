@@ -1086,7 +1086,7 @@ def test_v1_v2_share_one_pending_and_wrong_version_fails_closed() -> None:
 
 
 def test_v2_three_round_limit_and_five_slot_limit() -> None:
-    store = _store(Clock())
+    store = _store(Clock(), max_rounds_v2=3)
     with pytest.raises(BrainError):
         _v2_pending(store, slots=tuple(_v2_slot(f"row.{i}", count=True) for i in range(6)))
     for i in range(3):

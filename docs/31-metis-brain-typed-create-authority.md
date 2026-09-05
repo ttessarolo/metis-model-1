@@ -1,6 +1,7 @@
 # Metis Brain: typed CREATE authority and cumulative refinement
 
-Status: **IMPLEMENTATION ACTIVE**.  This document is the normative design for
+Status: **G5 CORE VERIFIED; CLIENT AND ADVANCED PACKS OPEN**.
+This document is the normative design for
 creating and refining complex endpoints without exposing a golden endpoint to a
 model, accepting arbitrary source as authority, or mutating the tenant.
 
@@ -58,10 +59,10 @@ tipizzato, la proposta deve produrre una decisione tipizzata dell'operatore o
 uno `STOP` fail-closed. Non è ammesso dedurlo dal nome né copiarlo da una
 recipe della demo.
 
-Le recipe legacy e i profili di qualifica restano strumenti di compatibilità e
-misurazione: possono fissare un test, ma non conferiscono autorità al prodotto.
-La loro presenza nel codice non dimostra generalità e deve essere ridotta con
-la migrazione dell'autorità verso il retrieval semantico del tenant.
+Le recipe chiuse storiche e i loro profili di qualifica sono soltanto strumenti
+di regressione: vivono nelle fixture test-only `tests/legacy_*`, non nel
+pacchetto di prodotto. Non conferiscono autorità al runtime, non hanno un
+percorso di attivazione e i loro punteggi non descrivono il nuovo default.
 
 ## CreateDeltaPlan v1
 
@@ -72,7 +73,8 @@ ordinals.  Every operation names at least one requirement.  The union of
 operation requirements must equal the declared requirement set: omissions and
 extras are both errors.
 
-The closed operation vocabulary is:
+Il seguente è il vocabolario riservato dal contratto del piano, non una
+dichiarazione che ogni operazione sia già una capability G5 attiva:
 
 - endpoint creation and metadata;
 - input and context declaration;
@@ -145,44 +147,50 @@ One isolated compiler call returns an exact receipt containing:
 No HTTP route exposes this bridge.  Brain returns source only as a Draft; Apply
 remains a separate explicit capability and is excluded from qualification.
 
-## Closed recipes: explicit operands and compatibility boundary
+## Historical fixtures and G5 capability status
 
-The closed structural recipes do not silently invent business operands.  The
-operator dialogue must explicitly bind the similarity seed, content family,
-quantities, per-pool cardinality, temporal-window scopes, pool composition,
-consumer strategy, recency promotion and fallback trigger, mode and target.
-An omission, negation, mixed family or swapped scope produces a bounded Ask
-before semantic authority or Model 1 can run.
+Closed recipes have been physically removed from production. Their complete
+historical behavior is retained only by `tests/legacy_*` fixtures, which may
+import product primitives but are never imported by product code. There is no
+compatibility flag, callback, registry entry or server configuration that can
+activate a historical recipe at runtime. Historical scores are regression
+evidence only, never a score for the descriptor-native default.
 
-During the migration, a qualification profile may exercise implementation
-details with one reviewed, code-pinned interpretation: record similarity uses
-the catalog profile `content_fingerprint`; “programma” groups on the reviewed
-brand identity `id_brand`; recency orders on `publication_date` descending; and
-deduplication uses the catalog identity `video_content_id`. These mappings are
-compatibility fixtures, not product authority. `seed_id` and `seed` are
-private input/context names, not semantic assumptions about an unspecified
-target. Product runtime must obtain equivalent roles from reviewed descriptors,
-or ask/stop when they are absent.
+The G5 core engine is **VERIFIED** by the complete 4,444-case gate (4,442
+passed, two explicit opt-in skips, zero failures/errors). This is a software
+receipt, not a model, client or complex-demo qualification. Its generic
+capability
+surface currently offers: add a filtered block with a total count; add a
+filtered page with `page_default` only as a new root variant (never on a
+`NamedBlock`); change an existing take's total count; explicit ordering by a
+reviewed field; a return projection whose
+name is declared by the target catalog for that take; same-Draft block fallback;
+and `similarity_from_input` using a catalog-declared profile and an explicit
+seed input. Each remains bound to the active reviewed/technical authority and
+the immutable session revision.
 
-Every mapped field and every finite literal is reopened against the exact
-schema-2 snapshot.  The host-only exact-value resolver admits only
-`reviewed_exact`; absent, draft, unannotated, extra, reordered or witness-only
-members fail closed.  Any change to these mappings changes the structural
-implementation and capability-inventory digests, so the runtime identity and
-qualification plan must be resealed before execution.
+Before a Draft, an operator can correct a bound choice. Candidate rosters are
+paged rather than silently truncated above 64 entries, and the private dialogue
+has an explicit maximum of 32 rounds/decisions and 64 messages, without
+increasing the previous total-byte allowance; it is not an indefinite chat history.
+New substantive requirements invalidate a prior answer and require a new
+bound decision.
 
-The first general product slice is intentionally narrow: reviewed finite
-keyword inclusion filters plus an explicit result count, rendered and compiled from the
-active tenant descriptors. It must work with renamed synthetic tenants and
-must not depend on the legacy recipe roster. Pagination, fallback, multi-block
-and implicit structural roles follow only after their descriptor contracts are
-available; until then they remain explicit clarification/STOP cases.
+The renamed-tenant real-compiler evidence for `similarity_from_input` is two
+passing cases included in the complete core gate, not a client gate. Named
+return projections are
+implemented only through the catalog-declared roster above; `view-all`,
+external fallback, grouping and arbitrary inter-catalog relations are not
+claimed as implemented capabilities. Until their independently bound roles and
+gates exist, the engine must ask a typed question or stop closed.
 
-The server uses descriptor-native authority by default. Legacy recipes require
-the internal `legacy_closed_recipes=True` compatibility option, which is not a
-server configuration setting. Their historical qualification scores do not
-describe the new default. Physical removal of that compatibility surface and
-generalization of the complex capabilities remain G5.
+A pool-only shape can compile green without emitting a response. The corrected
+first CREATE and add-block therefore emit an explicit variant/use, with
+normalized-IR emission assertions. Natural-answer integration re-runs retrieval
+at every message: only fully covered adjacent server-admitted answers retain
+original reviewed selections; labels never introduce new domain authority.
+Full gate receipts and outstanding client/demo qualification are distinct;
+see the [G5 VSIX handover](handover-g5-visix-dialogue-v2.md).
 
 ## Honest oracle for the ten complex journeys
 
@@ -216,7 +224,11 @@ reference is never silently promoted into a stage golden.
 
 ## Promotion gates
 
-A CREATE wave is green only when all of the following hold:
+The following gates govern the sealed complex-journey qualification profile,
+not the independent G5 core software receipt. The order is core validation,
+implementation commit/push/alignment, then sealed qualification from that
+immutable revision. Qualification evidence is delivered in a subsequent commit.
+That profile is green only when all of the following hold:
 
 1. every plan is schema-valid, fully covered and has zero unknown refs;
 2. every permit is consumed once under the exact live binding;

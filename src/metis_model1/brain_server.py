@@ -1101,7 +1101,6 @@ class MetisBrainService:
                 create_authority_provider = PinnedCreateV2AuthorityProvider(
                     hmac_key=secrets.token_bytes(32),
                     toolchain_binding=compiler.toolchain_binding,
-                    exact_value_resolver=retriever,
                 )
             if model_runtime is None and config.model is not None:
                 model_runtime = MlxBrainModelRuntime(

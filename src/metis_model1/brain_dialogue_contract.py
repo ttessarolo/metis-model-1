@@ -526,7 +526,7 @@ class PendingClarificationV2:
             or len({slot.identity for slot in slots}) != len(slots)
             or type(self.round_index) is not int
             or type(self.max_rounds) is not int
-            or not 1 <= self.round_index <= self.max_rounds <= 3
+            or not 1 <= self.round_index <= self.max_rounds <= MAX_DECISIONS
             or isinstance(self.expires_at, bool)
             or not isinstance(self.expires_at, int | float)
             or not math.isfinite(self.expires_at)

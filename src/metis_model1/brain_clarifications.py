@@ -364,6 +364,7 @@ class ClarificationStore:
         clarification_id_factory: Callable[[], str] | None = None,
         option_ref_factory: Callable[[], str] | None = None,
         max_rounds: int = MAX_ROUNDS,
+        max_rounds_v2: int = MAX_DECISIONS,
         max_result_count: int = DEFAULT_MAX_RESULT_COUNT,
         max_conversations_per_session: int = MAX_CONVERSATIONS_PER_SESSION,
     ) -> None:
@@ -376,6 +377,8 @@ class ClarificationStore:
             _fail("INVALID_CONFIG", 500, "clarification TTL must be within the session TTL")
         if type(max_rounds) is not int or not 1 <= max_rounds <= MAX_ROUNDS:
             _fail("INVALID_CONFIG", 500, "clarification round budget is invalid")
+        if type(max_rounds_v2) is not int or not 1 <= max_rounds_v2 <= MAX_DECISIONS:
+            _fail("INVALID_CONFIG", 500, "dialogue-v2 round budget is invalid")
         if type(max_result_count) is not int or not 1 <= max_result_count <= 100_000:
             _fail("INVALID_CONFIG", 500, "result-count bound is invalid")
         if (
@@ -390,6 +393,9 @@ class ClarificationStore:
         )
         self._new_option_ref = option_ref_factory or (lambda: "opt_" + secrets.token_urlsafe(12))
         self._max_rounds = max_rounds
+        # V1 is a bounded single request. V2 includes successive endpoint refinements;
+        # its separate round budget cannot exceed the existing cumulative decision cap.
+        self._max_rounds_v2 = max_rounds_v2
         self._max_result_count = max_result_count
         self._max_conversations = max_conversations_per_session
         self._sessions: dict[str, _SessionMemory] = {}
@@ -407,6 +413,10 @@ class ClarificationStore:
     @property
     def max_rounds(self) -> int:
         return self._max_rounds
+
+    @property
+    def max_rounds_v2(self) -> int:
+        return self._max_rounds_v2
 
     def _now(self, now: float | None) -> float:
         value = self._monotonic() if now is None else now
@@ -1124,7 +1134,7 @@ class ClarificationStore:
                 or conversation.binding.toolchain_binding != binding.toolchain_binding
             ):
                 _fail("CLARIFICATION_STALE", 409, "dialogue authority is stale")
-            if conversation.rounds_used >= self._max_rounds:
+            if conversation.rounds_used >= self._max_rounds_v2:
                 _fail("CLARIFICATION_BUDGET_EXCEEDED", 409, "clarification budget is exhausted")
             latest = {decision.identity: decision for decision in conversation.decisions}
             for slot in copied:
@@ -1175,7 +1185,7 @@ class ClarificationStore:
                 binding=binding,
                 slots=tuple(issued),
                 round_index=conversation.rounds_used + 1,
-                max_rounds=self._max_rounds,
+                max_rounds=self._max_rounds_v2,
                 expires_at=clock + self._ttl,
             )
             stored = _StoredPendingV2(pending)

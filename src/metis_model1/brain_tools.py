@@ -32,6 +32,7 @@ from metis_model1.brain_context import ContextSnapshot, toolchain_binding_from_p
 from metis_model1.brain_protocol import BrainError, bounded_source, canonical_json, canonical_sha256
 from metis_model1.brain_semantic_retrieval import LoadedProjection
 from metis_model1.brain_sessions import OperationLease
+from metis_model1.brain_technical_authority import bind_technical_authority
 from metis_model1.video_catalog_projection import (
     VideoCatalogProjectionError,
     build_catalog_semantic_projection,
@@ -41,7 +42,7 @@ from metis_model1.video_catalog_projection import (
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}\.metis$")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_PATH = PROJECT_ROOT / "runtime/metis_brain/runner.mts"
-RUNNER_SHA256 = "sha256:7a29f85d2c262300cd67f0895fe303ba23ce8fe8ced4cd0731844b58620318a5"
+RUNNER_SHA256 = "sha256:7c8d0f753df4a9ca44a4490b4d094887ab3859cfaefb0bad5e365f3ddb07f960"
 MAX_RUNNER_BYTES = 256 * 1024
 MAX_RUNNER_REQUEST_BYTES = 256 * 1024
 MAX_RUNNER_STDOUT_BYTES = 32 * 1024 * 1024
@@ -1575,7 +1576,18 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
                     },
                 )
             if (
-                set(response) != {"schema_version", "operation", "describe", "values", "counts"}
+                set(response)
+                not in (
+                    {"schema_version", "operation", "describe", "values", "counts"},
+                    {
+                        "schema_version",
+                        "operation",
+                        "describe",
+                        "values",
+                        "counts",
+                        "technical_authority",
+                    },
+                )
                 or response.get("schema_version") != 1
                 or response.get("operation") != "semantic-catalog"
                 or not isinstance(response.get("describe"), Mapping)
@@ -1595,6 +1607,18 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
                 or counts.get("values") != projected["values"]
             ):
                 raise _BrainIsolationError("semantic projection counts differ from runner")
+            technical = (
+                bind_technical_authority(
+                    response["technical_authority"],
+                    projection=joined["projection"],
+                    context_revision=snapshot.revision,
+                    semantic_source_revision=snapshot.semantic_source_revision(),
+                    toolchain_binding=snapshot.toolchain_binding,
+                    tenant_id=snapshot.tenant_id,
+                )
+                if "technical_authority" in response
+                else None
+            )
         except BrainError:
             raise
         except (
@@ -1612,6 +1636,7 @@ class PinnedCatalogProjectionLoader(_PinnedBridge):
             projection=joined["projection"],
             snapshot_revision=snapshot.revision,
             semantic_source_revision=snapshot.semantic_source_revision(),
+            technical_authority=technical,
         )
 
 

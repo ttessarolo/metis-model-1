@@ -322,7 +322,11 @@ class BrainOrchestrator:
                     intent=request.intent,
                     target_path=request.target["relative_path"],
                     endpoint=request.target["endpoint"],
-                    context=retrieved.context,
+                    context={
+                        key: value
+                        for key, value in retrieved.context.items()
+                        if key not in {"technical_authority", "catalog_reference_roster"}
+                    },
                     grounding=retrieved.grounding,
                     reference=request.target.get("reference"),
                     previous_source=previous,
@@ -470,7 +474,11 @@ class BrainOrchestrator:
                     intent=request.intent,
                     target_path=request.target["relative_path"],
                     endpoint=request.target["endpoint"],
-                    context=retrieved.context,
+                    context={
+                        key: value
+                        for key, value in retrieved.context.items()
+                        if key not in {"technical_authority", "catalog_reference_roster"}
+                    },
                     grounding=retrieved.grounding,
                     reference=request.target.get("reference"),
                     previous_source=candidate.source,
@@ -1166,7 +1174,11 @@ class BrainOrchestrator:
             intent=request.intent,
             target_path=request.target["relative_path"],
             endpoint=request.target["endpoint"],
-            context=retrieved.context,
+            context={
+                key: value
+                for key, value in retrieved.context.items()
+                if key not in {"technical_authority", "catalog_reference_roster"}
+            },
             grounding=retrieved.grounding,
             reference=request.target.get("reference"),
             previous_source=candidate.source,

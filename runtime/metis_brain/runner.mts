@@ -39,6 +39,9 @@ import {
   type TenantContext,
 } from "../../tooling/src/cli/catalog-domain.js";
 import { catalogThresholds } from "../../tooling/src/language/field-values.js";
+import { driverOf } from "../../tooling/src/language/drivers-schema.js";
+import { isCatalog, type Model } from "../../tooling/src/language/generated/ast.js";
+import { OPENSEARCH_RECORD_SIMILARITY_BINDING } from "../../tooling/src/compiler/render-es.js";
 import type {
   ArgRef,
   BlockArg,
@@ -1384,6 +1387,65 @@ function finiteFields(fields: FieldSkeleton[], parent?: string): string[] {
   return result;
 }
 
+function technicalFields(
+  fields: FieldSkeleton[],
+  parent?: string,
+): Array<{ name: string; type: string; modifiers: string[] }> {
+  return fields.flatMap((field) => {
+    const name = parent === undefined ? field.name : `${parent}.${field.name}`;
+    return [
+      { name, type: field.type, modifiers: [...field.modifiers] },
+      ...technicalFields(field.fields ?? [], name),
+    ];
+  });
+}
+
+function catalogTechnicalAuthority(
+  ctx: TenantContext,
+  described: ReturnType<typeof describeTenant>,
+): Record<string, unknown> {
+  const catalogs = ctx.docs.flatMap((doc) =>
+    (doc.parseResult.value as Model).elements.filter(isCatalog),
+  );
+  if (catalogs.length !== described.catalogs.length) {
+    return fail("technical and semantic catalog counts differ");
+  }
+  return {
+    contract_id: "metis-brain-tenant-technical-authority/v1",
+    tenant: ctx.tenant,
+    catalogs: catalogs.map((catalog, index) => {
+      const skeleton = described.catalogs[index]!;
+      const driver = driverOf(catalog.driver);
+      if (skeleton.name !== catalog.name || driver === undefined) {
+        return fail("technical catalog identity or driver is invalid");
+      }
+      return {
+        name: catalog.name,
+        driver: driver.name,
+        capabilities: [...driver.features],
+        fields: technicalFields(skeleton.fields),
+        id_field: catalog.idField ?? null,
+        similarity_field: catalog.similarity ?? null,
+        similarity_profiles: catalog.profiles.map((profile) => ({
+          name: profile.name,
+          fields: profile.fields.map((field) => {
+            const bound = field.field.ref;
+            if (bound === undefined) {
+              return fail("technical similarity field is unresolved");
+            }
+            return [bound.name, ...field.subfield].join(".");
+          }),
+          binding: OPENSEARCH_RECORD_SIMILARITY_BINDING,
+        })),
+        projections: catalog.returns.map((projection) => ({
+          name: projection.name,
+          fields: [...projection.fields],
+        })),
+      };
+    }),
+  };
+}
+
 async function semanticCatalog(
   tenantRoot: string,
 ): Promise<Record<string, unknown>> {
@@ -1400,6 +1462,7 @@ async function semanticCatalog(
     operation: "semantic-catalog",
     describe,
     values,
+    technical_authority: catalogTechnicalAuthority(ctx, describe),
     counts: {
       catalogs: describe.catalogs.length,
       finite_fields: values.length,

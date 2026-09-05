@@ -1,8 +1,8 @@
-"""Session-bound issuer for compact production CREATE v2 authority.
+"""Historical test-only CREATE authority fixture; never product authority.
 
-The issuer expands one already-adjudicated code capability into opaque refs and
-an exact private projection.  It performs no natural-language interpretation
-and no I/O.
+Frozen from Model 1 61a6c47 for legacy regression assertions only. This module
+is outside the src/metis_model1 wheel package and must never be imported by
+production code. Its accepted closed recipes do not register product powers.
 """
 
 from __future__ import annotations
@@ -15,13 +15,17 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Literal
 
+from legacy_brain_create_structural_authority_v2 import (
+    ReviewedSemanticIndex,
+    StructuralIntent,
+    validate_structural_intent,
+)
+
 from metis_model1.brain_create_capability_inventory_v2 import (
     PinnedCreateV2CapabilityInventory,
     validate_pinned_create_v2_inventory,
 )
 from metis_model1.brain_create_plan_v2 import (
-    MAX_FRAGMENT_DEPTH,
-    MAX_FRAGMENT_NODES,
     CompactAuthorityProjection,
     FragmentLeafBinding,
     NodeGrant,
@@ -29,11 +33,6 @@ from metis_model1.brain_create_plan_v2 import (
     SlotGrant,
     compact_authority_projection_revision,
     validate_compact_authority_projection,
-)
-from metis_model1.brain_create_structural_authority_v2 import (
-    ReviewedSemanticIndex,
-    StructuralIntent,
-    validate_structural_intent,
 )
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_json, canonical_sha256
 
@@ -43,7 +42,6 @@ _HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{32,96}$")
 _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,20}$")
 _ENDPOINT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,95}(?:\.[A-Za-z_][A-Za-z0-9_-]{0,95})*$")
-_MEMBER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
 def _fail(message: str, *, code: str = "CREATE_V2_AUTHORITY_ISSUER_INVALID") -> None:
@@ -54,57 +52,6 @@ def _hash(value: Any, *, label: str) -> str:
     if not isinstance(value, str) or _HASH_RE.fullmatch(value) is None:
         _fail(f"{label} is invalid")
     return value
-
-
-def _basis_anchor_fragment(base_spec: Mapping[str, Any], path: Any) -> Mapping[str, Any]:
-    """Resolve an exact private endpoint-relative locator, never a model path."""
-
-    if not isinstance(path, tuple) or not 1 <= len(path) <= MAX_FRAGMENT_DEPTH:
-        _fail("nested authority anchor path is invalid")
-    current: Any = base_spec.get("endpoint")
-    for token in path:
-        if isinstance(token, str) and _MEMBER_RE.fullmatch(token) is not None:
-            if not isinstance(current, Mapping) or token not in current:
-                _fail("nested authority anchor path differs", code="CREATE_V2_AUTHORITY_STALE")
-            current = current[token]
-        elif type(token) is int and 0 <= token <= MAX_FRAGMENT_NODES:
-            if not isinstance(current, list) or token >= len(current):
-                _fail("nested authority anchor path differs", code="CREATE_V2_AUTHORITY_STALE")
-            current = current[token]
-        else:
-            _fail("nested authority anchor path is invalid")
-    if not isinstance(current, Mapping):
-        _fail("nested authority anchor must be an object")
-    return current
-
-
-def _plain_original(value: Any) -> Any:
-    """Copy a frozen host-owned JSON tree without sharing nested mappings."""
-    if isinstance(value, Mapping):
-        return {key: _plain_original(item) for key, item in value.items()}
-    if isinstance(value, (tuple, list)):
-        return [_plain_original(item) for item in value]
-    return copy.deepcopy(value)
-
-
-def _basis_leaf_pointers(value: Any, pointer: str = "") -> tuple[str, ...]:
-    """Bind every scalar in a retained anchor, including false and null."""
-
-    if isinstance(value, Mapping):
-        return tuple(
-            leaf
-            for key, nested in value.items()
-            for leaf in _basis_leaf_pointers(
-                nested, f"{pointer}/{key.replace('~', '~0').replace('/', '~1')}"
-            )
-        )
-    if isinstance(value, list):
-        return tuple(
-            leaf
-            for index, nested in enumerate(value)
-            for leaf in _basis_leaf_pointers(nested, f"{pointer}/{index}")
-        )
-    return (pointer,)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -216,7 +163,6 @@ class CreateV2HostRefIssuer:
         parent_proposal_ref: str | None,
         semantic_authority: ReviewedSemanticIndex | None = None,
         result_count: int | None = None,
-        construction_authority: Any | None = None,
     ) -> IssuedCreateV2Authority:
         """Issue direct grants for one already-resolved generic structural intent."""
 
@@ -228,7 +174,6 @@ class CreateV2HostRefIssuer:
             policy_revision=inventory.policy_revision,
             semantic_authority=semantic_authority,
             result_count=result_count,
-            construction_authority=construction_authority,
         )
         if (
             _HASH_RE.fullmatch(conversation_id or "") is None
@@ -250,25 +195,6 @@ class CreateV2HostRefIssuer:
             _hash(parent_ir_sha256, label="parent IR hash")
             if not isinstance(parent_proposal_ref, str) or not parent_proposal_ref:
                 _fail("refinement parent is invalid", code="CREATE_V2_AUTHORITY_STALE")
-
-        original_base: Mapping[str, Any] | None = None
-        if construction_authority is not None and generation > 0:
-            provided_base = getattr(construction_authority, "base_spec", None)
-            if not isinstance(provided_base, Mapping):
-                _fail("construction authority lacks its original basis")
-            original_base = _plain_original(provided_base)
-            if canonical_sha256(original_base) != parent_spec_sha256:
-                _fail("construction authority basis differs", code="CREATE_V2_AUTHORITY_STALE")
-        for mutation in intent.mutations:
-            if mutation.anchor is None:
-                continue
-            if generation == 0 or original_base is None or mutation.action == "remove":
-                _fail("nested authority requires an original refinement basis")
-            actual = _basis_anchor_fragment(original_base, mutation.anchor.path)
-            if canonical_json(actual) != canonical_json(mutation.anchor.fragment):
-                _fail("nested authority anchor differs", code="CREATE_V2_AUTHORITY_STALE")
-            if mutation.member not in actual:
-                _fail("nested authority member is absent from its exact anchor")
 
         common = {
             "session_id": session_id,
@@ -324,45 +250,6 @@ class CreateV2HostRefIssuer:
                     allowed_ops=frozenset({mutation.action}),
                 )
             )
-            anchor_ref = target_ref
-            anchor_manifest: dict[str, Any] | None = None
-            if mutation.anchor is not None:
-                anchor = mutation.anchor
-                anchor_fragment = copy.deepcopy(dict(anchor.fragment))
-                anchor_manifest = {
-                    "path": list(anchor.path),
-                    "fragment_type": anchor.fragment_type,
-                    "fragment_sha256": canonical_sha256(anchor_fragment),
-                    "parent_spec_sha256": parent_spec_sha256,
-                }
-                anchor_ref = ref("anchor", {"ordinal": index, **anchor_manifest})
-                authorities.append(
-                    NodeGrant(
-                        handle=100 + index,
-                        ref=anchor_ref,
-                        label=f"Base conservata {index + 1}",
-                        state="basis",
-                        fragment_type=anchor.fragment_type,
-                        fragment=anchor_fragment,
-                        fragment_sha256=anchor_manifest["fragment_sha256"],
-                        leaf_bindings=tuple(
-                            FragmentLeafBinding(
-                                json_pointer=pointer,
-                                evidence_ref=ref(
-                                    "evidence",
-                                    {"anchor": anchor_manifest, "pointer": pointer},
-                                ),
-                                requirement_refs=(requirement_ref,),
-                                origin="basis",
-                            )
-                            for pointer in _basis_leaf_pointers(anchor_fragment)
-                        ),
-                        basis_spec_sha256=parent_spec_sha256,
-                        basis_path=anchor.path,
-                        parent_slot_ref=None,
-                        removable=False,
-                    )
-                )
             slot_ref = ref(
                 "slot",
                 {
@@ -370,7 +257,6 @@ class CreateV2HostRefIssuer:
                     "ordinal": index,
                     "member": mutation.member,
                     "placement": [mutation.cardinality, mutation.insertion],
-                    "anchor": anchor_manifest,
                 },
             )
             authorities.append(
@@ -378,7 +264,7 @@ class CreateV2HostRefIssuer:
                     handle=10 + index * 2,
                     ref=slot_ref,
                     label=f"Destinazione {mutation.label.lower()}",
-                    anchor_ref=anchor_ref,
+                    anchor_ref=target_ref,
                     member=mutation.member,
                     cardinality=mutation.cardinality,
                     accepts=(mutation.fragment_type,),
@@ -404,7 +290,6 @@ class CreateV2HostRefIssuer:
                     "fragment_type": mutation.fragment_type,
                     "fragment_sha256": fragment_sha256,
                     "basis_path": list(mutation.basis_path) if mutation.basis_path else None,
-                    "anchor": anchor_manifest,
                 },
             )
             leaf_bindings: list[FragmentLeafBinding] = []
@@ -451,7 +336,6 @@ class CreateV2HostRefIssuer:
                     "fragment_type": mutation.fragment_type,
                     "fragment_sha256": fragment_sha256,
                     "basis_path": list(mutation.basis_path) if mutation.basis_path else None,
-                    "anchor": anchor_manifest,
                 }
             )
         surface_revision = canonical_sha256(

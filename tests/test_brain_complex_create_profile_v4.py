@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from legacy_brain_create_structural_authority_v2 import (
+    initial_family_need,
+    presemantic_structural_need,
+)
 
 import metis_model1.brain_complex_create_qualification as qualification
 import metis_model1.cli as cli
 from metis_model1.brain_create_builder import render_create_endpoint
-from metis_model1.brain_create_structural_authority_v2 import (
-    initial_family_need,
-    presemantic_structural_need,
-)
 from metis_model1.brain_create_surface import CreateAuthorityHistoryMessage
 from metis_model1.brain_protocol import BrainError, bytes_sha256, canonical_sha256
 
@@ -147,7 +147,7 @@ def test_v4_blueprint_has_exact_prompt_derived_denominator_and_self_hashes() -> 
             )
 
 
-def test_v4_blueprint_matches_the_code_owned_prompt_recognizer() -> None:
+def test_v4_blueprint_matches_the_historical_test_only_prompt_recognizer() -> None:
     spec = _v4_spec()
     stages = qualification._load_blueprint_stages(spec)  # noqa: SLF001
     initial_gaps = spec.profile.initial_gap_map()

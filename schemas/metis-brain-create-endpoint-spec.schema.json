@@ -315,7 +315,7 @@
       "additionalProperties": false,
       "required": ["projection", "steps", "fallbacks"],
       "properties": {
-        "projection": {"enum": ["default", "expanded"]},
+        "projection": {"$ref": "#/$defs/identifier"},
         "steps": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/outputStep"}},
         "fallbacks": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/fallback"}}
       }

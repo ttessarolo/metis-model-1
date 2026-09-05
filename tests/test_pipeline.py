@@ -13,6 +13,38 @@ from metis_model1.closure import BuildInput, shared_leakage_group_id
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(scope="module")
+def validated_foundation_report():
+    """Provide one real, green Foundation report to downstream mutation tests."""
+
+    report = pipeline.validate_foundation(ROOT)
+    assert report.ok
+    return report
+
+
+@pytest.fixture
+def reuse_validated_foundation(monkeypatch, validated_foundation_report):
+    """Replay only an independently checked Foundation result, by value."""
+
+    baseline = deepcopy(validated_foundation_report)
+    call_roots: list[Path] = []
+
+    def validate_foundation(root: Path):
+        assert root == ROOT
+        call_roots.append(root)
+        report = deepcopy(validated_foundation_report)
+        assert report is not validated_foundation_report
+        assert report.passes is not validated_foundation_report.passes
+        assert report.errors is not validated_foundation_report.errors
+        return report
+
+    monkeypatch.setattr(pipeline, "validate_foundation", validate_foundation)
+    yield
+
+    assert call_roots == [ROOT]
+    assert validated_foundation_report == baseline
+
+
 def test_validate_pilot_reports_valid_contracts_and_denominators(capsys) -> None:
     assert main(["validate-pilot", "--root", str(ROOT), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
@@ -58,7 +90,9 @@ def test_validate_pilot_reports_valid_contracts_and_denominators(capsys) -> None
     assert report["denominators"]["evaluation"]["observations_out"] == 4
 
 
-def test_validate_pilot_fails_on_dataset_fixture_mutation(monkeypatch) -> None:
+def test_validate_pilot_fails_on_dataset_fixture_mutation(
+    monkeypatch, reuse_validated_foundation
+) -> None:
     original_load = pipeline._load
 
     def load(path: Path):
@@ -76,7 +110,9 @@ def test_validate_pilot_fails_on_dataset_fixture_mutation(monkeypatch) -> None:
     assert report["checks"]["dataset"]["errors"]
 
 
-def test_validate_pilot_reports_an_unreadable_dataset_without_crashing(monkeypatch) -> None:
+def test_validate_pilot_reports_an_unreadable_dataset_without_crashing(
+    monkeypatch, reuse_validated_foundation
+) -> None:
     original_load = pipeline._load
 
     def load(path: Path):
@@ -97,7 +133,9 @@ def test_validate_pilot_reports_an_unreadable_dataset_without_crashing(monkeypat
     }
 
 
-def test_validate_pilot_fails_on_evaluation_fixture_mutation(monkeypatch) -> None:
+def test_validate_pilot_fails_on_evaluation_fixture_mutation(
+    monkeypatch, reuse_validated_foundation
+) -> None:
     original_load = pipeline._load
 
     def load(path: Path):
@@ -115,7 +153,9 @@ def test_validate_pilot_fails_on_evaluation_fixture_mutation(monkeypatch) -> Non
     assert report["checks"]["evaluation"]["errors"]
 
 
-def test_validate_pilot_fails_on_asset_register_mutation(monkeypatch) -> None:
+def test_validate_pilot_fails_on_asset_register_mutation(
+    monkeypatch, reuse_validated_foundation
+) -> None:
     original_load = pipeline._load
 
     def load(path: Path):
@@ -133,7 +173,9 @@ def test_validate_pilot_fails_on_asset_register_mutation(monkeypatch) -> None:
     assert report["checks"]["assets"]["errors"]
 
 
-def test_validate_pilot_reanchors_closure_to_pinned_metis_git(monkeypatch) -> None:
+def test_validate_pilot_reanchors_closure_to_pinned_metis_git(
+    monkeypatch, reuse_validated_foundation
+) -> None:
     original_load = pipeline._load
 
     def load(path: Path):
@@ -169,7 +211,9 @@ def test_validate_pilot_reanchors_closure_to_pinned_metis_git(monkeypatch) -> No
     assert report["source_anchor"]["verified"] is False
 
 
-def test_validate_pilot_fails_closed_without_pinned_metis_checkout(tmp_path: Path) -> None:
+def test_validate_pilot_fails_closed_without_pinned_metis_checkout(
+    tmp_path: Path, reuse_validated_foundation
+) -> None:
     report = pipeline.validate_pilot(ROOT, tmp_path / "missing-metis")
 
     assert report["contract_valid"] is False
