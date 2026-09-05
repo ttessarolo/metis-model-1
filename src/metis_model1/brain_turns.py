@@ -25,13 +25,16 @@ from metis_model1.brain_create_surface import (
     create_authority_history_revision,
 )
 from metis_model1.brain_dialogue_contract import (
+    BoundDecision,
     DialogueAnswer,
     DialogueAnswerEnvelope,
     DialogueBinding,
     PendingClarificationV2,
     PrivateDialogueState,
     answer_roster,
+    decision_roster,
 )
+from metis_model1.brain_dialogue_planner import is_procedural_structural_specify_answer
 from metis_model1.brain_model_runtime import MAX_CREATE_PLAN_MESSAGES, BrainModelRuntime
 from metis_model1.brain_protocol import (
     MAX_SOURCE_BYTES,
@@ -659,6 +662,9 @@ class _OrchestratorTurnRecord:
         "candidate_create_history_revision",
         "dialogue_state",
         "dialogue_pending",
+        "dialogue_preview_base_state",
+        "dialogue_preview_answers",
+        "dialogue_preview_status",
     )
 
     _PRIVATE_NAMES = frozenset(__slots__[1:])
@@ -675,6 +681,9 @@ class _OrchestratorTurnRecord:
             "dialogue_pending",
             None if record.dialogue_pending is None else replace(record.dialogue_pending),
         )
+        object.__setattr__(self, "dialogue_preview_base_state", None)
+        object.__setattr__(self, "dialogue_preview_answers", ())
+        object.__setattr__(self, "dialogue_preview_status", None)
         object.__setattr__(self, "basis_manifest", deepcopy(record.basis_manifest))
         object.__setattr__(self, "basis_manifest_sha256", record.basis_manifest_sha256)
         object.__setattr__(self, "basis_create_spec", deepcopy(record.basis_create_spec))
@@ -719,6 +728,9 @@ class _OrchestratorTurnRecord:
     def clear_private(self) -> None:
         self.dialogue_state = None
         self.dialogue_pending = None
+        self.dialogue_preview_base_state = None
+        self.dialogue_preview_answers = ()
+        self.dialogue_preview_status = None
         self.basis_manifest = None
         self.basis_manifest_sha256 = None
         self.basis_create_spec = None
@@ -1240,6 +1252,8 @@ class TurnStore:
         *,
         record: TurnRecord,
         basis: _PrivateCreateState,
+        dialogue: PrivateDialogueState | None,
+        attached_pending: PendingClarificationV2 | None,
         result: dict[str, Any] | None,
     ) -> bool:
         """Accept a missing refined candidate only for its issued v2 question.
@@ -1274,7 +1288,14 @@ class TurnStore:
             )
         except BrainError:
             return False
-        dialogue = record.dialogue_state
+        history_prefixes = (
+            set()
+            if type(dialogue) is not PrivateDialogueState
+            else {
+                create_authority_history_revision(dialogue.messages[:index])
+                for index in range(1, len(dialogue.messages) + 1)
+            }
+        )
         if (
             type(dialogue) is not PrivateDialogueState
             or not dialogue.messages
@@ -1284,18 +1305,49 @@ class TurnStore:
             or clarification != pending.payload()
             or pending.session_id != record.session_id
             or pending.conversation_id != record.conversation_id
-            or pending.binding != dialogue.binding
             or pending.binding.context_revision != record.request.expected_context_revision
             or pending.binding.semantic_revision != record.request.expected_semantic_source_revision
+            or pending.binding.toolchain_binding != dialogue.binding.toolchain_binding
+            or pending.binding.history_revision not in history_prefixes
         ):
             return False
-        attached_pending = record.dialogue_pending
         if attached_pending is not None:
             return attached_pending == pending
         return (
             pending.parent_turn_id == record.turn_id
             and pending.binding.parent_fingerprint == record.request.request_fingerprint
         )
+
+    @staticmethod
+    def _prospective_structural_dialogue(
+        *,
+        base: PrivateDialogueState,
+        pending: PendingClarificationV2,
+        answers: tuple[DialogueAnswer, ...],
+    ) -> PrivateDialogueState:
+        """Reconstruct the sole non-authoritative structural preview exactly."""
+
+        if not is_procedural_structural_specify_answer(pending=pending, answers=answers):
+            raise BrainError("PROPOSAL_STALE", 409, "dialogue preview answer is invalid")
+        slot = pending.slots[0]
+        answer = answers[0]
+        selected = tuple(
+            choice for choice in slot.choices if choice.option_ref in answer.option_refs
+        )
+        if slot.question_ref is None or len(selected) != 1:
+            raise BrainError("PROPOSAL_STALE", 409, "dialogue preview answer is invalid")
+        accepted = BoundDecision(
+            decision_key=slot.decision_key,
+            target_key=slot.target_key,
+            kind=slot.kind,
+            question_ref=slot.question_ref,
+            answer_kind=slot.answer_kind,
+            binding=pending.binding,
+            choices=selected,
+            supersedes=slot.supersedes,
+            value_contract=slot.value_contract,
+        )
+        return replace(base, decisions=decision_roster((*base.decisions, accepted)))
 
     def _publish_private_attachments(
         self,
@@ -1322,8 +1374,46 @@ class TurnStore:
             staged_dialogue = (
                 None if staged.dialogue_state is None else replace(staged.dialogue_state)
             )
-            if staged_dialogue != live_dialogue:
-                raise BrainError("PROPOSAL_STALE", 409, "private dialogue changed during the turn")
+            live_pending = (
+                None if record.dialogue_pending is None else replace(record.dialogue_pending)
+            )
+            staged_pending = (
+                None if staged.dialogue_pending is None else replace(staged.dialogue_pending)
+            )
+            preview_status = staged.dialogue_preview_status
+            preview_base = staged.dialogue_preview_base_state
+            preview_answers = staged.dialogue_preview_answers
+            if preview_status is None:
+                if preview_base is not None or preview_answers or staged_dialogue != live_dialogue:
+                    raise BrainError(
+                        "PROPOSAL_STALE", 409, "private dialogue changed during the turn"
+                    )
+                publish_dialogue = live_dialogue
+                publish_pending = staged_pending
+            else:
+                if (
+                    preview_status not in {"replay", "committed"}
+                    or type(preview_base) is not PrivateDialogueState
+                    or preview_base != live_dialogue
+                    or live_pending is None
+                    or not isinstance(preview_answers, tuple)
+                ):
+                    raise BrainError("PROPOSAL_STALE", 409, "dialogue preview is unresolved")
+                prospective = self._prospective_structural_dialogue(
+                    base=preview_base,
+                    pending=live_pending,
+                    answers=preview_answers,
+                )
+                if preview_status == "replay":
+                    if staged_dialogue != preview_base or staged_pending != live_pending:
+                        raise BrainError("PROPOSAL_STALE", 409, "dialogue replay differs")
+                    publish_dialogue = preview_base
+                    publish_pending = live_pending
+                else:
+                    if staged_dialogue != prospective:
+                        raise BrainError("PROPOSAL_STALE", 409, "dialogue commit differs")
+                    publish_dialogue = prospective
+                    publish_pending = staged_pending
             basis_manifest, basis_manifest_sha256 = self._private_manifest_copy(
                 staged.basis_manifest,
                 staged.basis_manifest_sha256,
@@ -1367,6 +1457,8 @@ class TurnStore:
                 and self._is_exact_pending_create_clarification(
                     record=record,
                     basis=staged_basis_create,
+                    dialogue=publish_dialogue,
+                    attached_pending=publish_pending,
                     result=result,
                 )
             )
@@ -1391,6 +1483,12 @@ class TurnStore:
             record.candidate_manifest = candidate_manifest
             record.candidate_manifest_sha256 = candidate_manifest_sha256
             self._install_create_state(record, prefix="candidate", state=candidate_create)
+            record.dialogue_state = None if publish_dialogue is None else replace(publish_dialogue)
+            record.dialogue_pending = None if publish_pending is None else replace(publish_pending)
+            record.request = replace(
+                record.request,
+                server_dialogue=(None if publish_dialogue is None else replace(publish_dialogue)),
+            )
             return True
 
     def _clear_private_if_current(self, record: TurnRecord) -> None:
@@ -2227,6 +2325,49 @@ class TurnStore:
             )
         original = parent.request
         if answer.schema_version == 2:
+            # Same-ID question replay keeps one ClarificationStore pending alive
+            # while each accepted free-form message advances the private
+            # dialogue history.  Only that latest completed parent may extend
+            # the lineage.  Preserve submit's idempotent retry contract: an
+            # already admitted request_id still reaches submit, which verifies
+            # its exact payload hash and returns the original TurnRecord.
+            with self._lock:
+                if (session_id, answer.request_id) not in self._idempotency:
+                    eligible = []
+                    for candidate in self._turns.values():
+                        candidate_terminal = candidate.terminal
+                        candidate_clarification = (
+                            candidate_terminal.get("clarification")
+                            if isinstance(candidate_terminal, dict)
+                            else None
+                        )
+                        if (
+                            candidate.session_id == session_id
+                            and candidate.conversation_id == parent.conversation_id
+                            and type(candidate.dialogue_state) is PrivateDialogueState
+                            and isinstance(candidate_terminal, dict)
+                            and candidate_terminal.get("status") == "completed"
+                            and candidate_terminal.get("outcome") == "needs_clarification"
+                            and isinstance(candidate_clarification, dict)
+                            and candidate_clarification.get("clarification_id")
+                            == answer.clarification_id
+                        ):
+                            eligible.append(candidate)
+                    latest_generation = max(
+                        (candidate.dialogue_state.generation for candidate in eligible),
+                        default=None,
+                    )
+                    latest = [
+                        candidate
+                        for candidate in eligible
+                        if candidate.dialogue_state.generation == latest_generation
+                    ]
+                    if len(latest) != 1 or latest[0] is not parent:
+                        raise BrainError(
+                            "CLARIFICATION_STALE",
+                            409,
+                            "dialogue clarification parent is stale",
+                        )
             envelope = DialogueAnswerEnvelope(
                 answer.request_id,
                 answer.clarification_id,
@@ -2396,6 +2537,8 @@ class TurnStore:
                         "CLARIFICATION_UNAVAILABLE", 409, "dialogue authority is unavailable"
                     )
                 answers = envelope.answers
+                resolver_accepted: tuple[BoundDecision, ...] = ()
+                resolver_derived = False
                 if not answers and self._dialogue_answer_resolver is not None:
                     answers = answer_roster(
                         self._dialogue_answer_resolver(
@@ -2406,13 +2549,20 @@ class TurnStore:
                         allow_empty=True,
                     )
                     if answers:
-                        self.clarifications.validate_answers_v2(
+                        resolver_accepted = self.clarifications.validate_answers_v2(
                             session_id=record.session_id,
                             clarification_id=pending.clarification_id,
                             binding=pending.binding,
                             answers=answers,
                             claim_owner=record.turn_id,
                         )
+                        resolver_derived = True
+                provisional_structural = resolver_derived and (
+                    is_procedural_structural_specify_answer(
+                        pending=pending,
+                        answers=answers,
+                    )
+                )
                 remaining = pending
                 with self._lock:
                     if (
@@ -2423,7 +2573,20 @@ class TurnStore:
                         raise BrainError("SESSION_REVOKED", 409, "session was revoked")
                     # Consuming/rotating the binding and publishing its owner
                     # are one lifecycle transaction with cancel/drop/shutdown.
-                    if answers:
+                    if provisional_structural:
+                        prospective = replace(
+                            state,
+                            decisions=decision_roster((*state.decisions, *resolver_accepted)),
+                        )
+                        staged_record.dialogue_preview_base_state = replace(state)
+                        staged_record.dialogue_preview_answers = tuple(
+                            replace(answer) for answer in answers
+                        )
+                        staged_record.dialogue_preview_status = "pending"
+                        staged_record.dialogue_state = prospective
+                        staged_record.dialogue_pending = replace(pending)
+                        request = replace(request, server_dialogue=prospective)
+                    elif answers:
                         resolution = self.clarifications.answer_v2(
                             session_id=record.session_id,
                             clarification_id=pending.clarification_id,
@@ -2433,15 +2596,16 @@ class TurnStore:
                         )
                         state = replace(state, decisions=resolution.decisions)
                         remaining = resolution.remaining
-                    record.dialogue_state = replace(state)
-                    record.dialogue_pending = None if remaining is None else replace(remaining)
-                    staged_record.dialogue_state = replace(state)
-                    staged_record.dialogue_pending = (
-                        None if remaining is None else replace(remaining)
-                    )
-                    request = replace(request, server_dialogue=replace(state))
-                    record.request = request
-                if remaining is not None:
+                    if not provisional_structural:
+                        record.dialogue_state = replace(state)
+                        record.dialogue_pending = None if remaining is None else replace(remaining)
+                        staged_record.dialogue_state = replace(state)
+                        staged_record.dialogue_pending = (
+                            None if remaining is None else replace(remaining)
+                        )
+                        request = replace(request, server_dialogue=replace(state))
+                        record.request = request
+                if remaining is not None and not provisional_structural:
                     dialogue_terminal = {
                         "schema_version": request.schema_version,
                         "turn_id": record.turn_id,

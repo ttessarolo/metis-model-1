@@ -614,6 +614,40 @@ def _procedural_structural_specify(slot: QuestionSlot) -> BoundChoice | None:
     return specify
 
 
+def is_procedural_structural_specify_answer(
+    *, pending: PendingClarificationV2, answers: tuple[DialogueAnswer, ...]
+) -> bool:
+    """Recognize the one resolver-only structural continuation procedure.
+
+    This is deliberately a syntactic predicate over an already store-validated
+    answer roster.  It accepts exactly one answer to exactly one canonical
+    ``specify``/``reduce`` structural slot, with ``specify`` selected.  The
+    result grants no structural authority: TurnStore uses it only to stage a
+    prospective dialogue while the provider decides whether the same question
+    must be replayed or the answer may be committed.
+    """
+
+    if (
+        type(pending) is not PendingClarificationV2
+        or not isinstance(answers, tuple)
+        or len(pending.slots) != 1
+        or len(answers) != 1
+        or type(answers[0]) is not DialogueAnswer
+    ):
+        return False
+    slot = pending.slots[0]
+    answer = answers[0]
+    specify = _procedural_structural_specify(slot)
+    return bool(
+        specify is not None
+        and specify.option_ref is not None
+        and answer.question_ref == slot.question_ref
+        and answer.integer is None
+        and answer.multiple is False
+        and answer.option_refs == (specify.option_ref,)
+    )
+
+
 def _catalog_phrase_matches(
     message: str, catalog_slots: tuple[QuestionSlot, ...]
 ) -> dict[str, list[str]]:

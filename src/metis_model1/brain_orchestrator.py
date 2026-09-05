@@ -33,6 +33,13 @@ from metis_model1.brain_create_authority_provider_v2 import (
     selected_catalogs_from_dialogue,
     validate_dialogue_binding,
 )
+from metis_model1.brain_create_surface import create_authority_history_revision
+from metis_model1.brain_dialogue_contract import (
+    DialogueAnswer,
+    PendingClarificationV2,
+    PrivateDialogueState,
+    QuestionSlot,
+)
 from metis_model1.brain_grounded_renderer import render_grounded_create
 from metis_model1.brain_intent_ir import (
     BrainIntentCompiler,
@@ -188,7 +195,13 @@ class BrainOrchestrator:
                     retrieved=retrieved,
                     record=record,
                 )
-            record.request = request
+            # A resolver-derived structural answer remains provisional until
+            # the typed authority provider proves whether it advanced the
+            # dialogue.  The staged record deliberately keeps that request
+            # local; publishing it here would leak prospective decisions into
+            # the live TurnRecord before the two-phase commit.
+            if getattr(record, "dialogue_preview_status", None) != "pending":
+                record.request = request
             if typed_create:
                 return self._run_typed_create_v2(
                     lease=lease,
@@ -564,11 +577,28 @@ class BrainOrchestrator:
             binding=dialogue.binding,
             slots=decision.slots,
         )
+        return self._typed_create_clarification_payload(
+            request=request,
+            record=record,
+            retrieved=retrieved,
+            pending=pending,
+        )
+
+    def _typed_create_clarification_payload(
+        self,
+        *,
+        request: TurnRequest,
+        record: TurnRecord,
+        retrieved: RetrievalResult,
+        pending: PendingClarificationV2,
+    ) -> dict[str, Any]:
+        """Render an already sealed v2 question without rotating its authority."""
+
         record.emit(
             "catalog.clarification_required",
             "clarification_required",
             "Serve una scelta dell'operatore",
-            count=len(decision.slots),
+            count=len(pending.slots),
         )
         return {
             "schema_version": 2,
@@ -587,6 +617,165 @@ class BrainOrchestrator:
                 "tenant_modified": False,
             },
         }
+
+    @staticmethod
+    def _question_slot_template(slot: QuestionSlot) -> tuple[Any, ...]:
+        """Return every authoritative slot member except allocated public refs."""
+
+        if type(slot) is not QuestionSlot:
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE question is invalid"
+            )
+        return (
+            slot.decision_key,
+            slot.target_key,
+            slot.kind,
+            slot.question,
+            slot.answer_kind,
+            tuple(
+                (
+                    choice.label,
+                    choice.authority_keys,
+                    choice.candidate_revision,
+                    choice.required_roles,
+                    choice.description,
+                )
+                for choice in slot.choices
+            ),
+            slot.minimum,
+            slot.maximum,
+            slot.supersedes,
+            slot.value_contract,
+        )
+
+    @classmethod
+    def _same_question_template(
+        cls,
+        *,
+        pending: PendingClarificationV2,
+        slots: Sequence[QuestionSlot],
+    ) -> bool:
+        return tuple(cls._question_slot_template(slot) for slot in pending.slots) == tuple(
+            cls._question_slot_template(slot) for slot in slots
+        )
+
+    @staticmethod
+    def _overlapping_question_identity(
+        *,
+        pending: PendingClarificationV2,
+        slots: Sequence[QuestionSlot],
+    ) -> bool:
+        old = {slot.identity for slot in pending.slots}
+        return any(slot.identity in old for slot in slots)
+
+    def _commit_dialogue_preview(
+        self,
+        *,
+        session_id: str,
+        record: TurnRecord,
+    ) -> None:
+        """Commit one already validated provisional answer immediately before use."""
+
+        pending = getattr(record, "dialogue_pending", None)
+        prospective = getattr(record, "dialogue_state", None)
+        base = getattr(record, "dialogue_preview_base_state", None)
+        answers = getattr(record, "dialogue_preview_answers", ())
+        if (
+            type(pending) is not PendingClarificationV2
+            or type(prospective) is not PrivateDialogueState
+            or type(base) is not PrivateDialogueState
+            or not isinstance(answers, tuple)
+            or not answers
+            or any(type(answer) is not DialogueAnswer for answer in answers)
+            or pending.session_id != session_id
+            or pending.conversation_id
+            != (record.conversation_id or record.request.request_fingerprint)
+            or prospective.binding != base.binding
+            or prospective.conversation_id != base.conversation_id
+            or prospective.messages != base.messages
+            or pending.binding.context_revision != base.binding.context_revision
+            or pending.binding.semantic_revision != base.binding.semantic_revision
+            or pending.binding.toolchain_binding != base.binding.toolchain_binding
+            or pending.binding.history_revision
+            not in {
+                create_authority_history_revision(base.messages[:index])
+                for index in range(1, len(base.messages) + 1)
+            }
+            or {answer.question_ref for answer in answers}
+            != {slot.question_ref for slot in pending.slots}
+        ):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE preview is invalid"
+            )
+        current = self._clarifications.decisions_v2(
+            session_id=session_id,
+            conversation_id=pending.conversation_id,
+        )
+        if base.decisions != current or prospective.decisions[: len(current)] != current:
+            raise BrainError("CREATE_TYPED_AUTHORITY_STALE", 409, "typed CREATE preview differs")
+        resolution = self._clarifications.answer_v2(
+            session_id=session_id,
+            clarification_id=pending.clarification_id,
+            binding=pending.binding,
+            answers=answers,
+            claim_owner=record.turn_id,
+        )
+        if resolution.remaining is not None or resolution.decisions != prospective.decisions:
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE preview commit differs"
+            )
+        record.dialogue_state = prospective
+        record.dialogue_pending = None
+        record.dialogue_preview_status = "committed"
+
+    def _resolve_ask_dialogue_preview(
+        self,
+        *,
+        session_id: str,
+        request: TurnRequest,
+        record: TurnRecord,
+        retrieved: RetrievalResult,
+        decision: AskCreateV2Authority,
+    ) -> dict[str, Any] | None:
+        """Replay an unchanged question or commit before rotating to a new one."""
+
+        status = getattr(record, "dialogue_preview_status", None)
+        if status is None:
+            return None
+        if status != "pending":
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE preview status is invalid"
+            )
+        pending = getattr(record, "dialogue_pending", None)
+        base = getattr(record, "dialogue_preview_base_state", None)
+        if type(pending) is not PendingClarificationV2 or type(base) is not PrivateDialogueState:
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID", 500, "typed CREATE preview is unavailable"
+            )
+        if self._same_question_template(pending=pending, slots=decision.slots):
+            record.dialogue_state = base
+            record.dialogue_pending = pending
+            record.dialogue_preview_status = "replay"
+            return self._typed_create_clarification_payload(
+                request=request,
+                record=record,
+                retrieved=retrieved,
+                pending=pending,
+            )
+        if self._overlapping_question_identity(pending=pending, slots=decision.slots):
+            raise BrainError(
+                "CREATE_TYPED_AUTHORITY_INVALID",
+                500,
+                "typed CREATE question template changed for an existing identity",
+            )
+        if pending.round_index >= pending.max_rounds:
+            raise BrainError(
+                "CLARIFICATION_BUDGET_EXCEEDED",
+                409,
+                "clarification budget is exhausted",
+            )
+        self._commit_dialogue_preview(session_id=session_id, record=record)
+        return None
 
     def _run_typed_create_v2(
         self,
@@ -622,13 +811,27 @@ class BrainOrchestrator:
             retrieved=retrieved,
             basis=basis,
         )
+        if record.cancellation.is_set() or lease.cancellation.is_set():
+            raise BrainError("SESSION_REVOKED", 409, "turn was revoked")
         if type(decision) is AskCreateV2Authority:
+            replay = self._resolve_ask_dialogue_preview(
+                session_id=session_id,
+                request=request,
+                record=record,
+                retrieved=retrieved,
+                decision=decision,
+            )
+            if replay is not None:
+                return replay
+            clarification_dialogue = record.dialogue_state
+            if type(clarification_dialogue) is not PrivateDialogueState:
+                clarification_dialogue = dialogue
             return self._typed_create_clarification(
                 session_id=session_id,
                 request=request,
                 record=record,
                 retrieved=retrieved,
-                dialogue=dialogue,
+                dialogue=clarification_dialogue,
                 decision=decision,
             )
         if type(decision) is not ReadyCreateV2Authority:
@@ -673,6 +876,16 @@ class BrainOrchestrator:
             raise BrainError(
                 "CREATE_TYPED_AUTHORITY_STALE", 409, "typed CREATE parent authority differs"
             )
+
+        preview_status = getattr(record, "dialogue_preview_status", None)
+        if preview_status is not None:
+            if preview_status != "pending":
+                raise BrainError(
+                    "CREATE_TYPED_AUTHORITY_INVALID",
+                    500,
+                    "typed CREATE preview status is invalid",
+                )
+            self._commit_dialogue_preview(session_id=session_id, record=record)
 
         inference_started = time.monotonic()
         phase_started: dict[str, float] = {}

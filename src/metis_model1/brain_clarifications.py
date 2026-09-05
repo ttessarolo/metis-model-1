@@ -1305,8 +1305,8 @@ class ClarificationStore:
         answers: Sequence[DialogueAnswer | Mapping[str, Any]],
         claim_owner: str | None = None,
         now: float | None = None,
-    ) -> None:
-        """Validate all supplied answers, then optionally claim the group atomically."""
+    ) -> tuple[BoundDecision, ...]:
+        """Validate and return immutable decisions, then optionally claim atomically."""
         with self._lock:
             stored, accepted, _remaining = self._validated_v2_locked(
                 session_id=session_id,
@@ -1321,6 +1321,7 @@ class ClarificationStore:
                 stored.claimed_answers_sha256 = canonical_sha256(
                     [decision.decision_sha256 for decision in accepted]
                 )
+            return tuple(replace(decision) for decision in accepted)
 
     def answer_v2(
         self,

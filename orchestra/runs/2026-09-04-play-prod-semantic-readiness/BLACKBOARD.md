@@ -1579,3 +1579,61 @@ grounding, compiler, tenant or no-Apply gate.
 - OPEN [L0] — Seal the deterministic repairs on a clean commit and run the
   fresh authorized immutable `10x4` qualification. No promotion before its
   exact post-close assessment is green.
+
+### L0 — fourth live measurement and final dialogue blocker (2026-09-05)
+
+- FACT [L0] — Clean commit
+  `824513d717161f31fabcc3078096475cace65792` completed the fourth authorized
+  local `10x4` run in `231777ms`; all `10` journeys and `40` operator messages
+  completed. Semantic receipt identity is
+  `sha256:2dc49fd916576ce7af457b505cb11b826260e13d579d4f431351e86a057bb373`
+  and receipt-file SHA-256 is
+  `bc14540d5bfebde3eec6ee5d3ab7045839013c015ead423672db58c44b52ab13`.
+- DONE [L0] — Initial bounded questions remain `10/10`; all `6/6`
+  model/compiler-ready stages are exact, compile in one attempt and require no
+  repair. Terminal guards pass, blueprints load only after service close,
+  Apply remains absent, and Model 1 plus the read-only tenant remain unchanged.
+- FACT [L0] — The receipt is still RED at `9/24` safely blocked stages because
+  nine answer turns stop before model/compiler with `CLARIFICATION_REPEAT`:
+  case 01 T4, case 02 T4, cases 03/04/05 T3, case 06 T4 and cases 07/08/09 T3.
+  The canonical procedural `specify` answer retires the pending question, then
+  the provider correctly observes that the same oldest structural fact is
+  still missing and re-emits the same logical slot; the store correctly rejects
+  that consumed identity. No wrong Draft is admitted.
+- OPEN [L0] — Make procedural free-form continuation provisional: let the
+  provider inspect the appended operator message, but when the same slot is
+  still missing preserve and republish the exact live pending question without
+  recording authority or spending another round. Commit only if the provider
+  advances to a different Ask or Ready. Preserve replay, concurrency, stale
+  binding, cancellation and three-round guards; then execute focused gates and
+  a fresh immutable qualification.
+
+### L0/L1100/L1101/L1102 — provisional continuation integrated (2026-09-05)
+
+- FIX [L1100/L1101] — A resolver-derived free-form answer to the one canonical
+  structural `specify/reduce` pair is now validated and claimed as a private
+  preview. The provider receives the authenticated cumulative history plus the
+  prospective procedural decision, while the live pending, decision roster and
+  round remain unchanged until the provider result is known.
+- FIX [L1101] — If the provider returns the exact same complete question
+  template, Brain republishes the same clarification ID, binding, option refs
+  and round and discards the preview. A different identity commits the preview
+  before opening the next bounded round; the same identity with any changed
+  question/choice/role/revision contract fails closed. Ready commits before
+  inference. Cancellation is rechecked after provider execution and before any
+  transition.
+- FIX [L1100/L1102] — Same-ID replay now preserves cumulative volatile history
+  but only the newest completed dialogue parent may extend it; a stale parent
+  cannot fork away an admitted operator message. An already admitted exact
+  request ID retains idempotent replay behavior.
+- DONE [L1102/L0] — Independent zero-model/zero-compiler lifecycle tests cover
+  two consecutive same-question continuations, exact unchanged pending/store
+  state, different-Ask commit, old-ID replay, stale-parent rejection,
+  multi-slot abstention and altered-template failure. The L0 combined CREATE,
+  dialogue, decoder, provider, authority, executor, MLX-wire, pipeline,
+  qualification and TurnStore roster is `in=896 out=896 distinct=896 gaps=0`.
+  Repository-wide Ruff check, Ruff format-check (`294` files) and whitespace
+  gate pass.
+- OPEN [L0] — Commit the reviewed implementation on clean `main`, execute the
+  authorized immutable fifth `10x4` run, then run the single final `make check`
+  and promote only on exact `10/10 + 6/6 + 24/24` with all guards unchanged.

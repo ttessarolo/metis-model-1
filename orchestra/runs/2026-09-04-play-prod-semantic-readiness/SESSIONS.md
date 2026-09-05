@@ -458,3 +458,41 @@ push and did not run MLX, network, a live tenant or Apply.
   across `293` files and whitespace gate all green.
 - Status: active. Next: clean commit, fresh `10x4`, final full repository gate,
   evidence commit and push.
+
+### L1097/L1098/L1099 — run4 clarification-repeat audits
+
+- Models / effort: `gpt-5.6-terra` high for store/round and security audits;
+  `gpt-5.6-sol` high for blueprint/runtime semantic audit. L0 owns the
+  two-phase contract, integration, live qualification and promotion.
+- Scope: read-only analysis of the nine `CLARIFICATION_REPEAT` terminals, the
+  three-round invariant, the exact pinned blueprint expectations and the
+  existing same-pending replay path.
+- Result: the provider correctly preserves the oldest missing structural fact.
+  A normal `supersedes` transition is insufficient because it spends a round;
+  the procedural `specify` answer must instead remain provisional until the
+  provider either advances or confirms the same gap.
+- Status: done; no source/test/tenant/model/compiler/network/Apply/commit/push.
+
+### L1100/L1101/L1102 — provisional structural continuation
+
+- Models / effort: `gpt-5.6-sol` high for bounded lifecycle and orchestrator
+  implementation; `gpt-5.6-terra` high for an independent adversarial
+  TurnStore integration gate. L0 retains semantic/security acceptance, merged
+  verification, live model execution, full gate and Git authority.
+- L1100 ownership: `brain_clarifications.py`, `brain_dialogue_planner.py`,
+  `brain_turns.py` only. L1101 ownership: `brain_orchestrator.py` only. L1102
+  ownership: new-only `tests/test_brain_structural_provisional_replay.py`.
+- Contract: a resolver-derived exact structural `specify` is previewed and
+  claimed without consumption; the provider receives the appended message.
+  Same canonical slot means exact pending replay with no authority/round;
+  different Ask or Ready commits the preview before advancing. Explicit
+  answers and every noncanonical path remain unchanged and fail closed.
+- Exclusions: no tenant/model/compiler/network/Apply/training/board/commit/push
+  from delegated lanes.
+- Result: exact two-phase preview/replay/commit integrated; latest-parent
+  lineage prevents history forks. Delegated gates were `194/194`, `19/19` and
+  `4/4`; L0 independently inspected the combined diff and ran the broader
+  CREATE/dialogue/TurnStore roster `896/896`, plus repository Ruff, format and
+  whitespace gates.
+- Status: done. No delegated model/compiler/tenant/network/Apply/commit/push;
+  L0 proceeds to the clean pre-live commit and authorized fifth qualification.
