@@ -20,7 +20,8 @@ import tarfile
 import tempfile
 import time
 from collections.abc import Iterator, Mapping
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
@@ -735,7 +736,7 @@ def _check_runtime_current(
     if not isinstance(expected_packages, Mapping):
         _fail("runtime package pin is missing")
     try:
-        live_packages = {name: version(name) for name in expected_packages}
+        live_packages = {name: package_version(name) for name in expected_packages}
     except PackageNotFoundError as exc:
         _fail(f"qualification runtime package is missing: {exc}")
     if live_packages != expected_packages:
@@ -2329,7 +2330,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         if create_plan_grammar is not None and create_plan_tokenizer is not None:
             return create_plan_tokenizer, create_plan_grammar
         try:
-            decoder_version = version("llguidance")
+            decoder_version = package_version("llguidance")
         except PackageNotFoundError as error:
             _fail(f"CREATE plan decoder is unavailable: {error}")
         if f"llguidance-{decoder_version}" != CREATE_PLAN_DECODER:
@@ -2368,7 +2369,7 @@ def worker(model_path: Path, adapter_path: Path | None = None) -> int:
         if create_plan_v2_grammar is not None and create_plan_v2_tokenizer is not None:
             return create_plan_v2_tokenizer, create_plan_v2_grammar
         try:
-            decoder_version = version("llguidance")
+            decoder_version = package_version("llguidance")
         except PackageNotFoundError as error:
             _fail(f"CREATE v2 plan decoder is unavailable: {error}")
         if f"llguidance-{decoder_version}" != CREATE_PLAN_V2_DECODER:

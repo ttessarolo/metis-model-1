@@ -1405,3 +1405,34 @@ grounding, compiler, tenant or no-Apply gate.
 - OPEN [L0] — Seal and push the implementation on clean `main`, run the
   authorized live headless qualification from that exact commit, verify the
   immutable tenant and Model 1 guards, then commit/push the measured evidence.
+
+### L0 — first live measurement and decoder-worker repair (2026-09-05)
+
+- FACT [L0] — Implementation commit
+  `9c8fc02f7614cf054a370f2f0ba2f9460adf8310` was pushed with clean
+  `HEAD==origin/main`. The first authorized headless run completed all
+  `10` journeys / `40` operator messages in `97118ms`, but correctly returned
+  `qualification_green=false`; receipt
+  `sha256:494445af6986d951f5829828a7d45d51293360ec8e0bd00ce8db1672dc77d5ee`.
+  The first admitted inference ended `MODEL_RUNTIME_DIED`; later model stages
+  failed closed, so no blueprint oracle was opened and no false pass occurred.
+- FACT [L0] — A bounded in-memory stderr diagnostic reproduced the exact cause:
+  the worker-local integer `version` shadowed the imported
+  `importlib.metadata.version` callable inside the CREATE-v2 decoder closure,
+  raising `TypeError: 'int' object is not callable`. The diagnostic persisted
+  no stderr or prompt data.
+- FIX [L0] — Package lookup now uses the non-shadowable module alias
+  `package_version`; both decoder paths and runtime package validation use it.
+  Worker SHA-256 was resealed to
+  `56599f07d2a03768e11d1159666553a6fbc06d36c3402e2bdbf9e62b88c2e851`;
+  decoder-manifest file SHA-256 was resealed to
+  `a639c59a43bd2380679cd35ffe228d6dc0f0bd0e44cb346bd3ff3be0d27d0da1`.
+  A static regression proves no worker-local store can shadow
+  `package_version` and both decoder closures call it.
+- DONE [L0] — Focused MLX runtime, CREATE v1/v2, decoder-pin and complex
+  qualification suite: `in=132 out=132 distinct=132 gaps=0`; Ruff, format and
+  `git diff --check` green. Tenant HEAD/tree/status remained exactly unchanged;
+  Apply remained unavailable and uncalled.
+- OPEN [L0] — Commit the worker repair to obtain a clean guard, rerun the live
+  qualification to a fresh receipt, then run the final repository gate and
+  push measured closure evidence.

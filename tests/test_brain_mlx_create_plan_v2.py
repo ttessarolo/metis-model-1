@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -270,3 +273,22 @@ def test_v2_decoder_projection_and_worker_identity_are_pinned_without_generation
     assert len(projected["$defs"]["operation"]["anyOf"]) == 4
     assert "uniqueItems" in authoritative["$defs"]["requirementHandles"]
     assert "uniqueItems" not in projected["$defs"]["requirementHandles"]
+
+
+def test_worker_decoder_package_lookup_cannot_be_shadowed_by_wire_version() -> None:
+    tree = ast.parse(textwrap.dedent(inspect.getsource(qualified_runtime.worker)))
+    assigned_names = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
+    package_version_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "package_version"
+    ]
+
+    assert "package_version" not in assigned_names
+    assert len(package_version_calls) == 2

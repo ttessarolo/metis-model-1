@@ -61,7 +61,7 @@ KILL_WAIT_SECONDS = 5.0
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_PATH = PROJECT_ROOT / "fixtures/grammar-stdlib-accuracy-v3/t30-reference-context.md"
 REFERENCE_SHA256 = "ca2f7fc354e75a5c9367f6c934e67a04f7e44fd1615e26a8f19be6cde444194b"
-WORKER_SHA256 = "sha256:025b91db4dfffeb8197c2c0f432194ae5c2eb9a538b1771369c2025f320b8020"
+WORKER_SHA256 = "sha256:56599f07d2a03768e11d1159666553a6fbc06d36c3402e2bdbf9e62b88c2e851"
 _RUNTIME_REFERENCE_SECTIONS = (
     "## Output discipline",
     "### Catalog, fields, and value domains",

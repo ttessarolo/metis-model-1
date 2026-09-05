@@ -314,3 +314,17 @@ push and did not run MLX, network, a live tenant or Apply.
   `1943.80s`; independent re-audit `GREEN`, `P0=P1=P2=0`.
 - Status: active. Next: implementation commit/push, clean-commit live six-call
   qualification, immutable-guard verification, evidence commit/push.
+
+### L0 — live decoder-worker repair
+
+- Model / effort: frontier coordinator; authorized local Model 1 measurement,
+  root-cause diagnosis, pin reseal and promotion ownership.
+- First live result: measured red, `10/10` journeys and `40/40` messages,
+  `qualification_green=false`; first CREATE-v2 call killed the worker and all
+  later model stages failed closed. No Apply, tenant write or oracle leak.
+- Root cause/fix: worker-local integer `version` shadowed package-version
+  lookup; renamed callable alias to `package_version`, resealed worker and
+  decoder-manifest digests, added AST regression.
+- Focused verification: `132/132` green plus Ruff, format and diff-check.
+- Status: active. Next: clean repair commit, fresh live run, final full gate,
+  closure evidence commit and push.

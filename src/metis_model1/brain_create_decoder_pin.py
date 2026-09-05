@@ -30,7 +30,7 @@ MAX_JSON_DEPTH = 16
 # Filled after the manifest has been materialized.  Updating the worker pin
 # requires changing the manifest's isolated worker.sha256 and then this digest;
 # historical training/runtime freezes remain untouched.
-MANIFEST_FILE_SHA256 = "sha256:5baef8d1a53749d7d8aa6e616742b4a287594f9079c24e39aaa0889d67523b3c"
+MANIFEST_FILE_SHA256 = "sha256:a639c59a43bd2380679cd35ffe228d6dc0f0bd0e44cb346bd3ff3be0d27d0da1"
 
 _SHA256_LENGTH = len("sha256:") + 64
 _EXPECTED_TOP_LEVEL = {
